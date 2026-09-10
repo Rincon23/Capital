@@ -1,0 +1,63 @@
+import type { Metadata, Viewport } from 'next';
+import type { ReactNode } from 'react';
+import { Geist, Geist_Mono } from 'next/font/google';
+import './globals.css';
+import { AppProviders } from '@/components/providers/AppProviders';
+import { BottomNav } from '@/components/layout/BottomNav';
+import { RegisterServiceWorker } from '@/components/pwa/RegisterServiceWorker';
+
+const geistSans = Geist({
+  variable: '--font-geist-sans',
+  subsets: ['latin'],
+});
+
+const geistMono = Geist_Mono({
+  variable: '--font-geist-mono',
+  subsets: ['latin'],
+});
+
+export const metadata: Metadata = {
+  title: 'Capital — Orçamento doméstico',
+  description:
+    'Organize sua renda em categorias e acompanhe quanto ainda pode gastar em cada uma, mês a mês.',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Capital',
+  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f4f4f6' },
+    { media: '(prefers-color-scheme: dark)', color: '#0b0b0d' },
+  ],
+};
+
+const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('capital:theme');var d=t==='dark'||(t!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
+
+export default function RootLayout({ children }: { children: ReactNode }) {
+  return (
+    <html
+      lang="pt-BR"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
+    >
+      <head>
+        {/* Applied before hydration to avoid a light/dark flash on load. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
+      <body className="bg-background text-foreground flex min-h-full flex-col">
+        <AppProviders>
+          <div className="flex min-h-full flex-1 flex-col pb-16">{children}</div>
+          <BottomNav />
+          <RegisterServiceWorker />
+        </AppProviders>
+      </body>
+    </html>
+  );
+}
