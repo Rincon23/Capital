@@ -132,8 +132,18 @@ export function computeTopicResult(
   };
 }
 
-/** Computes the full summary for a month from its raw data. Pure: no I/O, no React. */
-export function computeMonthSummary(monthData: MonthData): MonthSummary {
+/**
+ * Computes the full summary for a month from its raw data. Pure: no I/O, no React.
+ *
+ * `currentTopics` (the live settings) is used only to pick each topic's color, so
+ * a color change in Settings shows everywhere immediately — colors are cosmetic
+ * and, unlike targetPct/order, are not frozen in the month's snapshot. Falls back
+ * to the snapshot's color (or a palette default) for topics no longer in settings.
+ */
+export function computeMonthSummary(
+  monthData: MonthData,
+  currentTopics?: readonly TopicConfig[],
+): MonthSummary {
   const activeTopics = monthData.topicsSnapshot.filter((t) => !t.archived);
   const incomeTotal = computeIncomeTotal(monthData);
   const fixedTotal = computeFixedTotal(monthData.expenses);
@@ -144,17 +154,18 @@ export function computeMonthSummary(monthData: MonthData): MonthSummary {
   const topics = activeTopics
     .slice()
     .sort((a, b) => a.order - b.order)
-    .map((topic, index) =>
-      computeTopicResult(
+    .map((topic, index) => {
+      const liveColor = currentTopics?.find((t) => t.id === topic.id)?.color;
+      return computeTopicResult(
         topic,
         monthData.expenses,
         incomeTotal,
         fixedTotal,
         unforeseenTotal,
         monthData.carryIn[topic.id] ?? 0,
-        resolveTopicColor(topic, index),
-      ),
-    );
+        liveColor ?? resolveTopicColor(topic, index),
+      );
+    });
 
   const expenseTotal = round2(fixedTotal + unforeseenTotal + sum(topics.map((t) => t.spent)));
   const availableTotal = sum(topics.map((t) => t.available));

@@ -41,8 +41,8 @@ export interface SpecialCategoryColors {
 export interface BudgetSettings {
   topics: TopicConfig[];
   specialCategories: SpecialCategoryLabels;
-  /** Optional for older data; resolve with `resolveSpecialCategoryColors`. */
-  specialCategoryColors?: SpecialCategoryColors;
+  /** May be absent or partial in older data; resolve with `resolveSpecialCategoryColors`. */
+  specialCategoryColors?: Partial<SpecialCategoryColors>;
 }
 
 export interface Income {

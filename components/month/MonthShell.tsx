@@ -14,8 +14,8 @@ type ExpenseFormState =
 type IncomeFormState = { open: true; initial?: Income } | { open: false };
 
 export function MonthShell({ month, children }: { month: Month; children: ReactNode }) {
-  const monthData = useMonthData(month);
   const { settings } = useSettings();
+  const monthData = useMonthData(month, settings?.topics);
 
   const [expenseForm, setExpenseForm] = useState<ExpenseFormState>({ open: false });
   const [incomeForm, setIncomeForm] = useState<IncomeFormState>({ open: false });

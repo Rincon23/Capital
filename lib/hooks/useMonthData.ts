@@ -8,6 +8,7 @@ import {
   type Month,
   type MonthData,
   type MonthSummary,
+  type TopicConfig,
 } from '@/lib/budget';
 import { budgetRepository } from '@/lib/storage';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
@@ -26,8 +27,11 @@ export interface UseMonthDataResult {
   reopenMonth: () => Promise<void>;
 }
 
-/** Loads (creating if needed) and mutates a single competence month, backed by the repository. */
-export function useMonthData(month: Month): UseMonthDataResult {
+/**
+ * Loads (creating if needed) and mutates a single competence month, backed by the repository.
+ * `currentTopics` (live settings) is forwarded to `computeMonthSummary` for colors only.
+ */
+export function useMonthData(month: Month, currentTopics?: TopicConfig[]): UseMonthDataResult {
   const [monthData, setMonthData] = useState<MonthData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +89,7 @@ export function useMonthData(month: Month): UseMonthDataResult {
   const closeMonth = useCallback(() => guard(() => budgetRepository.closeMonth(month)), [guard, month]);
   const reopenMonth = useCallback(() => guard(() => budgetRepository.reopenMonth(month)), [guard, month]);
 
-  const summary = monthData ? computeMonthSummary(monthData) : null;
+  const summary = monthData ? computeMonthSummary(monthData, currentTopics) : null;
 
   return {
     monthData,

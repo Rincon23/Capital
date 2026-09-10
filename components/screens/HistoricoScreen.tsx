@@ -10,10 +10,12 @@ import {
   type TopicSeries,
 } from '@/components/history/HistoryCharts';
 import { useAllMonths } from '@/lib/hooks/useAllMonths';
+import { useSettings } from '@/components/providers/SettingsProvider';
 import { formatBRL, formatMonthLabel, formatPct } from '@/lib/budget';
 
 export function HistoricoScreen() {
-  const { summaries, loading, error } = useAllMonths();
+  const { settings } = useSettings();
+  const { summaries, loading, error } = useAllMonths(settings?.topics);
 
   const topics: TopicSeries[] = useMemo(() => {
     const byId = new Map<string, TopicSeries>();

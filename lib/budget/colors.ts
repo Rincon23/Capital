@@ -28,6 +28,34 @@ export function resolveTopicColor(topic: Pick<TopicConfig, 'color'>, index: numb
   return topic.color ?? DEFAULT_TOPIC_COLORS[index % DEFAULT_TOPIC_COLORS.length];
 }
 
+/**
+ * Returns `topics` with every `color` filled in. Missing colors are assigned a
+ * palette slot by the topic's position when ordered — deterministic per topic
+ * identity, so reordering later never changes a color that was auto-assigned.
+ */
+export function withTopicColors(topics: TopicConfig[]): TopicConfig[] {
+  const slotById = new Map(
+    [...topics]
+      .sort((a, b) => a.order - b.order)
+      .map(
+        (topic, index) =>
+          [topic.id, DEFAULT_TOPIC_COLORS[index % DEFAULT_TOPIC_COLORS.length]] as const,
+      ),
+  );
+  return topics.map((topic) =>
+    topic.color ? topic : { ...topic, color: slotById.get(topic.id) },
+  );
+}
+
+/** Fills in any missing colors (topics + special categories) so the UI has a complete palette. */
+export function normalizeSettings(settings: BudgetSettings): BudgetSettings {
+  return {
+    ...settings,
+    topics: withTopicColors(settings.topics),
+    specialCategoryColors: resolveSpecialCategoryColors(settings),
+  };
+}
+
 /** Special-category colors with any missing entries filled from the defaults. */
 export function resolveSpecialCategoryColors(
   source:

@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import type { BudgetSettings } from '@/lib/budget';
+import { normalizeSettings, type BudgetSettings } from '@/lib/budget';
 import { budgetRepository } from '@/lib/storage';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
 
@@ -25,7 +25,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       const data = await budgetRepository.getSettings();
-      setSettings(data);
+      // Backfill any missing category colors (older data) so the UI is stable.
+      setSettings(normalizeSettings(data));
     } catch (err) {
       setError(toStorageErrorMessage(err, 'Não foi possível carregar suas configurações.'));
     } finally {
@@ -41,8 +42,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const saveSettings = useCallback(async (next: BudgetSettings) => {
-    await budgetRepository.saveSettings(next);
-    setSettings(next);
+    const normalized = normalizeSettings(next);
+    await budgetRepository.saveSettings(normalized);
+    setSettings(normalized);
   }, []);
 
   // A failure here blocks every screen (they all need settings), so surface it

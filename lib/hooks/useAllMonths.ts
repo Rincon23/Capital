@@ -1,7 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { computeMonthSummary, type MonthData, type MonthSummary } from '@/lib/budget';
+import {
+  computeMonthSummary,
+  type MonthData,
+  type MonthSummary,
+  type TopicConfig,
+} from '@/lib/budget';
 import { budgetRepository } from '@/lib/storage';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
 
@@ -13,8 +18,11 @@ export interface UseAllMonthsResult {
   refresh: () => Promise<void>;
 }
 
-/** Loads every stored month, oldest to newest, for the history/charts screen. */
-export function useAllMonths(): UseAllMonthsResult {
+/**
+ * Loads every stored month, oldest to newest, for the history/charts screen.
+ * `currentTopics` (live settings) is forwarded to `computeMonthSummary` for colors only.
+ */
+export function useAllMonths(currentTopics?: TopicConfig[]): UseAllMonthsResult {
   const [monthsData, setMonthsData] = useState<MonthData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +51,7 @@ export function useAllMonths(): UseAllMonthsResult {
     void refresh();
   }, [refresh]);
 
-  const summaries = monthsData.map((data) => computeMonthSummary(data));
+  const summaries = monthsData.map((data) => computeMonthSummary(data, currentTopics));
 
   return { monthsData, summaries, loading, error, refresh };
 }
