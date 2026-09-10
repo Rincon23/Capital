@@ -46,21 +46,111 @@ oferece importá-los para a conta.
 
 ## Publicar (e instalar no Android)
 
-O app é um servidor Next.js (proxy, Route Handlers, Server Actions) — precisa de um host Node,
-não dá para exportar como site estático.
+O app inteiro é um servidor Next.js — proxy, Route Handlers e Server Actions são o "backend",
+não há um serviço separado para hospedar. O Supabase é o banco (já hospedado de graça pelo
+Supabase). Precisa de um host Node; não dá para exportar como site estático.
 
-1. **Deploy** (ex.: Vercel — detecta Next.js sozinho, plano free serve): conecte o repositório e
-   defina as env vars `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-   (o `.env.local` não é versionado). `npm run build` é o comando padrão.
-2. **Supabase → Authentication → URL Configuration**: adicione a URL de produção em Site URL e
-   em Redirect URLs (`https://SEU-APP.vercel.app/**`), mantendo a de dev.
-3. **Instalar como PWA**: abra a URL no Chrome do Android → menu → **Instalar app**. Vira um app
-   standalone (ícone na gaveta, tela cheia, atualiza sozinho a cada deploy). É o caminho
-   recomendado para beta testers — sem APK, sem loja.
-4. **APK / Play Store (opcional)**: com o PWA no ar, use [PWABuilder](https://www.pwabuilder.com)
-   ou o Bubblewrap CLI para gerar um TWA (`.apk` para sideload, `.aab` para a Play Store).
-   Para remover a barra de endereço do navegador, publique
-   `/.well-known/assetlinks.json` com o fingerprint de assinatura que a ferramenta fornece.
+Em qualquer caminho, o app só funciona por **HTTPS** de ponta a ponta: os cookies de sessão do
+Supabase são `Secure` e a instalação de PWA exige contexto seguro.
+
+### Opção A — Docker no seu servidor (Orange Pi, Raspberry Pi, VPS)
+
+O repositório traz `Dockerfile` (imagem multi-stage a partir do bundle `standalone` do Next),
+`.dockerignore` e `docker-compose.yml`.
+
+```bash
+git clone <repo> capital && cd capital
+cp .env.example .env.local
+# edite .env.local:
+#   NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+#   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+#   APP_ALLOWED_ORIGINS=<hostname público do túnel, ex.: capital.meu-tailnet.ts.net>
+
+docker compose --env-file .env.local up -d --build
+```
+
+A imagem é construída na arquitetura da placa (arm64). `NEXT_PUBLIC_*` e `APP_ALLOWED_ORIGINS`
+entram como build args — **reconstrua** (`up -d --build`) sempre que mudarem. O container
+escuta em `3000`, reinicia sozinho (`restart: unless-stopped`) e sobe no boot se o serviço
+Docker estiver habilitado.
+
+Placas com 1–2 GB de RAM: crie swap antes do primeiro build —
+`sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile`.
+
+Atualizar depois: `./update.sh` (faz `git pull` + rebuild + restart + limpa imagens órfãs).
+
+### Opção B — Node direto no servidor (sem Docker)
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -   # Node 22+ (arm64)
+sudo apt-get install -y nodejs
+
+git clone <repo> capital && cd capital
+cp .env.example .env.local          # preencha as mesmas variáveis da Opção A
+npm ci
+npm run build                       # crie swap antes em placas com pouca RAM
+npm run start                       # sobe em http://localhost:3000
+```
+
+Rodar como serviço (`/etc/systemd/system/capital.service`):
+
+```ini
+[Unit]
+Description=Capital
+After=network.target
+
+[Service]
+WorkingDirectory=/home/orangepi/capital
+ExecStart=/usr/bin/npm run start
+Environment=NODE_ENV=production
+Restart=on-failure
+User=orangepi
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable --now capital
+```
+
+**HTTPS público sem abrir porta no roteador** — use um túnel. Como você já usa Tailscale:
+
+```bash
+sudo tailscale funnel --bg 3000      # amigo fora do tailnet -> URL pública https://<host>.<tailnet>.ts.net
+# OU, se o amigo estiver no seu tailnet:
+sudo tailscale serve --bg 3000       # só quem está no tailnet, também https
+tailscale serve status               # mostra a URL
+```
+
+Alternativa: `cloudflared tunnel --url http://localhost:3000` (Cloudflare Tunnel).
+
+Depois de ter a URL do túnel:
+
+1. `.env.local` -> `APP_ALLOWED_ORIGINS=<host>.<tailnet>.ts.net` (só o hostname, sem `https://`).
+   Sem isso, o login pode ser recusado pela proteção CSRF de Server Actions atrás do proxy.
+   Reconstrua: Docker `docker compose --env-file .env.local up -d --build`; Node `npm run build`
+   + reiniciar o serviço.
+2. **Supabase → Authentication → URL Configuration**: Site URL e Redirect URLs com
+   `https://<host>.<tailnet>.ts.net` e `.../**`.
+
+### Opção C — Vercel
+
+O plano **Hobby é gratuito** para projetos pessoais e cobre este app (Server Actions, Route
+Handlers e proxy inclusos — não é um "backend" à parte). Conecte o repositório, defina
+`NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` nas Environment Variables,
+e ajuste as URLs no Supabase para `https://SEU-APP.vercel.app`.
+
+### Instalar no Android
+
+Abra a URL HTTPS no **Chrome do Android** → menu ⋮ → **Instalar app**. Vira um app standalone
+(ícone na gaveta, tela cheia, atualiza sozinho). É o caminho recomendado para beta testers —
+sem APK, sem loja.
+
+**APK / Play Store (opcional):** com o PWA no ar, use [PWABuilder](https://www.pwabuilder.com)
+ou o Bubblewrap CLI para gerar um TWA (`.apk` para sideload, `.aab` para a Play Store). Para
+tirar a barra de endereço, publique `/.well-known/assetlinks.json` com o fingerprint de
+assinatura que a ferramenta fornece.
 
 Os ícones em `/public/icon-*.png` são placeholders — troque por arte real antes de publicar
 na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de um SVG).

@@ -1,0 +1,27 @@
+# Run Capital in a container. Values come from your env file — pass it explicitly:
+#
+#   docker compose --env-file .env.local up -d --build
+#
+# .env.local must define:
+#   NEXT_PUBLIC_SUPABASE_URL=...
+#   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
+#   APP_ALLOWED_ORIGINS=<public hostname of your tunnel, e.g. capital.my-tailnet.ts.net>
+#
+# NEXT_PUBLIC_* and APP_ALLOWED_ORIGINS are baked at build time — rebuild
+# (`up -d --build`) after changing them.
+
+services:
+  capital:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?set NEXT_PUBLIC_SUPABASE_URL in your env file}
+        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:?set NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in your env file}
+        APP_ALLOWED_ORIGINS: ${APP_ALLOWED_ORIGINS:-}
+    image: capital:latest
+    container_name: capital
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      APP_ALLOWED_ORIGINS: ${APP_ALLOWED_ORIGINS:-}
