@@ -44,6 +44,27 @@ Ao abrir o app pela primeira vez, uma conta nova recebe as 4 categorias padrão 
 especiais — sem mês de exemplo. Se o dispositivo tiver dados da versão local anterior, o app
 oferece importá-los para a conta.
 
+## Publicar (e instalar no Android)
+
+O app é um servidor Next.js (proxy, Route Handlers, Server Actions) — precisa de um host Node,
+não dá para exportar como site estático.
+
+1. **Deploy** (ex.: Vercel — detecta Next.js sozinho, plano free serve): conecte o repositório e
+   defina as env vars `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   (o `.env.local` não é versionado). `npm run build` é o comando padrão.
+2. **Supabase → Authentication → URL Configuration**: adicione a URL de produção em Site URL e
+   em Redirect URLs (`https://SEU-APP.vercel.app/**`), mantendo a de dev.
+3. **Instalar como PWA**: abra a URL no Chrome do Android → menu → **Instalar app**. Vira um app
+   standalone (ícone na gaveta, tela cheia, atualiza sozinho a cada deploy). É o caminho
+   recomendado para beta testers — sem APK, sem loja.
+4. **APK / Play Store (opcional)**: com o PWA no ar, use [PWABuilder](https://www.pwabuilder.com)
+   ou o Bubblewrap CLI para gerar um TWA (`.apk` para sideload, `.aab` para a Play Store).
+   Para remover a barra de endereço do navegador, publique
+   `/.well-known/assetlinks.json` com o fingerprint de assinatura que a ferramenta fornece.
+
+Os ícones em `/public/icon-*.png` são placeholders — troque por arte real antes de publicar
+na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de um SVG).
+
 ## Arquitetura
 
 ```

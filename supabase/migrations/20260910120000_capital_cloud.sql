@@ -37,8 +37,13 @@ create table if not exists public.budget_settings (
   user_id uuid primary key default auth.uid() references auth.users (id) on delete cascade,
   topics jsonb not null,
   special_categories jsonb not null,
+  special_category_colors jsonb not null default '{}'::jsonb,
   updated_at timestamptz not null default now()
 );
+
+-- Additive: safe to run on a budget_settings table created before colors existed.
+alter table public.budget_settings
+  add column if not exists special_category_colors jsonb not null default '{}'::jsonb;
 
 alter table public.budget_settings enable row level security;
 

@@ -56,7 +56,11 @@ export function DashboardScreen() {
         ))}
       </section>
 
-      <FixedCostsCard summary={summary} specialCategories={settings.specialCategories} />
+      <FixedCostsCard
+        summary={summary}
+        specialCategories={settings.specialCategories}
+        specialCategoryColors={settings.specialCategoryColors}
+      />
 
       {!monthData?.closed && (
         <button

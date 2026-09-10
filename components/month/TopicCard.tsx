@@ -13,8 +13,15 @@ export function TopicCard({ month, topic }: { month: Month; topic: TopicResult }
       className="border-border bg-card hover:border-primary/40 block rounded-xl border p-4 shadow-sm transition-colors"
     >
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="text-foreground font-semibold">{topic.name}</span>
-        <span className="text-muted text-xs">meta {formatPct(topic.targetPct, 0)}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          <span
+            aria-hidden
+            className="h-2.5 w-2.5 shrink-0 rounded-full"
+            style={{ backgroundColor: topic.color }}
+          />
+          <span className="text-foreground truncate font-semibold">{topic.name}</span>
+        </span>
+        <span className="text-muted shrink-0 text-xs">meta {formatPct(topic.targetPct, 0)}</span>
       </div>
 
       <div className="mb-2 flex items-baseline justify-between gap-2 text-sm">

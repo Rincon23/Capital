@@ -15,11 +15,11 @@ import {
   Tooltip,
 } from 'recharts';
 import { formatBRL, formatMonthShort, type MonthSummary } from '@/lib/budget';
-import { seriesColor } from '@/lib/chartPalette';
 
 export interface TopicSeries {
   id: string;
   name: string;
+  color: string;
 }
 
 function buildSeriesData(
@@ -82,15 +82,15 @@ export function SpendingLineChart({
         <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} tickFormatter={yTickFormatter} width={56} />
         <Tooltip content={(props) => <ChartTooltip {...props} />} />
         <Legend wrapperStyle={{ fontSize: 12, color: 'var(--color-muted)' }} />
-        {topics.map((topic, index) => (
+        {topics.map((topic) => (
           <Line
             key={topic.id}
             type="monotone"
             dataKey={topic.id}
             name={topic.name}
-            stroke={seriesColor(index)}
+            stroke={topic.color}
             strokeWidth={2}
-            dot={{ r: 4, fill: seriesColor(index), strokeWidth: 0 }}
+            dot={{ r: 4, fill: topic.color, strokeWidth: 0 }}
             activeDot={{ r: 6 }}
           />
         ))}
@@ -116,15 +116,15 @@ export function RemainingLineChart({
         <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} tickFormatter={yTickFormatter} width={56} />
         <Tooltip content={(props) => <ChartTooltip {...props} />} />
         <Legend wrapperStyle={{ fontSize: 12, color: 'var(--color-muted)' }} />
-        {topics.map((topic, index) => (
+        {topics.map((topic) => (
           <Line
             key={topic.id}
             type="monotone"
             dataKey={topic.id}
             name={topic.name}
-            stroke={seriesColor(index)}
+            stroke={topic.color}
             strokeWidth={2}
-            dot={{ r: 4, fill: seriesColor(index), strokeWidth: 0 }}
+            dot={{ r: 4, fill: topic.color, strokeWidth: 0 }}
             activeDot={{ r: 6 }}
           />
         ))}
@@ -150,13 +150,13 @@ export function CompositionBarChart({
         <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} tickFormatter={yTickFormatter} width={56} />
         <Tooltip content={(props) => <ChartTooltip {...props} />} />
         <Legend wrapperStyle={{ fontSize: 12, color: 'var(--color-muted)' }} />
-        {topics.map((topic, index) => (
+        {topics.map((topic) => (
           <Bar
             key={topic.id}
             dataKey={topic.id}
             name={topic.name}
             stackId="spent"
-            fill={seriesColor(index)}
+            fill={topic.color}
             maxBarSize={24}
           />
         ))}

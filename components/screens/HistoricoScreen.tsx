@@ -11,17 +11,18 @@ import {
 } from '@/components/history/HistoryCharts';
 import { useAllMonths } from '@/lib/hooks/useAllMonths';
 import { formatBRL, formatMonthLabel, formatPct } from '@/lib/budget';
-import { seriesColor } from '@/lib/chartPalette';
 
 export function HistoricoScreen() {
   const { summaries, loading, error } = useAllMonths();
 
   const topics: TopicSeries[] = useMemo(() => {
-    const byId = new Map<string, string>();
+    const byId = new Map<string, TopicSeries>();
     for (const summary of summaries) {
-      for (const topic of summary.topics) byId.set(topic.topicId, topic.name);
+      for (const topic of summary.topics) {
+        byId.set(topic.topicId, { id: topic.topicId, name: topic.name, color: topic.color });
+      }
     }
-    return Array.from(byId, ([id, name]) => ({ id, name }));
+    return Array.from(byId.values());
   }, [summaries]);
 
   const latest = summaries.at(-1);
@@ -57,13 +58,13 @@ export function HistoricoScreen() {
           Aderência à meta ({latest ? formatMonthLabel(latest.month) : ''})
         </h2>
         <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
-          {latest?.topics.map((topic, index) => (
+          {latest?.topics.map((topic) => (
             <AdherenceMeter
               key={topic.topicId}
               label={topic.name}
               targetPct={topic.targetPct}
               actualPct={latest.incomeTotal > 0 ? topic.spent / latest.incomeTotal : 0}
-              color={seriesColor(index)}
+              color={topic.color}
             />
           ))}
         </div>

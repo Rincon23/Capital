@@ -31,7 +31,12 @@ export function CategoryDetailScreen({ topicId }: { topicId: string }) {
 
   return (
     <div className="flex flex-1 flex-col gap-4 pb-10">
-      <PageHeader title={topic.name} subtitle={formatMonthLabel(month)} backHref={`/mes/${month}`} />
+      <PageHeader
+        title={topic.name}
+        subtitle={formatMonthLabel(month)}
+        backHref={`/mes/${month}`}
+        accentColor={topic.color}
+      />
 
       <div className="flex flex-col gap-3 px-4">
         <div className="border-border bg-card rounded-xl border p-4 shadow-sm">

@@ -19,6 +19,8 @@ export interface TopicConfig {
   targetPct: number;
   order: number;
   archived?: boolean;
+  /** Hex color (e.g. "#2a78d6") for this envelope in charts and card accents. Optional for older data. */
+  color?: string;
 }
 
 /** User-configurable labels for the three special (non-envelope) categories. */
@@ -28,10 +30,19 @@ export interface SpecialCategoryLabels {
   reimbursed: string;
 }
 
+/** Hex colors for the three special (non-envelope) categories. */
+export interface SpecialCategoryColors {
+  fixedCost: string;
+  unforeseen: string;
+  reimbursed: string;
+}
+
 /** Global (not month-scoped) budget configuration. */
 export interface BudgetSettings {
   topics: TopicConfig[];
   specialCategories: SpecialCategoryLabels;
+  /** Optional for older data; resolve with `resolveSpecialCategoryColors`. */
+  specialCategoryColors?: SpecialCategoryColors;
 }
 
 export interface Income {

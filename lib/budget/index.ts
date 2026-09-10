@@ -1,5 +1,6 @@
 export * from './types';
 export * from './money';
+export * from './colors';
 export * from './calculations';
 export * from './rollover';
 export * from './validation';

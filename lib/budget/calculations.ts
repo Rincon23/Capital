@@ -1,3 +1,4 @@
+import { resolveTopicColor } from './colors';
 import { round2, sum } from './money';
 import type { Expense, MonthData, TopicConfig } from './types';
 
@@ -5,6 +6,8 @@ export interface TopicResult {
   topicId: string;
   name: string;
   targetPct: number;
+  /** Hex color for this envelope (from config, or a palette default). */
+  color: string;
   /** Money spent in this topic this month ("Valor Gasto"). */
   spent: number;
   /** Rollover from the previous month ("Mês passado"). */
@@ -107,6 +110,7 @@ export function computeTopicResult(
   fixedTotal: number,
   unforeseenTotal: number,
   carryIn: number,
+  color: string,
 ): TopicResult {
   const spent = computeTopicSpent(expenses, topic.id);
   const proportionalFixed = computeProportionalFixed(fixedTotal, unforeseenTotal, topic.targetPct);
@@ -118,6 +122,7 @@ export function computeTopicResult(
     topicId: topic.id,
     name: topic.name,
     targetPct: topic.targetPct,
+    color,
     spent,
     carryIn,
     proportionalFixed,
@@ -139,7 +144,7 @@ export function computeMonthSummary(monthData: MonthData): MonthSummary {
   const topics = activeTopics
     .slice()
     .sort((a, b) => a.order - b.order)
-    .map((topic) =>
+    .map((topic, index) =>
       computeTopicResult(
         topic,
         monthData.expenses,
@@ -147,6 +152,7 @@ export function computeMonthSummary(monthData: MonthData): MonthSummary {
         fixedTotal,
         unforeseenTotal,
         monthData.carryIn[topic.id] ?? 0,
+        resolveTopicColor(topic, index),
       ),
     );
 

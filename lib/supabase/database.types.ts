@@ -11,7 +11,13 @@
  * The jsonb columns are typed with the domain types from `lib/budget` so the
  * repository never has to cast.
  */
-import type { Expense, Income, SpecialCategoryLabels, TopicConfig } from '@/lib/budget';
+import type {
+  Expense,
+  Income,
+  SpecialCategoryColors,
+  SpecialCategoryLabels,
+  TopicConfig,
+} from '@/lib/budget';
 
 export type MonthRow = {
   user_id: string;
@@ -37,11 +43,14 @@ export type BudgetSettingsRow = {
   user_id: string;
   topics: TopicConfig[];
   special_categories: SpecialCategoryLabels;
+  special_category_colors: Partial<SpecialCategoryColors>;
   updated_at: string;
 };
 
 export type BudgetSettingsInsert = Pick<BudgetSettingsRow, 'topics' | 'special_categories'> & {
   user_id?: string;
+  /** Optional: dropped automatically when the column has not been migrated yet. */
+  special_category_colors?: BudgetSettingsRow['special_category_colors'];
 };
 
 export type ProfileRow = {

@@ -9,13 +9,23 @@ import { signOut } from '@/lib/auth/actions';
 import { budgetRepository, downloadBackup, readBackupFile } from '@/lib/storage';
 import { hasLocalData, importLocalDataToCloud } from '@/lib/storage/localMigration';
 import {
+  DEFAULT_TOPIC_COLORS,
   createId,
   formatPct,
+  resolveSpecialCategoryColors,
+  resolveTopicColor,
   validateTopicPercentages,
   type BudgetSettings,
+  type SpecialCategoryColors,
   type SpecialCategoryLabels,
   type TopicConfig,
 } from '@/lib/budget';
+
+const SPECIAL_CATEGORY_FIELDS: { key: keyof SpecialCategoryLabels; label: string }[] = [
+  { key: 'fixedCost', label: 'Custo fixo' },
+  { key: 'unforeseen', label: 'Imprevistos' },
+  { key: 'reimbursed', label: 'Ressarcido' },
+];
 
 export function ConfiguracoesScreen() {
   const { settings, saveSettings, loading } = useSettings();
@@ -40,6 +50,9 @@ function ConfiguracoesForm({
   // — no effect needed since this component only mounts after `settings` is available).
   const [topics, setTopics] = useState<TopicConfig[]>(() => settings.topics);
   const [special, setSpecial] = useState<SpecialCategoryLabels>(() => settings.specialCategories);
+  const [specialColors, setSpecialColors] = useState<SpecialCategoryColors>(() =>
+    resolveSpecialCategoryColors(settings),
+  );
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -68,7 +81,13 @@ function ConfiguracoesForm({
   function addTopic() {
     setTopics((prev) => [
       ...prev,
-      { id: createId(), name: 'Nova categoria', targetPct: 0, order: prev.length },
+      {
+        id: createId(),
+        name: 'Nova categoria',
+        targetPct: 0,
+        order: prev.length,
+        color: DEFAULT_TOPIC_COLORS[prev.length % DEFAULT_TOPIC_COLORS.length],
+      },
     ]);
   }
 
@@ -76,11 +95,25 @@ function ConfiguracoesForm({
     setTopics((prev) => prev.map((t) => (t.id === id ? { ...t, archived: !t.archived } : t)));
   }
 
+  function deleteTopic(id: string) {
+    const topic = topics.find((t) => t.id === id);
+    const confirmed = window.confirm(
+      `Excluir a categoria "${topic?.name ?? ''}"? Ela some das configurações e dos próximos meses. ` +
+        'Os meses já criados não mudam.',
+    );
+    if (!confirmed) return;
+    setTopics((prev) => prev.filter((t) => t.id !== id));
+  }
+
   async function handleSave() {
     if (!validation.valid) return;
     setBusy(true);
     try {
-      await saveSettings({ topics, specialCategories: special });
+      await saveSettings({
+        topics,
+        specialCategories: special,
+        specialCategoryColors: specialColors,
+      });
       setSaveMessage('Configurações salvas.');
       setTimeout(() => setSaveMessage(null), 2500);
     } finally {
@@ -136,6 +169,13 @@ function ConfiguracoesForm({
             >
               <div className="flex items-center gap-2">
                 <input
+                  type="color"
+                  value={resolveTopicColor(topic, index)}
+                  onChange={(e) => updateTopic(topic.id, { color: e.target.value })}
+                  aria-label={`Cor de ${topic.name}`}
+                  className="border-border h-10 w-10 shrink-0 cursor-pointer rounded-md border bg-transparent p-0.5"
+                />
+                <input
                   type="text"
                   value={topic.name}
                   onChange={(e) => updateTopic(topic.id, { name: e.target.value })}
@@ -156,7 +196,7 @@ function ConfiguracoesForm({
                   <span className="text-muted">%</span>
                 </div>
               </div>
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center justify-between gap-2 text-sm">
                 <div className="flex gap-1">
                   <button
                     type="button"
@@ -177,13 +217,22 @@ function ConfiguracoesForm({
                     ↓
                   </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => toggleArchived(topic.id)}
-                  className="border-border text-muted min-h-[36px] rounded-md border px-3"
-                >
-                  {topic.archived ? 'Reativar' : 'Arquivar'}
-                </button>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    onClick={() => toggleArchived(topic.id)}
+                    className="border-border text-muted min-h-[36px] rounded-md border px-3"
+                  >
+                    {topic.archived ? 'Reativar' : 'Arquivar'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteTopic(topic.id)}
+                    className="border-danger text-danger min-h-[36px] rounded-md border px-3"
+                  >
+                    Excluir
+                  </button>
+                </div>
               </div>
             </div>
           ))}
@@ -209,33 +258,26 @@ function ConfiguracoesForm({
       <section className="flex flex-col gap-3 px-4">
         <h2 className="text-muted text-sm font-semibold">Categorias especiais</h2>
         <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
-          <label className="text-muted flex flex-col gap-1 text-sm">
-            Custo fixo
-            <input
-              type="text"
-              value={special.fixedCost}
-              onChange={(e) => setSpecial((s) => ({ ...s, fixedCost: e.target.value }))}
-              className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] rounded-md border px-3 outline-none focus:ring-2"
-            />
-          </label>
-          <label className="text-muted flex flex-col gap-1 text-sm">
-            Imprevistos
-            <input
-              type="text"
-              value={special.unforeseen}
-              onChange={(e) => setSpecial((s) => ({ ...s, unforeseen: e.target.value }))}
-              className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] rounded-md border px-3 outline-none focus:ring-2"
-            />
-          </label>
-          <label className="text-muted flex flex-col gap-1 text-sm">
-            Ressarcido
-            <input
-              type="text"
-              value={special.reimbursed}
-              onChange={(e) => setSpecial((s) => ({ ...s, reimbursed: e.target.value }))}
-              className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] rounded-md border px-3 outline-none focus:ring-2"
-            />
-          </label>
+          {SPECIAL_CATEGORY_FIELDS.map(({ key, label }) => (
+            <div key={key} className="flex items-end gap-2">
+              <input
+                type="color"
+                value={specialColors[key]}
+                onChange={(e) => setSpecialColors((c) => ({ ...c, [key]: e.target.value }))}
+                aria-label={`Cor de ${label}`}
+                className="border-border h-11 w-11 shrink-0 cursor-pointer rounded-md border bg-transparent p-0.5"
+              />
+              <label className="text-muted flex flex-1 flex-col gap-1 text-sm">
+                {label}
+                <input
+                  type="text"
+                  value={special[key]}
+                  onChange={(e) => setSpecial((s) => ({ ...s, [key]: e.target.value }))}
+                  className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] rounded-md border px-3 outline-none focus:ring-2"
+                />
+              </label>
+            </div>
+          ))}
         </div>
       </section>
 

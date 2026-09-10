@@ -1,13 +1,14 @@
+import { DEFAULT_SPECIAL_CATEGORY_COLORS, DEFAULT_TOPIC_COLORS } from './colors';
 import { createId } from './id';
 import type { BudgetSettings, Month, MonthData, TopicConfig } from './types';
 
 /** Default envelopes, mirroring the original spreadsheet. */
 export function createDefaultTopics(): TopicConfig[] {
   return [
-    { id: createId(), name: 'Diversos', targetPct: 0.2, order: 0 },
-    { id: createId(), name: 'Liberdade Financeira', targetPct: 0.45, order: 1 },
-    { id: createId(), name: 'Metas', targetPct: 0.25, order: 2 },
-    { id: createId(), name: 'Conhecimento', targetPct: 0.1, order: 3 },
+    { id: createId(), name: 'Diversos', targetPct: 0.2, order: 0, color: DEFAULT_TOPIC_COLORS[0] },
+    { id: createId(), name: 'Liberdade Financeira', targetPct: 0.45, order: 1, color: DEFAULT_TOPIC_COLORS[1] },
+    { id: createId(), name: 'Metas', targetPct: 0.25, order: 2, color: DEFAULT_TOPIC_COLORS[2] },
+    { id: createId(), name: 'Conhecimento', targetPct: 0.1, order: 3, color: DEFAULT_TOPIC_COLORS[3] },
   ];
 }
 
@@ -19,6 +20,7 @@ export function createDefaultSettings(): BudgetSettings {
       unforeseen: 'Imprevistos',
       reimbursed: 'Ressarcido',
     },
+    specialCategoryColors: { ...DEFAULT_SPECIAL_CATEGORY_COLORS },
   };
 }
 

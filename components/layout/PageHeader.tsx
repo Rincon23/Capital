@@ -8,11 +8,14 @@ export function PageHeader({
   subtitle,
   backHref,
   action,
+  accentColor,
 }: {
   title: string;
   subtitle?: string;
   backHref?: string;
   action?: ReactNode;
+  /** Hex color shown as a dot before the title (e.g. a category's color). */
+  accentColor?: string;
 }) {
   return (
     <header className="border-border bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-20 flex items-center gap-2 border-b px-4 py-3 backdrop-blur">
@@ -26,7 +29,16 @@ export function PageHeader({
         </Link>
       )}
       <div className="min-w-0 flex-1">
-        <h1 className="text-foreground truncate text-lg font-semibold">{title}</h1>
+        <h1 className="text-foreground flex items-center gap-2 text-lg font-semibold">
+          {accentColor && (
+            <span
+              aria-hidden
+              className="h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: accentColor }}
+            />
+          )}
+          <span className="truncate">{title}</span>
+        </h1>
         {subtitle && <p className="text-muted truncate text-sm">{subtitle}</p>}
       </div>
       {action}

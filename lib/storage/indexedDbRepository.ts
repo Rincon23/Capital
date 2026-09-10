@@ -16,7 +16,11 @@ export class IndexedDbBudgetRepository implements BudgetRepository {
   async getSettings(): Promise<BudgetSettings> {
     const existing = await db.settings.get(SETTINGS_ID);
     if (existing) {
-      return { topics: existing.topics, specialCategories: existing.specialCategories };
+      return {
+        topics: existing.topics,
+        specialCategories: existing.specialCategories,
+        specialCategoryColors: existing.specialCategoryColors,
+      };
     }
     return this.seedInitialData();
   }

@@ -1,9 +1,23 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { computeMonthSummary } from '../budget/calculations';
+import { DEFAULT_SPECIAL_CATEGORY_COLORS } from '../budget/colors';
 import { cascadeCarryIn, createMonthData } from '../budget/rollover';
 import { createDefaultSettings } from '../budget/seed';
-import type { BudgetSettings, Expense, Income, Month, MonthData } from '../budget/types';
-import type { Database, MonthInsert, MonthRow } from '../supabase/database.types';
+import type {
+  BudgetSettings,
+  Expense,
+  Income,
+  Month,
+  MonthData,
+  SpecialCategoryColors,
+} from '../budget/types';
+import type {
+  BudgetSettingsInsert,
+  BudgetSettingsRow,
+  Database,
+  MonthInsert,
+  MonthRow,
+} from '../supabase/database.types';
 import { getSupabaseBrowserClient } from '../supabase/client';
 import {
   MonthClosedError,
@@ -15,6 +29,8 @@ import {
 
 /** Postgres SQLSTATE for a unique-constraint violation (two tabs racing to seed). */
 const UNIQUE_VIOLATION = '23505';
+/** "column does not exist" — the special_category_colors migration hasn't been run yet. */
+const UNDEFINED_COLUMN = '42703';
 
 /** A real Error (so `instanceof Error` works downstream) that carries the PostgREST code. */
 export class SupabaseStorageError extends Error {
@@ -33,6 +49,17 @@ async function run<T>(
   const { data, error } = await builder;
   if (error) throw new SupabaseStorageError(error);
   return data;
+}
+
+function rowToSettings(
+  row: Pick<BudgetSettingsRow, 'topics' | 'special_categories' | 'special_category_colors'>,
+): BudgetSettings {
+  const colors = (row.special_category_colors ?? {}) as Partial<SpecialCategoryColors>;
+  return {
+    topics: row.topics,
+    specialCategories: row.special_categories,
+    specialCategoryColors: { ...DEFAULT_SPECIAL_CATEGORY_COLORS, ...colors },
+  };
 }
 
 function rowToMonthData(row: MonthRow): MonthData {
@@ -85,43 +112,66 @@ export class SupabaseBudgetRepository implements BudgetRepository {
   }
 
   async getSettings(): Promise<BudgetSettings> {
-    const existing = await run(
-      this.client.from('budget_settings').select('topics, special_categories').maybeSingle(),
-    );
-    if (existing) {
-      return { topics: existing.topics, specialCategories: existing.special_categories };
-    }
+    // `select('*')` (not a column list) so a missing `special_category_colors`
+    // column just yields an absent field, not an error.
+    const existing = await run(this.client.from('budget_settings').select('*').maybeSingle());
+    if (existing) return rowToSettings(existing);
 
     // First read for this account: seed the default envelopes (no demo month).
     const userId = await this.requireUserId();
     const defaults = createDefaultSettings();
-    const { error } = await this.client.from('budget_settings').insert({
+    const baseRow: BudgetSettingsInsert & { user_id: string } = {
       user_id: userId,
       topics: defaults.topics,
       special_categories: defaults.specialCategories,
-    });
+    };
+    let { error } = await this.client
+      .from('budget_settings')
+      .insert({ ...baseRow, special_category_colors: defaults.specialCategoryColors ?? {} });
+    if (error?.code === UNDEFINED_COLUMN) {
+      ({ error } = await this.client.from('budget_settings').insert(baseRow));
+    }
     // 23505 = another tab seeded first; fall through to the re-read.
     if (error && error.code !== UNIQUE_VIOLATION) throw new SupabaseStorageError(error);
 
-    const seeded = await run(
-      this.client.from('budget_settings').select('topics, special_categories').maybeSingle(),
-    );
+    const seeded = await run(this.client.from('budget_settings').select('*').maybeSingle());
     if (!seeded) throw new Error('Não foi possível inicializar as configurações.');
-    return { topics: seeded.topics, specialCategories: seeded.special_categories };
+    return rowToSettings(seeded);
   }
 
   async saveSettings(settings: BudgetSettings): Promise<void> {
     const userId = await this.requireUserId();
-    await run(
-      this.client.from('budget_settings').upsert(
-        {
-          user_id: userId,
-          topics: settings.topics,
-          special_categories: settings.specialCategories,
-        },
-        { onConflict: 'user_id' },
-      ),
-    );
+    await this.upsertSettings({
+      user_id: userId,
+      topics: settings.topics,
+      special_categories: settings.specialCategories,
+      special_category_colors: settings.specialCategoryColors ?? {},
+    });
+  }
+
+  /** Upsert `budget_settings`, retrying without `special_category_colors` if that column is missing. */
+  private async upsertSettings(row: {
+    user_id: string;
+    topics: BudgetSettings['topics'];
+    special_categories: BudgetSettings['specialCategories'];
+    special_category_colors: NonNullable<BudgetSettings['specialCategoryColors']> | object;
+  }): Promise<void> {
+    const withoutColors: BudgetSettingsInsert & { user_id: string } = {
+      user_id: row.user_id,
+      topics: row.topics,
+      special_categories: row.special_categories,
+    };
+    const first = await this.client
+      .from('budget_settings')
+      .upsert(row, { onConflict: 'user_id' });
+    if (first.error?.code === UNDEFINED_COLUMN) {
+      const retry = await this.client
+        .from('budget_settings')
+        .upsert(withoutColors, { onConflict: 'user_id' });
+      if (retry.error) throw new SupabaseStorageError(retry.error);
+      return;
+    }
+    if (first.error) throw new SupabaseStorageError(first.error);
   }
 
   async listMonths(): Promise<Month[]> {
@@ -216,16 +266,12 @@ export class SupabaseBudgetRepository implements BudgetRepository {
     // Not a single transaction across PostgREST calls; acceptable for v1.
     await run(this.client.from('months').delete().eq('user_id', userId));
 
-    await run(
-      this.client.from('budget_settings').upsert(
-        {
-          user_id: userId,
-          topics: payload.settings.topics,
-          special_categories: payload.settings.specialCategories,
-        },
-        { onConflict: 'user_id' },
-      ),
-    );
+    await this.upsertSettings({
+      user_id: userId,
+      topics: payload.settings.topics,
+      special_categories: payload.settings.specialCategories,
+      special_category_colors: payload.settings.specialCategoryColors ?? {},
+    });
 
     if (payload.months.length > 0) {
       const rows = payload.months.map((m) => monthDataToInsert(m, userId));
