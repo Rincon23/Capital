@@ -222,6 +222,21 @@ describe('SupabaseBudgetRepository', () => {
     expect((await subject.getMonth('2026-02'))?.carryIn[diversos.id]).toBe(400);
   });
 
+  it('deletes a month and re-anchors the carryIn of the remaining months', async () => {
+    const settings = await subject.getSettings();
+    const diversos = settings.topics.find((t) => t.name === 'Diversos')!;
+
+    await subject.ensureMonth('2026-01');
+    await subject.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await subject.ensureMonth('2026-02');
+    expect((await subject.getMonth('2026-02'))?.carryIn[diversos.id]).toBe(200);
+
+    await subject.deleteMonth('2026-01');
+    expect(await subject.listMonths()).toEqual(['2026-02']);
+    // 2026-02 is now the earliest month -> carryIn falls back to zero
+    expect((await subject.getMonth('2026-02'))?.carryIn[diversos.id]).toBe(0);
+  });
+
   it('rejects writes to a closed month and unknown months', async () => {
     await subject.ensureMonth('2026-01');
     await subject.closeMonth('2026-01');
@@ -236,7 +251,26 @@ describe('SupabaseBudgetRepository', () => {
       }),
     ).rejects.toBeInstanceOf(MonthClosedError);
 
-    await expect(subject.closeMonth('2099-12')).rejects.toBeInstanceOf(MonthNotFoundError);
+    await expect(subject.reopenMonth('2099-12')).rejects.toBeInstanceOf(MonthNotFoundError);
+  });
+
+  it('does not persist a month just from peeking, but a write (or close) creates it', async () => {
+    await subject.peekMonth('2030-05');
+    expect(await subject.listMonths()).not.toContain('2030-05');
+
+    await subject.saveExpense('2030-05', {
+      id: 'e1',
+      categoryKind: 'fixedCost',
+      description: 'x',
+      amount: 10,
+      date: '2030-05-02',
+    });
+    expect(await subject.listMonths()).toContain('2030-05');
+
+    await subject.peekMonth('2030-06');
+    expect(await subject.listMonths()).not.toContain('2030-06');
+    await subject.closeMonth('2030-06');
+    expect(await subject.listMonths()).toContain('2030-06');
   });
 
   it('round-trips through export and import', async () => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { AdherenceMeter } from '@/components/history/AdherenceMeter';
 import {
@@ -28,6 +28,16 @@ export function HistoricoScreen() {
   }, [summaries]);
 
   const latest = summaries.at(-1);
+
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const tableIndex = useMemo(() => {
+    if (summaries.length === 0) return -1;
+    const found = selectedMonth
+      ? summaries.findIndex((summary) => summary.month === selectedMonth)
+      : -1;
+    return found === -1 ? summaries.length - 1 : found;
+  }, [summaries, selectedMonth]);
+  const tableSummary = tableIndex === -1 ? undefined : summaries[tableIndex];
 
   if (loading) {
     return <div className="text-muted flex flex-1 items-center justify-center px-4 py-16">Carregando…</div>;
@@ -95,51 +105,67 @@ export function HistoricoScreen() {
 
       <section className="flex flex-col gap-2 px-4">
         <h2 className="text-muted text-sm font-semibold">Tabela mês a mês</h2>
-        <div className="border-border bg-card overflow-x-auto rounded-xl border shadow-sm">
-          <table className="w-full min-w-[640px] border-collapse text-sm">
-            <thead>
-              <tr className="border-border text-muted border-b text-left">
-                <th className="px-3 py-2 font-medium">Mês</th>
-                <th className="px-3 py-2 font-medium">Categoria</th>
-                <th className="px-3 py-2 text-right font-medium">Gasto</th>
-                <th className="px-3 py-2 text-right font-medium">Posso gastar</th>
-                <th className="px-3 py-2 text-right font-medium">Sobra</th>
-                <th className="px-3 py-2 text-right font-medium">% Utilizada</th>
-              </tr>
-            </thead>
-            <tbody>
-              {summaries
-                .slice()
-                .reverse()
-                .flatMap((summary) =>
-                  summary.topics.map((topic) => (
-                    <tr
-                      key={`${summary.month}-${topic.topicId}`}
-                      className="border-border border-b last:border-0"
+        <div className="border-border bg-card flex flex-col rounded-xl border shadow-sm">
+          <div className="border-border flex items-center justify-between gap-2 border-b px-3 py-2">
+            <button
+              type="button"
+              onClick={() => setSelectedMonth(summaries[tableIndex - 1]?.month ?? null)}
+              disabled={tableIndex <= 0}
+              aria-label="Mês anterior"
+              className="text-foreground hover:bg-background flex h-9 w-9 items-center justify-center rounded-full text-xl disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              ‹
+            </button>
+            <span className="text-foreground text-sm font-semibold">
+              {tableSummary ? formatMonthLabel(tableSummary.month) : ''}
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedMonth(summaries[tableIndex + 1]?.month ?? null)}
+              disabled={tableIndex === -1 || tableIndex >= summaries.length - 1}
+              aria-label="Próximo mês"
+              className="text-foreground hover:bg-background flex h-9 w-9 items-center justify-center rounded-full text-xl disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              ›
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[520px] border-collapse text-sm">
+              <thead>
+                <tr className="border-border text-muted border-b text-left">
+                  <th className="px-3 py-2 font-medium">Categoria</th>
+                  <th className="px-3 py-2 text-right font-medium">Gasto</th>
+                  <th className="px-3 py-2 text-right font-medium">Posso gastar</th>
+                  <th className="px-3 py-2 text-right font-medium">Sobra</th>
+                  <th className="px-3 py-2 text-right font-medium">% Utilizada</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tableSummary?.topics.map((topic) => (
+                  <tr
+                    key={`${tableSummary.month}-${topic.topicId}`}
+                    className="border-border border-b last:border-0"
+                  >
+                    <td className="text-foreground px-3 py-2">{topic.name}</td>
+                    <td className="text-foreground px-3 py-2 text-right font-[tabular-nums]">
+                      {formatBRL(topic.spent)}
+                    </td>
+                    <td className="text-foreground px-3 py-2 text-right font-[tabular-nums]">
+                      {formatBRL(topic.available)}
+                    </td>
+                    <td
+                      className={`px-3 py-2 text-right font-[tabular-nums] ${topic.remaining < 0 ? 'text-danger' : 'text-foreground'}`}
                     >
-                      <td className="text-foreground px-3 py-2 whitespace-nowrap">
-                        {formatMonthLabel(summary.month)}
-                      </td>
-                      <td className="text-foreground px-3 py-2">{topic.name}</td>
-                      <td className="text-foreground px-3 py-2 text-right font-[tabular-nums]">
-                        {formatBRL(topic.spent)}
-                      </td>
-                      <td className="text-foreground px-3 py-2 text-right font-[tabular-nums]">
-                        {formatBRL(topic.available)}
-                      </td>
-                      <td
-                        className={`px-3 py-2 text-right font-[tabular-nums] ${topic.remaining < 0 ? 'text-danger' : 'text-foreground'}`}
-                      >
-                        {formatBRL(topic.remaining)}
-                      </td>
-                      <td className="text-foreground px-3 py-2 text-right font-[tabular-nums]">
-                        {topic.usedPct === null ? '—' : formatPct(topic.usedPct)}
-                      </td>
-                    </tr>
-                  )),
-                )}
-            </tbody>
-          </table>
+                      {formatBRL(topic.remaining)}
+                    </td>
+                    <td className="text-foreground px-3 py-2 text-right font-[tabular-nums]">
+                      {topic.usedPct === null ? '—' : formatPct(topic.usedPct)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
     </div>

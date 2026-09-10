@@ -186,11 +186,26 @@ export class SupabaseBudgetRepository implements BudgetRepository {
     return data ? rowToMonthData(data) : undefined;
   }
 
+  async peekMonth(month: Month): Promise<MonthData> {
+    const existing = await this.getMonth(month);
+    return existing ?? this.buildMonth(month);
+  }
+
   async ensureMonth(month: Month): Promise<MonthData> {
     const existing = await this.getMonth(month);
     if (existing) return existing;
 
     const userId = await this.requireUserId();
+    const created = await this.buildMonth(month);
+    const { error } = await this.client.from('months').insert(monthDataToInsert(created, userId));
+    if (error && error.code !== UNIQUE_VIOLATION) throw new SupabaseStorageError(error);
+
+    const stored = await this.getMonth(month);
+    return stored ?? created;
+  }
+
+  /** Computes a fresh month (rollover carryIn from the latest prior month) without persisting it. */
+  private async buildMonth(month: Month): Promise<MonthData> {
     const settings = await this.getSettings();
     const priorRows = await run(
       this.client
@@ -203,16 +218,11 @@ export class SupabaseBudgetRepository implements BudgetRepository {
     const previous = priorRows?.[0] ? rowToMonthData(priorRows[0]) : null;
     const previousSummary = previous ? computeMonthSummary(previous) : null;
 
-    const created = createMonthData(month, settings.topics, previousSummary);
-    const { error } = await this.client.from('months').insert(monthDataToInsert(created, userId));
-    if (error && error.code !== UNIQUE_VIOLATION) throw new SupabaseStorageError(error);
-
-    const stored = await this.getMonth(month);
-    return stored ?? created;
+    return createMonthData(month, settings.topics, previousSummary);
   }
 
   async saveIncome(month: Month, income: Income): Promise<void> {
-    const data = await this.requireOpenMonth(month);
+    const data = await this.ensureOpenMonth(month);
     const idx = data.incomes.findIndex((i) => i.id === income.id);
     const incomes =
       idx >= 0 ? data.incomes.map((i, n) => (n === idx ? income : i)) : [...data.incomes, income];
@@ -228,7 +238,7 @@ export class SupabaseBudgetRepository implements BudgetRepository {
   }
 
   async saveExpense(month: Month, expense: Expense): Promise<void> {
-    const data = await this.requireOpenMonth(month);
+    const data = await this.ensureOpenMonth(month);
     const idx = data.expenses.findIndex((e) => e.id === expense.id);
     const expenses =
       idx >= 0 ? data.expenses.map((e, n) => (n === idx ? expense : e)) : [...data.expenses, expense];
@@ -244,7 +254,7 @@ export class SupabaseBudgetRepository implements BudgetRepository {
   }
 
   async closeMonth(month: Month): Promise<void> {
-    await this.requireMonth(month);
+    await this.ensureMonth(month);
     await this.patchMonth(month, { closed: true });
   }
 
@@ -252,6 +262,23 @@ export class SupabaseBudgetRepository implements BudgetRepository {
     await this.requireMonth(month);
     await this.patchMonth(month, { closed: false });
     await this.recascade(month);
+  }
+
+  async deleteMonth(month: Month): Promise<void> {
+    await run(this.client.from('months').delete().eq('month', month));
+
+    const rows = await run(this.client.from('months').select('*').order('month'));
+    const remaining = (rows ?? []).map(rowToMonthData);
+    if (remaining.length === 0) return;
+
+    // The earliest month always has a zeroed carryIn (nothing precedes it); re-anchor it
+    // in case the month we just deleted was the one feeding it, then cascade forward.
+    const earliest = remaining[0];
+    const zeroCarryIn = Object.fromEntries(earliest.topicsSnapshot.map((t) => [t.id, 0]));
+    await run(
+      this.client.from('months').update({ carry_in: zeroCarryIn }).eq('month', earliest.month),
+    );
+    await this.recascade(earliest.month);
   }
 
   async exportData(): Promise<BackupPayload> {
@@ -293,6 +320,13 @@ export class SupabaseBudgetRepository implements BudgetRepository {
 
   private async requireOpenMonth(month: Month): Promise<MonthData> {
     const data = await this.requireMonth(month);
+    if (data.closed) throw new MonthClosedError(month);
+    return data;
+  }
+
+  /** Like `requireOpenMonth`, but creates and persists the month first if it doesn't exist yet. */
+  private async ensureOpenMonth(month: Month): Promise<MonthData> {
+    const data = await this.ensureMonth(month);
     if (data.closed) throw new MonthClosedError(month);
     return data;
   }

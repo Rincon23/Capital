@@ -38,10 +38,22 @@ export class IndexedDbBudgetRepository implements BudgetRepository {
     return db.months.get(month);
   }
 
+  async peekMonth(month: Month): Promise<MonthData> {
+    const existing = await db.months.get(month);
+    return existing ?? this.buildMonth(month);
+  }
+
   async ensureMonth(month: Month): Promise<MonthData> {
     const existing = await db.months.get(month);
     if (existing) return existing;
 
+    const created = await this.buildMonth(month);
+    await db.months.put(created);
+    return created;
+  }
+
+  /** Computes a fresh month (rollover carryIn from the latest prior month) without persisting it. */
+  private async buildMonth(month: Month): Promise<MonthData> {
     const settings = await this.getSettings();
     const priorMonths = (await db.months.toArray())
       .filter((m) => m.month < month)
@@ -49,13 +61,11 @@ export class IndexedDbBudgetRepository implements BudgetRepository {
     const previous = priorMonths.at(-1);
     const previousSummary = previous ? computeMonthSummary(previous) : null;
 
-    const created = createMonthData(month, settings.topics, previousSummary);
-    await db.months.put(created);
-    return created;
+    return createMonthData(month, settings.topics, previousSummary);
   }
 
   async saveIncome(month: Month, income: Income): Promise<void> {
-    const data = await this.requireOpenMonth(month);
+    const data = await this.ensureOpenMonth(month);
     const idx = data.incomes.findIndex((i) => i.id === income.id);
     const incomes =
       idx >= 0 ? data.incomes.map((i, n) => (n === idx ? income : i)) : [...data.incomes, income];
@@ -71,7 +81,7 @@ export class IndexedDbBudgetRepository implements BudgetRepository {
   }
 
   async saveExpense(month: Month, expense: Expense): Promise<void> {
-    const data = await this.requireOpenMonth(month);
+    const data = await this.ensureOpenMonth(month);
     const idx = data.expenses.findIndex((e) => e.id === expense.id);
     const expenses =
       idx >= 0 ? data.expenses.map((e, n) => (n === idx ? expense : e)) : [...data.expenses, expense];
@@ -87,7 +97,7 @@ export class IndexedDbBudgetRepository implements BudgetRepository {
   }
 
   async closeMonth(month: Month): Promise<void> {
-    const data = await this.requireMonth(month);
+    const data = await this.ensureMonth(month);
     await db.months.put({ ...data, closed: true });
   }
 
@@ -95,6 +105,20 @@ export class IndexedDbBudgetRepository implements BudgetRepository {
     const data = await this.requireMonth(month);
     await db.months.put({ ...data, closed: false });
     await this.recascade(month);
+  }
+
+  async deleteMonth(month: Month): Promise<void> {
+    await db.months.delete(month);
+
+    const remaining = (await db.months.toArray()).sort((a, b) => a.month.localeCompare(b.month));
+    if (remaining.length === 0) return;
+
+    // The earliest month always has a zeroed carryIn (nothing precedes it); re-anchor it
+    // in case the month we just deleted was the one feeding it, then cascade forward.
+    const earliest = remaining[0];
+    const zeroCarryIn = Object.fromEntries(earliest.topicsSnapshot.map((t) => [t.id, 0]));
+    await db.months.put({ ...earliest, carryIn: zeroCarryIn });
+    await this.recascade(earliest.month);
   }
 
   async exportData(): Promise<BackupPayload> {
@@ -137,6 +161,13 @@ export class IndexedDbBudgetRepository implements BudgetRepository {
 
   private async requireOpenMonth(month: Month): Promise<MonthData> {
     const data = await this.requireMonth(month);
+    if (data.closed) throw new MonthClosedError(month);
+    return data;
+  }
+
+  /** Like `requireOpenMonth`, but creates and persists the month first if it doesn't exist yet. */
+  private async ensureOpenMonth(month: Month): Promise<MonthData> {
+    const data = await this.ensureMonth(month);
     if (data.closed) throw new MonthClosedError(month);
     return data;
   }

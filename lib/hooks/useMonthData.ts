@@ -25,6 +25,7 @@ export interface UseMonthDataResult {
   deleteIncome: (incomeId: string) => Promise<void>;
   closeMonth: () => Promise<void>;
   reopenMonth: () => Promise<void>;
+  deleteMonth: () => Promise<void>;
 }
 
 /**
@@ -40,7 +41,9 @@ export function useMonthData(month: Month, currentTopics?: TopicConfig[]): UseMo
     setLoading(true);
     setError(null);
     try {
-      const data = await budgetRepository.ensureMonth(month);
+      // Navigating to a month must not persist it — only an actual expense/income
+      // (or an explicit "close month") creates the stored record. See BudgetRepository.peekMonth.
+      const data = await budgetRepository.peekMonth(month);
       setMonthData(data);
     } catch (err) {
       setError(toStorageErrorMessage(err, 'Erro ao carregar o mês.'));
@@ -88,6 +91,7 @@ export function useMonthData(month: Month, currentTopics?: TopicConfig[]): UseMo
   );
   const closeMonth = useCallback(() => guard(() => budgetRepository.closeMonth(month)), [guard, month]);
   const reopenMonth = useCallback(() => guard(() => budgetRepository.reopenMonth(month)), [guard, month]);
+  const deleteMonth = useCallback(() => guard(() => budgetRepository.deleteMonth(month)), [guard, month]);
 
   const summary = monthData ? computeMonthSummary(monthData, currentTopics) : null;
 
@@ -103,5 +107,6 @@ export function useMonthData(month: Month, currentTopics?: TopicConfig[]): UseMo
     deleteIncome,
     closeMonth,
     reopenMonth,
+    deleteMonth,
   };
 }

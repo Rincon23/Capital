@@ -1,5 +1,6 @@
 'use client';
 
+import { formatMonthLabel } from '@/lib/budget';
 import { useMonthContext } from '@/components/month/MonthContext';
 import { MonthSwitcher } from '@/components/month/MonthSwitcher';
 import { SummaryHeader } from '@/components/month/SummaryHeader';
@@ -18,10 +19,19 @@ export function DashboardScreen() {
     error,
     closeMonth,
     reopenMonth,
+    deleteMonth,
     openExpenseForm,
     openIncomeForm,
   } = useMonthContext();
   const { settings } = useSettings();
+
+  function handleDeleteMonth() {
+    const confirmed = window.confirm(
+      `Apagar todos os lançamentos de ${formatMonthLabel(month)}? ` +
+        'As sobras dos meses seguintes serão recalculadas. Essa ação não pode ser desfeita.',
+    );
+    if (confirmed) void deleteMonth();
+  }
 
   if (loading || !summary || !settings) {
     return <div className="text-muted flex flex-1 items-center justify-center px-4 py-16">Carregando…</div>;
@@ -71,6 +81,14 @@ export function DashboardScreen() {
           Fechar mês
         </button>
       )}
+
+      <button
+        type="button"
+        onClick={handleDeleteMonth}
+        className="border-danger text-danger min-h-[44px] w-full rounded-lg border px-4 text-sm font-semibold"
+      >
+        Apagar dados de {formatMonthLabel(month)}
+      </button>
 
       <div className="fixed right-4 bottom-20 z-30 flex flex-col items-end gap-2">
         <Fab label="Renda" variant="secondary" onClick={() => openIncomeForm()} />
