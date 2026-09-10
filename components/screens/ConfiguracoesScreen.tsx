@@ -167,7 +167,7 @@ function ConfiguracoesForm({
               key={topic.id}
               className={`border-border flex flex-col gap-2 rounded-lg border p-3 ${topic.archived ? 'opacity-50' : ''}`}
             >
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 items-center gap-2">
                 <input
                   type="color"
                   value={resolveTopicColor(topic, index)}
@@ -179,10 +179,10 @@ function ConfiguracoesForm({
                   type="text"
                   value={topic.name}
                   onChange={(e) => updateTopic(topic.id, { name: e.target.value })}
-                  className="border-border bg-background text-foreground focus:ring-primary min-h-[40px] flex-1 rounded-md border px-2 outline-none focus:ring-2"
+                  className="border-border bg-background text-foreground focus:ring-primary min-h-[40px] w-0 min-w-0 flex-1 rounded-md border px-2 outline-none focus:ring-2"
                   aria-label="Nome da categoria"
                 />
-                <div className="flex items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1">
                   <input
                     type="number"
                     min={0}
@@ -190,14 +190,14 @@ function ConfiguracoesForm({
                     step={0.1}
                     value={Math.round(topic.targetPct * 1000) / 10}
                     onChange={(e) => updateTopic(topic.id, { targetPct: Number(e.target.value) / 100 })}
-                    className="border-border bg-background text-foreground focus:ring-primary min-h-[40px] w-16 rounded-md border px-2 text-right outline-none focus:ring-2"
+                    className="border-border bg-background text-foreground focus:ring-primary min-h-[40px] w-14 rounded-md border px-2 text-right outline-none focus:ring-2"
                     aria-label="Percentual"
                   />
                   <span className="text-muted">%</span>
                 </div>
               </div>
-              <div className="flex items-center justify-between gap-2 text-sm">
-                <div className="flex gap-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <div className="flex shrink-0 gap-1">
                   <button
                     type="button"
                     onClick={() => moveTopic(topic.id, -1)}
@@ -217,7 +217,7 @@ function ConfiguracoesForm({
                     ↓
                   </button>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex shrink-0 gap-1">
                   <button
                     type="button"
                     onClick={() => toggleArchived(topic.id)}
@@ -259,7 +259,7 @@ function ConfiguracoesForm({
         <h2 className="text-muted text-sm font-semibold">Categorias especiais</h2>
         <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
           {SPECIAL_CATEGORY_FIELDS.map(({ key, label }) => (
-            <div key={key} className="flex items-end gap-2">
+            <div key={key} className="flex min-w-0 items-end gap-2">
               <input
                 type="color"
                 value={specialColors[key]}
@@ -267,13 +267,13 @@ function ConfiguracoesForm({
                 aria-label={`Cor de ${label}`}
                 className="border-border h-11 w-11 shrink-0 cursor-pointer rounded-md border bg-transparent p-0.5"
               />
-              <label className="text-muted flex flex-1 flex-col gap-1 text-sm">
+              <label className="text-muted flex min-w-0 flex-1 flex-col gap-1 text-sm">
                 {label}
                 <input
                   type="text"
                   value={special[key]}
                   onChange={(e) => setSpecial((s) => ({ ...s, [key]: e.target.value }))}
-                  className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] rounded-md border px-3 outline-none focus:ring-2"
+                  className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] w-full min-w-0 rounded-md border px-3 outline-none focus:ring-2"
                 />
               </label>
             </div>
