@@ -47,6 +47,26 @@ export function withTopicColors(topics: TopicConfig[]): TopicConfig[] {
   );
 }
 
+/**
+ * Snapshot topics with `name` and `color` refreshed from the current settings
+ * (matched by id). `targetPct` / `order` / `archived` stay frozen — only the
+ * presentation follows later edits. Topics no longer in `currentTopics` (deleted
+ * categories still present in an old month) keep their snapshot values.
+ */
+export function withCurrentTopicDisplay(
+  snapshotTopics: TopicConfig[],
+  currentTopics: readonly TopicConfig[] | undefined,
+): TopicConfig[] {
+  if (!currentTopics) return withTopicColors(snapshotTopics);
+  const current = new Map(currentTopics.map((topic) => [topic.id, topic]));
+  return withTopicColors(
+    snapshotTopics.map((topic) => {
+      const live = current.get(topic.id);
+      return live ? { ...topic, name: live.name, color: live.color ?? topic.color } : topic;
+    }),
+  );
+}
+
 /** Fills in any missing colors (topics + special categories) so the UI has a complete palette. */
 export function normalizeSettings(settings: BudgetSettings): BudgetSettings {
   return {

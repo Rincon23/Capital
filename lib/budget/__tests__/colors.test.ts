@@ -4,6 +4,7 @@ import {
   DEFAULT_TOPIC_COLORS,
   normalizeSettings,
   resolveTopicColor,
+  withCurrentTopicDisplay,
   withTopicColors,
 } from '../colors';
 import type { BudgetSettings, MonthData, TopicConfig } from '../types';
@@ -70,6 +71,25 @@ describe('normalizeSettings', () => {
   });
 });
 
+describe('withCurrentTopicDisplay', () => {
+  it('refreshes name and color from the live settings but keeps targetPct/order', () => {
+    const snapshot = withTopicColors(TOPICS);
+    const live = snapshot.map((t) => ({ ...t, name: `${t.name} (novo)`, color: '#abcdef' }));
+    const merged = withCurrentTopicDisplay(snapshot, live);
+    const a = merged.find((t) => t.id === 'a')!;
+    expect(a.name).toBe('A (novo)');
+    expect(a.color).toBe('#abcdef');
+    expect(a.targetPct).toBe(0.5); // frozen
+    expect(a.order).toBe(0); // frozen
+  });
+
+  it('keeps the snapshot name for a topic no longer in settings', () => {
+    const snapshot = withTopicColors(TOPICS);
+    const live = snapshot.filter((t) => t.id !== 'c');
+    expect(withCurrentTopicDisplay(snapshot, live).find((t) => t.id === 'c')?.name).toBe('C');
+  });
+});
+
 describe('computeMonthSummary colors', () => {
   it('uses the live settings color, not the frozen snapshot color', () => {
     const snapshot = withTopicColors(TOPICS); // colors baked into the month
@@ -77,6 +97,13 @@ describe('computeMonthSummary colors', () => {
 
     const summary = computeMonthSummary(month(snapshot), liveTopics);
     expect(summary.topics.every((t) => t.color === '#ff0000')).toBe(true);
+  });
+
+  it('uses the live settings name (a rename shows in the month summary)', () => {
+    const snapshot = withTopicColors(TOPICS);
+    const renamed = snapshot.map((t) => (t.id === 'a' ? { ...t, name: 'Renomeado' } : t));
+    const summary = computeMonthSummary(month(snapshot), renamed);
+    expect(summary.topics.find((t) => t.topicId === 'a')?.name).toBe('Renomeado');
   });
 
   it('falls back to the snapshot / palette color when no live topics are given', () => {

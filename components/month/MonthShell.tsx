@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import type { CategoryKind, Expense, Income, Month } from '@/lib/budget';
+import { withCurrentTopicDisplay, type CategoryKind, type Expense, type Income, type Month } from '@/lib/budget';
 import { useMonthData } from '@/lib/hooks/useMonthData';
 import { setLastViewedMonth } from '@/lib/storage/preferences';
 import { useSettings } from '@/components/providers/SettingsProvider';
@@ -57,7 +57,11 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
       {expenseForm.open && settings && (
         <ExpenseFormSheet
           month={month}
-          topics={monthData.monthData?.topicsSnapshot ?? settings.topics}
+          topics={
+            monthData.monthData
+              ? withCurrentTopicDisplay(monthData.monthData.topicsSnapshot, settings.topics)
+              : settings.topics
+          }
           specialCategories={settings.specialCategories}
           initial={expenseForm.initial}
           defaultCategoryKind={expenseForm.defaultCategoryKind}

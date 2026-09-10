@@ -1,4 +1,4 @@
-import { resolveTopicColor } from './colors';
+import { resolveTopicColor, withCurrentTopicDisplay } from './colors';
 import { round2, sum } from './money';
 import type { Expense, MonthData, TopicConfig } from './types';
 
@@ -135,16 +135,18 @@ export function computeTopicResult(
 /**
  * Computes the full summary for a month from its raw data. Pure: no I/O, no React.
  *
- * `currentTopics` (the live settings) is used only to pick each topic's color, so
- * a color change in Settings shows everywhere immediately — colors are cosmetic
- * and, unlike targetPct/order, are not frozen in the month's snapshot. Falls back
- * to the snapshot's color (or a palette default) for topics no longer in settings.
+ * `currentTopics` (the live settings) refreshes each topic's **name and color**, so
+ * renaming or recoloring a category in Settings shows everywhere immediately.
+ * These are cosmetic — unlike `targetPct`, which stays frozen in the month's
+ * snapshot so past math never changes. Topics no longer in settings keep their
+ * snapshot name/color.
  */
 export function computeMonthSummary(
   monthData: MonthData,
   currentTopics?: readonly TopicConfig[],
 ): MonthSummary {
-  const activeTopics = monthData.topicsSnapshot.filter((t) => !t.archived);
+  const displayTopics = withCurrentTopicDisplay(monthData.topicsSnapshot, currentTopics);
+  const activeTopics = displayTopics.filter((t) => !t.archived);
   const incomeTotal = computeIncomeTotal(monthData);
   const fixedTotal = computeFixedTotal(monthData.expenses);
   const unforeseenTotal = computeUnforeseenTotal(monthData.expenses);
@@ -154,18 +156,17 @@ export function computeMonthSummary(
   const topics = activeTopics
     .slice()
     .sort((a, b) => a.order - b.order)
-    .map((topic, index) => {
-      const liveColor = currentTopics?.find((t) => t.id === topic.id)?.color;
-      return computeTopicResult(
+    .map((topic, index) =>
+      computeTopicResult(
         topic,
         monthData.expenses,
         incomeTotal,
         fixedTotal,
         unforeseenTotal,
         monthData.carryIn[topic.id] ?? 0,
-        liveColor ?? resolveTopicColor(topic, index),
-      );
-    });
+        resolveTopicColor(topic, index),
+      ),
+    );
 
   const expenseTotal = round2(fixedTotal + unforeseenTotal + sum(topics.map((t) => t.spent)));
   const availableTotal = sum(topics.map((t) => t.available));
