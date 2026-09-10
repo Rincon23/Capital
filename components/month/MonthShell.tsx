@@ -31,6 +31,25 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
     setIncomeForm({ open: true, initial });
   }, []);
 
+  // A hard storage failure (e.g. Supabase unreachable / not set up) leaves monthData
+  // null forever; show the error instead of letting every child spin on "Carregando…".
+  if (monthData.error && !monthData.monthData) {
+    return (
+      <div className="mx-auto flex min-h-dvh w-full max-w-sm flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-foreground text-sm font-medium">Não foi possível carregar este mês</p>
+        <p className="text-muted text-sm">{monthData.error}</p>
+        <button
+          type="button"
+          onClick={() => void monthData.refresh()}
+          disabled={monthData.loading}
+          className="bg-primary text-primary-foreground min-h-[44px] rounded-lg px-4 font-semibold disabled:opacity-50"
+        >
+          {monthData.loading ? 'Tentando…' : 'Tentar novamente'}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <MonthContext.Provider value={{ ...monthData, month, openExpenseForm, openIncomeForm }}>
       {children}

@@ -10,6 +10,7 @@ import {
   type MonthSummary,
 } from '@/lib/budget';
 import { budgetRepository } from '@/lib/storage';
+import { toStorageErrorMessage } from '@/lib/storage/errors';
 
 export interface UseMonthDataResult {
   monthData: MonthData | null;
@@ -38,7 +39,7 @@ export function useMonthData(month: Month): UseMonthDataResult {
       const data = await budgetRepository.ensureMonth(month);
       setMonthData(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao carregar o mês.');
+      setError(toStorageErrorMessage(err, 'Erro ao carregar o mês.'));
     } finally {
       setLoading(false);
     }
@@ -58,7 +59,7 @@ export function useMonthData(month: Month): UseMonthDataResult {
         await action();
         await refresh();
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Erro ao salvar.');
+        setError(toStorageErrorMessage(err, 'Erro ao salvar.'));
         throw err;
       }
     },

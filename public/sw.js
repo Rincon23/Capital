@@ -1,6 +1,9 @@
-// Capital keeps all budget data in IndexedDB (no network calls for app data), so this
-// service worker only needs to make the app shell (HTML/JS/CSS) available offline.
-const CACHE_VERSION = 'capital-v1';
+// Capital syncs budget data with Supabase over the network. This service worker keeps
+// the app shell (HTML/JS/CSS) available offline; Supabase requests are cross-origin
+// (*.supabase.co) and pass straight through (see the origin check below), so no stale
+// data is ever served. With no connection the app shell still loads but stays on
+// "Carregando…" until the network returns.
+const CACHE_VERSION = 'capital-v2';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const OFFLINE_URL = '/offline.html';

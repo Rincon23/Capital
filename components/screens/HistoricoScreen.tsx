@@ -14,7 +14,7 @@ import { formatBRL, formatMonthLabel, formatPct } from '@/lib/budget';
 import { seriesColor } from '@/lib/chartPalette';
 
 export function HistoricoScreen() {
-  const { summaries, loading } = useAllMonths();
+  const { summaries, loading, error } = useAllMonths();
 
   const topics: TopicSeries[] = useMemo(() => {
     const byId = new Map<string, string>();
@@ -28,6 +28,15 @@ export function HistoricoScreen() {
 
   if (loading) {
     return <div className="text-muted flex flex-1 items-center justify-center px-4 py-16">Carregando…</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-1 flex-col gap-4">
+        <PageHeader title="Histórico" />
+        <p className="text-danger px-4 text-sm">{error}</p>
+      </div>
+    );
   }
 
   if (summaries.length === 0) {

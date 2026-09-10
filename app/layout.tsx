@@ -2,8 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
-import { AppProviders } from '@/components/providers/AppProviders';
-import { BottomNav } from '@/components/layout/BottomNav';
+import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { RegisterServiceWorker } from '@/components/pwa/RegisterServiceWorker';
 
 const geistSans = Geist({
@@ -52,11 +51,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="bg-background text-foreground flex min-h-full flex-col">
-        <AppProviders>
-          <div className="flex min-h-full flex-1 flex-col pb-16">{children}</div>
-          <BottomNav />
+        <ThemeProvider>
+          {children}
           <RegisterServiceWorker />
-        </AppProviders>
+        </ThemeProvider>
       </body>
     </html>
   );

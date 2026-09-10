@@ -1,10 +1,13 @@
 'use client';
 
-import { useState, type ChangeEvent } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { useTheme } from '@/components/providers/ThemeProvider';
+import { signOut } from '@/lib/auth/actions';
 import { budgetRepository, downloadBackup, readBackupFile } from '@/lib/storage';
+import { hasLocalData, importLocalDataToCloud } from '@/lib/storage/localMigration';
 import {
   createId,
   formatPct,
@@ -120,6 +123,8 @@ function ConfiguracoesForm({
   return (
     <div className="flex flex-1 flex-col gap-6 pb-10">
       <PageHeader title="Configurações" />
+
+      <AccountSection />
 
       <section className="flex flex-col gap-3 px-4">
         <h2 className="text-muted text-sm font-semibold">Categorias de meta</h2>
@@ -284,6 +289,8 @@ function ConfiguracoesForm({
         </div>
       </section>
 
+      <LocalDataSection />
+
       <section className="px-4">
         <button
           type="button"
@@ -294,5 +301,84 @@ function ConfiguracoesForm({
         </button>
       </section>
     </div>
+  );
+}
+
+function AccountSection() {
+  const { user } = useAuth();
+
+  return (
+    <section className="flex flex-col gap-3 px-4">
+      <h2 className="text-muted text-sm font-semibold">Conta</h2>
+      <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
+        <p className="text-foreground text-sm break-all">{user.email ?? 'Sessão ativa'}</p>
+        <form action={signOut}>
+          <button
+            type="submit"
+            className="border-border text-foreground min-h-[44px] w-full rounded-lg border px-4 text-sm font-medium"
+          >
+            Sair
+          </button>
+        </form>
+      </div>
+    </section>
+  );
+}
+
+function LocalDataSection() {
+  const [available, setAvailable] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    void hasLocalData().then((has) => {
+      if (active) setAvailable(has);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (!available) return null;
+
+  async function handleImport() {
+    const confirmed = window.confirm(
+      'Importar os dados salvos neste dispositivo substitui os dados atuais da sua conta na nuvem. Continuar?',
+    );
+    if (!confirmed) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await importLocalDataToCloud();
+      // Full reload (not router navigation): every screen's repository-backed state
+      // must be re-read from scratch after a wholesale data replacement.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.href = '/';
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao importar.');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="flex flex-col gap-3 px-4">
+      <h2 className="text-muted text-sm font-semibold">Dados locais deste dispositivo</h2>
+      <div className="border-border bg-card flex flex-col gap-2 rounded-xl border p-4 shadow-sm">
+        <p className="text-muted text-sm">
+          Este dispositivo tem dados da versão anterior (salvos só no navegador). Importe-os para a
+          sua conta para acessá-los em qualquer lugar.
+        </p>
+        <button
+          type="button"
+          onClick={handleImport}
+          disabled={busy}
+          className="border-border text-foreground min-h-[44px] rounded-lg border px-4 text-sm font-medium disabled:opacity-50"
+        >
+          {busy ? 'Importando…' : 'Importar dados deste dispositivo'}
+        </button>
+        {error && <p className="text-danger text-sm">{error}</p>}
+      </div>
+    </section>
   );
 }

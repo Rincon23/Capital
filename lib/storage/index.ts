@@ -1,10 +1,15 @@
 export * from './repository';
 export * from './indexedDbRepository';
+export * from './supabaseRepository';
 export * from './preferences';
 export * from './exportImport';
 
-import { IndexedDbBudgetRepository } from './indexedDbRepository';
 import type { BudgetRepository } from './repository';
+import { SupabaseBudgetRepository } from './supabaseRepository';
 
-/** Singleton repository instance used throughout the app. Swap this for a v2 backend without touching callers. */
-export const budgetRepository: BudgetRepository = new IndexedDbBudgetRepository();
+/**
+ * Singleton repository used throughout the app. v2 is cloud-backed (Supabase +
+ * per-user RLS); `IndexedDbBudgetRepository` is still exported for the one-time
+ * migration of a device's old local data (see `lib/storage/localMigration.ts`).
+ */
+export const budgetRepository: BudgetRepository = new SupabaseBudgetRepository();

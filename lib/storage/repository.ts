@@ -7,6 +7,30 @@ export interface BackupPayload {
   months: MonthData[];
 }
 
+/** Thrown when a write targets a month that has been closed. Message is user-facing (pt-BR). */
+export class MonthClosedError extends Error {
+  constructor(month: Month) {
+    super(`O mês ${month} está fechado. Reabra-o para editar.`);
+    this.name = 'MonthClosedError';
+  }
+}
+
+/** Thrown when an operation references a month that does not exist yet. */
+export class MonthNotFoundError extends Error {
+  constructor(month: Month) {
+    super(`O mês ${month} não foi encontrado.`);
+    this.name = 'MonthNotFoundError';
+  }
+}
+
+/** Thrown by cloud-backed repositories when there is no signed-in user. */
+export class NotAuthenticatedError extends Error {
+  constructor() {
+    super('Sessão expirada. Entre novamente para continuar.');
+    this.name = 'NotAuthenticatedError';
+  }
+}
+
 /**
  * Storage-agnostic interface for all budget data access. The UI and the
  * pure calculation modules never talk to IndexedDB (or any future backend)

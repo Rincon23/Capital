@@ -4,21 +4,12 @@ import { cascadeCarryIn, createMonthData } from '../budget/rollover';
 import { createDefaultSettings, createSeedMonthData } from '../budget/seed';
 import type { BudgetSettings, Expense, Income, Month, MonthData } from '../budget/types';
 import { db, SETTINGS_ID } from './db';
-import type { BackupPayload, BudgetRepository } from './repository';
-
-export class MonthClosedError extends Error {
-  constructor(month: Month) {
-    super(`O mês ${month} está fechado. Reabra-o para editar.`);
-    this.name = 'MonthClosedError';
-  }
-}
-
-export class MonthNotFoundError extends Error {
-  constructor(month: Month) {
-    super(`O mês ${month} não foi encontrado.`);
-    this.name = 'MonthNotFoundError';
-  }
-}
+import {
+  MonthClosedError,
+  MonthNotFoundError,
+  type BackupPayload,
+  type BudgetRepository,
+} from './repository';
 
 /** v1 implementation of BudgetRepository, backed by IndexedDB via Dexie. */
 export class IndexedDbBudgetRepository implements BudgetRepository {

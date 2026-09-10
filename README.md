@@ -8,27 +8,41 @@ carregando a sobra de um mês para o outro (rollover). Gastos "Ressarcido" (feit
 cartão para alguém te devolver depois) entram na fatura do cartão, mas não afetam o
 orçamento de nenhuma categoria.
 
-PWA instalável, funciona **offline** e guarda todos os dados **no próprio dispositivo**
-(IndexedDB) — nada é enviado para servidores externos.
+PWA instalável, com **login por e-mail e senha**. Os dados ficam em um projeto
+**Supabase** (Postgres na nuvem), isolados por usuário via Row Level Security — cada conta só
+enxerga os próprios dados, acessíveis de qualquer dispositivo. Sem conexão o app abre, mas as
+telas ficam carregando até a rede voltar.
 
 ## Como rodar
 
-Requer Node.js 20+.
+Requer Node.js 22+ e um projeto Supabase.
 
 ```bash
 npm install
+
+cp .env.example .env.local   # preencha com Project URL + publishable key (Supabase -> Project Settings -> API)
 
 npm run dev      # servidor de desenvolvimento em http://localhost:3000
 npm run build    # build de produção (gera o service worker em public/sw.js)
 npm start        # serve o build de produção
 
-npm test         # roda os testes de /lib/budget (Vitest)
+npm test         # testes de /lib/budget e /lib/storage (Vitest)
 npm run lint     # ESLint
 npm run format   # Prettier
 ```
 
-Na primeira execução, o app popula automaticamente as categorias e um mês de exemplo
-(dados-semente da seção 10 do briefing) — não é preciso nenhuma configuração inicial.
+### Configuração do Supabase (uma vez)
+
+1. Aplique `supabase/migrations/20260910120000_capital_cloud.sql` (SQL Editor ou `supabase db push`).
+2. **Authentication → Providers → Email**: mantenha "Confirm email" ligado.
+3. **Authentication → URL Configuration**: defina a Site URL e as Redirect URLs
+   (`http://localhost:3000/**` em dev; a URL de produção depois).
+4. **Authentication → Email Templates** ("Confirm signup" e "Reset password"): aponte o link para
+   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type={{ .Type }}&next=/`.
+
+Ao abrir o app pela primeira vez, uma conta nova recebe as 4 categorias padrão e as categorias
+especiais — sem mês de exemplo. Se o dispositivo tiver dados da versão local anterior, o app
+oferece importá-los para a conta.
 
 ## Arquitetura
 
@@ -42,7 +56,11 @@ Na primeira execução, o app popula automaticamente as categorias e um mês de 
 /lib
   /budget                 Regras de negócio — funções puras, sem React nem storage
   /storage                Camada de persistência, isolada atrás de uma interface
+  /supabase               Clients Supabase (browser / server / proxy) e tipos do schema
+  /auth                   Server Actions de autenticação (entrar, criar conta, sair, reset)
   /hooks                  Hooks React que ligam a UI ao repositório (useMonthData, useAllMonths)
+/proxy.ts                 Refresh de sessão + redirecionamento de rotas (o antigo middleware)
+/supabase/migrations      Schema SQL (tabelas, RLS, triggers)
 ```
 
 ### Lógica de negócio pura (`/lib/budget`)
@@ -57,7 +75,7 @@ de storage. Isso os torna triviais de testar (`lib/budget/__tests__`, ver seçã
 `R$ 1.234,56`. `date.ts` cuida da aritmética de meses (`YYYY-MM`) e rótulos em
 português.
 
-### Camada de dados isolada (`/lib/storage`) — o caminho para a v2 em nuvem
+### Camada de dados isolada (`/lib/storage`)
 
 Toda a UI e toda a lógica de negócio falam **apenas** com a interface `BudgetRepository`
 (`lib/storage/repository.ts`):
@@ -81,20 +99,32 @@ interface BudgetRepository {
 }
 ```
 
-A v1 implementa essa interface com **`IndexedDbBudgetRepository`** (Dexie.js), mantendo
-o rollover consistente automaticamente: toda alteração em um mês recalcula em cascata o
-`carryIn` dos meses seguintes já existentes (`recascade`, usado também ao reabrir um mês
-fechado).
+A implementação ativa é **`SupabaseBudgetRepository`** (`lib/storage/supabaseRepository.ts`),
+que fala com o Postgres do Supabase direto do navegador — o acesso às linhas é garantido
+por RLS (`auth.uid() = user_id`), não por uma camada de API. Cada mês vira uma linha na
+tabela `months` com o `MonthData` gravado como está (colunas `jsonb`), então
+`computeMonthSummary`, `createMonthData` e `cascadeCarryIn` são reaproveitados sem
+alteração. Toda escrita em um mês recalcula em cascata o `carryIn` dos meses seguintes
+(`recascade`, usado também ao reabrir um mês fechado). As categorias padrão são semeadas
+na primeira leitura de `getSettings()`.
 
-**Migração para v2 (nuvem, ex.: Supabase):** criar `SupabaseBudgetRepository`
-implementando a mesma interface (mesmas assinaturas de método, mesmos tipos de
-`lib/budget/types.ts`) e trocar a instância exportada em `lib/storage/index.ts`
-(`export const budgetRepository: BudgetRepository = new SupabaseBudgetRepository()`).
-Nenhuma tela ou regra de negócio precisa mudar. O modelo de dados já é particionado por
-mês e não pressupõe um único usuário — basta que a v2 escope as tabelas por `userId`
-(hoje implícito, já que o app é single-user); os tipos e o formato de `BackupPayload`
-permanecem os mesmos, o que também permite migrar dados existentes de um dispositivo
-para a nuvem via export/import.
+**`IndexedDbBudgetRepository`** (Dexie.js) continua no código, mas só para a migração única
+dos dados locais da versão anterior: `lib/storage/localMigration.ts` faz
+`exportData()` local → `importData()` na nuvem (via `BackupPayload`, mesmo formato do
+backup manual), oferecida por um banner e na tela de Configurações.
+
+A troca de implementação é o único ponto de acoplamento: `lib/storage/index.ts` exporta
+`export const budgetRepository: BudgetRepository = new SupabaseBudgetRepository()`. Nenhuma
+tela nem regra de negócio conhece o Supabase.
+
+### Autenticação
+
+Login por e-mail e senha via Supabase Auth (`@supabase/ssr`), com confirmação de e-mail.
+As telas ficam no route group `app/(app)/` (protegido); `/login` e `/auth/*` ficam fora.
+`proxy.ts` (o antigo `middleware.ts`, renomeado no Next.js 16) atualiza o cookie de sessão
+a cada request e redireciona quem não está logado para `/login`. As operações de auth são
+Server Actions (`lib/auth/actions.ts`); os dados do orçamento passam pelo repositório no
+cliente + RLS.
 
 ### Preferências leves (`lib/storage/preferences.ts`)
 
@@ -107,8 +137,10 @@ conforme pedido — nunca dados financeiros.
 - `public/sw.js` — service worker escrito à mão (cache-first para assets do Next
   content-hashed, network-first com fallback para navegação, stale-while-revalidate
   para o restante), registrado por `components/pwa/RegisterServiceWorker.tsx` apenas em
-  produção. Como todos os dados do app vivem no IndexedDB (sem chamadas de rede), o
-  service worker só precisa manter o _app shell_ disponível offline.
+  produção. Mantém o _app shell_ disponível offline; as chamadas ao Supabase são
+  cross-origin e passam direto, então nenhum dado velho é servido. Sem rede o app abre mas
+  fica em "Carregando…" — um cache write-through no IndexedDB com sincronização é o próximo
+  passo natural, ainda não implementado.
 - `public/offline.html` — página de fallback quando uma rota nunca visitada é aberta
   sem rede.
 
@@ -122,6 +154,9 @@ conforme pedido — nunca dados financeiros.
 de `/lib/budget` (Vitest): mês isolado sem rollover, rollover positivo/negativo,
 fechamento e carga do mês seguinte, Ressarcido (neutro para o orçamento, somado à
 fatura do cartão), validação de soma de percentuais e o estado `available <= 0`.
+`lib/storage/__tests__/supabaseRepository.test.ts` cobre a orquestração do repositório
+de nuvem (seed, cascata de rollover, mês fechado/inexistente, export→import) com um
+client Supabase falso em memória.
 
 ## Checklist de aderência
 
@@ -143,16 +178,17 @@ fatura do cartão), validação de soma de percentuais e o estado `available <= 
 - [x] **Detalhe da categoria** — lista de gastos editável/excluível e a conta completa (`renda × pct − rateio + mês passado = posso gastar`)
 - [x] **Lançamentos do mês** — abas Gastos / Renda / Custos Fixos / Imprevistos / Ressarcidos, busca e edição/exclusão inline
 - [x] **Histórico & Gráficos** — tabela mês a mês, evolução do gasto por categoria (linhas), composição do gasto por mês (barras empilhadas), sobra acumulada/rollover (linhas) e indicador de aderência à meta
-- [x] **Configurações** — editor de categorias (nome/%/ordem/arquivar) com validador de 100%, categorias especiais renomeáveis, exportar/importar JSON, apagar tudo, tema claro/escuro
+- [x] **Configurações** — editor de categorias (nome/%/ordem/arquivar) com validador de 100%, categorias especiais renomeáveis, exportar/importar JSON, apagar tudo, tema claro/escuro, conta (e-mail + sair), importar dados locais
+- [x] **Login** — entrar / criar conta / esqueci a senha, com confirmação de e-mail
 
 ### Requisitos não-funcionais (seção 8)
 
 - [x] Alvos de toque ≥ 44px; campo de valor com teclado numérico (`inputMode="decimal"`)
-- [x] Offline-first — todas as escritas vão para IndexedDB; nada é enviado para fora do dispositivo
+- [~] Dados na nuvem (Supabase), isolados por usuário via RLS; o app precisa de conexão para ler/gravar (cache offline é trabalho futuro)
 - [x] Lançar um gasto em ≤ 3 toques (categoria → descrição opcional → salvar) além do valor
 - [x] Labels em todos os inputs, navegação por teclado, contraste AA nas cores de status
 
 ### Fora do escopo v1, preparado no schema (seção 11)
 
 - [x] `Expense.installmentPlan?: InstallmentPlan` reservado para cartão parcelado — não usado por nenhum cálculo nem tela da v1
-- [x] `BudgetRepository` não assume um único usuário nem armazenamento local; a v2 (nuvem/login) troca apenas a implementação
+- [x] `BudgetRepository` não assume um único usuário nem armazenamento local — a implementação de nuvem (Supabase + login) trocou apenas a instância em `lib/storage/index.ts`
