@@ -23,7 +23,7 @@ export function CategoryDetailScreen({ topicId }: { topicId: string }) {
   }
 
   const entries = monthData.expenses
-    .filter((e) => e.topicId === topicId && (e.categoryKind === 'topic' || e.categoryKind === 'reimbursed'))
+    .filter((e) => e.topicId === topicId && e.categoryKind === 'topic')
     .sort((a, b) => b.date.localeCompare(a.date));
 
   const state = computeProgressState(topic.usedPct);
@@ -99,12 +99,7 @@ export function CategoryDetailScreen({ topicId }: { topicId: string }) {
                   <span className="text-foreground block truncate font-medium">{entry.description}</span>
                   <span className="text-muted block text-xs">{formatDate(entry.date)}</span>
                 </span>
-                <span
-                  className={`font-semibold ${entry.categoryKind === 'reimbursed' ? 'text-success' : 'text-foreground'}`}
-                >
-                  {entry.categoryKind === 'reimbursed' ? '+ ' : ''}
-                  {formatBRL(entry.amount)}
-                </span>
+                <span className="text-foreground font-semibold">{formatBRL(entry.amount)}</span>
               </button>
             </li>
           ))}

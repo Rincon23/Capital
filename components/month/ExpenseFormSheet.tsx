@@ -59,7 +59,8 @@ export function ExpenseFormSheet({
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
-  const needsTopic = categoryKind === 'topic' || categoryKind === 'reimbursed';
+  const needsTopic = categoryKind === 'topic';
+  const isReimbursed = categoryKind === 'reimbursed';
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -79,7 +80,7 @@ export function ExpenseFormSheet({
         description: description.trim() || specialLabelFor(categoryKind, specialCategories),
         amount: parsedAmount,
         date,
-        singleInstallmentCard,
+        singleInstallmentCard: isReimbursed ? true : singleInstallmentCard,
       });
       onClose();
     } catch {
@@ -137,20 +138,11 @@ export function ExpenseFormSheet({
           </div>
         </div>
 
-        {categoryKind === 'reimbursed' && (
-          <div>
-            <p className="text-muted mb-2 text-sm font-medium">Estornar em qual categoria?</p>
-            <div className="flex flex-wrap gap-2">
-              {activeTopics.map((topic) => (
-                <Chip
-                  key={topic.id}
-                  label={topic.name}
-                  selected={topicId === topic.id}
-                  onClick={() => setTopicId(topic.id)}
-                />
-              ))}
-            </div>
-          </div>
+        {isReimbursed && (
+          <p className="bg-card text-muted rounded-lg px-3 py-2 text-xs">
+            Vai pra fatura do cartão, mas não entra no orçamento de nenhuma categoria. Use quando alguém for
+            te devolver o valor depois.
+          </p>
         )}
 
         <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
@@ -179,15 +171,17 @@ export function ExpenseFormSheet({
           )}
         </label>
 
-        <label className="text-foreground flex min-h-[44px] items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={singleInstallmentCard}
-            onChange={(e) => setSingleInstallmentCard(e.target.checked)}
-            className="border-border h-5 w-5 rounded"
-          />
-          Cartão 1x?
-        </label>
+        {!isReimbursed && (
+          <label className="text-foreground flex min-h-[44px] items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={singleInstallmentCard}
+              onChange={(e) => setSingleInstallmentCard(e.target.checked)}
+              className="border-border h-5 w-5 rounded"
+            />
+            Cartão 1x?
+          </label>
+        )}
 
         {errors.length > 0 && (
           <ul className="bg-danger-bg text-danger rounded-lg px-3 py-2 text-sm">

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  computeCardTotal,
   computeFixedTotal,
   computeMonthSummary,
   computeProgressState,
@@ -118,22 +119,15 @@ describe('Cenário C — fechamento e carga', () => {
   });
 });
 
-describe('Cenário D — estorno (Ressarcido)', () => {
+describe('Cenário D — Ressarcido (gasto no cartão que alguém devolve)', () => {
+  const base = computeMonthSummary(buildMonth());
   const month = buildMonth({
     expenses: [
+      ...BASE_EXPENSES,
       {
-        id: 'e1',
-        categoryKind: 'topic',
-        topicId: 'diversos',
-        description: 'Compra',
-        amount: 300,
-        date: '2026-01-10',
-      },
-      {
-        id: 'e2',
+        id: 'r1',
         categoryKind: 'reimbursed',
-        topicId: 'diversos',
-        description: 'Estorno',
+        description: 'Jantar com a namorada',
         amount: 120,
         date: '2026-01-12',
       },
@@ -141,15 +135,51 @@ describe('Cenário D — estorno (Ressarcido)', () => {
   });
   const summary = computeMonthSummary(month);
 
-  it('o estorno abate o gasto da categoria', () => {
-    const diversos = findTopic(summary, 'diversos');
-    expect(diversos.spent).toBe(180);
+  it('não altera o gasto, a sobra nem o saldo geral de nenhuma categoria', () => {
+    expect(findTopic(summary, 'diversos').spent).toBe(findTopic(base, 'diversos').spent);
+    expect(findTopic(summary, 'diversos').remaining).toBe(findTopic(base, 'diversos').remaining);
+    expect(summary.balance).toBe(base.balance);
   });
 
-  it('ressarcido não entra no rateio de custos fixos/imprevistos', () => {
-    expect(computeFixedTotal(month.expenses)).toBe(0);
-    expect(computeUnforeseenTotal(month.expenses)).toBe(0);
+  it('não entra no total gasto nem no rateio de custos fixos/imprevistos', () => {
+    expect(summary.expenseTotal).toBe(base.expenseTotal);
+    expect(computeFixedTotal(month.expenses)).toBe(800);
+    expect(computeUnforeseenTotal(month.expenses)).toBe(200);
+  });
+
+  it('conta como gasto no cartão e é rastreado como ressarcido', () => {
     expect(computeReimbursedTotal(month.expenses)).toBe(120);
+    expect(summary.cardTotal).toBe(120);
+  });
+
+  it('computeCardTotal soma compras marcadas como cartão e os ressarcidos, sem duplicar', () => {
+    const expenses: Expense[] = [
+      {
+        id: 'a',
+        categoryKind: 'topic',
+        topicId: 'diversos',
+        description: 'Cartão 1x',
+        amount: 300,
+        date: '2026-01-10',
+        singleInstallmentCard: true,
+      },
+      {
+        id: 'b',
+        categoryKind: 'topic',
+        topicId: 'metas',
+        description: 'À vista',
+        amount: 50,
+        date: '2026-01-10',
+      },
+      {
+        id: 'c',
+        categoryKind: 'reimbursed',
+        description: 'Devolvem depois',
+        amount: 120,
+        date: '2026-01-12',
+      },
+    ];
+    expect(computeCardTotal(expenses)).toBe(420);
   });
 });
 

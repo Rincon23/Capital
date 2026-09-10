@@ -5,7 +5,7 @@ export interface TopicResult {
   topicId: string;
   name: string;
   targetPct: number;
-  /** Money spent in this topic this month, net of reimbursements ("Valor Gasto"). */
+  /** Money spent in this topic this month ("Valor Gasto"). */
   spent: number;
   /** Rollover from the previous month ("Mês passado"). */
   carryIn: number;
@@ -24,8 +24,11 @@ export interface MonthSummary {
   incomeTotal: number;
   fixedTotal: number;
   unforeseenTotal: number;
+  /** Sum of 'reimbursed' expenses — card purchases someone else pays back. Never touches the envelope math. */
   reimbursedTotal: number;
-  /** Total money spent across all topics plus fixed costs and unforeseen, net of reimbursements. */
+  /** Everything that will land on the credit-card bill: card purchases + all reimbursed expenses. */
+  cardTotal: number;
+  /** Total money spent across all topics plus fixed costs and unforeseen. Excludes reimbursed expenses. */
   expenseTotal: number;
   /** Sum of available(t) across all topics. */
   availableTotal: number;
@@ -50,15 +53,24 @@ export function computeReimbursedTotal(expenses: Expense[]): number {
   return sum(expenses.filter((e) => e.categoryKind === 'reimbursed').map((e) => e.amount));
 }
 
-/** Money spent in a topic this month, net of reimbursements credited to that same topic. */
+/**
+ * Everything that will show up on the credit-card bill: any expense flagged as a
+ * card purchase, plus every 'reimbursed' expense (which is a card purchase by
+ * definition). Reimbursed amounts are counted once even if also flagged.
+ */
+export function computeCardTotal(expenses: Expense[]): number {
+  return sum(
+    expenses
+      .filter((e) => e.categoryKind === 'reimbursed' || e.singleInstallmentCard === true)
+      .map((e) => e.amount),
+  );
+}
+
+/** Money spent in a topic this month. Reimbursed expenses never belong to a topic and are ignored. */
 export function computeTopicSpent(expenses: Expense[], topicId: string): number {
-  const gross = sum(
+  return sum(
     expenses.filter((e) => e.categoryKind === 'topic' && e.topicId === topicId).map((e) => e.amount),
   );
-  const reimbursed = sum(
-    expenses.filter((e) => e.categoryKind === 'reimbursed' && e.topicId === topicId).map((e) => e.amount),
-  );
-  return round2(gross - reimbursed);
 }
 
 export function computeProportionalFixed(
@@ -122,6 +134,7 @@ export function computeMonthSummary(monthData: MonthData): MonthSummary {
   const fixedTotal = computeFixedTotal(monthData.expenses);
   const unforeseenTotal = computeUnforeseenTotal(monthData.expenses);
   const reimbursedTotal = computeReimbursedTotal(monthData.expenses);
+  const cardTotal = computeCardTotal(monthData.expenses);
 
   const topics = activeTopics
     .slice()
@@ -147,6 +160,7 @@ export function computeMonthSummary(monthData: MonthData): MonthSummary {
     fixedTotal,
     unforeseenTotal,
     reimbursedTotal,
+    cardTotal,
     expenseTotal,
     availableTotal,
     balance,

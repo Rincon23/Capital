@@ -2,9 +2,11 @@
 
 Aplicativo web mobile-first de orçamento doméstico por envelopes (categorias com
 percentuais definidos pelo usuário), substituindo uma planilha. Renda, gastos, custos
-fixos, imprevistos e estornos são lançados manualmente; o app calcula quanto ainda pode
+fixos, imprevistos e ressarcidos são lançados manualmente; o app calcula quanto ainda pode
 ser gasto em cada categoria, descontando o rateio dos custos fixos/imprevistos e
-carregando a sobra de um mês para o outro (rollover).
+carregando a sobra de um mês para o outro (rollover). Gastos "Ressarcido" (feitos no
+cartão para alguém te devolver depois) entram na fatura do cartão, mas não afetam o
+orçamento de nenhuma categoria.
 
 PWA instalável, funciona **offline** e guarda todos os dados **no próprio dispositivo**
 (IndexedDB) — nada é enviado para servidores externos.
@@ -118,8 +120,8 @@ conforme pedido — nunca dados financeiros.
 
 `npm test` roda os cenários de aceitação da seção 9 do briefing como testes unitários
 de `/lib/budget` (Vitest): mês isolado sem rollover, rollover positivo/negativo,
-fechamento e carga do mês seguinte, estorno (Ressarcido), validação de soma de
-percentuais e o estado `available <= 0`.
+fechamento e carga do mês seguinte, Ressarcido (neutro para o orçamento, somado à
+fatura do cartão), validação de soma de percentuais e o estado `available <= 0`.
 
 ## Checklist de aderência
 
@@ -129,7 +131,7 @@ percentuais e o estado `available <= 0`.
 - [x] `available(t) = incomeTotal * pct(t) - proportionalFixed(t) + carryIn(t)`
 - [x] `remaining(t) = available(t) - spent(t)`
 - [x] `usedPct(t) = spent(t) / available(t)`, mostrando "—" e estado de alerta quando `available(t) <= 0`
-- [x] Estornos (`reimbursed`) abatem `spent(t)` da categoria e não entram no rateio de fixos/imprevistos
+- [x] Ressarcidos (`reimbursed`): gasto no cartão que alguém devolve — entram em `cardTotal` (fatura) e são invisíveis para `spent(t)`, `available(t)`, `balance` e `expenseTotal`
 - [x] Rollover: `carryIn` do mês N = `remaining` do mês N-1 (inclusive negativo)
 - [x] Fechar mês congela os números; reabrir recalcula em cascata os meses seguintes
 - [x] `topicsSnapshot` guarda o `pct` vigente em cada mês (config posterior não altera meses passados)

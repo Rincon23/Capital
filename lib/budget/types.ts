@@ -56,13 +56,18 @@ export interface InstallmentPlan {
 export interface Expense {
   id: string;
   categoryKind: CategoryKind;
-  /** Required when categoryKind is 'topic' or 'reimbursed'. */
+  /** Required when categoryKind is 'topic'. Never set for 'reimbursed'. */
   topicId?: string;
   description: string;
-  /** Always positive; 'reimbursed' expenses are treated as a credit by the calculation layer. */
+  /**
+   * Always positive. A 'reimbursed' expense is a card purchase that someone else
+   * will pay the user back for (e.g. paid with the card, refunded later via Pix):
+   * it counts toward the card bill but is invisible to the envelope budget.
+   */
   amount: number;
   /** ISO date (YYYY-MM-DD). */
   date: string;
+  /** Marks a purchase that lands on the credit-card bill. Always true in effect for 'reimbursed'. */
   singleInstallmentCard?: boolean;
   /** v2 preparation only, see InstallmentPlan. */
   installmentPlan?: InstallmentPlan;

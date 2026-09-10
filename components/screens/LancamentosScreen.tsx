@@ -137,16 +137,13 @@ export function LancamentosScreen() {
                     <span className="text-foreground block truncate font-medium">{expense.description}</span>
                     <span className="text-muted block text-xs">
                       {formatDate(expense.date)}
-                      {expense.categoryKind === 'topic' || expense.categoryKind === 'reimbursed'
+                      {expense.categoryKind === 'topic'
                         ? ` · ${topicName(settings.topics, expense.topicId)}`
                         : ''}
+                      {expense.categoryKind === 'reimbursed' ? ' · cartão, fora do orçamento' : ''}
                     </span>
                   </span>
-                  <span
-                    className={`font-semibold ${expense.categoryKind === 'reimbursed' ? 'text-success' : 'text-foreground'}`}
-                  >
-                    {formatBRL(expense.amount)}
-                  </span>
+                  <span className="text-foreground font-semibold">{formatBRL(expense.amount)}</span>
                 </button>
               </li>
             ))}

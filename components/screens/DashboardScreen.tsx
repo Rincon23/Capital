@@ -3,6 +3,7 @@
 import { useMonthContext } from '@/components/month/MonthContext';
 import { MonthSwitcher } from '@/components/month/MonthSwitcher';
 import { SummaryHeader } from '@/components/month/SummaryHeader';
+import { CardBillCard } from '@/components/month/CardBillCard';
 import { TopicCard } from '@/components/month/TopicCard';
 import { FixedCostsCard } from '@/components/month/FixedCostsCard';
 import { useSettings } from '@/components/providers/SettingsProvider';
@@ -46,6 +47,8 @@ export function DashboardScreen() {
       )}
 
       <SummaryHeader summary={summary} />
+
+      <CardBillCard summary={summary} />
 
       <section className="flex flex-col gap-3" aria-label="Categorias">
         {summary.topics.map((topic) => (

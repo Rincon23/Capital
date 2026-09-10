@@ -42,7 +42,7 @@ export function validateExpense(expense: ExpenseValidationInput): ExpenseValidat
     errors.push('O valor deve ser maior que zero.');
   }
 
-  if ((expense.categoryKind === 'topic' || expense.categoryKind === 'reimbursed') && !expense.topicId) {
+  if (expense.categoryKind === 'topic' && !expense.topicId) {
     errors.push('Selecione uma categoria.');
   }
 
