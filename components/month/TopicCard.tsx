@@ -31,7 +31,7 @@ export function TopicCard({ month, topic }: { month: Month; topic: TopicResult }
         </span>
       </div>
 
-      <ProgressBar usedPct={topic.usedPct} state={state} />
+      <ProgressBar usedPct={topic.usedPct} state={state} color={topic.color} />
 
       <div className="mt-2 flex items-baseline justify-between gap-2 text-sm">
         <span className="text-muted">

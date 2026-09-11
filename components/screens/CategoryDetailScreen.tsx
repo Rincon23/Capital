@@ -44,7 +44,7 @@ export function CategoryDetailScreen({ topicId }: { topicId: string }) {
             <span className="text-muted">Gasto {formatBRL(topic.spent)}</span>
             <span className="text-foreground font-semibold">Posso gastar {formatBRL(topic.available)}</span>
           </div>
-          <ProgressBar usedPct={topic.usedPct} state={state} />
+          <ProgressBar usedPct={topic.usedPct} state={state} color={topic.color} />
           <div className="mt-2 flex items-baseline justify-between text-sm">
             <span className="text-muted">
               {topic.usedPct === null ? '—' : formatPct(topic.usedPct)} utilizada

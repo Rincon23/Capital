@@ -72,7 +72,7 @@ describe('normalizeSettings', () => {
 });
 
 describe('withCurrentTopicDisplay', () => {
-  it('refreshes name and color from the live settings but keeps targetPct/order', () => {
+  it('refreshes name and color from the live settings but keeps targetPct/order when not live', () => {
     const snapshot = withTopicColors(TOPICS);
     const live = snapshot.map((t) => ({ ...t, name: `${t.name} (novo)`, color: '#abcdef' }));
     const merged = withCurrentTopicDisplay(snapshot, live);
@@ -81,6 +81,19 @@ describe('withCurrentTopicDisplay', () => {
     expect(a.color).toBe('#abcdef');
     expect(a.targetPct).toBe(0.5); // frozen
     expect(a.order).toBe(0); // frozen
+  });
+
+  it('also syncs order when live is true, so a Settings reorder reorders the month too', () => {
+    const snapshot = withTopicColors(TOPICS);
+    // Reorder in Settings: 'b' moves to the front.
+    const live = snapshot.map((t) => {
+      if (t.id === 'b') return { ...t, order: 0 };
+      if (t.id === 'a') return { ...t, order: 1 };
+      return t;
+    });
+    const merged = withCurrentTopicDisplay(snapshot, live, true);
+    expect(merged.find((t) => t.id === 'b')?.order).toBe(0);
+    expect(merged.find((t) => t.id === 'a')?.order).toBe(1);
   });
 
   it('keeps the snapshot name for a topic no longer in settings', () => {

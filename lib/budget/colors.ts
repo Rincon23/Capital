@@ -49,11 +49,12 @@ export function withTopicColors(topics: TopicConfig[]): TopicConfig[] {
 /**
  * Snapshot topics with `name` and `color` refreshed from the current settings
  * (matched by id) — always, for every month, so a rename or recolor shows
- * everywhere immediately. `order` / `archived` stay frozen.
+ * everywhere immediately. `archived` stays frozen.
  *
- * `targetPct` is only refreshed when `live` is true — the caller's job to
- * decide based on whether the month is in the past (frozen forever) or the
- * current/a future month (tracks Settings live).
+ * `targetPct` and `order` are only refreshed when `live` is true — the
+ * caller's job to decide based on whether the month is in the past (frozen
+ * forever) or the current/a future month (tracks Settings live) — so
+ * reordering categories in Settings reorders the current/a future month too.
  *
  * When `live` is true, the topic *set* itself also tracks Settings: a
  * category added since the snapshot was taken is appended, and a category
@@ -78,7 +79,7 @@ export function withCurrentTopicDisplay(
         ...topic,
         name: liveTopic.name,
         color: liveTopic.color ?? topic.color,
-        ...(live ? { targetPct: liveTopic.targetPct } : {}),
+        ...(live ? { targetPct: liveTopic.targetPct, order: liveTopic.order } : {}),
       };
     })
     .filter((topic): topic is TopicConfig => topic !== null);
