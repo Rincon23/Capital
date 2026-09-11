@@ -99,8 +99,8 @@ function ConfiguracoesForm({
   function deleteTopic(id: string) {
     const topic = topics.find((t) => t.id === id);
     const confirmed = window.confirm(
-      `Excluir a categoria "${topic?.name ?? ''}"? Ela some das configurações e dos próximos meses. ` +
-        'Os meses já criados não mudam.',
+      `Excluir a categoria "${topic?.name ?? ''}"? Ela some das configurações, do mês atual e dos ` +
+        'próximos meses. Meses passados não mudam.',
     );
     if (!confirmed) return;
     setTopics((prev) => prev.filter((t) => t.id !== id));

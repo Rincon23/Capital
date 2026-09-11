@@ -95,6 +95,34 @@ describe('withCurrentTopicDisplay', () => {
     const merged = withCurrentTopicDisplay(snapshot, live, true);
     expect(merged.find((t) => t.id === 'a')?.targetPct).toBe(0.9);
   });
+
+  it('when live, includes a category created after the snapshot was taken', () => {
+    const snapshot = withTopicColors(TOPICS);
+    const live = [...snapshot, { id: 'd', name: 'D', targetPct: 0, order: 3 }];
+    const merged = withCurrentTopicDisplay(snapshot, live, true);
+    expect(merged.find((t) => t.id === 'd')?.name).toBe('D');
+  });
+
+  it('when not live, never includes a category created after the snapshot was taken', () => {
+    const snapshot = withTopicColors(TOPICS);
+    const live = [...snapshot, { id: 'd', name: 'D', targetPct: 0, order: 3 }];
+    const merged = withCurrentTopicDisplay(snapshot, live, false);
+    expect(merged.find((t) => t.id === 'd')).toBeUndefined();
+  });
+
+  it('when live, drops a category deleted from settings', () => {
+    const snapshot = withTopicColors(TOPICS);
+    const live = snapshot.filter((t) => t.id !== 'c');
+    const merged = withCurrentTopicDisplay(snapshot, live, true);
+    expect(merged.find((t) => t.id === 'c')).toBeUndefined();
+  });
+
+  it('when not live, keeps a category deleted from settings (past-month freeze)', () => {
+    const snapshot = withTopicColors(TOPICS);
+    const live = snapshot.filter((t) => t.id !== 'c');
+    const merged = withCurrentTopicDisplay(snapshot, live, false);
+    expect(merged.find((t) => t.id === 'c')?.name).toBe('C');
+  });
 });
 
 describe('computeMonthSummary colors', () => {
@@ -126,6 +154,30 @@ describe('computeMonthSummary colors', () => {
     const liveTopics = snapshot.filter((t) => t.id !== 'c'); // 'c' was deleted from settings
     const summary = computeMonthSummary(month(snapshot), liveTopics);
     expect(summary.topics.find((t) => t.topicId === 'c')?.color).toBe('#123456');
+  });
+
+  it('a category created in Settings shows up in the current month summary', () => {
+    const snapshot = withTopicColors(TOPICS);
+    const liveTopics = [...snapshot, { id: 'd', name: 'Nova categoria', targetPct: 0, order: 3 }];
+    const presentMonth: MonthData = { ...month(snapshot), month: currentMonthKey() };
+    const summary = computeMonthSummary(presentMonth, liveTopics);
+    expect(summary.topics.find((t) => t.topicId === 'd')?.name).toBe('Nova categoria');
+  });
+
+  it('a category deleted in Settings drops out of the current month summary', () => {
+    const snapshot = withTopicColors(TOPICS);
+    const liveTopics = snapshot.filter((t) => t.id !== 'c');
+    const presentMonth: MonthData = { ...month(snapshot), month: currentMonthKey() };
+    const summary = computeMonthSummary(presentMonth, liveTopics);
+    expect(summary.topics.find((t) => t.topicId === 'c')).toBeUndefined();
+  });
+
+  it('a category created in Settings never appears in a past month summary', () => {
+    const snapshot = withTopicColors(TOPICS);
+    const liveTopics = [...snapshot, { id: 'd', name: 'Nova categoria', targetPct: 0, order: 3 }];
+    const pastMonth: MonthData = { ...month(snapshot), month: '2000-01' };
+    const summary = computeMonthSummary(pastMonth, liveTopics);
+    expect(summary.topics.find((t) => t.topicId === 'd')).toBeUndefined();
   });
 });
 

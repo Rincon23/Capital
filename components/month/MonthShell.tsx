@@ -1,7 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { withCurrentTopicDisplay, type CategoryKind, type Expense, type Income, type Month } from '@/lib/budget';
+import {
+  currentMonthKey,
+  withCurrentTopicDisplay,
+  type CategoryKind,
+  type Expense,
+  type Income,
+  type Month,
+} from '@/lib/budget';
 import { useMonthData } from '@/lib/hooks/useMonthData';
 import { setLastViewedMonth } from '@/lib/storage/preferences';
 import { useSettings } from '@/components/providers/SettingsProvider';
@@ -59,7 +66,11 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
           month={month}
           topics={
             monthData.monthData
-              ? withCurrentTopicDisplay(monthData.monthData.topicsSnapshot, settings.topics)
+              ? withCurrentTopicDisplay(
+                  monthData.monthData.topicsSnapshot,
+                  settings.topics,
+                  month >= currentMonthKey(),
+                )
               : settings.topics
           }
           specialCategories={settings.specialCategories}

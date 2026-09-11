@@ -51,31 +51,44 @@ export function withTopicColors(topics: TopicConfig[]): TopicConfig[] {
  * (matched by id) — always, for every month, so a rename or recolor shows
  * everywhere immediately. `order` / `archived` stay frozen.
  *
- * `targetPct` is only refreshed when `syncTargetPct` is true — the caller's
- * job to decide based on whether the month is in the past (frozen forever)
- * or the current/a future month (tracks Settings live). Topics no longer in
- * `currentTopics` (deleted categories still present in an old month) keep
- * their snapshot values regardless.
+ * `targetPct` is only refreshed when `live` is true — the caller's job to
+ * decide based on whether the month is in the past (frozen forever) or the
+ * current/a future month (tracks Settings live).
+ *
+ * When `live` is true, the topic *set* itself also tracks Settings: a
+ * category added since the snapshot was taken is appended, and a category
+ * deleted from Settings drops out — so creating or removing a category shows
+ * up immediately in the current/a future month. When `live` is false (a past
+ * month), the snapshot's set of topics is frozen: additions/removals in
+ * Settings never retroactively change what an already-passed month shows.
  */
 export function withCurrentTopicDisplay(
   snapshotTopics: TopicConfig[],
   currentTopics: readonly TopicConfig[] | undefined,
-  syncTargetPct = false,
+  live = false,
 ): TopicConfig[] {
   if (!currentTopics) return withTopicColors(snapshotTopics);
   const current = new Map(currentTopics.map((topic) => [topic.id, topic]));
-  return withTopicColors(
-    snapshotTopics.map((topic) => {
-      const live = current.get(topic.id);
-      if (!live) return topic;
+
+  const reconciled = snapshotTopics
+    .map((topic) => {
+      const liveTopic = current.get(topic.id);
+      if (!liveTopic) return live ? null : topic;
       return {
         ...topic,
-        name: live.name,
-        color: live.color ?? topic.color,
-        ...(syncTargetPct ? { targetPct: live.targetPct } : {}),
+        name: liveTopic.name,
+        color: liveTopic.color ?? topic.color,
+        ...(live ? { targetPct: liveTopic.targetPct } : {}),
       };
-    }),
-  );
+    })
+    .filter((topic): topic is TopicConfig => topic !== null);
+
+  if (!live) return withTopicColors(reconciled);
+
+  const snapshotIds = new Set(snapshotTopics.map((topic) => topic.id));
+  const addedTopics = currentTopics.filter((topic) => !snapshotIds.has(topic.id));
+
+  return withTopicColors([...reconciled, ...addedTopics]);
 }
 
 /** Fills in any missing colors (topics + special categories) so the UI has a complete palette. */
