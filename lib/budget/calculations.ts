@@ -1,4 +1,5 @@
 import { resolveTopicColor, withCurrentTopicDisplay } from './colors';
+import { currentMonthKey } from './date';
 import { round2, sum } from './money';
 import type { Expense, MonthData, TopicConfig } from './types';
 
@@ -121,17 +122,21 @@ export function computeTopicResult(
 /**
  * Computes the full summary for a month from its raw data. Pure: no I/O, no React.
  *
- * `currentTopics` (the live settings) refreshes each topic's **name and color**, so
- * renaming or recoloring a category in Settings shows everywhere immediately.
- * These are cosmetic — unlike `targetPct`, which stays frozen in the month's
- * snapshot so past math never changes. Topics no longer in settings keep their
- * snapshot name/color.
+ * `currentTopics` (the live settings) always refreshes each topic's **name and
+ * color**, so renaming or recoloring a category in Settings shows everywhere
+ * immediately — that's purely cosmetic. `targetPct` (the percentage that drives
+ * "posso gastar") is only refreshed for the current month and future months:
+ * changing a percentage in Settings updates what you can still spend this month
+ * and going forward, but a month that has already passed keeps the math it had
+ * — its snapshot stays frozen. Topics no longer in settings keep their
+ * snapshot name/color/targetPct either way.
  */
 export function computeMonthSummary(
   monthData: MonthData,
   currentTopics?: readonly TopicConfig[],
 ): MonthSummary {
-  const displayTopics = withCurrentTopicDisplay(monthData.topicsSnapshot, currentTopics);
+  const isPastMonth = monthData.month < currentMonthKey();
+  const displayTopics = withCurrentTopicDisplay(monthData.topicsSnapshot, currentTopics, !isPastMonth);
   const activeTopics = displayTopics.filter((t) => !t.archived);
   const incomeTotal = computeIncomeTotal(monthData);
   const fixedTotal = computeFixedTotal(monthData.expenses);

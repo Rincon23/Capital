@@ -19,6 +19,7 @@ import {
 import { budgetRepository } from '@/lib/storage';
 import { getUnforeseenEstimate, setUnforeseenEstimate } from '@/lib/storage/preferences';
 import { AmountInput } from '@/components/ui/AmountInput';
+import { PercentInput } from '@/components/ui/PercentInput';
 import { OnboardingScreen } from './OnboardingScreen';
 
 const TOTAL_STEPS = 5;
@@ -307,15 +308,10 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
             <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: topic.color }} />
             <span className="text-foreground min-w-0 flex-1 truncate font-medium">{topic.name}</span>
             <div className="flex shrink-0 items-center gap-1">
-              <input
-                type="number"
-                min={0}
-                max={100}
-                step={0.1}
-                value={Math.round(topic.targetPct * 1000) / 10}
-                onChange={(e) => updateTopicPct(topic.id, Number(e.target.value) / 100)}
-                className="border-border bg-background text-foreground focus:ring-primary min-h-[40px] w-16 rounded-md border px-2 text-right outline-none focus:ring-2"
-                aria-label={`Percentual de ${topic.name}`}
+              <PercentInput
+                value={topic.targetPct}
+                onChange={(pct) => updateTopicPct(topic.id, pct)}
+                ariaLabel={`Percentual de ${topic.name}`}
               />
               <span className="text-muted">%</span>
             </div>

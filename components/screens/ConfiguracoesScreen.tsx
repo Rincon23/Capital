@@ -6,6 +6,7 @@ import { useOnboarding } from '@/components/onboarding/OnboardingProvider';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { useTheme } from '@/components/providers/ThemeProvider';
+import { PercentInput } from '@/components/ui/PercentInput';
 import { signOut } from '@/lib/auth/actions';
 import { budgetRepository, downloadBackup, readBackupFile } from '@/lib/storage';
 import { hasLocalData, importLocalDataToCloud } from '@/lib/storage/localMigration';
@@ -185,15 +186,10 @@ function ConfiguracoesForm({
                   aria-label="Nome da categoria"
                 />
                 <div className="flex shrink-0 items-center gap-1">
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={0.1}
-                    value={Math.round(topic.targetPct * 1000) / 10}
-                    onChange={(e) => updateTopic(topic.id, { targetPct: Number(e.target.value) / 100 })}
-                    className="border-border bg-background text-foreground focus:ring-primary min-h-[40px] w-14 rounded-md border px-2 text-right outline-none focus:ring-2"
-                    aria-label="Percentual"
+                  <PercentInput
+                    value={topic.targetPct}
+                    onChange={(pct) => updateTopic(topic.id, { targetPct: pct })}
+                    ariaLabel={`Percentual de ${topic.name}`}
                   />
                   <span className="text-muted">%</span>
                 </div>

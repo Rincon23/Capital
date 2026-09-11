@@ -48,20 +48,32 @@ export function withTopicColors(topics: TopicConfig[]): TopicConfig[] {
 
 /**
  * Snapshot topics with `name` and `color` refreshed from the current settings
- * (matched by id). `targetPct` / `order` / `archived` stay frozen — only the
- * presentation follows later edits. Topics no longer in `currentTopics` (deleted
- * categories still present in an old month) keep their snapshot values.
+ * (matched by id) — always, for every month, so a rename or recolor shows
+ * everywhere immediately. `order` / `archived` stay frozen.
+ *
+ * `targetPct` is only refreshed when `syncTargetPct` is true — the caller's
+ * job to decide based on whether the month is in the past (frozen forever)
+ * or the current/a future month (tracks Settings live). Topics no longer in
+ * `currentTopics` (deleted categories still present in an old month) keep
+ * their snapshot values regardless.
  */
 export function withCurrentTopicDisplay(
   snapshotTopics: TopicConfig[],
   currentTopics: readonly TopicConfig[] | undefined,
+  syncTargetPct = false,
 ): TopicConfig[] {
   if (!currentTopics) return withTopicColors(snapshotTopics);
   const current = new Map(currentTopics.map((topic) => [topic.id, topic]));
   return withTopicColors(
     snapshotTopics.map((topic) => {
       const live = current.get(topic.id);
-      return live ? { ...topic, name: live.name, color: live.color ?? topic.color } : topic;
+      if (!live) return topic;
+      return {
+        ...topic,
+        name: live.name,
+        color: live.color ?? topic.color,
+        ...(syncTargetPct ? { targetPct: live.targetPct } : {}),
+      };
     }),
   );
 }

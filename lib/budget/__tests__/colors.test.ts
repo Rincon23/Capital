@@ -7,6 +7,7 @@ import {
   withCurrentTopicDisplay,
   withTopicColors,
 } from '../colors';
+import { currentMonthKey } from '../date';
 import type { BudgetSettings, MonthData, TopicConfig } from '../types';
 
 const TOPICS: TopicConfig[] = [
@@ -87,6 +88,13 @@ describe('withCurrentTopicDisplay', () => {
     const live = snapshot.filter((t) => t.id !== 'c');
     expect(withCurrentTopicDisplay(snapshot, live).find((t) => t.id === 'c')?.name).toBe('C');
   });
+
+  it('also syncs targetPct when syncTargetPct is true', () => {
+    const snapshot = withTopicColors(TOPICS);
+    const live = snapshot.map((t) => (t.id === 'a' ? { ...t, targetPct: 0.9 } : t));
+    const merged = withCurrentTopicDisplay(snapshot, live, true);
+    expect(merged.find((t) => t.id === 'a')?.targetPct).toBe(0.9);
+  });
 });
 
 describe('computeMonthSummary colors', () => {
@@ -118,5 +126,28 @@ describe('computeMonthSummary colors', () => {
     const liveTopics = snapshot.filter((t) => t.id !== 'c'); // 'c' was deleted from settings
     const summary = computeMonthSummary(month(snapshot), liveTopics);
     expect(summary.topics.find((t) => t.topicId === 'c')?.color).toBe('#123456');
+  });
+});
+
+describe('computeMonthSummary targetPct freeze', () => {
+  const snapshot = withTopicColors(TOPICS);
+  const liveTopics = snapshot.map((t) => (t.id === 'a' ? { ...t, targetPct: 0.9 } : t));
+
+  it('a percentage change in Settings never changes a past month', () => {
+    const pastMonth: MonthData = { ...month(snapshot), month: '2000-01' };
+    const summary = computeMonthSummary(pastMonth, liveTopics);
+    expect(summary.topics.find((t) => t.topicId === 'a')?.targetPct).toBe(0.5);
+  });
+
+  it('a percentage change in Settings applies to the current month', () => {
+    const presentMonth: MonthData = { ...month(snapshot), month: currentMonthKey() };
+    const summary = computeMonthSummary(presentMonth, liveTopics);
+    expect(summary.topics.find((t) => t.topicId === 'a')?.targetPct).toBe(0.9);
+  });
+
+  it('a percentage change in Settings applies to a future month', () => {
+    const futureMonth: MonthData = { ...month(snapshot), month: '2999-01' };
+    const summary = computeMonthSummary(futureMonth, liveTopics);
+    expect(summary.topics.find((t) => t.topicId === 'a')?.targetPct).toBe(0.9);
   });
 });
