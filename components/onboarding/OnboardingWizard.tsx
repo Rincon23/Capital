@@ -21,7 +21,7 @@ import { getUnforeseenEstimate, setUnforeseenEstimate } from '@/lib/storage/pref
 import { AmountInput } from '@/components/ui/AmountInput';
 import { OnboardingScreen } from './OnboardingScreen';
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 5;
 
 interface FixedItemDraft {
   id: string;
@@ -269,57 +269,6 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
     );
   }
 
-  if (step === 5) {
-    return (
-      <OnboardingScreen
-        step={step}
-        totalSteps={TOTAL_STEPS}
-        onSkip={onSkip}
-        footer={
-          <>
-            <BackButton onClick={goBack} />
-            <PrimaryButton onClick={goNext} disabled={!validation.valid}>
-              Continuar
-            </PrimaryButton>
-          </>
-        }
-      >
-        <StepHeading
-          title="Suas categorias"
-          subtitle="Custos fixos e imprevistos já saem proporcionalmente de cada categoria. Ajuste os percentuais como quiser — juntos, eles têm que fechar 100%."
-        />
-        <div className="flex flex-col gap-2">
-          {activeTopics.map((topic) => (
-            <div key={topic.id} className="border-border flex items-center gap-3 rounded-lg border p-3">
-              <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: topic.color }} />
-              <span className="text-foreground min-w-0 flex-1 truncate font-medium">{topic.name}</span>
-              <div className="flex shrink-0 items-center gap-1">
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.1}
-                  value={Math.round(topic.targetPct * 1000) / 10}
-                  onChange={(e) => updateTopicPct(topic.id, Number(e.target.value) / 100)}
-                  className="border-border bg-background text-foreground focus:ring-primary min-h-[40px] w-16 rounded-md border px-2 text-right outline-none focus:ring-2"
-                  aria-label={`Percentual de ${topic.name}`}
-                />
-                <span className="text-muted">%</span>
-              </div>
-            </div>
-          ))}
-        </div>
-        <p className={`mt-3 text-sm ${validation.valid ? 'text-success' : 'text-danger'}`}>
-          {validation.valid
-            ? 'Soma das categorias: 100%.'
-            : validation.diffPct > 0
-              ? `Faltam ${formatPct(validation.diffPct)} para completar 100%.`
-              : `Excesso de ${formatPct(-validation.diffPct)} além de 100%.`}
-        </p>
-      </OnboardingScreen>
-    );
-  }
-
   const incomeTotal = parseAmountInput(income);
   const fixedTotal = sum(fixedItems.map((item) => parseAmountInput(item.amount)));
   const unforeseenTotal = parseAmountInput(unforeseen);
@@ -343,7 +292,10 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
         </>
       }
     >
-      <StepHeading title="Confira e conclua" subtitle="É assim que suas categorias ficam com os números que você passou." />
+      <StepHeading
+        title="Suas categorias"
+        subtitle="Custos fixos e imprevistos já saem proporcionalmente de cada categoria. Ajuste os percentuais — juntos, eles têm que fechar 100% — e veja na hora quanto sobra pra gastar em cada uma."
+      />
       <div className="border-border bg-card mb-4 flex flex-col gap-1 rounded-xl border p-4 text-sm">
         <Row label="Renda mensal" value={formatBRL(incomeTotal)} />
         <Row label="Custos fixos" value={formatBRL(fixedTotal)} />
@@ -354,11 +306,32 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
           <div key={topic.id} className="border-border flex items-center gap-3 rounded-lg border p-3 text-sm">
             <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: topic.color }} />
             <span className="text-foreground min-w-0 flex-1 truncate font-medium">{topic.name}</span>
-            <span className="text-muted shrink-0">{formatPct(topic.targetPct, 0)}</span>
-            <span className="text-foreground shrink-0 font-semibold">{formatBRL(topic.available)}</span>
+            <div className="flex shrink-0 items-center gap-1">
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={0.1}
+                value={Math.round(topic.targetPct * 1000) / 10}
+                onChange={(e) => updateTopicPct(topic.id, Number(e.target.value) / 100)}
+                className="border-border bg-background text-foreground focus:ring-primary min-h-[40px] w-16 rounded-md border px-2 text-right outline-none focus:ring-2"
+                aria-label={`Percentual de ${topic.name}`}
+              />
+              <span className="text-muted">%</span>
+            </div>
+            <span className="text-foreground shrink-0 min-w-[92px] text-right font-semibold">
+              {formatBRL(topic.available)}
+            </span>
           </div>
         ))}
       </div>
+      <p className={`mt-3 text-sm ${validation.valid ? 'text-success' : 'text-danger'}`}>
+        {validation.valid
+          ? 'Soma das categorias: 100%.'
+          : validation.diffPct > 0
+            ? `Faltam ${formatPct(validation.diffPct)} para completar 100%.`
+            : `Excesso de ${formatPct(-validation.diffPct)} além de 100%.`}
+      </p>
       {error && <p className="bg-danger-bg text-danger mt-4 rounded-lg px-3 py-2 text-sm">{error}</p>}
     </OnboardingScreen>
   );
