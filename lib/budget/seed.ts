@@ -6,9 +6,9 @@ import type { BudgetSettings, Month, MonthData, TopicConfig } from './types';
 export function createDefaultTopics(): TopicConfig[] {
   return [
     { id: createId(), name: 'Diversos', targetPct: 0.2, order: 0, color: DEFAULT_TOPIC_COLORS[0] },
-    { id: createId(), name: 'Liberdade Financeira', targetPct: 0.45, order: 1, color: DEFAULT_TOPIC_COLORS[1] },
+    { id: createId(), name: 'Investimentos', targetPct: 0.45, order: 1, color: DEFAULT_TOPIC_COLORS[1] },
     { id: createId(), name: 'Metas', targetPct: 0.25, order: 2, color: DEFAULT_TOPIC_COLORS[2] },
-    { id: createId(), name: 'Conhecimento', targetPct: 0.1, order: 3, color: DEFAULT_TOPIC_COLORS[3] },
+    { id: createId(), name: 'Conhecimentos', targetPct: 0.1, order: 3, color: DEFAULT_TOPIC_COLORS[3] },
   ];
 }
 
@@ -26,7 +26,7 @@ export function createDefaultSettings(): BudgetSettings {
 /** Demo data for the first run, per the product spec's seed scenario. */
 export function createSeedMonthData(month: Month, topics: TopicConfig[]): MonthData {
   const diversos = topics.find((t) => t.name === 'Diversos');
-  const conhecimento = topics.find((t) => t.name === 'Conhecimento');
+  const conhecimento = topics.find((t) => t.name === 'Conhecimentos');
 
   return {
     month,

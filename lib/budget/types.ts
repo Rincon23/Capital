@@ -11,7 +11,7 @@ export type Month = string;
 /** Kind of expense category. */
 export type CategoryKind = 'topic' | 'fixedCost' | 'unforeseen';
 
-/** A budget envelope ("Diversos", "Liberdade Financeira", ...). */
+/** A budget envelope ("Diversos", "Investimentos", ...). */
 export interface TopicConfig {
   id: string;
   name: string;

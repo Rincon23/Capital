@@ -178,9 +178,9 @@ describe('SupabaseBudgetRepository', () => {
     const first = await subject.getSettings();
     expect(first.topics.map((t) => t.name)).toEqual([
       'Diversos',
-      'Liberdade Financeira',
+      'Investimentos',
       'Metas',
-      'Conhecimento',
+      'Conhecimentos',
     ]);
 
     const second = await subject.getSettings();
