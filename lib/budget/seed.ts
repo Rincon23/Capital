@@ -18,7 +18,6 @@ export function createDefaultSettings(): BudgetSettings {
     specialCategories: {
       fixedCost: 'Custo Fixo',
       unforeseen: 'Imprevistos',
-      reimbursed: 'Ressarcido',
     },
     specialCategoryColors: { ...DEFAULT_SPECIAL_CATEGORY_COLORS },
   };

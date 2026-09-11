@@ -2,11 +2,11 @@
 
 Aplicativo web mobile-first de orçamento doméstico por envelopes (categorias com
 percentuais definidos pelo usuário), substituindo uma planilha. Renda, gastos, custos
-fixos, imprevistos e ressarcidos são lançados manualmente; o app calcula quanto ainda pode
+fixos e imprevistos são lançados manualmente; o app calcula quanto ainda pode
 ser gasto em cada categoria, descontando o rateio dos custos fixos/imprevistos e
-carregando a sobra de um mês para o outro (rollover). Gastos "Ressarcido" (feitos no
-cartão para alguém te devolver depois) entram na fatura do cartão, mas não afetam o
-orçamento de nenhuma categoria.
+carregando a sobra de um mês para o outro (rollover). Gastos marcados como "feitos no
+cartão" entram na fatura do cartão (`cardTotal`), além de contarem no orçamento normal
+da categoria em que foram lançados.
 
 PWA instalável, com **login por e-mail e senha**. Os dados ficam em um projeto
 **Supabase** (Postgres na nuvem), isolados por usuário via Row Level Security — cada conta só
@@ -263,8 +263,8 @@ conforme pedido — nunca dados financeiros.
 
 `npm test` roda os cenários de aceitação da seção 9 do briefing como testes unitários
 de `/lib/budget` (Vitest): mês isolado sem rollover, rollover positivo/negativo,
-fechamento e carga do mês seguinte, Ressarcido (neutro para o orçamento, somado à
-fatura do cartão), validação de soma de percentuais e o estado `available <= 0`.
+fechamento e carga do mês seguinte, gasto no cartão (`cardTotal`), validação de soma
+de percentuais e o estado `available <= 0`.
 `lib/storage/__tests__/supabaseRepository.test.ts` cobre a orquestração do repositório
 de nuvem (seed, cascata de rollover, mês fechado/inexistente, export→import) com um
 client Supabase falso em memória.
@@ -277,7 +277,6 @@ client Supabase falso em memória.
 - [x] `available(t) = incomeTotal * pct(t) - proportionalFixed(t) + carryIn(t)`
 - [x] `remaining(t) = available(t) - spent(t)`
 - [x] `usedPct(t) = spent(t) / available(t)`, mostrando "—" e estado de alerta quando `available(t) <= 0`
-- [x] Ressarcidos (`reimbursed`): gasto no cartão que alguém devolve — entram em `cardTotal` (fatura) e são invisíveis para `spent(t)`, `available(t)`, `balance` e `expenseTotal`
 - [x] Rollover: `carryIn` do mês N = `remaining` do mês N-1 (inclusive negativo)
 - [x] Fechar mês congela os números; reabrir recalcula em cascata os meses seguintes
 - [x] `topicsSnapshot` guarda o `pct` vigente em cada mês (config posterior não altera meses passados)
@@ -287,7 +286,7 @@ client Supabase falso em memória.
 
 - [x] **Dashboard do mês** — seletor de mês, cabeçalho com renda/gasto/posso-gastar/saldo, card por categoria com barra de progresso (verde/amarelo/vermelho), card de custos fixos/imprevistos com rateio por categoria, FAB "+ Lançar gasto" e botão "+ Renda"
 - [x] **Detalhe da categoria** — lista de gastos editável/excluível e a conta completa (`renda × pct − rateio + mês passado = posso gastar`)
-- [x] **Lançamentos do mês** — abas Gastos / Renda / Custos Fixos / Imprevistos / Ressarcidos, busca e edição/exclusão inline
+- [x] **Lançamentos do mês** — abas Gastos / Renda / Custos Fixos / Imprevistos, busca e edição/exclusão inline
 - [x] **Histórico & Gráficos** — tabela mês a mês, evolução do gasto por categoria (linhas), composição do gasto por mês (barras empilhadas), sobra acumulada/rollover (linhas) e indicador de aderência à meta
 - [x] **Configurações** — editor de categorias (nome/%/ordem/arquivar) com validador de 100%, categorias especiais renomeáveis, exportar/importar JSON, apagar tudo, tema claro/escuro, conta (e-mail + sair), importar dados locais
 - [x] **Login** — entrar / criar conta / esqueci a senha, com confirmação de e-mail

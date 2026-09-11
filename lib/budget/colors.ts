@@ -20,7 +20,6 @@ export const DEFAULT_TOPIC_COLORS = [
 export const DEFAULT_SPECIAL_CATEGORY_COLORS: SpecialCategoryColors = {
   fixedCost: '#6b7280',
   unforeseen: '#d97706',
-  reimbursed: '#7c3aed',
 };
 
 /** Color to use for a topic: its own `color`, else a palette slot by position. */

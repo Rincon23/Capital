@@ -60,14 +60,13 @@ describe('normalizeSettings', () => {
   it('fills topic colors and completes the special-category colors', () => {
     const raw: BudgetSettings = {
       topics: TOPICS,
-      specialCategories: { fixedCost: 'F', unforeseen: 'U', reimbursed: 'R' },
+      specialCategories: { fixedCost: 'F', unforeseen: 'U' },
       specialCategoryColors: { fixedCost: '#000000' },
     };
     const normalized = normalizeSettings(raw);
     expect(normalized.topics.every((t) => typeof t.color === 'string')).toBe(true);
     expect(normalized.specialCategoryColors?.fixedCost).toBe('#000000');
     expect(normalized.specialCategoryColors?.unforeseen).toBeTruthy();
-    expect(normalized.specialCategoryColors?.reimbursed).toBeTruthy();
   });
 });
 

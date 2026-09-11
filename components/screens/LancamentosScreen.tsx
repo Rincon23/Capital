@@ -6,7 +6,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { formatBRL, formatMonthLabel, type CategoryKind, type Expense, type Income } from '@/lib/budget';
 
-type TabKey = 'topic' | 'income' | 'fixedCost' | 'unforeseen' | 'reimbursed';
+type TabKey = 'topic' | 'income' | 'fixedCost' | 'unforeseen';
 
 function topicName(topics: { id: string; name: string }[], topicId?: string): string {
   return topics.find((t) => t.id === topicId)?.name ?? '—';
@@ -28,7 +28,6 @@ export function LancamentosScreen() {
     { key: 'income', label: 'Renda' },
     { key: 'fixedCost', label: settings?.specialCategories.fixedCost ?? 'Custo Fixo' },
     { key: 'unforeseen', label: settings?.specialCategories.unforeseen ?? 'Imprevistos' },
-    { key: 'reimbursed', label: settings?.specialCategories.reimbursed ?? 'Ressarcido' },
   ];
 
   const filteredExpenses = useMemo(() => {
@@ -140,7 +139,6 @@ export function LancamentosScreen() {
                       {expense.categoryKind === 'topic'
                         ? ` · ${topicName(settings.topics, expense.topicId)}`
                         : ''}
-                      {expense.categoryKind === 'reimbursed' ? ' · cartão, fora do orçamento' : ''}
                     </span>
                   </span>
                   <span className="text-foreground font-semibold">{formatBRL(expense.amount)}</span>

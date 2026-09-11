@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { OnboardingProvider } from '@/components/onboarding/OnboardingProvider';
 import { AuthProvider, type AuthUser } from './AuthProvider';
 import { SettingsProvider } from './SettingsProvider';
 
@@ -14,7 +15,9 @@ export function AppProviders({
 }) {
   return (
     <AuthProvider initialUser={initialUser}>
-      <SettingsProvider>{children}</SettingsProvider>
+      <SettingsProvider>
+        <OnboardingProvider>{children}</OnboardingProvider>
+      </SettingsProvider>
     </AuthProvider>
   );
 }

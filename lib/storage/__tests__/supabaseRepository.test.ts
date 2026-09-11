@@ -182,7 +182,6 @@ describe('SupabaseBudgetRepository', () => {
       'Metas',
       'Conhecimento',
     ]);
-    expect(first.specialCategories.reimbursed).toBe('Ressarcido');
 
     const second = await subject.getSettings();
     expect(second.topics).toEqual(first.topics);

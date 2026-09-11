@@ -27,11 +27,9 @@ export interface MonthSummary {
   incomeTotal: number;
   fixedTotal: number;
   unforeseenTotal: number;
-  /** Sum of 'reimbursed' expenses — card purchases someone else pays back. Never touches the envelope math. */
-  reimbursedTotal: number;
-  /** Everything that will land on the credit-card bill: card purchases + all reimbursed expenses. */
+  /** Everything that will land on the credit-card bill: purchases flagged as card purchases. */
   cardTotal: number;
-  /** Total money spent across all topics plus fixed costs and unforeseen. Excludes reimbursed expenses. */
+  /** Total money spent across all topics plus fixed costs and unforeseen. */
   expenseTotal: number;
   /** Sum of available(t) across all topics. */
   availableTotal: number;
@@ -52,24 +50,12 @@ export function computeUnforeseenTotal(expenses: Expense[]): number {
   return sum(expenses.filter((e) => e.categoryKind === 'unforeseen').map((e) => e.amount));
 }
 
-export function computeReimbursedTotal(expenses: Expense[]): number {
-  return sum(expenses.filter((e) => e.categoryKind === 'reimbursed').map((e) => e.amount));
-}
-
-/**
- * Everything that will show up on the credit-card bill: any expense flagged as a
- * card purchase, plus every 'reimbursed' expense (which is a card purchase by
- * definition). Reimbursed amounts are counted once even if also flagged.
- */
+/** Everything that will show up on the credit-card bill: any expense flagged as a card purchase. */
 export function computeCardTotal(expenses: Expense[]): number {
-  return sum(
-    expenses
-      .filter((e) => e.categoryKind === 'reimbursed' || e.singleInstallmentCard === true)
-      .map((e) => e.amount),
-  );
+  return sum(expenses.filter((e) => e.singleInstallmentCard === true).map((e) => e.amount));
 }
 
-/** Money spent in a topic this month. Reimbursed expenses never belong to a topic and are ignored. */
+/** Money spent in a topic this month. */
 export function computeTopicSpent(expenses: Expense[], topicId: string): number {
   return sum(
     expenses.filter((e) => e.categoryKind === 'topic' && e.topicId === topicId).map((e) => e.amount),
@@ -150,7 +136,6 @@ export function computeMonthSummary(
   const incomeTotal = computeIncomeTotal(monthData);
   const fixedTotal = computeFixedTotal(monthData.expenses);
   const unforeseenTotal = computeUnforeseenTotal(monthData.expenses);
-  const reimbursedTotal = computeReimbursedTotal(monthData.expenses);
   const cardTotal = computeCardTotal(monthData.expenses);
 
   const topics = activeTopics
@@ -177,7 +162,6 @@ export function computeMonthSummary(
     incomeTotal,
     fixedTotal,
     unforeseenTotal,
-    reimbursedTotal,
     cardTotal,
     expenseTotal,
     availableTotal,

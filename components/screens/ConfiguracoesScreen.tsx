@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ChangeEvent } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { useOnboarding } from '@/components/onboarding/OnboardingProvider';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { useTheme } from '@/components/providers/ThemeProvider';
@@ -24,7 +25,6 @@ import {
 const SPECIAL_CATEGORY_FIELDS: { key: keyof SpecialCategoryLabels; label: string }[] = [
   { key: 'fixedCost', label: 'Custo fixo' },
   { key: 'unforeseen', label: 'Imprevistos' },
-  { key: 'reimbursed', label: 'Ressarcido' },
 ];
 
 export function ConfiguracoesScreen() {
@@ -158,6 +158,8 @@ function ConfiguracoesForm({
       <PageHeader title="Configurações" />
 
       <AccountSection />
+
+      <HelpSection />
 
       <section className="flex flex-col gap-3 px-4">
         <h2 className="text-muted text-sm font-semibold">Categorias de meta</h2>
@@ -343,6 +345,28 @@ function ConfiguracoesForm({
         </button>
       </section>
     </div>
+  );
+}
+
+function HelpSection() {
+  const { open } = useOnboarding();
+
+  return (
+    <section className="flex flex-col gap-3 px-4">
+      <h2 className="text-muted text-sm font-semibold">Ajuda</h2>
+      <div className="border-border bg-card rounded-xl border p-4 shadow-sm">
+        <button
+          type="button"
+          onClick={open}
+          className="border-border text-foreground min-h-[44px] w-full rounded-lg border px-4 text-sm font-medium"
+        >
+          Me ajude a configurar
+        </button>
+        <p className="text-muted mt-2 text-sm">
+          Refaça o assistente de configuração e o tour do app a qualquer momento.
+        </p>
+      </div>
+    </section>
   );
 }
 

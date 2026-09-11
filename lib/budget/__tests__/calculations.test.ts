@@ -1,12 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeCardTotal,
-  computeFixedTotal,
   computeMonthSummary,
   computeProgressState,
   computeRemaining,
-  computeReimbursedTotal,
-  computeUnforeseenTotal,
   computeUsedPct,
 } from '../calculations';
 import { createMonthData } from '../rollover';
@@ -119,46 +116,14 @@ describe('Cenário C — fechamento e carga', () => {
   });
 });
 
-describe('Cenário D — Ressarcido (gasto no cartão que alguém devolve)', () => {
-  const base = computeMonthSummary(buildMonth());
-  const month = buildMonth({
-    expenses: [
-      ...BASE_EXPENSES,
-      {
-        id: 'r1',
-        categoryKind: 'reimbursed',
-        description: 'Jantar com a namorada',
-        amount: 120,
-        date: '2026-01-12',
-      },
-    ],
-  });
-  const summary = computeMonthSummary(month);
-
-  it('não altera o gasto, a sobra nem o saldo geral de nenhuma categoria', () => {
-    expect(findTopic(summary, 'diversos').spent).toBe(findTopic(base, 'diversos').spent);
-    expect(findTopic(summary, 'diversos').remaining).toBe(findTopic(base, 'diversos').remaining);
-    expect(summary.balance).toBe(base.balance);
-  });
-
-  it('não entra no total gasto nem no rateio de custos fixos/imprevistos', () => {
-    expect(summary.expenseTotal).toBe(base.expenseTotal);
-    expect(computeFixedTotal(month.expenses)).toBe(800);
-    expect(computeUnforeseenTotal(month.expenses)).toBe(200);
-  });
-
-  it('conta como gasto no cartão e é rastreado como ressarcido', () => {
-    expect(computeReimbursedTotal(month.expenses)).toBe(120);
-    expect(summary.cardTotal).toBe(120);
-  });
-
-  it('computeCardTotal soma compras marcadas como cartão e os ressarcidos, sem duplicar', () => {
+describe('Cenário D — gasto no cartão', () => {
+  it('computeCardTotal soma só as compras marcadas como cartão', () => {
     const expenses: Expense[] = [
       {
         id: 'a',
         categoryKind: 'topic',
         topicId: 'diversos',
-        description: 'Cartão 1x',
+        description: 'Cartão',
         amount: 300,
         date: '2026-01-10',
         singleInstallmentCard: true,
@@ -171,15 +136,8 @@ describe('Cenário D — Ressarcido (gasto no cartão que alguém devolve)', () 
         amount: 50,
         date: '2026-01-10',
       },
-      {
-        id: 'c',
-        categoryKind: 'reimbursed',
-        description: 'Devolvem depois',
-        amount: 120,
-        date: '2026-01-12',
-      },
     ];
-    expect(computeCardTotal(expenses)).toBe(420);
+    expect(computeCardTotal(expenses)).toBe(300);
   });
 });
 
