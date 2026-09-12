@@ -29,8 +29,16 @@ import {
 
 /** Postgres SQLSTATE for a unique-constraint violation (two tabs racing to seed). */
 const UNIQUE_VIOLATION = '23505';
-/** "column does not exist" — the special_category_colors migration hasn't been run yet. */
-const UNDEFINED_COLUMN = '42703';
+/**
+ * A column PostgREST won't insert/update: either it genuinely doesn't exist yet in
+ * Postgres (SQLSTATE `42703`), or it does but PostgREST's own schema cache hasn't
+ * picked it up yet (`PGRST204` — happens right after a migration runs until the
+ * Data API reloads, e.g. via `notify pgrst, 'reload schema'`). Both mean the same
+ * thing for us: fall back to writing without that column.
+ */
+function isMissingColumnError(error: { code?: string } | null): boolean {
+  return error?.code === '42703' || error?.code === 'PGRST204';
+}
 
 /** A real Error (so `instanceof Error` works downstream) that carries the PostgREST code. */
 export class SupabaseStorageError extends Error {
@@ -136,7 +144,7 @@ export class SupabaseBudgetRepository implements BudgetRepository {
       special_category_colors: defaults.specialCategoryColors ?? {},
       onboarding_completed: false,
     });
-    if (error?.code === UNDEFINED_COLUMN) {
+    if (isMissingColumnError(error)) {
       ({ error } = await this.client.from('budget_settings').insert(baseRow));
     }
     // 23505 = another tab seeded first; fall through to the re-read.
@@ -164,7 +172,7 @@ export class SupabaseBudgetRepository implements BudgetRepository {
       .from('budget_settings')
       .update({ onboarding_completed: true })
       .eq('user_id', userId);
-    if (error && error.code !== UNDEFINED_COLUMN) throw new SupabaseStorageError(error);
+    if (error && !isMissingColumnError(error)) throw new SupabaseStorageError(error);
   }
 
   /** Upsert `budget_settings`, retrying without `special_category_colors` if that column is missing. */
@@ -182,7 +190,7 @@ export class SupabaseBudgetRepository implements BudgetRepository {
     const first = await this.client
       .from('budget_settings')
       .upsert(row, { onConflict: 'user_id' });
-    if (first.error?.code === UNDEFINED_COLUMN) {
+    if (isMissingColumnError(first.error)) {
       const retry = await this.client
         .from('budget_settings')
         .upsert(withoutColors, { onConflict: 'user_id' });
