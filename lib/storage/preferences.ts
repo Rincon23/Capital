@@ -2,7 +2,6 @@
 
 const THEME_KEY = 'capital:theme';
 const LAST_MONTH_KEY = 'capital:lastMonth';
-const ONBOARDING_DONE_KEY = 'capital:onboardingDone';
 const UNFORESEEN_ESTIMATE_KEY = 'capital:unforeseenEstimate';
 
 export type Theme = 'light' | 'dark' | 'system';
@@ -26,17 +25,6 @@ export function getLastViewedMonth(): string | null {
 export function setLastViewedMonth(month: string): void {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(LAST_MONTH_KEY, month);
-}
-
-/** Whether this device has finished (or skipped) the new-user onboarding wizard/tour at least once. */
-export function getHasCompletedOnboarding(): boolean {
-  if (typeof window === 'undefined') return true;
-  return window.localStorage.getItem(ONBOARDING_DONE_KEY) === '1';
-}
-
-export function setHasCompletedOnboarding(done: boolean): void {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(ONBOARDING_DONE_KEY, done ? '1' : '0');
 }
 
 /**

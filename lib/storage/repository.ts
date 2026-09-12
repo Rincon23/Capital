@@ -42,6 +42,8 @@ export class NotAuthenticatedError extends Error {
 export interface BudgetRepository {
   getSettings(): Promise<BudgetSettings>;
   saveSettings(settings: BudgetSettings): Promise<void>;
+  /** Marks this account as having finished (or skipped) the new-user wizard/tour, for good. */
+  completeOnboarding(): Promise<void>;
 
   listMonths(): Promise<Month[]>;
   getMonth(month: Month): Promise<MonthData | undefined>;

@@ -24,12 +24,6 @@ import { OnboardingScreen } from './OnboardingScreen';
 
 const TOTAL_STEPS = 5;
 
-interface FixedItemDraft {
-  id: string;
-  description: string;
-  amount: string;
-}
-
 interface OnboardingWizardProps {
   settings: BudgetSettings;
   saveSettings: (settings: BudgetSettings) => Promise<void>;
@@ -42,9 +36,7 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
   const [step, setStep] = useState(1);
   const [income, setIncome] = useState('');
   const [registerIncome, setRegisterIncome] = useState(true);
-  const [fixedItems, setFixedItems] = useState<FixedItemDraft[]>([
-    { id: createId(), description: '', amount: '' },
-  ]);
+  const [fixedCosts, setFixedCosts] = useState('');
   const [unforeseen, setUnforeseen] = useState(() => {
     const stored = getUnforeseenEstimate();
     return stored ? amountToInputValue(stored) : '';
@@ -64,6 +56,10 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
         setIncome(amountToInputValue(incomeTotal));
         setRegisterIncome(false);
       }
+      const fixedTotal = sum(
+        data.expenses.filter((e) => e.categoryKind === 'fixedCost').map((e) => e.amount),
+      );
+      if (fixedTotal > 0) setFixedCosts(amountToInputValue(fixedTotal));
     });
     return () => {
       active = false;
@@ -75,18 +71,6 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
 
   function updateTopicPct(id: string, pct: number) {
     setTopics((prev) => prev.map((t) => (t.id === id ? { ...t, targetPct: pct } : t)));
-  }
-
-  function updateFixedItem(id: string, patch: Partial<FixedItemDraft>) {
-    setFixedItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
-  }
-
-  function addFixedItem() {
-    setFixedItems((prev) => [...prev, { id: createId(), description: '', amount: '' }]);
-  }
-
-  function removeFixedItem(id: string) {
-    setFixedItems((prev) => (prev.length > 1 ? prev.filter((item) => item.id !== id) : prev));
   }
 
   function goNext() {
@@ -110,19 +94,6 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
           id: createId(),
           source: 'Renda mensal',
           amount: parsedIncome,
-          date: `${month}-01`,
-        });
-      }
-
-      const validFixedItems = fixedItems
-        .map((item) => ({ ...item, parsedAmount: parseAmountInput(item.amount) }))
-        .filter((item) => item.parsedAmount > 0);
-      for (const item of validFixedItems) {
-        await budgetRepository.saveExpense(month, {
-          id: createId(),
-          categoryKind: 'fixedCost',
-          description: item.description.trim() || settings.specialCategories.fixedCost,
-          amount: item.parsedAmount,
           date: `${month}-01`,
         });
       }
@@ -197,49 +168,13 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
       >
         <StepHeading
           title="Quais são seus custos fixos?"
-          subtitle="Aluguel, contas, assinaturas, faculdade... tudo que você paga todo mês e não dá pra cortar."
+          subtitle="Pense agora qual é o valor dos seus custos fixos: aluguel, contas, assinaturas, faculdade... tudo que você paga todo mês e não dá pra cortar."
         />
-        <div className="flex flex-col gap-3">
-          {fixedItems.map((item) => (
-            <div key={item.id} className="flex items-center gap-2">
-              <input
-                type="text"
-                value={item.description}
-                onChange={(e) => updateFixedItem(item.id, { description: e.target.value })}
-                placeholder="Ex.: Aluguel"
-                className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] w-0 flex-1 rounded-lg border px-3 text-base outline-none focus:ring-2"
-              />
-              <input
-                type="text"
-                inputMode="decimal"
-                value={item.amount}
-                onChange={(e) => updateFixedItem(item.id, { amount: e.target.value })}
-                placeholder="R$ 0,00"
-                className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] w-28 shrink-0 rounded-lg border px-3 text-right text-base outline-none focus:ring-2"
-              />
-              <button
-                type="button"
-                onClick={() => removeFixedItem(item.id)}
-                disabled={fixedItems.length === 1}
-                aria-label="Remover"
-                className="text-muted min-h-[44px] min-w-[44px] shrink-0 disabled:opacity-30"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={addFixedItem}
-            className="border-border text-muted hover:text-foreground min-h-[44px] rounded-lg border border-dashed text-sm font-medium"
-          >
-            + Adicionar custo fixo
-          </button>
-          <p className="text-muted text-xs">
-            Isso lança novos custos fixos no mês atual — os que você já tem continuam do jeito que
-            estão.
-          </p>
-        </div>
+        <AmountInput value={fixedCosts} onChange={setFixedCosts} autoFocus />
+        <p className="text-muted mt-3 text-sm">
+          Não vira um lançamento sozinho — é só para calcular a prévia das suas categorias no
+          próximo passo. Para registrar um custo fixo de verdade, use "Lançar gasto" depois.
+        </p>
       </OnboardingScreen>
     );
   }
@@ -271,7 +206,7 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
   }
 
   const incomeTotal = parseAmountInput(income);
-  const fixedTotal = sum(fixedItems.map((item) => parseAmountInput(item.amount)));
+  const fixedTotal = parseAmountInput(fixedCosts);
   const unforeseenTotal = parseAmountInput(unforeseen);
   const preview = activeTopics.map((topic) => {
     const proportionalFixed = computeProportionalFixed(fixedTotal, unforeseenTotal, topic.targetPct);

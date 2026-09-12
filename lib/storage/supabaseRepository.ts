@@ -52,13 +52,17 @@ async function run<T>(
 }
 
 function rowToSettings(
-  row: Pick<BudgetSettingsRow, 'topics' | 'special_categories' | 'special_category_colors'>,
+  row: Pick<
+    BudgetSettingsRow,
+    'topics' | 'special_categories' | 'special_category_colors' | 'onboarding_completed'
+  >,
 ): BudgetSettings {
   const colors = (row.special_category_colors ?? {}) as Partial<SpecialCategoryColors>;
   return {
     topics: row.topics,
     specialCategories: row.special_categories,
     specialCategoryColors: { ...DEFAULT_SPECIAL_CATEGORY_COLORS, ...colors },
+    onboardingCompleted: row.onboarding_completed ?? true,
   };
 }
 
@@ -125,9 +129,13 @@ export class SupabaseBudgetRepository implements BudgetRepository {
       topics: defaults.topics,
       special_categories: defaults.specialCategories,
     };
-    let { error } = await this.client
-      .from('budget_settings')
-      .insert({ ...baseRow, special_category_colors: defaults.specialCategoryColors ?? {} });
+    // Only a brand-new account's first-ever row is created with onboarding_completed:
+    // false — every other read (existing row) keeps whatever the account already has.
+    let { error } = await this.client.from('budget_settings').insert({
+      ...baseRow,
+      special_category_colors: defaults.specialCategoryColors ?? {},
+      onboarding_completed: false,
+    });
     if (error?.code === UNDEFINED_COLUMN) {
       ({ error } = await this.client.from('budget_settings').insert(baseRow));
     }
@@ -147,6 +155,16 @@ export class SupabaseBudgetRepository implements BudgetRepository {
       special_categories: settings.specialCategories,
       special_category_colors: settings.specialCategoryColors ?? {},
     });
+  }
+
+  /** Marks this account as having finished (or skipped) the new-user wizard/tour, for good. */
+  async completeOnboarding(): Promise<void> {
+    const userId = await this.requireUserId();
+    const { error } = await this.client
+      .from('budget_settings')
+      .update({ onboarding_completed: true })
+      .eq('user_id', userId);
+    if (error && error.code !== UNDEFINED_COLUMN) throw new SupabaseStorageError(error);
   }
 
   /** Upsert `budget_settings`, retrying without `special_category_colors` if that column is missing. */

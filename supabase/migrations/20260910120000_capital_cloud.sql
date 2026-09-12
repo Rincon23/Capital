@@ -38,12 +38,19 @@ create table if not exists public.budget_settings (
   topics jsonb not null,
   special_categories jsonb not null,
   special_category_colors jsonb not null default '{}'::jsonb,
+  onboarding_completed boolean not null default true,
   updated_at timestamptz not null default now()
 );
 
 -- Additive: safe to run on a budget_settings table created before colors existed.
 alter table public.budget_settings
   add column if not exists special_category_colors jsonb not null default '{}'::jsonb;
+
+-- Additive: safe to run on a budget_settings table created before this existed. Default
+-- true so every pre-existing account (and any row written without this column) is treated
+-- as already onboarded — only the app's own new-account insert ever sets it to false.
+alter table public.budget_settings
+  add column if not exists onboarding_completed boolean not null default true;
 
 alter table public.budget_settings enable row level security;
 

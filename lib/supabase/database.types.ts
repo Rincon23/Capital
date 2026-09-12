@@ -44,6 +44,8 @@ export type BudgetSettingsRow = {
   topics: TopicConfig[];
   special_categories: SpecialCategoryLabels;
   special_category_colors: Partial<SpecialCategoryColors>;
+  /** True once this account has finished (or skipped) the new-user wizard/tour at least once. */
+  onboarding_completed: boolean;
   updated_at: string;
 };
 
@@ -51,6 +53,8 @@ export type BudgetSettingsInsert = Pick<BudgetSettingsRow, 'topics' | 'special_c
   user_id?: string;
   /** Optional: dropped automatically when the column has not been migrated yet. */
   special_category_colors?: BudgetSettingsRow['special_category_colors'];
+  /** Optional: dropped automatically when the column has not been migrated yet. */
+  onboarding_completed?: boolean;
 };
 
 export type ProfileRow = {

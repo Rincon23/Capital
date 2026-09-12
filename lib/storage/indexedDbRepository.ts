@@ -29,6 +29,11 @@ export class IndexedDbBudgetRepository implements BudgetRepository {
     await db.settings.put({ id: SETTINGS_ID, ...settings });
   }
 
+  async completeOnboarding(): Promise<void> {
+    const settings = await this.getSettings();
+    await this.saveSettings({ ...settings, onboardingCompleted: true });
+  }
+
   async listMonths(): Promise<Month[]> {
     const months = await db.months.toArray();
     return months.map((m) => m.month).sort((a, b) => a.localeCompare(b));

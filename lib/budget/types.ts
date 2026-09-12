@@ -41,6 +41,12 @@ export interface BudgetSettings {
   specialCategories: SpecialCategoryLabels;
   /** May be absent or partial in older data; resolve with `resolveSpecialCategoryColors`. */
   specialCategoryColors?: Partial<SpecialCategoryColors>;
+  /**
+   * True once this account has finished (or skipped) the new-user wizard/tour at least
+   * once. Absent/undefined is treated as true (already onboarded) — only a brand-new
+   * account's first-ever settings row is created with this explicitly false.
+   */
+  onboardingCompleted?: boolean;
 }
 
 export interface Income {

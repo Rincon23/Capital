@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { computeMonthSummary } from '@/lib/budget';
+import { computeMonthSummary, currentMonthKey, previousMonth } from '@/lib/budget';
 import type { Database } from '@/lib/supabase/database.types';
 import { MonthClosedError, MonthNotFoundError, NotAuthenticatedError } from '../repository';
 import { SupabaseBudgetRepository } from '../supabaseRepository';
@@ -189,6 +189,27 @@ describe('SupabaseBudgetRepository', () => {
     expect(store.months ?? []).toHaveLength(0);
   });
 
+  it('marks a brand-new account as not yet onboarded, and stays that way across reads', async () => {
+    const first = await subject.getSettings();
+    expect(first.onboardingCompleted).toBe(false);
+
+    // Re-reading (e.g. reloading the app) must not reset the flag either way.
+    const second = await subject.getSettings();
+    expect(second.onboardingCompleted).toBe(false);
+  });
+
+  it('completeOnboarding persists across reads and repository instances (new device/browser)', async () => {
+    await subject.getSettings();
+    await subject.completeOnboarding();
+
+    expect((await subject.getSettings()).onboardingCompleted).toBe(true);
+
+    // A different repository instance (e.g. a fresh login on another device) sharing
+    // the same backend must see the same, already-onboarded, account-level flag.
+    const otherDevice = repo(client);
+    expect((await otherDevice.getSettings()).onboardingCompleted).toBe(true);
+  });
+
   it('creates the first month with zeroed carryIn', async () => {
     const month = await subject.ensureMonth('2026-01');
     expect(month.incomes).toEqual([]);
@@ -219,6 +240,66 @@ describe('SupabaseBudgetRepository', () => {
     await subject.saveIncome('2026-01', { id: 'i2', source: 'Bônus', amount: 1000 });
     // income now 2000 -> available(Diversos) = 400
     expect((await subject.getMonth('2026-02'))?.carryIn[diversos.id]).toBe(400);
+  });
+
+  it('keeps an existing category\'s carryIn when Settings only reorders categories', async () => {
+    const settings = await subject.getSettings();
+    const diversos = settings.topics.find((t) => t.name === 'Diversos')!;
+    const investimentos = settings.topics.find((t) => t.name === 'Investimentos')!;
+
+    await subject.ensureMonth('2026-01');
+    await subject.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await subject.ensureMonth('2026-02');
+    expect((await subject.getMonth('2026-02'))?.carryIn[diversos.id]).toBe(200);
+
+    // Reorder in Settings: swap Diversos and Investimentos.
+    const reordered = settings.topics.map((t) => {
+      if (t.id === diversos.id) return { ...t, order: investimentos.order };
+      if (t.id === investimentos.id) return { ...t, order: diversos.order };
+      return t;
+    });
+    await subject.saveSettings({ ...settings, topics: reordered });
+
+    // The persisted carryIn on the month itself must be untouched by a Settings save.
+    expect((await subject.getMonth('2026-02'))?.carryIn[diversos.id]).toBe(200);
+
+    // And the displayed summary (what "Início" renders) must still show it, just reordered.
+    const february = (await subject.getMonth('2026-02'))!;
+    const summary = computeMonthSummary(february, reordered);
+    expect(summary.topics.find((t) => t.topicId === diversos.id)?.carryIn).toBe(200);
+    expect(summary.topics.find((t) => t.topicId === diversos.id)?.available).toBe(200);
+    expect(summary.topics[0].topicId).toBe(diversos.id); // now sorted first
+  });
+
+  it('keeps existing categories\' carryIn when a new category is added alongside a reorder', async () => {
+    // Use the real current month so `computeMonthSummary` treats it as live (not frozen).
+    const thisMonth = currentMonthKey();
+    const lastMonth = previousMonth(thisMonth);
+
+    const settings = await subject.getSettings();
+    const diversos = settings.topics.find((t) => t.name === 'Diversos')!;
+    const investimentos = settings.topics.find((t) => t.name === 'Investimentos')!;
+
+    await subject.ensureMonth(lastMonth);
+    await subject.saveIncome(lastMonth, { id: 'i1', source: 'Salário', amount: 1000 });
+    await subject.ensureMonth(thisMonth);
+
+    const withNewAndReordered = [
+      ...settings.topics.map((t) => {
+        if (t.id === diversos.id) return { ...t, order: investimentos.order };
+        if (t.id === investimentos.id) return { ...t, order: diversos.order };
+        return t;
+      }),
+      { id: 'nova', name: 'Nova categoria', targetPct: 0, order: settings.topics.length },
+    ];
+    await subject.saveSettings({ ...settings, topics: withNewAndReordered });
+
+    const current = (await subject.getMonth(thisMonth))!;
+    const summary = computeMonthSummary(current, withNewAndReordered);
+    // Existing category keeps its rolled-over balance.
+    expect(summary.topics.find((t) => t.topicId === diversos.id)?.carryIn).toBe(200);
+    // The brand-new category has no history yet, so it starts at zero.
+    expect(summary.topics.find((t) => t.topicId === 'nova')?.carryIn).toBe(0);
   });
 
   it('deletes a month and re-anchors the carryIn of the remaining months', async () => {
