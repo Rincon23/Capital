@@ -4,13 +4,15 @@ function StatTile({
   label,
   value,
   emphasis,
+  tourId,
 }: {
   label: string;
   value: string;
   emphasis?: 'danger' | 'success';
+  tourId?: string;
 }) {
   return (
-    <div className="border-border bg-card rounded-xl border p-3">
+    <div className="border-border bg-card rounded-xl border p-3" data-tour={tourId}>
       <p className="text-muted text-xs">{label}</p>
       <p
         className={`text-lg font-semibold ${
@@ -28,7 +30,7 @@ export function SummaryHeader({ summary }: { summary: MonthSummary }) {
     <div className="grid grid-cols-2 gap-3">
       <StatTile label="Renda total" value={formatBRL(summary.incomeTotal)} />
       <StatTile label="Total gasto" value={formatBRL(summary.expenseTotal)} />
-      <StatTile label="Posso gastar" value={formatBRL(summary.availableTotal)} />
+      <StatTile label="Posso gastar" value={formatBRL(summary.availableTotal)} tourId="posso-gastar" />
       <StatTile
         label="Saldo geral"
         value={formatBRL(summary.balance)}

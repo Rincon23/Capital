@@ -162,7 +162,7 @@ function ConfiguracoesForm({
 
       <HelpSection />
 
-      <section className="flex flex-col gap-3 px-4">
+      <section className="flex flex-col gap-3 px-4" data-tour="config-categorias">
         <h2 className="text-muted text-sm font-semibold">Categorias de meta</h2>
         <div className="border-border bg-card flex flex-col gap-2 rounded-xl border p-4 shadow-sm">
           {sortedTopics.map((topic, index) => (
@@ -354,6 +354,7 @@ function HelpSection() {
         <button
           type="button"
           onClick={open}
+          data-tour="config-ajuda"
           className="border-border text-foreground min-h-[44px] w-full rounded-lg border px-4 text-sm font-medium"
         >
           Me ajude a configurar

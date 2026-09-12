@@ -60,7 +60,7 @@ export function DashboardScreen() {
 
       <CardBillCard summary={summary} />
 
-      <section className="flex flex-col gap-3" aria-label="Categorias">
+      <section className="flex flex-col gap-3" aria-label="Categorias" data-tour="categorias">
         {summary.topics.map((topic) => (
           <TopicCard key={topic.topicId} month={month} topic={topic} />
         ))}
@@ -91,8 +91,8 @@ export function DashboardScreen() {
       </button>
 
       <div className="fixed right-4 bottom-20 z-30 flex flex-col items-end gap-2">
-        <Fab label="Renda" variant="secondary" onClick={() => openIncomeForm()} />
-        <Fab label="Lançar gasto" onClick={() => openExpenseForm()} />
+        <Fab label="Renda" variant="secondary" onClick={() => openIncomeForm()} tourId="fab-renda" />
+        <Fab label="Lançar gasto" onClick={() => openExpenseForm()} tourId="fab-lancar-gasto" />
       </div>
     </div>
   );

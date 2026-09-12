@@ -4,15 +4,18 @@ export function Fab({
   onClick,
   label,
   variant = 'primary',
+  tourId,
 }: {
   onClick: () => void;
   label: string;
   variant?: 'primary' | 'secondary';
+  tourId?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      data-tour={tourId}
       className={`flex h-12 items-center gap-2 rounded-full px-5 font-semibold shadow-lg transition-transform active:scale-95 ${
         variant === 'primary'
           ? 'bg-primary text-primary-foreground'

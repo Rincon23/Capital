@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { getLastViewedMonth } from '@/lib/storage/preferences';
@@ -8,6 +9,7 @@ import { currentMonthKey } from '@/lib/budget';
 interface NavItem {
   href: (month: string) => string;
   label: string;
+  tourId: string;
   match: (pathname: string) => boolean;
   icon: React.ReactNode;
 }
@@ -59,24 +61,28 @@ const NAV_ITEMS: NavItem[] = [
   {
     href: (m) => `/mes/${m}`,
     label: 'Início',
+    tourId: 'nav-mes',
     match: (p) => p.startsWith('/mes/') && !p.includes('/lancamentos') && !p.includes('/categoria'),
     icon: <HomeIcon />,
   },
   {
     href: (m) => `/mes/${m}/lancamentos`,
     label: 'Lançamentos',
+    tourId: 'nav-lancamentos',
     match: (p) => p.includes('/lancamentos'),
     icon: <ListIcon />,
   },
   {
     href: () => '/historico',
     label: 'Histórico',
+    tourId: 'nav-historico',
     match: (p) => p.startsWith('/historico'),
     icon: <ChartIcon />,
   },
   {
     href: () => '/configuracoes',
     label: 'Config.',
+    tourId: 'nav-config',
     match: (p) => p.startsWith('/configuracoes'),
     icon: <GearIcon />,
   },
@@ -84,7 +90,20 @@ const NAV_ITEMS: NavItem[] = [
 
 export function BottomNav() {
   const pathname = usePathname();
-  const month = pathname.match(/^\/mes\/([\d-]+)/)?.[1] ?? getLastViewedMonth() ?? currentMonthKey();
+  const monthFromPath = pathname.match(/^\/mes\/([\d-]+)/)?.[1];
+  // Starts from `currentMonthKey()` (deterministic, matches the server) so hydration never
+  // sees a mismatched href; the last-viewed month (localStorage, client-only) is applied
+  // after mount instead.
+  const [fallbackMonth, setFallbackMonth] = useState(currentMonthKey);
+
+  useEffect(() => {
+    if (monthFromPath) return;
+    const stored = getLastViewedMonth();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (stored) setFallbackMonth(stored);
+  }, [monthFromPath]);
+
+  const month = monthFromPath ?? fallbackMonth;
 
   return (
     <nav
@@ -99,6 +118,7 @@ export function BottomNav() {
             <li key={item.label} className="flex-1">
               <Link
                 href={item.href(month)}
+                data-tour={item.tourId}
                 className={`flex min-h-[56px] flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors ${
                   active ? 'text-primary' : 'text-muted hover:text-foreground'
                 }`}

@@ -1,94 +1,169 @@
 'use client';
 
-import { useState } from 'react';
-import { OnboardingScreen } from './OnboardingScreen';
+import { useEffect, useRef } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { driver, type Driver, type DriveStep } from 'driver.js';
+import 'driver.js/dist/driver.css';
+import './tour.css';
+import { currentMonthKey } from '@/lib/budget';
+import { getLastViewedMonth } from '@/lib/storage/preferences';
 
-interface TourCard {
+interface TourStep {
+  route: string;
+  selector: string;
   title: string;
-  body: string;
-  color: string;
+  description: string;
+  side?: 'top' | 'bottom' | 'left' | 'right';
 }
-
-const CARDS: TourCard[] = [
-  {
-    title: 'Mês',
-    body: 'Aqui você vê suas categorias, quanto já gastou e quanto ainda pode gastar em cada uma.',
-    color: '#2a78d6',
-  },
-  {
-    title: 'Lançamentos',
-    body: 'Registre gastos e rendas aqui. Dá pra separar por categoria, custo fixo ou imprevisto.',
-    color: '#1baf7a',
-  },
-  {
-    title: 'Histórico',
-    body: 'Acompanhe sua evolução mês a mês e veja se está seguindo o planejado.',
-    color: '#eda100',
-  },
-  {
-    title: 'Configurações',
-    body: "Ajuste categorias, cores e percentuais quando quiser. Se precisar reconfigurar tudo de novo, é só voltar aqui e tocar em \"Me ajude a configurar\".",
-    color: '#e87ba4',
-  },
-];
 
 interface AppTourProps {
   onSkip: () => void;
   onComplete: () => void;
 }
 
-/** Short guided tour of the app's four main screens, shown right after the setup wizard. */
+/**
+ * Real, interactive tour: a spotlight (driver.js) darkens the live screen and cuts
+ * out the actual UI element being explained, navigating across the app's real routes.
+ * Replaces the old static-slides tour that only showed 4 unrelated cards.
+ */
 export function AppTour({ onSkip, onComplete }: AppTourProps) {
-  const [index, setIndex] = useState(0);
-  const card = CARDS[index];
-  const isLast = index === CARDS.length - 1;
+  const router = useRouter();
+  const pathname = usePathname();
+  const skippedOrCompletedRef = useRef(false);
 
-  function next() {
-    if (isLast) onComplete();
-    else setIndex((i) => i + 1);
-  }
+  useEffect(() => {
+    const month = getLastViewedMonth() ?? currentMonthKey();
 
-  function back() {
-    setIndex((i) => Math.max(i - 1, 0));
-  }
+    const steps: TourStep[] = [
+      {
+        route: `/mes/${month}`,
+        selector: '[data-tour="nav-mes"]',
+        title: 'Início',
+        description: 'Essa é a aba Início: seu painel principal, com suas categorias, quanto já gastou e quanto ainda pode gastar em cada uma.',
+        side: 'top',
+      },
+      {
+        route: `/mes/${month}`,
+        selector: '[data-tour="posso-gastar"]',
+        title: 'Quanto sobra',
+        description: 'Esse número mostra quanto você ainda pode gastar esse mês, já descontando custos fixos e o que você já lançou.',
+      },
+      {
+        route: `/mes/${month}`,
+        selector: '[data-tour="categorias"]',
+        title: 'Suas categorias',
+        description: 'Cada categoria tem uma cor e um percentual da sua renda. Toque em uma delas para ver o detalhe dos gastos daquela categoria.',
+      },
+      {
+        route: `/mes/${month}`,
+        selector: '[data-tour="fab-lancar-gasto"]',
+        title: 'Lançar gasto',
+        description: 'Toque aqui sempre que fizer um gasto. Dá pra marcar se é de uma categoria, um custo fixo ou um imprevisto.',
+        side: 'top',
+      },
+      {
+        route: `/mes/${month}`,
+        selector: '[data-tour="fab-renda"]',
+        title: 'Registrar renda',
+        description: 'E aqui você registra uma renda extra, sempre que entrar um dinheiro fora do previsto.',
+        side: 'top',
+      },
+      {
+        route: `/mes/${month}/lancamentos`,
+        selector: '[data-tour="nav-lancamentos"]',
+        title: 'Lançamentos',
+        description: 'Aqui fica a lista completa de tudo que você lançou no mês, com filtros por categoria.',
+        side: 'top',
+      },
+      {
+        route: '/historico',
+        selector: '[data-tour="nav-historico"]',
+        title: 'Histórico',
+        description: 'No Histórico você acompanha sua evolução mês a mês e vê se está seguindo o planejado.',
+        side: 'top',
+      },
+      {
+        route: '/configuracoes',
+        selector: '[data-tour="nav-config"]',
+        title: 'Configurações',
+        description: 'E aqui nas Configurações você ajusta suas categorias.',
+        side: 'top',
+      },
+      {
+        route: '/configuracoes',
+        selector: '[data-tour="config-categorias"]',
+        title: 'Categorias de meta',
+        description: 'Mude nomes, cores e percentuais de cada categoria quando quiser — juntos eles sempre têm que somar 100%.',
+      },
+      {
+        route: '/configuracoes',
+        selector: '[data-tour="config-ajuda"]',
+        title: 'Precisa refazer?',
+        description: 'A qualquer momento, toque aqui para refazer a configuração inicial e rever este tour.',
+      },
+    ];
 
-  return (
-    <OnboardingScreen
-      step={index + 1}
-      totalSteps={CARDS.length}
-      onSkip={onSkip}
-      footer={
-        <>
-          {index > 0 && (
-            <button
-              type="button"
-              onClick={back}
-              className="border-border text-foreground min-h-[44px] shrink-0 rounded-lg border px-4 py-2 font-medium"
-            >
-              Voltar
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={next}
-            className="bg-primary text-primary-foreground min-h-[44px] flex-1 rounded-lg px-4 py-2 font-semibold"
-          >
-            {isLast ? 'Concluir' : 'Próximo'}
-          </button>
-        </>
-      }
-    >
-      <div className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
-        <span
-          aria-hidden
-          className="flex h-16 w-16 items-center justify-center rounded-2xl text-2xl font-bold text-white"
-          style={{ backgroundColor: card.color }}
-        >
-          {index + 1}
-        </span>
-        <h1 className="text-foreground text-2xl font-bold">{card.title}</h1>
-        <p className="text-muted max-w-sm text-base">{card.body}</p>
-      </div>
-    </OnboardingScreen>
-  );
+    function finishOnce(action: () => void) {
+      if (skippedOrCompletedRef.current) return;
+      skippedOrCompletedRef.current = true;
+      action();
+    }
+
+    const driveSteps: DriveStep[] = steps.map((step, index) => {
+      const isLast = index === steps.length - 1;
+      return {
+        element: step.selector,
+        popover: {
+          title: step.title,
+          description: step.description,
+          side: step.side,
+          onNextClick: () => {
+            const next = steps[index + 1];
+            if (next && next.route !== step.route) router.push(next.route);
+            driverObj.moveNext();
+          },
+          onPrevClick: () => {
+            const prev = steps[index - 1];
+            if (prev && prev.route !== step.route) router.push(prev.route);
+            driverObj.movePrevious();
+          },
+          ...(isLast
+            ? {
+                onDoneClick: () => {
+                  driverObj.destroy();
+                  finishOnce(onComplete);
+                },
+              }
+            : {}),
+        },
+      };
+    });
+
+    const driverObj: Driver = driver({
+      showProgress: true,
+      allowClose: true,
+      overlayOpacity: 0.7,
+      stageRadius: 8,
+      waitForElement: 4000,
+      popoverClass: 'capital-tour-popover',
+      nextBtnText: 'Próximo',
+      prevBtnText: 'Voltar',
+      doneBtnText: 'Concluir',
+      steps: driveSteps,
+      onDestroyStarted: () => {
+        driverObj.destroy();
+        finishOnce(onSkip);
+      },
+    });
+
+    if (pathname !== steps[0].route) router.push(steps[0].route);
+    driverObj.drive();
+
+    return () => {
+      driverObj.destroy();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return null;
 }
