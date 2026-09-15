@@ -38,7 +38,7 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
     setIncomeForm({ open: true, initial });
   }, []);
 
-  // A hard storage failure (e.g. Supabase unreachable / not set up) leaves monthData
+  // A hard storage failure (e.g. the server or its database unreachable) leaves monthData
   // null forever; show the error instead of letting every child spin on "Carregando…".
   if (monthData.error && !monthData.monthData) {
     return (

@@ -25,8 +25,8 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (checked || !settings) return;
-    setChecked(true);
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    setChecked(true);
     if (settings.onboardingCompleted === false) setActive(true);
   }, [checked, settings]);
 

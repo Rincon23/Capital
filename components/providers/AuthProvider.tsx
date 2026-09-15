@@ -1,9 +1,9 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut as signOutAction } from '@/lib/auth/actions';
-import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { UNAUTHENTICATED_EVENT } from '@/lib/storage/httpRepository';
 
 export interface AuthUser {
   id: string;
@@ -18,10 +18,9 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 /**
- * Holds the signed-in user for Client Components. Seeded from the server
- * (`initialUser`, resolved by the authenticated layout) so there is no loading
- * flash, then kept in sync via Supabase's `onAuthStateChange` — a sign-out in
- * another tab, or an expired session, sends the user back to `/login`.
+ * Holds the signed-in user for Client Components. Seeded from the server (`initialUser`,
+ * resolved by the authenticated layout) so there is no loading flash. When the API reports
+ * the session is gone (expired, or signed out on another device), sends the user to `/login`.
  */
 export function AuthProvider({
   initialUser,
@@ -31,25 +30,20 @@ export function AuthProvider({
   children: ReactNode;
 }) {
   const router = useRouter();
-  const [user, setUser] = useState<AuthUser>(initialUser);
 
   useEffect(() => {
-    const supabase = getSupabaseBrowserClient();
-    const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
-        router.replace('/login');
-        return;
-      }
-      setUser({ id: session.user.id, email: session.user.email ?? null });
-    });
-    return () => data.subscription.unsubscribe();
+    const goToLogin = () => router.replace('/login');
+    window.addEventListener(UNAUTHENTICATED_EVENT, goToLogin);
+    return () => window.removeEventListener(UNAUTHENTICATED_EVENT, goToLogin);
   }, [router]);
 
   const signOut = useCallback(async () => {
     await signOutAction();
   }, []);
 
-  return <AuthContext.Provider value={{ user, signOut }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user: initialUser, signOut }}>{children}</AuthContext.Provider>
+  );
 }
 
 export function useAuth(): AuthContextValue {

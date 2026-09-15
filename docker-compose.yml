@@ -1,27 +1,31 @@
-# Run Capital in a container. Values come from your env file — pass it explicitly:
+# Run Capital in a container on the Orange Pi. The database is a separate stack
+# (deploy/postgres, installed at ~/capitalapp/db) that this container reaches over the
+# external Docker network `capital-db` — start the database first.
 #
-#   docker compose --env-file .env.local up -d --build
+#   docker compose --env-file .env.local up -d --build     (or ./update.sh)
 #
-# .env.local must define:
-#   NEXT_PUBLIC_SUPABASE_URL=...
-#   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
-#   APP_ALLOWED_ORIGINS=<public hostname of your tunnel, e.g. capital.my-tailnet.ts.net>
-#
-# NEXT_PUBLIC_* and APP_ALLOWED_ORIGINS are baked at build time — rebuild
-# (`up -d --build`) after changing them.
+# .env.local must define (see .env.example): DATABASE_URL, BETTER_AUTH_SECRET,
+# BETTER_AUTH_URL, APP_ALLOWED_ORIGINS and the SMTP_* settings. It is passed whole to
+# the container. APP_ALLOWED_ORIGINS is also baked at build time — rebuild
+# (`up -d --build`) after changing it.
+name: capital
 
 services:
   capital:
     build:
       context: .
       args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?set NEXT_PUBLIC_SUPABASE_URL in your env file}
-        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:?set NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in your env file}
         APP_ALLOWED_ORIGINS: ${APP_ALLOWED_ORIGINS:-}
     image: capital:latest
     container_name: capital
     restart: unless-stopped
     ports:
       - '3000:3000'
+    env_file: .env.local
     environment:
-      APP_ALLOWED_ORIGINS: ${APP_ALLOWED_ORIGINS:-}
+      TZ: America/Sao_Paulo
+    networks: [capital-db]
+
+networks:
+  capital-db:
+    external: true

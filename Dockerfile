@@ -19,14 +19,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# NEXT_PUBLIC_* are inlined into the client bundle at build time, so they must be
-# passed as build args. APP_ALLOWED_ORIGINS is baked into the server config too.
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+# APP_ALLOWED_ORIGINS is baked into the server config (Server Actions CSRF check), so it
+# must be a build arg. Everything else (DATABASE_URL, auth, SMTP) is read at runtime.
 ARG APP_ALLOWED_ORIGINS
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \
-    APP_ALLOWED_ORIGINS=$APP_ALLOWED_ORIGINS
+ENV APP_ALLOWED_ORIGINS=$APP_ALLOWED_ORIGINS
 
 RUN npm run build
 
@@ -36,7 +32,8 @@ WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
-    HOSTNAME=0.0.0.0
+    HOSTNAME=0.0.0.0 \
+    TZ=America/Sao_Paulo
 
 RUN useradd --system --uid 1001 --create-home nextjs
 
@@ -44,6 +41,8 @@ RUN useradd --system --uid 1001 --create-home nextjs
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nextjs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nextjs /app/.next/static ./.next/static
+# SQL migrations, applied by the server when it starts (instrumentation.ts).
+COPY --from=builder --chown=nextjs:nextjs /app/drizzle ./drizzle
 
 USER nextjs
 EXPOSE 3000

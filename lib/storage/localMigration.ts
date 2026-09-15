@@ -5,9 +5,8 @@ import { IndexedDbBudgetRepository } from './indexedDbRepository';
 
 /**
  * One-time migration of a device's old local data (IndexedDB `capital-db`, used
- * by v1) into the signed-in Supabase account. Reuses the existing backup
- * pipeline: local `exportData()` -> cloud `importData()` (which replaces the
- * account's current data).
+ * by v1) into the signed-in account. Reuses the existing backup pipeline: local
+ * `exportData()` -> account `importData()` (which replaces the account's current data).
  */
 
 const DONE_KEY = 'capital:localImportDone';

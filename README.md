@@ -8,138 +8,106 @@ carregando a sobra de um mês para o outro (rollover). Gastos marcados como "fei
 cartão" entram na fatura do cartão (`cardTotal`), além de contarem no orçamento normal
 da categoria em que foram lançados.
 
-PWA instalável, com **login por e-mail e senha**. Os dados ficam em um projeto
-**Supabase** (Postgres na nuvem), isolados por usuário via Row Level Security — cada conta só
-enxerga os próprios dados, acessíveis de qualquer dispositivo. Sem conexão o app abre, mas as
-telas ficam carregando até a rede voltar.
+PWA instalável, com **login por e-mail e senha**. Os dados ficam num **PostgreSQL próprio no
+Orange Pi**, sem serviço de banco na nuvem: o navegador só fala com a API do próprio app, que
+grava no banco sempre em nome do usuário logado. Cada conta só enxerga os próprios dados. Sem
+conexão o app abre, mas as telas ficam carregando até a rede voltar.
 
-## Como rodar
+## Como rodar (desenvolvimento)
 
-Requer Node.js 22+ e um projeto Supabase.
+Requer Node.js 22+ e acesso a um Postgres: o de desenvolvimento no Orange Pi, pela Tailscale
+(veja [deploy/postgres/README.md](deploy/postgres/README.md)).
 
 ```bash
 npm install
 
-cp .env.example .env.local   # preencha com Project URL + publishable key (Supabase -> Project Settings -> API)
+cp .env.example .env.local   # DATABASE_URL (banco capital_dev), BETTER_AUTH_SECRET e BETTER_AUTH_URL
 
-npm run dev      # servidor de desenvolvimento em http://localhost:3000
-npm run build    # build de produção (gera o service worker em public/sw.js)
+npm run dev      # servidor de desenvolvimento em http://localhost:3000 (aplica as migrações ao subir)
+npm run build    # build de produção
 npm start        # serve o build de produção
 
-npm test         # testes de /lib/budget e /lib/storage (Vitest)
+npm test         # testes (Vitest); o repositório roda contra um Postgres em memória (PGlite)
 npm run lint     # ESLint
 npm run format   # Prettier
+
+npm run db:generate   # gera uma migração SQL em /drizzle a partir de lib/server/db/schema.ts
+npm run db:migrate    # aplica as migrações pendentes na DATABASE_URL (o servidor já faz isso ao subir)
 ```
 
-### Configuração do Supabase (uma vez)
+Sem `SMTP_HOST` no `.env.local`, os e-mails de confirmação de conta e de redefinição de senha não
+são enviados: o conteúdo, com o link, aparece no terminal do `npm run dev`.
 
-1. Aplique `supabase/migrations/20260910120000_capital_cloud.sql` (SQL Editor ou `supabase db push`).
-2. **Authentication → Providers → Email**: mantenha "Confirm email" ligado.
-3. **Authentication → URL Configuration**: defina a Site URL e as Redirect URLs
-   (`http://localhost:3000/**` em dev; a URL de produção depois).
-4. **Authentication → Email Templates** ("Confirm signup" e "Reset password"): aponte o link para
-   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type={{ .Type }}&next=/`.
-
-Ao abrir o app pela primeira vez, uma conta nova recebe as 4 categorias padrão e as categorias
-especiais — sem mês de exemplo. Se o dispositivo tiver dados da versão local anterior, o app
+Ao entrar pela primeira vez, uma conta nova recebe as 4 categorias padrão e as categorias
+especiais, sem mês de exemplo. Se o dispositivo tiver dados da versão local anterior, o app
 oferece importá-los para a conta.
 
-## Publicar (e instalar no Android)
+## Publicar no Orange Pi
 
-O app inteiro é um servidor Next.js — proxy, Route Handlers e Server Actions são o "backend",
-não há um serviço separado para hospedar. O Supabase é o banco (já hospedado de graça pelo
-Supabase). Precisa de um host Node; não dá para exportar como site estático.
+No Pi, tudo do Capital fica em `~/capitalapp`:
 
-Em qualquer caminho, o app só funciona por **HTTPS** de ponta a ponta: os cookies de sessão do
-Supabase são `Secure` e a instalação de PWA exige contexto seguro.
-
-### Opção A — Docker no seu servidor (Orange Pi, Raspberry Pi, VPS)
-
-O repositório traz `Dockerfile` (imagem multi-stage a partir do bundle `standalone` do Next),
-`.dockerignore` e `docker-compose.yml`.
-
-```bash
-git clone <repo> capital && cd capital
-cp .env.example .env.local
-# edite .env.local:
-#   NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
-#   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
-#   APP_ALLOWED_ORIGINS=<hostname público do túnel, ex.: capital.meu-tailnet.ts.net>
-
-docker compose --env-file .env.local up -d --build
+```text
+~/capitalapp/
+├── Capital/   este repositório; o app roda em Docker a partir daqui (./update.sh)
+├── db/        o banco: cópia de deploy/postgres (docker-compose.yml, .env com as senhas, scripts)
+└── data/      arquivos do Postgres e backups
 ```
 
-A imagem é construída na arquitetura da placa (arm64). `NEXT_PUBLIC_*` e `APP_ALLOWED_ORIGINS`
-entram como build args — **reconstrua** (`up -d --build`) sempre que mudarem. O container
-escuta em `3000`, reinicia sozinho (`restart: unless-stopped`) e sobe no boot se o serviço
-Docker estiver habilitado.
+1. **Banco** (uma vez): siga [deploy/postgres/README.md](deploy/postgres/README.md). Ele sobe o
+   Postgres 17 e o backup diário, e cria a rede Docker `capital-db`.
+2. **App:**
+
+   ```bash
+   cd ~/capitalapp/Capital
+   cp .env.example .env.local
+   # DATABASE_URL=postgres://capital:<CAPITAL_DB_PASSWORD de ~/capitalapp/db/.env>@capital-postgres:5432/capital
+   # BETTER_AUTH_SECRET=<openssl rand -base64 32>
+   # BETTER_AUTH_URL=https://capital.rincon.dev.br
+   # APP_ALLOWED_ORIGINS=capital.rincon.dev.br
+   # SMTP_* (Gmail com senha de app)
+   docker compose --env-file .env.local up -d --build
+   ```
+
+   O container `capital` entra na rede `capital-db` e fala com o banco pelo nome
+   `capital-postgres`. Ao subir, ele aplica as migrações pendentes (`instrumentation.ts`). A
+   imagem é construída na arquitetura da placa (arm64). `APP_ALLOWED_ORIGINS` entra também como
+   build arg: **reconstrua** (`up -d --build`) sempre que mudar.
+
+Atualizar depois: `./update.sh` (faz `git pull` + rebuild + restart + limpa imagens órfãs; recusa
+rodar se o banco não estiver no ar).
 
 Placas com 1–2 GB de RAM: crie swap antes do primeiro build —
 `sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile`.
 
-Atualizar depois: `./update.sh` (faz `git pull` + rebuild + restart + limpa imagens órfãs).
+**HTTPS:** o app só funciona por HTTPS de ponta a ponta, por causa do cookie de sessão `Secure` e
+da instalação do PWA. Ele é publicado em `https://capital.rincon.dev.br` por um túnel Cloudflare
+(container `cloudflared` no Pi) apontando para a porta 3000; `tailscale funnel`/`serve` também
+serve. Mantenha a mesma URL: trocar de domínio perde a instalação do PWA no celular.
 
-### Opção B — Node direto no servidor (sem Docker)
+### Migração do Supabase (uma vez)
 
-```bash
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -   # Node 22+ (arm64)
-sudo apt-get install -y nodejs
-
-git clone <repo> capital && cd capital
-cp .env.example .env.local          # preencha as mesmas variáveis da Opção A
-npm ci
-npm run build                       # crie swap antes em placas com pouca RAM
-npm run start                       # sobe em http://localhost:3000
-```
-
-Rodar como serviço (`/etc/systemd/system/capital.service`):
-
-```ini
-[Unit]
-Description=Capital
-After=network.target
-
-[Service]
-WorkingDirectory=/home/orangepi/capital
-ExecStart=/usr/bin/npm run start
-Environment=NODE_ENV=production
-Restart=on-failure
-User=orangepi
-
-[Install]
-WantedBy=multi-user.target
-```
+Os dados da versão anterior (Supabase) passam para o Postgres do Pi com
+`scripts/migrate-from-supabase.ts`:
+- **O que vai:** as contas (mesmo id, mesmo e-mail e **mesma senha**, porque o hash bcrypt é
+  copiado), as configurações e todos os meses.
+- **Ensaio antes:** por padrão o script só ensaia, num Postgres em memória, e mostra o relatório.
+  Com `--write`, grava.
+- **Conferência:** depois de importar, recalcula o resumo de cada mês e confere se bate exatamente
+  com o da origem.
+- **Pode rodar de novo:** substitui os dados de cada conta migrada pelos atuais do Supabase.
 
 ```bash
-sudo systemctl enable --now capital
+# 1) SUPABASE_DB_URL: Supabase → Connect → "Session pooler"
+# 2) túnel até o banco de produção do Pi (deixe aberto em outro terminal)
+ssh -N -L 15432:127.0.0.1:5432 orangepi@100.81.141.54
+# 3) ensaio; se estiver tudo certo, a gravação
+SUPABASE_DB_URL='postgres://…' npx tsx scripts/migrate-from-supabase.ts
+SUPABASE_DB_URL='postgres://…' DATABASE_URL='postgres://capital:<senha>@127.0.0.1:15432/capital' \
+  npx tsx scripts/migrate-from-supabase.ts --write
 ```
 
-**HTTPS público sem abrir porta no roteador** — use um túnel. Como você já usa Tailscale:
-
-```bash
-sudo tailscale funnel --bg 3000      # amigo fora do tailnet -> URL pública https://<host>.<tailnet>.ts.net
-# OU, se o amigo estiver no seu tailnet:
-sudo tailscale serve --bg 3000       # só quem está no tailnet, também https
-tailscale serve status               # mostra a URL
-```
-
-Alternativa: `cloudflared tunnel --url http://localhost:3000` (Cloudflare Tunnel).
-
-Depois de ter a URL do túnel:
-
-1. `.env.local` -> `APP_ALLOWED_ORIGINS=<host>.<tailnet>.ts.net` (só o hostname, sem `https://`).
-   Sem isso, o login pode ser recusado pela proteção CSRF de Server Actions atrás do proxy.
-   Reconstrua: Docker `docker compose --env-file .env.local up -d --build`; Node `npm run build`
-   + reiniciar o serviço.
-2. **Supabase → Authentication → URL Configuration**: Site URL e Redirect URLs com
-   `https://<host>.<tailnet>.ts.net` e `.../**`.
-
-### Opção C — Vercel
-
-O plano **Hobby é gratuito** para projetos pessoais e cobre este app (Server Actions, Route
-Handlers e proxy inclusos — não é um "backend" à parte). Conecte o repositório, defina
-`NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` nas Environment Variables,
-e ajuste as URLs no Supabase para `https://SEU-APP.vercel.app`.
+Rode a gravação logo antes de subir a versão nova do app, para não perder o que for lançado no
+meio-tempo.
 
 ### Instalar no Android
 
@@ -159,19 +127,24 @@ na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de 
 
 ```
 /app                    Rotas (Next.js App Router) e composição de telas
+  /api/v1                API do app (Route Handlers): o único caminho até o banco
+  /api/auth              Endpoints do Better Auth (destino dos links dos e-mails)
 /components
-  /screens               Uma tela por arquivo (Dashboard, Categoria, Lançamentos, Histórico, Configurações)
+  /screens               Uma tela por arquivo (Dashboard, Categoria, Lançamentos, Histórico, Configurações, Login)
   /month                  Componentes e contexto compartilhados pelas rotas /mes/[month]/*
   /history                Gráficos (Recharts) e o indicador de aderência à meta
   /layout, /ui, /providers, /pwa
 /lib
   /budget                 Regras de negócio — funções puras, sem React nem storage
-  /storage                Camada de persistência, isolada atrás de uma interface
-  /supabase               Clients Supabase (browser / server / proxy) e tipos do schema
-  /auth                   Server Actions de autenticação (entrar, criar conta, sair, reset)
+  /storage                Contrato BudgetRepository e o repositório do navegador (HTTP)
+  /server                 Só no servidor: banco (Drizzle), repositório Postgres, auth, e-mail, API
+  /auth                   Server Actions de autenticação (entrar, criar conta, sair, redefinir senha)
   /hooks                  Hooks React que ligam a UI ao repositório (useMonthData, useAllMonths)
-/proxy.ts                 Refresh de sessão + redirecionamento de rotas (o antigo middleware)
-/supabase/migrations      Schema SQL (tabelas, RLS, triggers)
+/drizzle                  Migrações SQL (geradas por `npm run db:generate`)
+/deploy/postgres          Stack Docker do banco no Orange Pi (Postgres + backup)
+/scripts                  Migrações manuais e a migração única do Supabase
+/proxy.ts                 Portão das rotas: sem cookie de sessão → /login (páginas) ou 401 (API)
+/instrumentation.ts       Aplica as migrações quando o servidor sobe
 ```
 
 ### Lógica de negócio pura (`/lib/budget`)
@@ -180,13 +153,13 @@ Todas as fórmulas da seção 6 do briefing (proportionalFixed, available, remai
 usedPct, rollover, validação de percentuais) estão implementadas em módulos puros —
 `calculations.ts`, `rollover.ts`, `validation.ts` — que não importam React nem a camada
 de storage. Isso os torna triviais de testar (`lib/budget/__tests__`, ver seção
-"Testes") e reutilizáveis por qualquer UI ou backend futuro.
+"Testes") e reutilizáveis por qualquer UI ou backend.
 
 `money.ts` cuida de arredondamento (evitando erros de ponto flutuante) e formatação em
-`R$ 1.234,56`. `date.ts` cuida da aritmética de meses (`YYYY-MM`) e rótulos em
-português.
+`R$ 1.234,56`. `date.ts` cuida da aritmética de meses (`YYYY-MM`), da data de hoje no fuso
+local e dos rótulos em português.
 
-### Camada de dados isolada (`/lib/storage`)
+### Camada de dados
 
 Toda a UI e toda a lógica de negócio falam **apenas** com a interface `BudgetRepository`
 (`lib/storage/repository.ts`):
@@ -210,32 +183,36 @@ interface BudgetRepository {
 }
 ```
 
-A implementação ativa é **`SupabaseBudgetRepository`** (`lib/storage/supabaseRepository.ts`),
-que fala com o Postgres do Supabase direto do navegador — o acesso às linhas é garantido
-por RLS (`auth.uid() = user_id`), não por uma camada de API. Cada mês vira uma linha na
-tabela `months` com o `MonthData` gravado como está (colunas `jsonb`), então
-`computeMonthSummary`, `createMonthData` e `cascadeCarryIn` são reaproveitados sem
-alteração. Toda escrita em um mês recalcula em cascata o `carryIn` dos meses seguintes
-(`recascade`, usado também ao reabrir um mês fechado). As categorias padrão são semeadas
-na primeira leitura de `getSettings()`.
+- **No navegador**, a implementação é o **`HttpBudgetRepository`**
+  (`lib/storage/httpRepository.ts`). Cada método é uma chamada à API do próprio app
+  (`/api/v1/...`, mesma origem, cookie de sessão).
+- **No servidor**, os Route Handlers validam a entrada (Zod), exigem sessão e usam o
+  **`PostgresBudgetRepository`** (`lib/server/budgetRepository.ts`), sempre com o id do usuário
+  logado. É aí que se garante o isolamento entre contas.
+- **No banco**, cada mês é uma linha em `months` mais os lançamentos em `incomes` e `expenses`.
+  O repositório remonta o mesmo `MonthData` de sempre, então `computeMonthSummary`,
+  `createMonthData` e `cascadeCarryIn` são reaproveitados sem alteração.
+- **Nas escritas**, cada gravação num mês roda numa transação com trava por usuário
+  (`pg_advisory_xact_lock`) e recalcula em cascata o `carryIn` dos meses seguintes; o mesmo vale
+  ao reabrir ou apagar um mês.
 
-**`IndexedDbBudgetRepository`** (Dexie.js) continua no código, mas só para a migração única
-dos dados locais da versão anterior: `lib/storage/localMigration.ts` faz
-`exportData()` local → `importData()` na nuvem (via `BackupPayload`, mesmo formato do
-backup manual), oferecida por um banner e na tela de Configurações.
-
-A troca de implementação é o único ponto de acoplamento: `lib/storage/index.ts` exporta
-`export const budgetRepository: BudgetRepository = new SupabaseBudgetRepository()`. Nenhuma
-tela nem regra de negócio conhece o Supabase.
+**`IndexedDbBudgetRepository`** (Dexie.js) continua no código, mas só para a importação única
+dos dados locais da versão v1 (`lib/storage/localMigration.ts`), oferecida por um banner e na
+tela de Configurações.
 
 ### Autenticação
 
-Login por e-mail e senha via Supabase Auth (`@supabase/ssr`), com confirmação de e-mail.
-As telas ficam no route group `app/(app)/` (protegido); `/login` e `/auth/*` ficam fora.
-`proxy.ts` (o antigo `middleware.ts`, renomeado no Next.js 16) atualiza o cookie de sessão
-a cada request e redireciona quem não está logado para `/login`. As operações de auth são
-Server Actions (`lib/auth/actions.ts`); os dados do orçamento passam pelo repositório no
-cliente + RLS.
+- **Login:** e-mail e senha com **Better Auth** (`lib/server/auth.ts`). As sessões ficam no
+  próprio Postgres, com confirmação de e-mail e redefinição de senha; os e-mails saem pelo SMTP do
+  Gmail (`lib/server/mailer.ts`).
+- **Rotas:** as telas ficam no route group `app/(app)/`, que é protegido. `/login`, `/auth/*` e
+  `/redefinir-senha` ficam fora.
+- **Checagem da sessão:** `proxy.ts` (o antigo `middleware.ts`, renomeado no Next.js 16) só
+  confere se existe cookie de sessão. O layout autenticado e cada rota da API validam a sessão
+  de fato.
+- **Operações de login:** são Server Actions (`lib/auth/actions.ts`), com limite de tentativas.
+- **Contas migradas do Supabase:** mantêm o hash bcrypt da senha (`lib/server/passwords.ts`) até
+  a próxima troca, que passa a usar scrypt.
 
 ### Preferências leves (`lib/storage/preferences.ts`)
 
@@ -245,13 +222,15 @@ conforme pedido — nunca dados financeiros.
 ## PWA e offline
 
 - `public/manifest.json` — instalável, ícones 192/512 (`any` e `maskable`).
-- `public/sw.js` — service worker escrito à mão (cache-first para assets do Next
-  content-hashed, network-first com fallback para navegação, stale-while-revalidate
-  para o restante), registrado por `components/pwa/RegisterServiceWorker.tsx` apenas em
-  produção. Mantém o _app shell_ disponível offline; as chamadas ao Supabase são
-  cross-origin e passam direto, então nenhum dado velho é servido. Sem rede o app abre mas
-  fica em "Carregando…" — um cache write-through no IndexedDB com sincronização é o próximo
-  passo natural, ainda não implementado.
+- `public/sw.js` — service worker escrito à mão, registrado por
+  `components/pwa/RegisterServiceWorker.tsx` apenas em produção.
+  - Estratégias de cache: cache-first para os assets do Next com hash no nome, network-first com
+    fallback para navegação e stale-while-revalidate para o restante.
+  - Mantém o _app shell_ disponível offline.
+  - As chamadas à API (`/api/*`) vão sempre direto à rede e nunca passam pelo cache, então nenhum
+    dado velho é servido.
+  - Sem rede, o app abre mas fica em "Carregando…". Um cache write-through no IndexedDB com
+    sincronização é o próximo passo natural, ainda não implementado.
 - `public/offline.html` — página de fallback quando uma rota nunca visitada é aberta
   sem rede.
 
@@ -261,13 +240,18 @@ conforme pedido — nunca dados financeiros.
 
 ## Testes
 
-`npm test` roda os cenários de aceitação da seção 9 do briefing como testes unitários
-de `/lib/budget` (Vitest): mês isolado sem rollover, rollover positivo/negativo,
-fechamento e carga do mês seguinte, gasto no cartão (`cardTotal`), validação de soma
-de percentuais e o estado `available <= 0`.
-`lib/storage/__tests__/supabaseRepository.test.ts` cobre a orquestração do repositório
-de nuvem (seed, cascata de rollover, mês fechado/inexistente, export→import) com um
-client Supabase falso em memória.
+`npm test` roda os cenários de aceitação da seção 9 do briefing como testes unitários de
+`/lib/budget` (Vitest): mês isolado sem rollover, rollover positivo/negativo, fechamento e
+carga do mês seguinte, gasto no cartão (`cardTotal`), validação de soma de percentuais e o
+estado `available <= 0`.
+
+Os demais testes:
+- **`lib/server/__tests__/budgetRepository.test.ts`:** cobre o repositório Postgres contra o
+  schema e as migrações reais, num Postgres em memória (PGlite). Casos: seed, cascata de
+  rollover, mês fechado/inexistente, apagar mês, export→import, isolamento entre contas e
+  escritas simultâneas.
+- **Repositório HTTP** (`lib/storage/__tests__`).
+- **Senhas** (bcrypt e scrypt) e o **limitador de tentativas**.
 
 ## Checklist de aderência
 
@@ -294,11 +278,11 @@ client Supabase falso em memória.
 ### Requisitos não-funcionais (seção 8)
 
 - [x] Alvos de toque ≥ 44px; campo de valor com teclado numérico (`inputMode="decimal"`)
-- [~] Dados na nuvem (Supabase), isolados por usuário via RLS; o app precisa de conexão para ler/gravar (cache offline é trabalho futuro)
+- [~] Dados no Postgres próprio do Orange Pi, isolados por usuário na API; o app precisa de conexão para ler/gravar (cache offline é trabalho futuro)
 - [x] Lançar um gasto em ≤ 3 toques (categoria → descrição opcional → salvar) além do valor
 - [x] Labels em todos os inputs, navegação por teclado, contraste AA nas cores de status
 
 ### Fora do escopo v1, preparado no schema (seção 11)
 
 - [x] `Expense.installmentPlan?: InstallmentPlan` reservado para cartão parcelado — não usado por nenhum cálculo nem tela da v1
-- [x] `BudgetRepository` não assume um único usuário nem armazenamento local — a implementação de nuvem (Supabase + login) trocou apenas a instância em `lib/storage/index.ts`
+- [x] `BudgetRepository` não assume um único usuário nem armazenamento local — a troca do Supabase pelo Postgres próprio mudou só a instância em `lib/storage/index.ts`

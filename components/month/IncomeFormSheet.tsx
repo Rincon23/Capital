@@ -5,6 +5,7 @@ import {
   amountToInputValue,
   currentMonthKey,
   parseAmountInput,
+  todayISO,
   validatePositiveAmount,
   type Income,
   type Month,
@@ -14,7 +15,7 @@ import { BottomSheet } from '@/components/ui/BottomSheet';
 
 function defaultDateForMonth(month: Month): string {
   const today = new Date();
-  if (currentMonthKey(today) === month) return today.toISOString().slice(0, 10);
+  if (currentMonthKey(today) === month) return todayISO(today);
   return `${month}-01`;
 }
 

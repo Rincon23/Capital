@@ -12,6 +12,12 @@ fi
 
 dc() { docker compose --env-file .env.local "$@"; }
 
+if ! docker network inspect capital-db >/dev/null 2>&1; then
+  echo "O banco não está no ar (falta a rede Docker capital-db)." >&2
+  echo "Suba-o antes em ~/capitalapp/db — veja deploy/postgres/README.md." >&2
+  exit 1
+fi
+
 echo "==> git pull"
 git pull --ff-only
 
@@ -24,4 +30,4 @@ docker image prune -f >/dev/null || true
 echo "==> status"
 dc ps
 echo
-dc logs --tail=20 capital
+dc logs --tail=30 capital

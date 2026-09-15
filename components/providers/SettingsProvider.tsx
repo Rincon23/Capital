@@ -35,7 +35,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // IndexedDB/Supabase have no synchronous or Suspense-compatible read API, so settings can
+    // The repository has no synchronous or Suspense-compatible read API, so settings can
     // only be loaded after mount; this is the standard "fetch on mount" effect pattern.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh();

@@ -173,7 +173,7 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
         <AmountInput value={fixedCosts} onChange={setFixedCosts} autoFocus />
         <p className="text-muted mt-3 text-sm">
           Não vira um lançamento sozinho — é só para calcular a prévia das suas categorias no
-          próximo passo. Para registrar um custo fixo de verdade, use "Lançar gasto" depois.
+          próximo passo. Para registrar um custo fixo de verdade, use “Lançar gasto” depois.
         </p>
       </OnboardingScreen>
     );

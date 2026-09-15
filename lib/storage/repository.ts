@@ -33,11 +33,11 @@ export class NotAuthenticatedError extends Error {
 
 /**
  * Storage-agnostic interface for all budget data access. The UI and the
- * pure calculation modules never talk to IndexedDB (or any future backend)
- * directly — they only depend on this contract. v1 ships
- * `IndexedDbBudgetRepository`; a v2 cloud backend (e.g. Supabase) would add
- * a `SupabaseBudgetRepository` implementing the same interface, with no
- * changes to business logic or components.
+ * pure calculation modules never talk to the API, IndexedDB or the database
+ * directly — they only depend on this contract. In the browser it is
+ * `HttpBudgetRepository` (the app's own API); on the server,
+ * `PostgresBudgetRepository`; `IndexedDbBudgetRepository` remains only to
+ * import a device's old local data.
  */
 export interface BudgetRepository {
   getSettings(): Promise<BudgetSettings>;

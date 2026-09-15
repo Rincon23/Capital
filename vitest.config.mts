@@ -12,6 +12,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, '.'),
+      // Outside Next, `server-only` throws on import; in tests it is just a marker.
+      'server-only': path.resolve(import.meta.dirname, 'node_modules/server-only/empty.js'),
     },
   },
 });

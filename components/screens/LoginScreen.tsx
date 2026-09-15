@@ -18,7 +18,7 @@ const PRIMARY_BTN =
 
 type Mode = 'sign-in' | 'sign-up' | 'forgot';
 
-export function LoginScreen() {
+export function LoginScreen({ passwordReset = false }: { passwordReset?: boolean }) {
   const [mode, setMode] = useState<Mode>('sign-in');
 
   return (
@@ -28,7 +28,7 @@ export function LoginScreen() {
         <p className="text-muted text-sm">Orçamento doméstico por envelopes</p>
       </header>
 
-      {mode === 'sign-in' && <SignInForm onModeChange={setMode} />}
+      {mode === 'sign-in' && <SignInForm onModeChange={setMode} passwordReset={passwordReset} />}
       {mode === 'sign-up' && <SignUpForm onModeChange={setMode} />}
       {mode === 'forgot' && <ForgotForm onModeChange={setMode} />}
     </main>
@@ -52,12 +52,23 @@ function SwitchLink({ children, onClick }: { children: ReactNode; onClick: () =>
   );
 }
 
-function SignInForm({ onModeChange }: { onModeChange: (mode: Mode) => void }) {
+function SignInForm({
+  onModeChange,
+  passwordReset,
+}: {
+  onModeChange: (mode: Mode) => void;
+  passwordReset: boolean;
+}) {
   const [state, action, pending] = useActionState(signIn, EMPTY);
 
   return (
     <form action={action} className="flex flex-col gap-4">
       <Feedback state={state} />
+      {passwordReset && !state.error && (
+        <p className="text-success text-center text-sm" role="status">
+          Senha redefinida. Entre com a nova senha.
+        </p>
+      )}
       <label className="text-muted flex flex-col gap-1 text-sm">
         E-mail
         <input

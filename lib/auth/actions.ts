@@ -2,7 +2,9 @@
 
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { getSupabaseServerClient } from '@/lib/supabase/server';
+import { APIError } from 'better-auth/api';
+import { getAuth } from '@/lib/server/auth';
+import { allowAttempt } from '@/lib/server/rateLimit';
 
 export interface AuthActionState {
   error?: string;
@@ -13,21 +15,31 @@ export interface AuthActionState {
 }
 
 const MIN_PASSWORD = 8;
-
-async function siteOrigin(): Promise<string> {
-  const h = await headers();
-  const origin = h.get('origin');
-  if (origin) return origin;
-  const host = h.get('x-forwarded-host') ?? h.get('host');
-  const proto = h.get('x-forwarded-proto') ?? 'https';
-  return `${proto}://${host}`;
-}
+const FIVE_MINUTES = 5 * 60 * 1000;
+const TOO_MANY_ATTEMPTS = 'Muitas tentativas. Aguarde alguns minutos e tente de novo.';
+/** Where the confirmation link lands once Better Auth has checked it (see app/auth/confirmado). */
+const EMAIL_CONFIRMED_PATH = '/auth/confirmado';
 
 function readCredentials(formData: FormData): { email: string; password: string } {
   return {
     email: String(formData.get('email') ?? '').trim(),
     password: String(formData.get('password') ?? ''),
   };
+}
+
+/** The visitor's IP behind Cloudflare / a reverse proxy, for rate limiting. */
+function clientIp(requestHeaders: Headers): string {
+  return (
+    requestHeaders.get('cf-connecting-ip') ??
+    requestHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    requestHeaders.get('x-real-ip') ??
+    'local'
+  );
+}
+
+function errorCode(err: unknown): string | undefined {
+  if (!(err instanceof APIError)) return undefined;
+  return (err.body as { code?: string } | undefined)?.code;
 }
 
 export async function signIn(
@@ -37,17 +49,25 @@ export async function signIn(
   const { email, password } = readCredentials(formData);
   if (!email || !password) return { error: 'Informe e-mail e senha.', email };
 
-  const supabase = await getSupabaseServerClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const requestHeaders = await headers();
+  const key = `sign-in:${clientIp(requestHeaders)}:${email.toLowerCase()}`;
+  if (!allowAttempt(key, 5, FIVE_MINUTES)) return { error: TOO_MANY_ATTEMPTS, email };
 
-  if (error) {
-    if (error.code === 'email_not_confirmed') {
+  try {
+    await getAuth().api.signInEmail({
+      body: { email, password, rememberMe: true },
+      headers: requestHeaders,
+    });
+  } catch (err) {
+    if (errorCode(err) === 'EMAIL_NOT_VERIFIED') {
       return {
         error: 'Confirme seu e-mail antes de entrar — verifique sua caixa de entrada.',
         email,
       };
     }
-    return { error: 'E-mail ou senha incorretos.', email };
+    if (err instanceof APIError) return { error: 'E-mail ou senha incorretos.', email };
+    console.error('[auth] falha ao entrar:', err);
+    return { error: 'Não foi possível entrar agora. Tente novamente em instantes.', email };
   }
 
   redirect('/');
@@ -62,20 +82,25 @@ export async function signUp(
   if (password.length < MIN_PASSWORD) {
     return { error: `A senha precisa de pelo menos ${MIN_PASSWORD} caracteres.`, email };
   }
+  if (!allowAttempt(`sign-up:${clientIp(await headers())}`, 5, FIVE_MINUTES)) {
+    return { error: TOO_MANY_ATTEMPTS, email };
+  }
 
-  const supabase = await getSupabaseServerClient();
-  const origin = await siteOrigin();
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { emailRedirectTo: `${origin}/auth/confirm?next=%2F` },
-  });
-
-  if (error) {
-    if (error.code === 'over_email_send_rate_limit') {
-      return { error: 'Muitas tentativas. Aguarde alguns minutos e tente de novo.', email };
+  try {
+    await getAuth().api.signUpEmail({
+      body: { email, password, name: email.split('@')[0], callbackURL: EMAIL_CONFIRMED_PATH },
+    });
+  } catch (err) {
+    const code = errorCode(err);
+    // Don't reveal which addresses already have an account.
+    if (code === 'USER_ALREADY_EXISTS' || code === 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL') {
+      return { notice: 'check-email', email };
     }
-    return { error: 'Não foi possível criar a conta. Verifique o e-mail e a senha.', email };
+    if (err instanceof APIError) {
+      return { error: 'Não foi possível criar a conta. Verifique o e-mail e a senha.', email };
+    }
+    console.error('[auth] falha ao criar conta:', err);
+    return { error: 'Não foi possível criar a conta agora. Tente novamente em instantes.', email };
   }
 
   // Email confirmation is on: there is no session yet.
@@ -88,16 +113,18 @@ export async function resendConfirmation(
 ): Promise<AuthActionState> {
   const email = String(formData.get('email') ?? '').trim();
   if (!email) return { error: 'Informe um e-mail.' };
+  if (!allowAttempt(`resend:${email.toLowerCase()}`, 3, FIVE_MINUTES)) {
+    return { error: TOO_MANY_ATTEMPTS, email };
+  }
 
-  const supabase = await getSupabaseServerClient();
-  const origin = await siteOrigin();
-  const { error } = await supabase.auth.resend({
-    type: 'signup',
-    email,
-    options: { emailRedirectTo: `${origin}/auth/confirm?next=%2F` },
-  });
-
-  if (error) return { error: 'Não foi possível reenviar agora. Tente mais tarde.', email };
+  try {
+    await getAuth().api.sendVerificationEmail({
+      body: { email, callbackURL: EMAIL_CONFIRMED_PATH },
+    });
+  } catch (err) {
+    if (!(err instanceof APIError)) console.error('[auth] falha ao reenviar a confirmação:', err);
+    return { error: 'Não foi possível reenviar agora. Tente mais tarde.', email };
+  }
   return { notice: 'check-email-resent', email };
 }
 
@@ -108,36 +135,45 @@ export async function requestPasswordReset(
   const email = String(formData.get('email') ?? '').trim();
   if (!email) return { error: 'Informe seu e-mail.' };
 
-  const supabase = await getSupabaseServerClient();
-  const origin = await siteOrigin();
-  await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/confirm?next=%2Fredefinir-senha`,
-  });
+  if (allowAttempt(`reset:${email.toLowerCase()}`, 3, FIVE_MINUTES)) {
+    try {
+      await getAuth().api.requestPasswordReset({ body: { email, redirectTo: '/redefinir-senha' } });
+    } catch (err) {
+      console.error('[auth] falha ao pedir a redefinição de senha:', err);
+    }
+  }
 
   // Always report success — don't reveal which addresses have accounts.
   return { notice: 'reset-sent', email };
 }
 
-export async function updatePassword(
+/** Sets the new password from the reset link (the token comes from /redefinir-senha?token=…). */
+export async function resetPassword(
   _prev: AuthActionState,
   formData: FormData,
 ): Promise<AuthActionState> {
+  const token = String(formData.get('token') ?? '');
   const password = String(formData.get('password') ?? '');
   if (password.length < MIN_PASSWORD) {
     return { error: `A senha precisa de pelo menos ${MIN_PASSWORD} caracteres.` };
   }
+  if (!token) return { error: 'Link inválido ou expirado. Peça um novo na tela de acesso.' };
 
-  const supabase = await getSupabaseServerClient();
-  const { error } = await supabase.auth.updateUser({ password });
-  if (error) {
+  try {
+    await getAuth().api.resetPassword({ body: { newPassword: password, token } });
+  } catch (err) {
+    if (!(err instanceof APIError)) console.error('[auth] falha ao redefinir a senha:', err);
     return { error: 'Não foi possível atualizar a senha. O link pode ter expirado.' };
   }
 
-  redirect('/');
+  redirect('/login?senha=redefinida');
 }
 
 export async function signOut(): Promise<void> {
-  const supabase = await getSupabaseServerClient();
-  await supabase.auth.signOut();
+  try {
+    await getAuth().api.signOut({ headers: await headers() });
+  } catch (err) {
+    console.error('[auth] falha ao sair:', err);
+  }
   redirect('/login');
 }

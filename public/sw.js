@@ -1,9 +1,9 @@
-// Capital syncs budget data with Supabase over the network. This service worker keeps
-// the app shell (HTML/JS/CSS) available offline; Supabase requests are cross-origin
-// (*.supabase.co) and pass straight through (see the origin check below), so no stale
-// data is ever served. With no connection the app shell still loads but stays on
-// "Carregando…" until the network returns.
-const CACHE_VERSION = 'capital-v2';
+// Capital reads and writes budget data through its own API (/api/*, same origin). This
+// service worker keeps the app shell (HTML/JS/CSS) available offline, and lets every
+// /api/* request go straight to the network (see the check below), so no stale data is
+// ever served. With no connection the app shell still loads but stays on "Carregando…"
+// until the network returns.
+const CACHE_VERSION = 'capital-v3';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const OFFLINE_URL = '/offline.html';
@@ -40,6 +40,8 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  // Data and auth: always the network, never a cached copy.
+  if (url.pathname.startsWith('/api/')) return;
 
   if (request.mode === 'navigate') {
     event.respondWith(networkFirst(request));

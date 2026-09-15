@@ -7,6 +7,17 @@ export function currentMonthKey(date: Date = new Date()): Month {
   return `${year}-${monthNum}`;
 }
 
+/**
+ * Today's date as ISO "YYYY-MM-DD" in the local time zone. Not `toISOString()`: that is
+ * UTC, which in Brazil already reads as tomorrow from 21:00 on.
+ */
+export function todayISO(date: Date = new Date()): string {
+  const year = date.getFullYear();
+  const monthNum = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${monthNum}-${day}`;
+}
+
 /** Shifts a "YYYY-MM" month key by `delta` months (can be negative). */
 export function shiftMonth(month: Month, delta: number): Month {
   const [year, monthNum] = month.split('-').map(Number);
