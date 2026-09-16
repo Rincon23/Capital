@@ -1,0 +1,47 @@
+import { requireVoiceAccess, progressStream } from '@/lib/server/ai/access';
+import { analyzeExpense } from '@/lib/server/ai/engine';
+import { apiRoute, HttpError } from '@/lib/server/http';
+
+const MAX_AUDIO_BYTES = 5 * 1024 * 1024;
+
+const EXTENSIONS: Record<string, string> = {
+  'audio/webm': 'webm',
+  'audio/ogg': 'ogg',
+  'audio/mp4': 'm4a',
+  'audio/mpeg': 'mp3',
+  'audio/wav': 'wav',
+};
+
+/** A recording (multipart: `audio`, `seconds`) → a draft for review, streaming the progress. */
+export const POST = apiRoute(async ({ request, repo, email }) => {
+  const access = await requireVoiceAccess(repo, email, { countAttempt: true });
+  if (Number(request.headers.get('content-length') ?? 0) > MAX_AUDIO_BYTES + 64_000) {
+    throw new HttpError(413, 'AUDIO_TOO_LARGE', 'O áudio passou de 5 MB. Grave um trecho mais curto.');
+  }
+
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    throw new HttpError(400, 'INVALID_INPUT', 'Envie o áudio gravado.');
+  }
+  const audio = form.get('audio');
+  if (!(audio instanceof Blob) || audio.size === 0) {
+    throw new HttpError(400, 'INVALID_INPUT', 'O áudio chegou vazio. Grave de novo.');
+  }
+  if (audio.size > MAX_AUDIO_BYTES) {
+    throw new HttpError(413, 'AUDIO_TOO_LARGE', 'O áudio passou de 5 MB. Grave um trecho mais curto.');
+  }
+  const declared = Number(form.get('seconds'));
+  const seconds = Number.isFinite(declared) && declared > 0 ? Math.min(declared, 120) : audio.size / 4000;
+  const extension = EXTENSIONS[audio.type.split(';')[0]] ?? 'webm';
+
+  return progressStream(request, (emit, signal) =>
+    analyzeExpense(
+      { kind: 'audio', audio, filename: `gasto.${extension}`, seconds },
+      { options: access.options, today: access.today, signal },
+      access,
+      emit,
+    ),
+  );
+});

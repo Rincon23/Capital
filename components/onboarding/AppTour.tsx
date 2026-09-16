@@ -5,8 +5,9 @@ import { useRouter, usePathname } from 'next/navigation';
 import { driver, type Driver, type DriveStep } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import './tour.css';
-import { currentMonthKey } from '@/lib/budget';
+import { currentMonthKey, isModuleOn } from '@/lib/budget';
 import { navKeysFor } from '@/lib/nav/items';
+import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { getLastViewedMonth } from '@/lib/storage/preferences';
 
@@ -38,6 +39,8 @@ export function AppTour({ onSkip, onComplete }: AppTourProps) {
   const navKeys = navKeysFor(settings);
   const groupedNav = navKeys.includes('mais');
   const hasReminders = navKeys.includes('lembretes');
+  const { user } = useAuth();
+  const hasVoice = user.isOwner && isModuleOn(settings, 'voice');
 
   useEffect(() => {
     const month = getLastViewedMonth() ?? currentMonthKey();
@@ -69,6 +72,18 @@ export function AppTour({ onSkip, onComplete }: AppTourProps) {
         description: 'Toque aqui sempre que fizer um gasto. Dá pra marcar se é de uma categoria, um custo fixo ou um imprevisto.',
         side: 'top',
       },
+      ...(hasVoice
+        ? [
+            {
+              route: `/mes/${month}`,
+              selector: '[data-tour="fab-voz"]',
+              title: 'Lançar por voz ou texto',
+              description:
+                'Fale ou escreva o gasto. O app entende a categoria, o valor, a data e se foi no cartão, e mostra tudo para você conferir antes de salvar.',
+              side: 'top' as const,
+            },
+          ]
+        : []),
       {
         route: `/mes/${month}`,
         selector: '[data-tour="fab-renda"]',

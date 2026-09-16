@@ -67,8 +67,8 @@ export const MODULE_CATALOG: ModuleInfo[] = [
   {
     key: 'voice',
     name: 'Lançar por voz ou texto',
-    description: 'Fale ou escreva o gasto e o app preenche o formulário para você conferir.',
-    available: false,
+    description: 'Fale ou escreva o gasto e a IA do servidor monta o lançamento para você conferir antes de salvar.',
+    available: true,
     ownerOnly: true,
   },
   {

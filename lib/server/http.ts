@@ -64,11 +64,16 @@ export function apiRoute<P = Record<string, never>>(
         email: session.user.email ?? null,
       });
 
-      const response =
-        result === undefined ? new NextResponse(null, { status: 204 }) : NextResponse.json(result);
+      // A handler may build its own Response (e.g. a stream of progress events).
+      const custom = result instanceof Response;
+      const response = custom
+        ? result
+        : result === undefined
+          ? new NextResponse(null, { status: 204 })
+          : NextResponse.json(result);
       // Reading the session may refresh its cookie; pass that on to the browser.
       for (const cookie of authHeaders.getSetCookie()) response.headers.append('set-cookie', cookie);
-      response.headers.set('Cache-Control', 'no-store');
+      if (!custom) response.headers.set('Cache-Control', 'no-store');
       return response;
     } catch (err) {
       return errorResponse(err);

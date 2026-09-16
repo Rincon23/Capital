@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Mic } from 'lucide-react';
 import { formatMonthLabel, isModuleOn, nextMonth } from '@/lib/budget';
 import { useMonthContext } from '@/components/month/MonthContext';
 import { CloseMonthSheet } from '@/components/month/CloseMonthSheet';
@@ -29,6 +30,7 @@ export function DashboardScreen() {
     deleteMonth,
     openExpenseForm,
     openIncomeForm,
+    openVoiceEntry,
   } = useMonthContext();
   const { settings } = useSettings();
   const confirm = useConfirm();
@@ -141,7 +143,20 @@ export function DashboardScreen() {
 
       <div className="fixed right-4 bottom-20 z-30 flex flex-col items-end gap-2">
         <Fab label="Renda" variant="secondary" onClick={() => openIncomeForm()} tourId="fab-renda" />
-        <Fab label="Lançar gasto" onClick={() => openExpenseForm()} tourId="fab-lancar-gasto" />
+        <div className="flex items-center gap-2">
+          {openVoiceEntry && (
+            <button
+              type="button"
+              onClick={openVoiceEntry}
+              aria-label="Lançar por voz ou texto"
+              data-tour="fab-voz"
+              className="border-border bg-card text-primary flex h-12 w-12 items-center justify-center rounded-full border shadow-lg transition-transform active:scale-95"
+            >
+              <Mic className="h-5 w-5" aria-hidden />
+            </button>
+          )}
+          <Fab label="Lançar gasto" onClick={() => openExpenseForm()} tourId="fab-lancar-gasto" />
+        </div>
       </div>
 
       {closing && (

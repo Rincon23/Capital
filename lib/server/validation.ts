@@ -202,6 +202,9 @@ export const reminderActionSchema = z.object({ token: z.string().min(10).max(200
 /** Body of "enviar notificação de teste": one device, or all of them. */
 export const pushTestSchema = z.object({ deviceId: z.uuid().optional() });
 
+/** "Descreva o gasto": the sentence the AI reads. */
+export const aiExpenseTextSchema = z.object({ text: z.string().trim().min(1).max(500) });
+
 /** Body of "fechar mês": whether to open the next month in the same transaction. */
 export const closeMonthSchema = z.object({ openNext: z.boolean().optional() });
 

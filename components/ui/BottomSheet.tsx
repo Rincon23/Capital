@@ -6,10 +6,12 @@ interface BottomSheetProps {
   open: boolean;
   onClose: () => void;
   title: string;
+  /** Extra button(s) next to the close button, e.g. the microphone on the expense form. */
+  headerAction?: ReactNode;
   children: ReactNode;
 }
 
-export function BottomSheet({ open, onClose, title, children }: BottomSheetProps) {
+export function BottomSheet({ open, onClose, title, headerAction, children }: BottomSheetProps) {
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -40,16 +42,19 @@ export function BottomSheet({ open, onClose, title, children }: BottomSheetProps
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-foreground text-lg font-semibold">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Fechar"
-            className="text-muted hover:bg-background flex h-10 w-10 items-center justify-center rounded-full"
-          >
-            <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" stroke="currentColor" className="h-5 w-5">
-              <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            {headerAction}
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Fechar"
+              className="text-muted hover:bg-background flex h-10 w-10 items-center justify-center rounded-full"
+            >
+              <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" stroke="currentColor" className="h-5 w-5">
+                <path strokeLinecap="round" d="M6 6l12 12M18 6 6 18" />
+              </svg>
+            </button>
+          </div>
         </div>
         {children}
       </div>

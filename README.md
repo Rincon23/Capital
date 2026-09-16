@@ -52,8 +52,18 @@ de sempre: nada de módulo desligado aparece em tela nenhuma.
     tarefas do mesmo horário vão numa notificação só. As regras são puras em `lib/reminders`.
   - **Telas:** Hoje (atrasados, hoje, tarefas e amanhã), Todos (por tipo, com histórico) e
     Calendário dos compromissos; card "Lembretes de hoje" no Início.
-- Em construção, já listados na tela: lançar por voz/texto e monitor de Gmail, só do dono do app
-  (`OWNER_EMAIL`), porque usam o meu hardware e as minhas contas.
+- **Lançar por voz ou texto** (só do dono do app, `OWNER_EMAIL`, porque usa a IA do meu Orange
+  Pi): microfone no Início e no formulário de gasto. Grava até 60 s ou recebe o texto
+  ("Descreva o gasto") e mostra **"Confira o gasto"**, com um lápis que abre o formulário
+  preenchido. Nada é salvo sem confirmar.
+  - **Regras primeiro, IA depois:** valor, categoria (as do usuário, sem ligar para maiúsculas,
+    acentos e plural; sinônimos de "A receber"), data (ontem, anteontem, dia da semana, "dia 12")
+    e cartão saem de regras puras em `lib/ai`. O modelo local só escreve a descrição e o que as
+    regras não resolveram, o que corta a espera no Pi de ~13 s para ~3 s.
+  - **Progresso real:** o servidor transmite cada etapa (transcrevendo, carregando a IA, lendo,
+    montando) e os tokens conforme saem; a barra usa esses sinais e o tempo medido no Pi.
+  - Ao abrir a tela, o servidor já carrega o modelo e lê o começo do prompt (aquecimento).
+- Em construção, já listado na tela: monitor de Gmail, só do dono do app.
 
 Conforme os módulos ligam, a barra inferior muda (`lib/nav/items.ts`): entram as abas Lembretes
 e Carteira, e Histórico e Configurações passam a morar em **Mais**. A barra nunca passa de cinco
@@ -113,6 +123,7 @@ No Pi, tudo do Capital fica em `~/capitalapp`:
    # SMTP_* (Gmail com senha de app)
    # VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY e VAPID_SUBJECT (notificações) e ACTION_TOKEN_SECRET
    #   — um par/segredo próprio do Pi; os comandos para gerar estão no .env.example
+   # WHISPER_URL e OLLAMA_URL (lançar por voz ou texto), ex.: http://100.81.141.54:8090 e :11434
    docker compose --env-file .env.local up -d --build
    ```
 
@@ -160,6 +171,7 @@ na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de 
 /lib
   /budget                 Regras de negócio — funções puras, sem React nem storage
   /reminders              Regras dos lembretes (vencimentos, quando notificar, textos), puras, no fuso de São Paulo
+  /ai                     Lançar por voz/texto: regras de leitura do gasto, prompt, rascunho e progresso (puras)
   /notifications          Web Push: tipos, nome dos aparelhos e o lado do navegador (permissão, inscrição)
   /nav                    Quais abas a barra inferior mostra, conforme os módulos ligados
   /storage                Contrato BudgetRepository e o repositório do navegador (HTTP)
@@ -181,6 +193,17 @@ depois da virada) envia as notificações de lembrete que venceram e, no horári
 quando rodou (`job_runs`): depois de um deploy ou reinício ela recupera o que ficou para trás, e
 cada envio é anotado antes (`reminder_deliveries`, chave única), então nada sai duas vezes.
 `SCHEDULER=off` desliga a agenda num servidor.
+
+### IA local (`lib/server/ai`)
+
+Whisper (whisper.cpp, `WHISPER_URL`, com `--convert` para aceitar o webm do navegador) e Ollama
+(`OLLAMA_URL`, modelo `OLLAMA_MODEL`, padrão `qwen2.5:1.5b`), atrás das interfaces `Transcriber` e
+`ExpenseExtractor`. Grátis e sem chave. `POST /api/v1/ai/expense/audio` (multipart, até 5 MB) e
+`/text` respondem em `text/event-stream`: plano com a estimativa de cada etapa, início de cada
+etapa, transcrição, tokens e, no fim, o rascunho (`{ draft, transcript, warnings }`). A resposta
+do modelo é restrita por JSON schema aos campos que faltam e às categorias do usuário, e a geração
+para assim que o JSON fecha. `/warmup` aquece o modelo. Só o dono, com o módulo ligado, 40 análises
+por hora. Os tempos de cada etapa são aprendidos em memória a cada análise.
 
 ### Lógica de negócio pura (`/lib/budget`)
 
@@ -308,6 +331,11 @@ Os demais testes:
 - **`lib/server/__tests__/reminders.test.ts` e `push.test.ts`:** a agenda contra o banco (envia no
   minuto certo, nunca duas vezes, recupera o que perdeu fora do ar, só para quem ligou o módulo),
   o token do "Realizado" (válido, expirado e adulterado) e os aparelhos (404/410 apaga).
+- **`lib/ai/__tests__/rules.test.ts` e `lib/server/__tests__/aiEngine.test.ts`:** os 4 exemplos do
+  prompt do bot com as categorias do usuário, o que o modelo pequeno errou no teste do Pi ("89 e
+  90", "vai me devolver"), valores, datas relativas, cartão, normalização de categorias, schema da
+  resposta e as etapas transmitidas, com a IA simulada. `aiOllama.integration.test.ts` roda os
+  mesmos exemplos contra o Ollama real, só com `OLLAMA_TEST_URL` definido.
 - **Repositório HTTP** (`lib/storage/__tests__`) e a **barra de navegação** por módulos
   (`lib/nav/__tests__`).
 - O **limitador de tentativas** de login.

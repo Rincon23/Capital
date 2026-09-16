@@ -12,21 +12,26 @@ import {
 } from '@/lib/budget';
 import { useMonthData } from '@/lib/hooks/useMonthData';
 import { setLastViewedMonth } from '@/lib/storage/preferences';
+import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
+import { VoiceEntrySheet } from '@/components/voice/VoiceEntrySheet';
 import { MonthContext } from './MonthContext';
 import { ExpenseFormSheet } from './ExpenseFormSheet';
 import { IncomeFormSheet } from './IncomeFormSheet';
 
 type ExpenseFormState =
-  { open: true; initial?: Expense; defaultCategoryKind?: CategoryKind } | { open: false };
+  | { open: true; initial?: Expense; draft?: Partial<Expense>; defaultCategoryKind?: CategoryKind }
+  | { open: false };
 type IncomeFormState = { open: true; initial?: Income } | { open: false };
 
 export function MonthShell({ month, children }: { month: Month; children: ReactNode }) {
   const { settings } = useSettings();
+  const { user } = useAuth();
   const monthData = useMonthData(month, settings?.topics);
 
   const [expenseForm, setExpenseForm] = useState<ExpenseFormState>({ open: false });
   const [incomeForm, setIncomeForm] = useState<IncomeFormState>({ open: false });
+  const [voiceOpen, setVoiceOpen] = useState(false);
 
   useEffect(() => {
     setLastViewedMonth(month);
@@ -37,6 +42,12 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
   }, []);
   const openIncomeForm = useCallback((initial?: Income) => {
     setIncomeForm({ open: true, initial });
+  }, []);
+  // The AI runs on the owner's server: only the owner, with the module on (the API checks again).
+  const voiceAvailable = user.isOwner && isModuleOn(settings, 'voice');
+  const openVoiceEntry = useCallback(() => {
+    setExpenseForm({ open: false });
+    setVoiceOpen(true);
   }, []);
 
   // A hard storage failure (e.g. the server or its database unreachable) leaves monthData
@@ -59,7 +70,15 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
   }
 
   return (
-    <MonthContext.Provider value={{ ...monthData, month, openExpenseForm, openIncomeForm }}>
+    <MonthContext.Provider
+      value={{
+        ...monthData,
+        month,
+        openExpenseForm,
+        openIncomeForm,
+        openVoiceEntry: voiceAvailable ? openVoiceEntry : undefined,
+      }}
+    >
       {children}
 
       {expenseForm.open && settings && (
@@ -77,10 +96,25 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
           specialCategories={settings.specialCategories}
           reimbursableEnabled={isModuleOn(settings, 'reimbursable')}
           initial={expenseForm.initial}
+          draft={expenseForm.draft}
           defaultCategoryKind={expenseForm.defaultCategoryKind}
           onClose={() => setExpenseForm({ open: false })}
           onSave={monthData.saveExpense}
           onDelete={monthData.deleteExpense}
+          onVoice={voiceAvailable ? openVoiceEntry : undefined}
+        />
+      )}
+
+      {voiceOpen && settings && (
+        <VoiceEntrySheet
+          month={month}
+          settings={settings}
+          onClose={() => setVoiceOpen(false)}
+          onSave={monthData.saveExpense}
+          onEdit={(draft) => {
+            setVoiceOpen(false);
+            setExpenseForm({ open: true, draft });
+          }}
         />
       )}
 

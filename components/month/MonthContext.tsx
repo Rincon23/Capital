@@ -8,6 +8,8 @@ export interface MonthContextValue extends UseMonthDataResult {
   month: Month;
   openExpenseForm: (initial?: Expense, defaultCategoryKind?: CategoryKind) => void;
   openIncomeForm: (initial?: Income) => void;
+  /** Opens "Lançar por voz ou texto"; undefined when this user can't use it. */
+  openVoiceEntry?: () => void;
 }
 
 export const MonthContext = createContext<MonthContextValue | null>(null);

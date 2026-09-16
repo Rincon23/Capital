@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { Mic } from 'lucide-react';
 import {
   amountToInputValue,
   currentMonthKey,
@@ -11,6 +12,7 @@ import {
   validateExpense,
   type CategoryKind,
   type Expense,
+  type ExpenseSource,
   type Month,
   type SpecialCategoryLabels,
   type TopicConfig,
@@ -32,12 +34,16 @@ interface ExpenseFormSheetProps {
   /** Whether the "A receber" module is on for this user (see MODULE_CATALOG). */
   reimbursableEnabled?: boolean;
   initial?: Expense;
+  /** A new expense filled in ahead (what the voice entry understood), still to be checked. */
+  draft?: Partial<Expense>;
   /** Overrides the sheet's title, e.g. when the form is confirming a recurring expense. */
   title?: string;
   defaultCategoryKind?: CategoryKind;
   onClose: () => void;
   onSave: (expense: Expense) => Promise<void>;
   onDelete?: (expenseId: string) => Promise<void>;
+  /** When given, a microphone in the header switches to "Lançar por voz ou texto". */
+  onVoice?: () => void;
 }
 
 export function ExpenseFormSheet({
@@ -46,11 +52,13 @@ export function ExpenseFormSheet({
   specialCategories,
   reimbursableEnabled = false,
   initial,
+  draft,
   title,
   defaultCategoryKind,
   onClose,
   onSave,
   onDelete,
+  onVoice,
 }: ExpenseFormSheetProps) {
   const activeTopics = useMemo(
     () => topics.filter((t) => !t.archived).sort((a, b) => a.order - b.order),
@@ -61,14 +69,21 @@ export function ExpenseFormSheet({
   // editable (and the user can move it to another category) instead of becoming unreachable.
   const showReimbursable = reimbursableEnabled || initial?.categoryKind === 'reimbursable';
 
-  const [amount, setAmount] = useState(initial ? amountToInputValue(initial.amount) : '');
-  const [categoryKind, setCategoryKind] = useState<CategoryKind>(
-    initial?.categoryKind ?? defaultCategoryKind ?? 'topic',
+  const prefill: Partial<Expense> | undefined = initial ?? draft;
+  const source: ExpenseSource | undefined = initial ? initial.source : draft?.source;
+  const [amount, setAmount] = useState(
+    prefill?.amount !== undefined ? amountToInputValue(prefill.amount) : '',
   );
-  const [topicId, setTopicId] = useState<string | undefined>(initial?.topicId ?? activeTopics[0]?.id);
-  const [description, setDescription] = useState(initial?.description ?? '');
-  const [date, setDate] = useState(initial?.date ?? defaultDateForMonth(month));
-  const [singleInstallmentCard, setSingleInstallmentCard] = useState(initial?.singleInstallmentCard ?? false);
+  const [categoryKind, setCategoryKind] = useState<CategoryKind>(
+    prefill?.categoryKind ?? defaultCategoryKind ?? 'topic',
+  );
+  // A draft without a category leaves the choice to the user instead of picking the first one.
+  const [topicId, setTopicId] = useState<string | undefined>(
+    initial?.topicId ?? (draft ? draft.topicId : activeTopics[0]?.id),
+  );
+  const [description, setDescription] = useState(prefill?.description ?? '');
+  const [date, setDate] = useState(prefill?.date ?? defaultDateForMonth(month));
+  const [singleInstallmentCard, setSingleInstallmentCard] = useState(prefill?.singleInstallmentCard ?? false);
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -95,6 +110,7 @@ export function ExpenseFormSheet({
         amount: parsedAmount,
         date,
         singleInstallmentCard: forcedCard || singleInstallmentCard,
+        source,
       });
       onClose();
     } catch {
@@ -116,9 +132,25 @@ export function ExpenseFormSheet({
   }
 
   return (
-    <BottomSheet open onClose={onClose} title={title ?? (initial ? 'Editar gasto' : 'Lançar gasto')}>
+    <BottomSheet
+      open
+      onClose={onClose}
+      title={title ?? (initial ? 'Editar gasto' : draft ? 'Conferir gasto' : 'Lançar gasto')}
+      headerAction={
+        onVoice && !initial && !draft ? (
+          <button
+            type="button"
+            onClick={onVoice}
+            aria-label="Lançar por voz ou texto"
+            className="text-primary hover:bg-background flex h-10 w-10 items-center justify-center rounded-full"
+          >
+            <Mic className="h-5 w-5" aria-hidden />
+          </button>
+        ) : undefined
+      }
+    >
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-        <AmountInput value={amount} onChange={setAmount} autoFocus={!initial} />
+        <AmountInput value={amount} onChange={setAmount} autoFocus={!prefill} />
 
         <CategoryPicker
           topics={topics}

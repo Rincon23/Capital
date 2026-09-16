@@ -27,6 +27,7 @@ describe('módulos', () => {
       'investments',
       'cash',
       'reminders',
+      'voice',
     ]);
   });
 
