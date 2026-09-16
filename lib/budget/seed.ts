@@ -1,3 +1,4 @@
+import { DEFAULT_SPECIAL_CATEGORY_LABELS } from './categories';
 import { DEFAULT_SPECIAL_CATEGORY_COLORS, DEFAULT_TOPIC_COLORS } from './colors';
 import { createId } from './id';
 import type { BudgetSettings, Month, MonthData, TopicConfig } from './types';
@@ -15,11 +16,10 @@ export function createDefaultTopics(): TopicConfig[] {
 export function createDefaultSettings(): BudgetSettings {
   return {
     topics: createDefaultTopics(),
-    specialCategories: {
-      fixedCost: 'Custo Fixo',
-      unforeseen: 'Imprevistos',
-    },
+    specialCategories: { ...DEFAULT_SPECIAL_CATEGORY_LABELS },
     specialCategoryColors: { ...DEFAULT_SPECIAL_CATEGORY_COLORS },
+    // Every optional module starts off: a new account is the budgeting app and nothing else.
+    modules: {},
   };
 }
 

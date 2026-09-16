@@ -75,8 +75,8 @@ export class HttpBudgetRepository implements BudgetRepository {
     return this.request('DELETE', `/months/${seg(month)}/expenses/${seg(expenseId)}`);
   }
 
-  closeMonth(month: Month): Promise<void> {
-    return this.request('POST', `/months/${seg(month)}/close`);
+  closeMonth(month: Month, openNext = false): Promise<void> {
+    return this.request('POST', `/months/${seg(month)}/close`, { openNext });
   }
 
   reopenMonth(month: Month): Promise<void> {

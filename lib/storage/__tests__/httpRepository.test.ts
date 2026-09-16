@@ -42,6 +42,17 @@ describe('HttpBudgetRepository', () => {
     expect(JSON.parse(init.body)).toEqual(expense);
   });
 
+  it('says whether closing the month should also open the next one', async () => {
+    const fetchMock = mockFetch(204);
+    await repo.closeMonth('2026-01', true);
+    await repo.closeMonth('2026-02');
+
+    const [closeAndOpen, closeOnly] = fetchMock.mock.calls;
+    expect(closeAndOpen[0]).toBe('/api/v1/months/2026-01/close');
+    expect(JSON.parse(closeAndOpen[1].body)).toEqual({ openNext: true });
+    expect(JSON.parse(closeOnly[1].body)).toEqual({ openNext: false });
+  });
+
   it('turns 401 into NotAuthenticatedError and tells the app to go to /login', async () => {
     mockFetch(401, { error: 'Sessão expirada.', code: 'UNAUTHENTICATED' });
     const listener = vi.fn();

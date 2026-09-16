@@ -4,9 +4,17 @@ import { useMemo, useState } from 'react';
 import { useMonthContext } from '@/components/month/MonthContext';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useSettings } from '@/components/providers/SettingsProvider';
-import { formatBRL, formatMonthLabel, type CategoryKind, type Expense, type Income } from '@/lib/budget';
+import {
+  formatBRL,
+  formatMonthLabel,
+  isModuleOn,
+  resolveSpecialCategoryLabels,
+  type CategoryKind,
+  type Expense,
+  type Income,
+} from '@/lib/budget';
 
-type TabKey = 'topic' | 'income' | 'fixedCost' | 'unforeseen';
+type TabKey = 'topic' | 'income' | 'fixedCost' | 'unforeseen' | 'reimbursable';
 
 function topicName(topics: { id: string; name: string }[], topicId?: string): string {
   return topics.find((t) => t.id === topicId)?.name ?? '—';
@@ -23,11 +31,19 @@ export function LancamentosScreen() {
   const [tab, setTab] = useState<TabKey>('topic');
   const [search, setSearch] = useState('');
 
+  const labels = resolveSpecialCategoryLabels(settings?.specialCategories);
+  // The "A receber" tab shows while the module is on, and also when the month still has such
+  // expenses from before it was turned off — so they never become unreachable.
+  const showReimbursable =
+    isModuleOn(settings, 'reimbursable') ||
+    (monthData?.expenses.some((e) => e.categoryKind === 'reimbursable') ?? false);
+
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'topic', label: 'Gastos' },
     { key: 'income', label: 'Renda' },
-    { key: 'fixedCost', label: settings?.specialCategories.fixedCost ?? 'Custo Fixo' },
-    { key: 'unforeseen', label: settings?.specialCategories.unforeseen ?? 'Imprevistos' },
+    { key: 'fixedCost', label: labels.fixedCost },
+    { key: 'unforeseen', label: labels.unforeseen },
+    ...(showReimbursable ? [{ key: 'reimbursable' as const, label: labels.reimbursable }] : []),
   ];
 
   const filteredExpenses = useMemo(() => {

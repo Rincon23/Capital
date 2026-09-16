@@ -5,6 +5,7 @@ import { BottomNav } from '@/components/layout/BottomNav';
 import { AppProviders } from '@/components/providers/AppProviders';
 import { LocalDataImportBanner } from '@/components/storage/LocalDataImportBanner';
 import { getAuth } from '@/lib/server/auth';
+import { isOwnerEmail } from '@/lib/server/owner';
 
 /**
  * Layout for every authenticated route. `proxy.ts` only checks that a session cookie exists;
@@ -22,7 +23,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   if (!session) redirect('/login');
 
   return (
-    <AppProviders initialUser={{ id: session.user.id, email: session.user.email }}>
+    <AppProviders
+      initialUser={{
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.name || null,
+        isOwner: isOwnerEmail(session.user.email),
+      }}
+    >
       <div className="flex min-h-full flex-1 flex-col pb-16">
         <LocalDataImportBanner />
         {children}

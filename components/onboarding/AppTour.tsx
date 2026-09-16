@@ -6,6 +6,8 @@ import { driver, type Driver, type DriveStep } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import './tour.css';
 import { currentMonthKey } from '@/lib/budget';
+import { navKeysFor } from '@/lib/nav/items';
+import { useSettings } from '@/components/providers/SettingsProvider';
 import { getLastViewedMonth } from '@/lib/storage/preferences';
 
 interface TourStep {
@@ -29,7 +31,11 @@ interface AppTourProps {
 export function AppTour({ onSkip, onComplete }: AppTourProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { settings } = useSettings();
   const skippedOrCompletedRef = useRef(false);
+  // The bottom bar changes with the modules the user turned on, so the steps that point at
+  // it have to follow it: with enough modules on, History and Settings live under "Mais".
+  const groupedNav = navKeysFor(settings).includes('mais');
 
   useEffect(() => {
     const month = getLastViewedMonth() ?? currentMonthKey();
@@ -75,25 +81,46 @@ export function AppTour({ onSkip, onComplete }: AppTourProps) {
         description: 'Aqui fica a lista completa de tudo que você lançou no mês, com filtros por categoria.',
         side: 'top',
       },
-      {
-        route: '/historico',
-        selector: '[data-tour="nav-historico"]',
-        title: 'Histórico',
-        description: 'No Histórico você acompanha sua evolução mês a mês e vê se está seguindo o planejado.',
-        side: 'top',
-      },
-      {
-        route: '/configuracoes',
-        selector: '[data-tour="nav-config"]',
-        title: 'Configurações',
-        description: 'E aqui nas Configurações você ajusta suas categorias.',
-        side: 'top',
-      },
+      ...(groupedNav
+        ? [
+            {
+              route: '/mais',
+              selector: '[data-tour="nav-mais"]',
+              title: 'Mais',
+              description:
+                'Em Mais ficam o Histórico, com sua evolução mês a mês, e as Configurações.',
+              side: 'top' as const,
+            },
+          ]
+        : [
+            {
+              route: '/historico',
+              selector: '[data-tour="nav-historico"]',
+              title: 'Histórico',
+              description:
+                'No Histórico você acompanha sua evolução mês a mês e vê se está seguindo o planejado.',
+              side: 'top' as const,
+            },
+            {
+              route: '/configuracoes',
+              selector: '[data-tour="nav-config"]',
+              title: 'Configurações',
+              description: 'E aqui nas Configurações você ajusta suas categorias.',
+              side: 'top' as const,
+            },
+          ]),
       {
         route: '/configuracoes',
         selector: '[data-tour="config-categorias"]',
         title: 'Categorias de meta',
         description: 'Mude nomes, cores e percentuais de cada categoria quando quiser — juntos eles sempre têm que somar 100%.',
+      },
+      {
+        route: '/configuracoes',
+        selector: '[data-tour="config-modulos"]',
+        title: 'Módulos',
+        description:
+          'O Capital tem recursos extras: categoria "A receber", lembretes, parcelados e mais. Cada um fica desligado até você ligar aqui.',
       },
       {
         route: '/configuracoes',
@@ -162,6 +189,7 @@ export function AppTour({ onSkip, onComplete }: AppTourProps) {
     return () => {
       driverObj.destroy();
     };
+    // The tour is built once, when it opens: re-running it mid-tour would restart it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

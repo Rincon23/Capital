@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   currentMonthKey,
+  isModuleOn,
   withCurrentTopicDisplay,
   type CategoryKind,
   type Expense,
@@ -74,6 +75,7 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
               : settings.topics
           }
           specialCategories={settings.specialCategories}
+          reimbursableEnabled={isModuleOn(settings, 'reimbursable')}
           initial={expenseForm.initial}
           defaultCategoryKind={expenseForm.defaultCategoryKind}
           onClose={() => setExpenseForm({ open: false })}

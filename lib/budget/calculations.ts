@@ -30,6 +30,8 @@ export interface MonthSummary {
   unforeseenTotal: number;
   /** Everything that will land on the credit-card bill: purchases flagged as card purchases. */
   cardTotal: number;
+  /** Card purchases made for someone else ("A receber"): part of cardTotal, never of expenseTotal. */
+  reimbursableTotal: number;
   /** Total money spent across all topics plus fixed costs and unforeseen. */
   expenseTotal: number;
   /** Sum of available(t) across all topics. */
@@ -49,6 +51,15 @@ export function computeFixedTotal(expenses: Expense[]): number {
 
 export function computeUnforeseenTotal(expenses: Expense[]): number {
   return sum(expenses.filter((e) => e.categoryKind === 'unforeseen').map((e) => e.amount));
+}
+
+/**
+ * Money paid for someone else who will pay it back ("A receber"). It is on the card bill,
+ * but it is not money the user spent: it stays out of every envelope, out of the fixed-cost
+ * apportionment and out of expenseTotal.
+ */
+export function computeReimbursableTotal(expenses: Expense[]): number {
+  return sum(expenses.filter((e) => e.categoryKind === 'reimbursable').map((e) => e.amount));
 }
 
 /** Everything that will show up on the credit-card bill: any expense flagged as a card purchase. */
@@ -142,6 +153,7 @@ export function computeMonthSummary(
   const fixedTotal = computeFixedTotal(monthData.expenses);
   const unforeseenTotal = computeUnforeseenTotal(monthData.expenses);
   const cardTotal = computeCardTotal(monthData.expenses);
+  const reimbursableTotal = computeReimbursableTotal(monthData.expenses);
 
   const topics = activeTopics
     .slice()
@@ -168,6 +180,7 @@ export function computeMonthSummary(
     fixedTotal,
     unforeseenTotal,
     cardTotal,
+    reimbursableTotal,
     expenseTotal,
     availableTotal,
     balance,

@@ -1,7 +1,11 @@
 import type { BudgetSettings, Expense, Income, Month, MonthData } from '../budget/types';
 
+/** What a backup exported today declares. Version 2 added the modules and the "A receber" category. */
+export const BACKUP_VERSION = 2;
+
 export interface BackupPayload {
-  version: 1;
+  /** 1 is still accepted on import: it simply has no modules and no "A receber" expenses. */
+  version: 1 | 2;
   exportedAt: string;
   settings: BudgetSettings;
   months: MonthData[];
@@ -63,7 +67,11 @@ export interface BudgetRepository {
   saveExpense(month: Month, expense: Expense): Promise<void>;
   deleteExpense(month: Month, expenseId: string): Promise<void>;
 
-  closeMonth(month: Month): Promise<void>;
+  /**
+   * Freezes the month. With `openNext`, the following month is created in the same
+   * transaction, already carrying each envelope's leftover (what "Fechar mês" does).
+   */
+  closeMonth(month: Month, openNext?: boolean): Promise<void>;
   /** Reopens a closed month and recomputes carryIn for every later month that already exists. */
   reopenMonth(month: Month): Promise<void>;
   /** Permanently deletes a stored month and recomputes carryIn for every later month. No-op if the month was never persisted. */

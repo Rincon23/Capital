@@ -13,6 +13,23 @@ Orange Pi**, sem serviço de banco na nuvem: o navegador só fala com a API do p
 grava no banco sempre em nome do usuário logado. Cada conta só enxerga os próprios dados. Sem
 conexão o app abre, mas as telas ficam carregando até a rede voltar.
 
+### Módulos (recursos opcionais)
+
+Além do orçamento, o Capital tem recursos extras que **começam desligados** e cada usuário liga
+em Configurações → Módulos (`lib/budget/modules.ts`). Quem não liga nada continua vendo o app
+de sempre: nada de módulo desligado aparece em tela nenhuma.
+
+- **Categoria "A receber"** — uma compra no cartão feita para outra pessoa, que vai devolver o
+  valor. Entra na fatura (`cardTotal` e `reimbursableTotal`) e **não** entra em nenhuma
+  categoria, no rateio dos custos fixos nem no gasto do mês.
+- Em construção, já listados na tela: gastos recorrentes, parcelados, reserva investida, caixa,
+  lembretes com notificação, lançar por voz/texto e monitor de Gmail. Os dois últimos são só do
+  dono do app (`OWNER_EMAIL`), porque usam o meu hardware e as minhas contas.
+
+Conforme os módulos ligam, a barra inferior muda (`lib/nav/items.ts`): entram as abas Lembretes
+e Carteira, e Histórico e Configurações passam a morar em **Mais**. A barra nunca passa de cinco
+abas.
+
 ## Como rodar (desenvolvimento)
 
 Requer Node.js 22+ e acesso a um Postgres: o de desenvolvimento no Orange Pi, pela Tailscale
@@ -111,13 +128,14 @@ na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de 
   /layout, /ui, /providers, /pwa
 /lib
   /budget                 Regras de negócio — funções puras, sem React nem storage
+  /nav                    Quais abas a barra inferior mostra, conforme os módulos ligados
   /storage                Contrato BudgetRepository e o repositório do navegador (HTTP)
   /server                 Só no servidor: banco (Drizzle), repositório Postgres, auth, e-mail, API
   /auth                   Server Actions de autenticação (entrar, criar conta, sair, redefinir senha)
   /hooks                  Hooks React que ligam a UI ao repositório (useMonthData, useAllMonths)
 /drizzle                  Migrações SQL (geradas por `npm run db:generate`)
 /deploy/postgres          Stack Docker do banco no Orange Pi (Postgres + backup)
-/scripts                  Migrações manuais e a migração única do Supabase
+/scripts                  Migrações manuais e a geração dos ícones do PWA
 /proxy.ts                 Portão das rotas: sem cookie de sessão → /login (páginas) ou 401 (API)
 /instrumentation.ts       Aplica as migrações quando o servidor sobe
 ```
@@ -150,7 +168,7 @@ interface BudgetRepository {
   deleteIncome(month, incomeId): Promise<void>;
   saveExpense(month, expense): Promise<void>;
   deleteExpense(month, expenseId): Promise<void>;
-  closeMonth(month): Promise<void>;
+  closeMonth(month, openNext?): Promise<void>;
   reopenMonth(month): Promise<void>;
   exportData(): Promise<BackupPayload>;
   importData(payload): Promise<void>;
@@ -170,6 +188,9 @@ interface BudgetRepository {
 - **Nas escritas**, cada gravação num mês roda numa transação com trava por usuário
   (`pg_advisory_xact_lock`) e recalcula em cascata o `carryIn` dos meses seguintes; o mesmo vale
   ao reabrir ou apagar um mês.
+- **Fechar o mês** (`closeMonth(month, true)`) congela a competência e abre a seguinte na mesma
+  transação, já com a sobra de cada categoria como `carryIn`. A tela mostra essa prévia antes de
+  confirmar e leva você para o mês novo.
 
 **`IndexedDbBudgetRepository`** (Dexie.js) continua no código, mas só para a importação única
 dos dados locais da versão v1 (`lib/storage/localMigration.ts`), oferecida por um banner e na
@@ -219,11 +240,17 @@ carga do mês seguinte, gasto no cartão (`cardTotal`), validação de soma de p
 estado `available <= 0`.
 
 Os demais testes:
+- **`lib/budget/__tests__/fixtures.test.ts`:** as fixtures reais da planilha em 15/09/2026
+  (§9 da spec do assistente), com tolerância de R$ 0,01 — a planilha não arredonda entre as
+  etapas e o Capital arredonda cada uma. Inclui as regras da categoria "A receber".
 - **`lib/server/__tests__/budgetRepository.test.ts`:** cobre o repositório Postgres contra o
   schema e as migrações reais, num Postgres em memória (PGlite). Casos: seed, cascata de
-  rollover, mês fechado/inexistente, apagar mês, export→import, isolamento entre contas e
-  escritas simultâneas.
-- **Repositório HTTP** (`lib/storage/__tests__`).
+  rollover, mês fechado/inexistente, fechar abrindo o mês seguinte, apagar mês, export→import,
+  módulos por usuário, isolamento entre contas e escritas simultâneas.
+- **Componentes** (`components/**/__tests__`, Testing Library): o formulário de gasto com a
+  categoria "A receber" e a prévia do "Fechar mês".
+- **Repositório HTTP** (`lib/storage/__tests__`) e a **barra de navegação** por módulos
+  (`lib/nav/__tests__`).
 - O **limitador de tentativas** de login.
 
 ## Checklist de aderência

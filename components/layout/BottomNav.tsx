@@ -1,18 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { getLastViewedMonth } from '@/lib/storage/preferences';
 import { currentMonthKey } from '@/lib/budget';
-
-interface NavItem {
-  href: (month: string) => string;
-  label: string;
-  tourId: string;
-  match: (pathname: string) => boolean;
-  icon: React.ReactNode;
-}
+import { navItemsFor, type NavKey } from '@/lib/nav/items';
+import { useSettings } from '@/components/providers/SettingsProvider';
 
 function HomeIcon() {
   return (
@@ -44,6 +38,32 @@ function ChartIcon() {
   );
 }
 
+function BellIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" stroke="currentColor" className="h-6 w-6">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M18 8a6 6 0 1 0-12 0c0 3.5-.7 5.2-1.5 6.2-.4.5 0 1.3.6 1.3h13.8c.7 0 1-.8.6-1.3C18.7 13.2 18 11.5 18 8Z"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10 19a2 2 0 0 0 4 0" />
+    </svg>
+  );
+}
+
+function WalletIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" stroke="currentColor" className="h-6 w-6">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8Z"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 12h3v3h-3a1.5 1.5 0 0 1 0-3Z" />
+    </svg>
+  );
+}
+
 function GearIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" strokeWidth="2" stroke="currentColor" className="h-6 w-6">
@@ -57,39 +77,27 @@ function GearIcon() {
   );
 }
 
-const NAV_ITEMS: NavItem[] = [
-  {
-    href: (m) => `/mes/${m}`,
-    label: 'Início',
-    tourId: 'nav-mes',
-    match: (p) => p.startsWith('/mes/') && !p.includes('/lancamentos') && !p.includes('/categoria'),
-    icon: <HomeIcon />,
-  },
-  {
-    href: (m) => `/mes/${m}/lancamentos`,
-    label: 'Lançamentos',
-    tourId: 'nav-lancamentos',
-    match: (p) => p.includes('/lancamentos'),
-    icon: <ListIcon />,
-  },
-  {
-    href: () => '/historico',
-    label: 'Histórico',
-    tourId: 'nav-historico',
-    match: (p) => p.startsWith('/historico'),
-    icon: <ChartIcon />,
-  },
-  {
-    href: () => '/configuracoes',
-    label: 'Config.',
-    tourId: 'nav-config',
-    match: (p) => p.startsWith('/configuracoes'),
-    icon: <GearIcon />,
-  },
-];
+function MoreIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" strokeWidth="2.5" stroke="currentColor" className="h-6 w-6">
+      <path strokeLinecap="round" d="M6 12h.01M12 12h.01M18 12h.01" />
+    </svg>
+  );
+}
+
+const ICONS: Record<NavKey, ReactNode> = {
+  inicio: <HomeIcon />,
+  lancamentos: <ListIcon />,
+  lembretes: <BellIcon />,
+  carteira: <WalletIcon />,
+  historico: <ChartIcon />,
+  configuracoes: <GearIcon />,
+  mais: <MoreIcon />,
+};
 
 export function BottomNav() {
   const pathname = usePathname();
+  const { settings } = useSettings();
   const monthFromPath = pathname.match(/^\/mes\/([\d-]+)/)?.[1];
   // Starts from `currentMonthKey()` (deterministic, matches the server) so hydration never
   // sees a mismatched href; the last-viewed month (localStorage, client-only) is applied
@@ -104,6 +112,8 @@ export function BottomNav() {
   }, [monthFromPath]);
 
   const month = monthFromPath ?? fallbackMonth;
+  // Which tabs exist depends on the modules this user turned on (see lib/nav/items.ts).
+  const items = navItemsFor(settings);
 
   return (
     <nav
@@ -112,10 +122,10 @@ export function BottomNav() {
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <ul className="mx-auto flex max-w-lg items-stretch justify-around">
-        {NAV_ITEMS.map((item) => {
-          const active = item.match(pathname);
+        {items.map((item) => {
+          const active = item.isActive(pathname);
           return (
-            <li key={item.label} className="flex-1">
+            <li key={item.key} className="flex-1">
               <Link
                 href={item.href(month)}
                 data-tour={item.tourId}
@@ -124,7 +134,7 @@ export function BottomNav() {
                 }`}
                 aria-current={active ? 'page' : undefined}
               >
-                {item.icon}
+                {ICONS[item.key]}
                 {item.label}
               </Link>
             </li>

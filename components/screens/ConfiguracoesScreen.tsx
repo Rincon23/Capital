@@ -7,23 +7,31 @@ import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { useTheme } from '@/components/providers/ThemeProvider';
 import { PercentInput } from '@/components/ui/PercentInput';
+import { useConfirm } from '@/components/ui/ConfirmSheet';
+import { useToast } from '@/components/ui/Toast';
 import { signOut } from '@/lib/auth/actions';
 import { budgetRepository, downloadBackup, readBackupFile } from '@/lib/storage';
 import { hasLocalData, importLocalDataToCloud } from '@/lib/storage/localMigration';
 import {
   DEFAULT_TOPIC_COLORS,
+  MODULE_CATALOG,
+  REIMBURSABLE_EXPLANATION,
   createId,
   formatPct,
+  resolveModules,
   resolveSpecialCategoryColors,
+  resolveSpecialCategoryLabels,
   resolveTopicColor,
   validateTopicPercentages,
   type BudgetSettings,
+  type ModuleFlags,
+  type ModuleKey,
+  type ResolvedSpecialCategoryLabels,
   type SpecialCategoryColors,
-  type SpecialCategoryLabels,
   type TopicConfig,
 } from '@/lib/budget';
 
-const SPECIAL_CATEGORY_FIELDS: { key: keyof SpecialCategoryLabels; label: string }[] = [
+const SPECIAL_CATEGORY_FIELDS: { key: keyof ResolvedSpecialCategoryLabels; label: string }[] = [
   { key: 'fixedCost', label: 'Custo fixo' },
   { key: 'unforeseen', label: 'Imprevistos' },
 ];
@@ -46,20 +54,28 @@ function ConfiguracoesForm({
   saveSettings: (settings: BudgetSettings) => Promise<void>;
 }) {
   const { theme, setTheme } = useTheme();
+  const confirm = useConfirm();
+  const { showToast } = useToast();
 
   // Local editable draft, seeded once from the already-loaded settings (lazy initial state
   // — no effect needed since this component only mounts after `settings` is available).
   const [topics, setTopics] = useState<TopicConfig[]>(() => settings.topics);
-  const [special, setSpecial] = useState<SpecialCategoryLabels>(() => settings.specialCategories);
+  const [special, setSpecial] = useState<ResolvedSpecialCategoryLabels>(() =>
+    resolveSpecialCategoryLabels(settings),
+  );
   const [specialColors, setSpecialColors] = useState<SpecialCategoryColors>(() =>
     resolveSpecialCategoryColors(settings),
   );
-  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [modules, setModules] = useState<ModuleFlags>(() => resolveModules(settings));
   const [importError, setImportError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const validation = validateTopicPercentages(topics);
   const sortedTopics = [...topics].sort((a, b) => a.order - b.order);
+  // The "A receber" label and color only make sense while its module is on.
+  const specialFields = modules.reimbursable
+    ? [...SPECIAL_CATEGORY_FIELDS, { key: 'reimbursable' as const, label: 'A receber' }]
+    : SPECIAL_CATEGORY_FIELDS;
 
   function updateTopic(id: string, patch: Partial<TopicConfig>) {
     setTopics((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
@@ -96,13 +112,19 @@ function ConfiguracoesForm({
     setTopics((prev) => prev.map((t) => (t.id === id ? { ...t, archived: !t.archived } : t)));
   }
 
-  function deleteTopic(id: string) {
+  async function deleteTopic(id: string) {
     const topic = topics.find((t) => t.id === id);
-    const confirmed = window.confirm(
-      `Excluir a categoria "${topic?.name ?? ''}"? Ela some das configurações, do mês atual e dos ` +
-        'próximos meses. Meses passados não mudam.',
-    );
-    if (!confirmed) return;
+    const confirmed = await confirm({
+      title: 'Excluir categoria',
+      message: `Excluir a categoria "${topic?.name ?? ''}"? Ela some das configurações, do mês atual e dos próximos meses. Meses passados não mudam.`,
+      confirmLabel: 'Excluir',
+      cancelLabel: 'Manter',
+      destructive: true,
+    });
+    if (!confirmed) {
+      showToast('Operação cancelada. Nenhuma alteração foi realizada.', 'info');
+      return;
+    }
     setTopics((prev) => prev.filter((t) => t.id !== id));
   }
 
@@ -114,9 +136,11 @@ function ConfiguracoesForm({
         topics,
         specialCategories: special,
         specialCategoryColors: specialColors,
+        modules,
       });
-      setSaveMessage('Configurações salvas.');
-      setTimeout(() => setSaveMessage(null), 2500);
+      showToast('Configurações salvas.');
+    } catch {
+      showToast('Não foi possível salvar. Tente novamente em alguns instantes.', 'error');
     } finally {
       setBusy(false);
     }
@@ -145,10 +169,18 @@ function ConfiguracoesForm({
   }
 
   async function handleClearAll() {
-    const confirmed = window.confirm(
-      'Isso apaga todos os dados do Capital neste dispositivo. Essa ação não pode ser desfeita. Continuar?',
-    );
-    if (!confirmed) return;
+    const confirmed = await confirm({
+      title: 'Apagar todos os dados',
+      message:
+        'Isso apaga todos os dados da sua conta no Capital: categorias, meses, rendas e gastos. Essa ação não pode ser desfeita.',
+      confirmLabel: 'Apagar tudo',
+      cancelLabel: 'Manter',
+      destructive: true,
+    });
+    if (!confirmed) {
+      showToast('Operação cancelada. Nenhuma alteração foi realizada.', 'info');
+      return;
+    }
     await budgetRepository.clearAll();
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = '/';
@@ -225,7 +257,7 @@ function ConfiguracoesForm({
                   </button>
                   <button
                     type="button"
-                    onClick={() => deleteTopic(topic.id)}
+                    onClick={() => void deleteTopic(topic.id)}
                     className="border-danger text-danger min-h-[36px] rounded-md border px-3"
                   >
                     Excluir
@@ -256,39 +288,45 @@ function ConfiguracoesForm({
       <section className="flex flex-col gap-3 px-4">
         <h2 className="text-muted text-sm font-semibold">Categorias especiais</h2>
         <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
-          {SPECIAL_CATEGORY_FIELDS.map(({ key, label }) => (
-            <div key={key} className="flex min-w-0 items-end gap-2">
-              <input
-                type="color"
-                value={specialColors[key]}
-                onChange={(e) => setSpecialColors((c) => ({ ...c, [key]: e.target.value }))}
-                aria-label={`Cor de ${label}`}
-                className="border-border h-11 w-11 shrink-0 cursor-pointer rounded-md border bg-transparent p-0.5"
-              />
-              <label className="text-muted flex min-w-0 flex-1 flex-col gap-1 text-sm">
-                {label}
+          {specialFields.map(({ key, label }) => (
+            <div key={key} className="flex flex-col gap-1">
+              <div className="flex min-w-0 items-end gap-2">
                 <input
-                  type="text"
-                  value={special[key]}
-                  onChange={(e) => setSpecial((s) => ({ ...s, [key]: e.target.value }))}
-                  className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] w-full min-w-0 rounded-md border px-3 outline-none focus:ring-2"
+                  type="color"
+                  value={specialColors[key]}
+                  onChange={(e) => setSpecialColors((c) => ({ ...c, [key]: e.target.value }))}
+                  aria-label={`Cor de ${label}`}
+                  className="border-border h-11 w-11 shrink-0 cursor-pointer rounded-md border bg-transparent p-0.5"
                 />
-              </label>
+                <label className="text-muted flex min-w-0 flex-1 flex-col gap-1 text-sm">
+                  {label}
+                  <input
+                    type="text"
+                    value={special[key]}
+                    onChange={(e) => setSpecial((s) => ({ ...s, [key]: e.target.value }))}
+                    className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] w-full min-w-0 rounded-md border px-3 outline-none focus:ring-2"
+                  />
+                </label>
+              </div>
+              {key === 'reimbursable' && (
+                <p className="text-muted text-xs">{REIMBURSABLE_EXPLANATION}</p>
+              )}
             </div>
           ))}
         </div>
       </section>
 
+      <ModulesSection modules={modules} onChange={setModules} />
+
       <section className="px-4">
         <button
           type="button"
-          onClick={handleSave}
+          onClick={() => void handleSave()}
           disabled={!validation.valid || busy}
           className="bg-primary text-primary-foreground min-h-[44px] w-full rounded-lg px-4 py-2 font-semibold disabled:opacity-50"
         >
           {busy ? 'Salvando…' : 'Salvar configurações'}
         </button>
-        {saveMessage && <p className="text-success mt-2 text-center text-sm">{saveMessage}</p>}
       </section>
 
       <section className="flex flex-col gap-3 px-4">
@@ -334,13 +372,73 @@ function ConfiguracoesForm({
       <section className="px-4">
         <button
           type="button"
-          onClick={handleClearAll}
+          onClick={() => void handleClearAll()}
           className="border-danger text-danger min-h-[44px] w-full rounded-lg border px-4 text-sm font-semibold"
         >
           Apagar todos os dados
         </button>
       </section>
     </div>
+  );
+}
+
+/**
+ * The optional assistant modules. Everything is off until the user turns it on here, so an
+ * account that ignores this section keeps exactly the app it had. Modules still being built
+ * are listed but cannot be turned on, and the owner-only ones (they run on my own hardware
+ * and accounts) only show for the owner.
+ */
+function ModulesSection({
+  modules,
+  onChange,
+}: {
+  modules: ModuleFlags;
+  onChange: (next: ModuleFlags) => void;
+}) {
+  const { user } = useAuth();
+  const visible = MODULE_CATALOG.filter((info) => !info.ownerOnly || user.isOwner);
+
+  function toggle(key: ModuleKey) {
+    onChange({ ...modules, [key]: !modules[key] });
+  }
+
+  return (
+    <section className="flex flex-col gap-3 px-4" data-tour="config-modulos">
+      <h2 className="text-muted text-sm font-semibold">Módulos</h2>
+      <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
+        <p className="text-muted text-sm">
+          Recursos extras do Capital. Ligue só o que você usa — o que ficar desligado não aparece
+          em lugar nenhum do app.
+        </p>
+        {visible.map((info) => (
+          <div key={info.key} className="border-border flex items-start gap-3 rounded-lg border p-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-foreground text-sm font-medium">{info.name}</p>
+              <p className="text-muted mt-0.5 text-xs">{info.description}</p>
+              {!info.available && <p className="text-muted mt-1 text-xs italic">Em breve.</p>}
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={modules[info.key]}
+              aria-label={info.name}
+              disabled={!info.available}
+              onClick={() => toggle(info.key)}
+              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-40 ${
+                modules[info.key] ? 'bg-primary' : 'bg-border'
+              }`}
+            >
+              <span
+                aria-hidden
+                className={`bg-card absolute top-1 h-5 w-5 rounded-full shadow transition-all ${
+                  modules[info.key] ? 'left-6' : 'left-1'
+                }`}
+              />
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -389,6 +487,7 @@ function AccountSection() {
 }
 
 function LocalDataSection() {
+  const confirm = useConfirm();
   const [available, setAvailable] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -406,9 +505,13 @@ function LocalDataSection() {
   if (!available) return null;
 
   async function handleImport() {
-    const confirmed = window.confirm(
-      'Importar os dados salvos neste dispositivo substitui os dados atuais da sua conta na nuvem. Continuar?',
-    );
+    const confirmed = await confirm({
+      title: 'Importar dados deste dispositivo',
+      message:
+        'Importar os dados salvos neste dispositivo substitui os dados atuais da sua conta. Essa ação não pode ser desfeita.',
+      confirmLabel: 'Importar',
+      destructive: true,
+    });
     if (!confirmed) return;
     setBusy(true);
     setError(null);
@@ -434,7 +537,7 @@ function LocalDataSection() {
         </p>
         <button
           type="button"
-          onClick={handleImport}
+          onClick={() => void handleImport()}
           disabled={busy}
           className="border-border text-foreground min-h-[44px] rounded-lg border px-4 text-sm font-medium disabled:opacity-50"
         >

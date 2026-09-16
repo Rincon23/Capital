@@ -1,13 +1,19 @@
 'use client';
 
-import { formatMonthLabel } from '@/lib/budget';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { formatMonthLabel, nextMonth } from '@/lib/budget';
 import { useMonthContext } from '@/components/month/MonthContext';
+import { CloseMonthSheet } from '@/components/month/CloseMonthSheet';
+import { GreetingHeader } from '@/components/month/GreetingHeader';
 import { MonthSwitcher } from '@/components/month/MonthSwitcher';
 import { SummaryHeader } from '@/components/month/SummaryHeader';
 import { CardBillCard } from '@/components/month/CardBillCard';
 import { TopicCard } from '@/components/month/TopicCard';
 import { FixedCostsCard } from '@/components/month/FixedCostsCard';
 import { useSettings } from '@/components/providers/SettingsProvider';
+import { useConfirm } from '@/components/ui/ConfirmSheet';
+import { useToast } from '@/components/ui/Toast';
 import { Fab } from '@/components/ui/Fab';
 
 export function DashboardScreen() {
@@ -24,13 +30,50 @@ export function DashboardScreen() {
     openIncomeForm,
   } = useMonthContext();
   const { settings } = useSettings();
+  const confirm = useConfirm();
+  const { showToast } = useToast();
+  const router = useRouter();
+  const [closing, setClosing] = useState(false);
 
-  function handleDeleteMonth() {
-    const confirmed = window.confirm(
-      `Apagar todos os lançamentos de ${formatMonthLabel(month)}? ` +
-        'As sobras dos meses seguintes serão recalculadas. Essa ação não pode ser desfeita.',
-    );
-    if (confirmed) void deleteMonth();
+  async function handleDeleteMonth() {
+    const confirmed = await confirm({
+      title: `Apagar ${formatMonthLabel(month)}`,
+      message: `Isso apaga todos os lançamentos de ${formatMonthLabel(month)}. As sobras dos meses seguintes serão recalculadas. Essa ação não pode ser desfeita.`,
+      confirmLabel: 'Apagar',
+      cancelLabel: 'Manter',
+      destructive: true,
+    });
+    if (!confirmed) {
+      showToast('Operação cancelada. Nenhuma alteração foi realizada.', 'info');
+      return;
+    }
+    try {
+      await deleteMonth();
+      showToast('Lançamentos apagados.');
+    } catch {
+      showToast('Não foi possível concluir esta operação. Tente novamente em alguns instantes.', 'error');
+    }
+  }
+
+  /** Closes the month and opens the next one carrying the leftovers, then goes to it. */
+  async function handleCloseMonth() {
+    try {
+      await closeMonth(true);
+      setClosing(false);
+      showToast('Mês fechado com sucesso! Seus dados foram atualizados.');
+      router.push(`/mes/${nextMonth(month)}`);
+    } catch {
+      showToast('Não foi possível fechar o mês. Tente novamente em alguns instantes.', 'error');
+    }
+  }
+
+  async function handleReopenMonth() {
+    try {
+      await reopenMonth();
+      showToast('Mês reaberto. Você já pode lançar de novo.');
+    } catch {
+      showToast('Não foi possível reabrir o mês. Tente novamente em alguns instantes.', 'error');
+    }
   }
 
   if (loading || !summary || !settings) {
@@ -39,6 +82,8 @@ export function DashboardScreen() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 px-4 pt-4 pb-56">
+      <GreetingHeader />
+
       <MonthSwitcher month={month} />
 
       {error && <p className="bg-danger-bg text-danger rounded-lg px-3 py-2 text-sm">{error}</p>}
@@ -48,7 +93,7 @@ export function DashboardScreen() {
           <span>Este mês está fechado.</span>
           <button
             type="button"
-            onClick={() => void reopenMonth()}
+            onClick={() => void handleReopenMonth()}
             className="min-h-[36px] font-semibold underline"
           >
             Reabrir
@@ -75,7 +120,8 @@ export function DashboardScreen() {
       {!monthData?.closed && (
         <button
           type="button"
-          onClick={() => void closeMonth()}
+          onClick={() => setClosing(true)}
+          data-tour="fechar-mes"
           className="border-border text-muted hover:text-foreground min-h-[44px] self-start rounded-lg border px-4 py-2 text-sm font-medium"
         >
           Fechar mês
@@ -84,7 +130,7 @@ export function DashboardScreen() {
 
       <button
         type="button"
-        onClick={handleDeleteMonth}
+        onClick={() => void handleDeleteMonth()}
         className="border-danger text-danger min-h-[44px] w-full rounded-lg border px-4 text-sm font-semibold"
       >
         Apagar dados de {formatMonthLabel(month)}
@@ -94,6 +140,17 @@ export function DashboardScreen() {
         <Fab label="Renda" variant="secondary" onClick={() => openIncomeForm()} tourId="fab-renda" />
         <Fab label="Lançar gasto" onClick={() => openExpenseForm()} tourId="fab-lancar-gasto" />
       </div>
+
+      {closing && (
+        <CloseMonthSheet
+          summary={summary}
+          onConfirm={handleCloseMonth}
+          onCancel={() => {
+            setClosing(false);
+            showToast('Fechamento cancelado. Nenhuma alteração foi feita.', 'info');
+          }}
+        />
+      )}
     </div>
   );
 }

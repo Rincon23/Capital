@@ -1,10 +1,13 @@
 import { and, asc, desc, eq, gte, inArray, lt, max, sql, type SQL } from 'drizzle-orm';
 import { computeMonthSummary } from '../budget/calculations';
+import { DEFAULT_SPECIAL_CATEGORY_LABELS } from '../budget/categories';
 import { DEFAULT_SPECIAL_CATEGORY_COLORS } from '../budget/colors';
+import { nextMonth } from '../budget/date';
 import { cascadeCarryIn, createMonthData } from '../budget/rollover';
 import { createDefaultSettings } from '../budget/seed';
 import type { BudgetSettings, Expense, Income, Month, MonthData } from '../budget/types';
 import {
+  BACKUP_VERSION,
   MonthClosedError,
   MonthNotFoundError,
   type BackupPayload,
@@ -201,10 +204,13 @@ export class PostgresBudgetRepository implements BudgetRepository {
   // Month lifecycle
   // -------------------------------------------------------------------------
 
-  async closeMonth(month: Month): Promise<void> {
+  async closeMonth(month: Month, openNext = false): Promise<void> {
     await this.write(async (tx) => {
       await this.ensureMonthIn(tx, month);
       await tx.update(months).set({ closed: true, closedAt: new Date() }).where(this.monthKey(month));
+      // "Fechar mês" closes and opens in one go: the next month is created inside this same
+      // transaction, already carrying each envelope's leftover from the month just closed.
+      if (openNext) await this.ensureMonthIn(tx, nextMonth(month));
     });
   }
 
@@ -258,7 +264,12 @@ export class PostgresBudgetRepository implements BudgetRepository {
   async exportData(): Promise<BackupPayload> {
     const settings = await this.getSettings();
     const allMonths = await this.loadMonths(this.db);
-    return { version: 1, exportedAt: new Date().toISOString(), settings, months: allMonths };
+    return {
+      version: BACKUP_VERSION,
+      exportedAt: new Date().toISOString(),
+      settings,
+      months: allMonths,
+    };
   }
 
   /** Replaces all of this account's data with the backup (settings, including the onboarding flag, and every month). */
@@ -403,6 +414,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
         topics: defaults.topics,
         specialCategories: defaults.specialCategories,
         specialCategoryColors: defaults.specialCategoryColors ?? {},
+        modules: defaults.modules ?? {},
         onboardingCompleted: false,
       })
       .onConflictDoNothing();
@@ -420,9 +432,11 @@ export class PostgresBudgetRepository implements BudgetRepository {
     if (!row) return undefined;
     return {
       topics: row.topics,
-      specialCategories: row.specialCategories,
+      // Rows written before a label/color/module existed get the default for it.
+      specialCategories: { ...DEFAULT_SPECIAL_CATEGORY_LABELS, ...row.specialCategories },
       specialCategoryColors: { ...DEFAULT_SPECIAL_CATEGORY_COLORS, ...row.specialCategoryColors },
       onboardingCompleted: row.onboardingCompleted,
+      modules: row.modules,
     };
   }
 
@@ -439,6 +453,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
       topics: settings.topics,
       specialCategories: settings.specialCategories,
       specialCategoryColors: settings.specialCategoryColors ?? {},
+      modules: settings.modules ?? {},
       ...(includeOnboarding && settings.onboardingCompleted !== undefined
         ? { onboardingCompleted: settings.onboardingCompleted }
         : {}),

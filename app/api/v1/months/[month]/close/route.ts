@@ -1,6 +1,9 @@
 import { apiRoute } from '@/lib/server/http';
-import { monthKeySchema } from '@/lib/server/validation';
+import { closeMonthSchema, monthKeySchema } from '@/lib/server/validation';
 
-export const POST = apiRoute<{ month: string }>(async ({ params, repo }) => {
-  await repo.closeMonth(monthKeySchema.parse(params.month));
+export const POST = apiRoute<{ month: string }>(async ({ request, params, repo }) => {
+  // The body is optional: an older client (or a plain POST) just closes the month.
+  const body: unknown = await request.json().catch(() => ({}));
+  const { openNext } = closeMonthSchema.parse(body ?? {});
+  await repo.closeMonth(monthKeySchema.parse(params.month), openNext === true);
 });

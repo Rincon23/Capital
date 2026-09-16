@@ -23,7 +23,8 @@ export interface UseMonthDataResult {
   deleteExpense: (expenseId: string) => Promise<void>;
   saveIncome: (income: Income) => Promise<void>;
   deleteIncome: (incomeId: string) => Promise<void>;
-  closeMonth: () => Promise<void>;
+  /** With `openNext`, also opens the following month carrying this one's leftovers. */
+  closeMonth: (openNext?: boolean) => Promise<void>;
   reopenMonth: () => Promise<void>;
   deleteMonth: () => Promise<void>;
 }
@@ -89,7 +90,10 @@ export function useMonthData(month: Month, currentTopics?: TopicConfig[]): UseMo
     (id: string) => guard(() => budgetRepository.deleteIncome(month, id)),
     [guard, month],
   );
-  const closeMonth = useCallback(() => guard(() => budgetRepository.closeMonth(month)), [guard, month]);
+  const closeMonth = useCallback(
+    (openNext = false) => guard(() => budgetRepository.closeMonth(month, openNext)),
+    [guard, month],
+  );
   const reopenMonth = useCallback(() => guard(() => budgetRepository.reopenMonth(month)), [guard, month]);
   const deleteMonth = useCallback(() => guard(() => budgetRepository.deleteMonth(month)), [guard, month]);
 

@@ -5,8 +5,15 @@ import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { computeMonthSummary, currentMonthKey, previousMonth, type Expense } from '@/lib/budget';
-import { MonthClosedError, MonthNotFoundError } from '@/lib/storage/repository';
+import {
+  NO_MODULES,
+  computeMonthSummary,
+  currentMonthKey,
+  previousMonth,
+  resolveModules,
+  type Expense,
+} from '@/lib/budget';
+import { BACKUP_VERSION, MonthClosedError, MonthNotFoundError } from '@/lib/storage/repository';
 import { PostgresBudgetRepository } from '../budgetRepository';
 import * as schema from '../db/schema';
 import type { Database } from '../db/types';
@@ -289,7 +296,7 @@ describe('PostgresBudgetRepository', () => {
     await repo.closeMonth('2026-01');
 
     const backup = await repo.exportData();
-    expect(backup.version).toBe(1);
+    expect(backup.version).toBe(BACKUP_VERSION);
     expect(backup.months).toHaveLength(1);
 
     const { repo: target } = await newAccount();
@@ -316,6 +323,68 @@ describe('PostgresBudgetRepository', () => {
     expect(aliceMonth?.expenses).toHaveLength(1);
     expect(aliceMonth?.expenses[0].amount).toBe(10);
     expect(await bob.repo.listMonths()).toEqual([]);
+  });
+
+  it('stores the modules a user turned on, and starts everyone with none', async () => {
+    const { id, repo } = await newAccount();
+    const settings = await repo.getSettings();
+    expect(resolveModules(settings)).toEqual(NO_MODULES);
+
+    await repo.saveSettings({ ...settings, modules: { reimbursable: true } });
+    expect(resolveModules(await repo.getSettings())).toEqual({ ...NO_MODULES, reimbursable: true });
+
+    // Another account is untouched: modules are per user, like every other setting.
+    const other = await newAccount();
+    expect(resolveModules(await other.repo.getSettings())).toEqual(NO_MODULES);
+
+    const sameUserElsewhere = new PostgresBudgetRepository(db, id);
+    expect(resolveModules(await sameUserElsewhere.getSettings()).reimbursable).toBe(true);
+  });
+
+  it('keeps an "A receber" expense on the card bill and out of every envelope', async () => {
+    const { repo } = await newAccount();
+    const diversos = await diversosId(repo);
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await repo.saveExpense('2026-01', {
+      id: 'r1',
+      categoryKind: 'reimbursable',
+      description: 'Compra para outra pessoa',
+      amount: 73,
+      date: '2026-01-05',
+      singleInstallmentCard: true,
+    });
+
+    const month = (await repo.getMonth('2026-01'))!;
+    const stored = month.expenses[0];
+    expect(stored.categoryKind).toBe('reimbursable');
+    expect(stored.topicId).toBeUndefined();
+
+    const summary = computeMonthSummary(month);
+    expect(summary.reimbursableTotal).toBe(73);
+    expect(summary.cardTotal).toBe(73);
+    expect(summary.expenseTotal).toBe(0);
+    expect(summary.topics.find((t) => t.topicId === diversos)?.spent).toBe(0);
+  });
+
+  it('closes a month and opens the next one carrying the leftovers, in one go', async () => {
+    const { repo } = await newAccount();
+    const diversos = await diversosId(repo);
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+
+    await repo.closeMonth('2026-01', true);
+
+    expect(await repo.listMonths()).toEqual(['2026-01', '2026-02']);
+    expect((await repo.getMonth('2026-01'))?.closed).toBe(true);
+    const february = (await repo.getMonth('2026-02'))!;
+    expect(february.closed).toBe(false);
+    // 20% of 1000, with nothing spent, is what Diversos carries into February.
+    expect(february.carryIn[diversos]).toBe(200);
+  });
+
+  it('closes without opening the next month when not asked to', async () => {
+    const { repo } = await newAccount();
+    await repo.closeMonth('2026-01');
+    expect(await repo.listMonths()).toEqual(['2026-01']);
   });
 
   it('applies concurrent writes to the same month without losing any', async () => {

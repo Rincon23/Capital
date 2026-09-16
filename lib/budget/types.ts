@@ -8,8 +8,11 @@
 /** Competence month, formatted "YYYY-MM" (e.g. "2026-09"). */
 export type Month = string;
 
-/** Kind of expense category. */
-export type CategoryKind = 'topic' | 'fixedCost' | 'unforeseen';
+/**
+ * Kind of expense category. 'reimbursable' ("A receber") is a card purchase made for
+ * someone else who will pay it back: it lands on the card bill but consumes no envelope.
+ */
+export type CategoryKind = 'topic' | 'fixedCost' | 'unforeseen' | 'reimbursable';
 
 /** A budget envelope ("Diversos", "Investimentos", ...). */
 export interface TopicConfig {
@@ -23,17 +26,50 @@ export interface TopicConfig {
   color?: string;
 }
 
-/** User-configurable labels for the two special (non-envelope) categories. */
+/**
+ * User-configurable labels for the special (non-envelope) categories. 'reimbursable' may be
+ * absent in older data; resolve with `resolveSpecialCategoryLabels`.
+ */
 export interface SpecialCategoryLabels {
   fixedCost: string;
   unforeseen: string;
+  reimbursable?: string;
 }
 
-/** Hex colors for the two special (non-envelope) categories. */
+/** Every special-category label filled in (what the UI renders). */
+export type ResolvedSpecialCategoryLabels = Required<SpecialCategoryLabels>;
+
+/** Hex colors for the special (non-envelope) categories. */
 export interface SpecialCategoryColors {
   fixedCost: string;
   unforeseen: string;
+  reimbursable: string;
 }
+
+/**
+ * Optional features ("módulos do assistente"), each one off until the user turns it on in
+ * Settings. An account with nothing turned on sees exactly the budgeting app of before.
+ */
+export interface ModuleFlags {
+  /** The "A receber" category (see CategoryKind). */
+  reimbursable: boolean;
+  /** Recurring-expense templates. */
+  recurring: boolean;
+  /** Installment plans. */
+  installments: boolean;
+  /** Invested reserve (ETF split into buckets). */
+  investments: boolean;
+  /** Cash report (card/installment debt vs. reserve). */
+  cash: boolean;
+  /** Reminders and daily tasks, with push notifications. */
+  reminders: boolean;
+  /** Logging an expense by voice or free text (AI). */
+  voice: boolean;
+  /** Gmail keyword monitor. */
+  gmail: boolean;
+}
+
+export type ModuleKey = keyof ModuleFlags;
 
 /** Global (not month-scoped) budget configuration. */
 export interface BudgetSettings {
@@ -47,6 +83,8 @@ export interface BudgetSettings {
    * account's first-ever settings row is created with this explicitly false.
    */
   onboardingCompleted?: boolean;
+  /** Which optional modules this user turned on. Absent/partial means "off"; resolve with `resolveModules`. */
+  modules?: Partial<ModuleFlags>;
 }
 
 export interface Income {

@@ -17,14 +17,34 @@ const topicSchema = z.object({
   color: z.string().optional(),
 });
 
+/** Every optional module, as booleans. Anything absent stays off (see `resolveModules`). */
+const modulesSchema = z
+  .object({
+    reimbursable: z.boolean(),
+    recurring: z.boolean(),
+    installments: z.boolean(),
+    investments: z.boolean(),
+    cash: z.boolean(),
+    reminders: z.boolean(),
+    voice: z.boolean(),
+    gmail: z.boolean(),
+  })
+  .partial();
+
 export const settingsSchema = z.object({
   topics: z.array(topicSchema),
-  specialCategories: z.object({ fixedCost: z.string(), unforeseen: z.string() }),
+  specialCategories: z.object({
+    fixedCost: z.string(),
+    unforeseen: z.string(),
+    // Older data (and backups from before the module existed) has no "A receber" label.
+    reimbursable: z.string().optional(),
+  }),
   specialCategoryColors: z
-    .object({ fixedCost: z.string(), unforeseen: z.string() })
+    .object({ fixedCost: z.string(), unforeseen: z.string(), reimbursable: z.string() })
     .partial()
     .optional(),
   onboardingCompleted: z.boolean().optional(),
+  modules: modulesSchema.optional(),
 });
 
 export const incomeSchema = z.object({
@@ -36,7 +56,7 @@ export const incomeSchema = z.object({
 
 export const expenseSchema = z.object({
   id: z.string().min(1).max(100),
-  categoryKind: z.enum(['topic', 'fixedCost', 'unforeseen']),
+  categoryKind: z.enum(['topic', 'fixedCost', 'unforeseen', 'reimbursable']),
   topicId: z.preprocess(absentAsUndefined, z.string().optional()),
   description: z.string().max(500),
   amount: z.number(),
@@ -53,8 +73,12 @@ export const monthDataSchema = z.object({
   closed: z.boolean().optional(),
 });
 
+/** Body of "fechar mês": whether to open the next month in the same transaction. */
+export const closeMonthSchema = z.object({ openNext: z.boolean().optional() });
+
 export const backupSchema = z.object({
-  version: z.literal(1),
+  // v2 added the modules and the "A receber" category; a v1 file still imports fine.
+  version: z.union([z.literal(1), z.literal(2)]),
   exportedAt: z.string(),
   settings: settingsSchema,
   months: z.array(monthDataSchema),

@@ -8,6 +8,10 @@ import { UNAUTHENTICATED_EVENT } from '@/lib/storage/httpRepository';
 export interface AuthUser {
   id: string;
   email: string | null;
+  /** Used for the greeting on the home screen. */
+  name: string | null;
+  /** True for the account in OWNER_EMAIL. Decided on the server; the API checks it again. */
+  isOwner: boolean;
 }
 
 interface AuthContextValue {

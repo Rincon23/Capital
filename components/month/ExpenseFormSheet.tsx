@@ -2,9 +2,12 @@
 
 import { useMemo, useState } from 'react';
 import {
+  REIMBURSABLE_EXPLANATION,
   amountToInputValue,
   currentMonthKey,
   parseAmountInput,
+  resolveSpecialCategoryLabels,
+  specialCategoryLabel,
   todayISO,
   validateExpense,
   type CategoryKind,
@@ -27,6 +30,8 @@ interface ExpenseFormSheetProps {
   month: Month;
   topics: TopicConfig[];
   specialCategories: SpecialCategoryLabels;
+  /** Whether the "A receber" module is on for this user (see MODULE_CATALOG). */
+  reimbursableEnabled?: boolean;
   initial?: Expense;
   defaultCategoryKind?: CategoryKind;
   onClose: () => void;
@@ -38,6 +43,7 @@ export function ExpenseFormSheet({
   month,
   topics,
   specialCategories,
+  reimbursableEnabled = false,
   initial,
   defaultCategoryKind,
   onClose,
@@ -48,6 +54,10 @@ export function ExpenseFormSheet({
     () => topics.filter((t) => !t.archived).sort((a, b) => a.order - b.order),
     [topics],
   );
+  const labels = resolveSpecialCategoryLabels(specialCategories);
+  // Turning the module off never hides an expense that is already "A receber": it stays
+  // editable (and the user can move it to another category) instead of becoming unreachable.
+  const showReimbursable = reimbursableEnabled || initial?.categoryKind === 'reimbursable';
 
   const [amount, setAmount] = useState(initial ? amountToInputValue(initial.amount) : '');
   const [categoryKind, setCategoryKind] = useState<CategoryKind>(
@@ -61,6 +71,8 @@ export function ExpenseFormSheet({
   const [saving, setSaving] = useState(false);
 
   const needsTopic = categoryKind === 'topic';
+  // "A receber" is by definition something paid on the card for someone else.
+  const forcedCard = categoryKind === 'reimbursable';
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -77,10 +89,10 @@ export function ExpenseFormSheet({
         id: initial?.id ?? crypto.randomUUID(),
         categoryKind,
         topicId: needsTopic ? topicId : undefined,
-        description: description.trim() || specialLabelFor(categoryKind, specialCategories),
+        description: description.trim() || specialCategoryLabel(categoryKind, labels),
         amount: parsedAmount,
         date,
-        singleInstallmentCard,
+        singleInstallmentCard: forcedCard || singleInstallmentCard,
       });
       onClose();
     } catch {
@@ -121,16 +133,26 @@ export function ExpenseFormSheet({
               />
             ))}
             <Chip
-              label={specialCategories.fixedCost}
+              label={labels.fixedCost}
               selected={categoryKind === 'fixedCost'}
               onClick={() => setCategoryKind('fixedCost')}
             />
             <Chip
-              label={specialCategories.unforeseen}
+              label={labels.unforeseen}
               selected={categoryKind === 'unforeseen'}
               onClick={() => setCategoryKind('unforeseen')}
             />
+            {showReimbursable && (
+              <Chip
+                label={labels.reimbursable}
+                selected={categoryKind === 'reimbursable'}
+                onClick={() => setCategoryKind('reimbursable')}
+              />
+            )}
           </div>
+          {categoryKind === 'reimbursable' && (
+            <p className="text-muted mt-2 text-xs">{REIMBURSABLE_EXPLANATION}</p>
+          )}
         </div>
 
         <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
@@ -162,11 +184,12 @@ export function ExpenseFormSheet({
         <label className="text-foreground flex min-h-[44px] items-center gap-2 text-sm">
           <input
             type="checkbox"
-            checked={singleInstallmentCard}
+            checked={forcedCard || singleInstallmentCard}
+            disabled={forcedCard}
             onChange={(e) => setSingleInstallmentCard(e.target.checked)}
-            className="border-border h-5 w-5 rounded"
+            className="border-border h-5 w-5 rounded disabled:opacity-60"
           />
-          A compra foi no cartão?
+          {forcedCard ? `${labels.reimbursable} é sempre no cartão` : 'A compra foi no cartão?'}
         </label>
 
         {errors.length > 0 && (
@@ -199,10 +222,4 @@ export function ExpenseFormSheet({
       </form>
     </BottomSheet>
   );
-}
-
-function specialLabelFor(kind: CategoryKind, labels: SpecialCategoryLabels): string {
-  if (kind === 'fixedCost') return labels.fixedCost;
-  if (kind === 'unforeseen') return labels.unforeseen;
-  return '';
 }

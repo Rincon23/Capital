@@ -1,3 +1,4 @@
+import { resolveSpecialCategoryLabels } from './categories';
 import type { BudgetSettings, SpecialCategoryColors, TopicConfig } from './types';
 
 /**
@@ -16,10 +17,11 @@ export const DEFAULT_TOPIC_COLORS = [
   '#e34948',
 ] as const;
 
-/** Defaults for the three special categories. */
+/** Defaults for the special (non-envelope) categories. */
 export const DEFAULT_SPECIAL_CATEGORY_COLORS: SpecialCategoryColors = {
   fixedCost: '#6b7280',
   unforeseen: '#d97706',
+  reimbursable: '#0d9488',
 };
 
 /** Color to use for a topic: its own `color`, else a palette slot by position. */
@@ -92,11 +94,15 @@ export function withCurrentTopicDisplay(
   return withTopicColors([...reconciled, ...addedTopics]);
 }
 
-/** Fills in any missing colors (topics + special categories) so the UI has a complete palette. */
+/**
+ * Fills in anything older data may be missing — topic and special-category colors, and the
+ * special-category labels — so every screen can read them without resolving again.
+ */
 export function normalizeSettings(settings: BudgetSettings): BudgetSettings {
   return {
     ...settings,
     topics: withTopicColors(settings.topics),
+    specialCategories: resolveSpecialCategoryLabels(settings),
     specialCategoryColors: resolveSpecialCategoryColors(settings),
   };
 }

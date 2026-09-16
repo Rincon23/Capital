@@ -2,6 +2,8 @@
 
 import type { ReactNode } from 'react';
 import { OnboardingProvider } from '@/components/onboarding/OnboardingProvider';
+import { ConfirmProvider } from '@/components/ui/ConfirmSheet';
+import { ToastProvider } from '@/components/ui/Toast';
 import { AuthProvider, type AuthUser } from './AuthProvider';
 import { SettingsProvider } from './SettingsProvider';
 
@@ -15,9 +17,13 @@ export function AppProviders({
 }) {
   return (
     <AuthProvider initialUser={initialUser}>
-      <SettingsProvider>
-        <OnboardingProvider>{children}</OnboardingProvider>
-      </SettingsProvider>
+      <ToastProvider>
+        <ConfirmProvider>
+          <SettingsProvider>
+            <OnboardingProvider>{children}</OnboardingProvider>
+          </SettingsProvider>
+        </ConfirmProvider>
+      </ToastProvider>
     </AuthProvider>
   );
 }

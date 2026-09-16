@@ -24,6 +24,7 @@ import {
 } from 'drizzle-orm/pg-core';
 import type {
   CategoryKind,
+  ModuleFlags,
   SpecialCategoryColors,
   SpecialCategoryLabels,
   TopicConfig,
@@ -121,6 +122,8 @@ export const budgetSettings = pgTable('budget_settings', {
     .default({}),
   /** Only a brand-new account's first row is created with false (see the repository's seed). */
   onboardingCompleted: boolean('onboarding_completed').notNull().default(true),
+  /** Optional assistant modules this user turned on. Anything absent is off. */
+  modules: jsonb('modules').$type<Partial<ModuleFlags>>().notNull().default({}),
   updatedAt: updatedAt(),
 });
 
@@ -199,7 +202,7 @@ export const expenses = pgTable(
     index('expenses_user_month_idx').on(t.userId, t.month),
     check(
       'expenses_category_kind',
-      sql`${t.categoryKind} in ('topic', 'fixedCost', 'unforeseen')`,
+      sql`${t.categoryKind} in ('topic', 'fixedCost', 'unforeseen', 'reimbursable')`,
     ),
   ],
 );
