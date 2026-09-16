@@ -76,8 +76,8 @@ function Reserva() {
 
   async function handleDeleteBucket(bucket: InvestmentBucket) {
     const confirmed = await confirm({
-      title: 'Excluir balde',
-      message: `Excluir o balde "${bucket.name}"? As ${formatQuotas(bucket.quotas)} cotas dele voltam para a reserva livre. Os gastos que você já lançou continuam nos meses.`,
+      title: 'Excluir categoria da reserva',
+      message: `Excluir a categoria "${bucket.name}" da reserva? As ${formatQuotas(bucket.quotas)} cotas dela voltam para a reserva livre. Os gastos que você já lançou continuam nos meses.`,
       confirmLabel: 'Excluir',
       cancelLabel: 'Manter',
       destructive: true,
@@ -87,7 +87,7 @@ function Reserva() {
       return;
     }
     await run(() => walletRepository.deleteBucket(bucket.id));
-    showToast('Balde excluído.');
+    showToast('Categoria excluída da reserva.');
   }
 
   return (
@@ -163,13 +163,13 @@ function Reserva() {
 
       <section className="flex flex-col gap-2 px-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-muted text-sm font-semibold">Baldes</h2>
+          <h2 className="text-muted text-sm font-semibold">Categorias da reserva</h2>
           <button
             type="button"
             onClick={() => setEditingBucket('new')}
             className="text-primary min-h-[36px] text-sm font-medium"
           >
-            + Novo balde
+            + Nova categoria
           </button>
         </div>
 
@@ -204,7 +204,7 @@ function Reserva() {
 
         {investments.buckets.length === 0 && (
           <p className="text-muted py-6 text-center text-sm">
-            Nenhum balde ainda. Um balde guarda parte da reserva para uma categoria — Metas,
+            Nenhuma categoria ainda. Cada uma guarda parte da reserva para uma categoria do orçamento — Metas,
             Conhecimento — e o que sobra é a reserva livre.
           </p>
         )}
@@ -416,7 +416,7 @@ function AllocateSheet({
   const parsed = parseAmountInput(amount);
 
   return (
-    <BottomSheet open title="Remanejar para um balde" onClose={onClose}>
+    <BottomSheet open title="Remanejar para uma categoria" onClose={onClose}>
       <form
         className="flex flex-col gap-5"
         onSubmit={async (event) => {
@@ -433,7 +433,7 @@ function AllocateSheet({
         <AmountInput value={amount} onChange={setAmount} autoFocus />
 
         <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
-          Balde
+          Categoria da reserva
           <select
             value={bucketId}
             onChange={(e) => setBucketId(e.target.value)}
@@ -451,7 +451,7 @@ function AllocateSheet({
           {parsed > 0
             ? `São ${formatQuotas(quotasForAmount(parsed, price))} cotas a ${formatBRL(price)}. `
             : ''}
-          O valor também vira um gasto na categoria do balde, na competência de{' '}
+          O valor também vira um gasto na categoria do orçamento ligada a ela, na competência de{' '}
           {formatMonthLabel(month)}.
         </p>
 
@@ -486,7 +486,7 @@ function BucketFormSheet({
   const parsedQuotas = parseAmountInput(quotas);
 
   return (
-    <BottomSheet open title={initial ? 'Editar balde' : 'Novo balde'} onClose={onClose}>
+    <BottomSheet open title={initial ? 'Editar categoria da reserva' : 'Nova categoria da reserva'} onClose={onClose}>
       <form
         className="flex flex-col gap-5"
         onSubmit={async (event) => {
@@ -518,7 +518,7 @@ function BucketFormSheet({
         </label>
 
         <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
-          Categoria que ele alimenta
+          Categoria do orçamento que ela alimenta
           <select
             value={topicId}
             onChange={(e) => setTopicId(e.target.value)}
@@ -531,7 +531,7 @@ function BucketFormSheet({
             ))}
           </select>
           <span className="text-muted text-xs">
-            Remanejar para este balde lança o gasto nessa categoria.
+            Remanejar para esta categoria da reserva lança o gasto nessa categoria do orçamento.
           </span>
         </label>
 

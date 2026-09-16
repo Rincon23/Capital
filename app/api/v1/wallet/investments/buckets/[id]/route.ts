@@ -6,7 +6,7 @@ type Params = { id: string };
 export const PUT = apiRoute<Params>(async ({ request, params, wallet }) => {
   const bucket = await readJson(request, investmentBucketSchema);
   if (bucket.id !== params.id) {
-    throw new HttpError(400, 'INVALID_INPUT', 'O id do balde não confere com o endereço.');
+    throw new HttpError(400, 'INVALID_INPUT', 'O id da categoria da reserva não confere com o endereço.');
   }
   await wallet.saveBucket(bucket);
 });

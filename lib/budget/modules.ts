@@ -49,7 +49,7 @@ export const MODULE_CATALOG: ModuleInfo[] = [
   {
     key: 'investments',
     name: 'Reserva investida',
-    description: 'Sua reserva em cotas, dividida em baldes por categoria.',
+    description: 'Sua reserva em cotas, dividida em categorias.',
     available: true,
   },
   {

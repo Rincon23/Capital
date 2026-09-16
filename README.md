@@ -29,8 +29,9 @@ de sempre: nada de módulo desligado aparece em tela nenhuma.
     (`lib/budget/installments.ts`). "Parcelada": a parcela vira gasto no cartão quando o mês é
     criado (e já aparece na prévia); "À vista": opcionalmente lança o total de uma vez. Os
     encerrados vão para uma seção recolhida em vez de serem apagados.
-  - **Reserva investida** — cotas de um ativo (AUPO11 por padrão) divididas em baldes ligados a
-    categorias. Remanejar compra cotas para o balde e lança o gasto na categoria, na mesma
+  - **Reserva investida** — cotas de um ativo (AUPO11 por padrão) divididas em categorias da
+    reserva, cada uma ligada a uma categoria do orçamento. Remanejar compra cotas para a categoria
+    da reserva e lança o gasto na categoria do orçamento, na mesma
     transação. A cotação é grátis e sem token (`lib/server/quotes.ts`): vem da própria B3
     (`cotacao.b3.com.br`, com uns 15 min de atraso) e, se ela falhar, do Yahoo Finance; fica em
     cache e se atualiza sozinha ao abrir a Carteira quando tem mais de 15 min. Nenhuma das duas é

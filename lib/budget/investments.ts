@@ -2,7 +2,7 @@ import { round2 } from './money';
 import type { InvestmentBucket, InvestmentReserve, PriceQuote, PriceSource } from './types';
 
 /**
- * The invested reserve: a position in one ticker (AUPO11 in my case), split into "baldes".
+ * The invested reserve: a position in one ticker (AUPO11 in my case), split into buckets (shown as "categorias" in the app — never "baldes").
  * Each bucket holds quotas earmarked for a topic; whatever is not in a bucket is the free
  * reserve, which is the part that counts as emergency money in the cash report.
  */

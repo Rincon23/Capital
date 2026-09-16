@@ -388,12 +388,12 @@ export class PostgresWalletRepository implements WalletRepository {
       .select()
       .from(investmentBuckets)
       .where(and(eq(investmentBuckets.userId, this.userId), eq(investmentBuckets.id, input.bucketId)));
-    if (!bucket) throw new HttpError(404, 'NOT_FOUND', 'Esse balde não existe mais.');
+    if (!bucket) throw new HttpError(404, 'NOT_FOUND', 'Essa categoria da reserva não existe mais.');
     if (!bucket.topicId) {
       throw new HttpError(
         400,
         'BUCKET_WITHOUT_TOPIC',
-        `O balde "${bucket.name}" não está ligado a nenhuma categoria. Edite-o antes de remanejar.`,
+        `A categoria "${bucket.name}" da reserva não está ligada a nenhuma categoria do orçamento. Edite-a antes de remanejar.`,
       );
     }
 

@@ -74,7 +74,7 @@ function Caixa() {
         <Row
           label="Reserva investida"
           value={report.investedReserve}
-          hint="Só a parte livre, fora dos baldes"
+          hint="Só a parte livre, fora das categorias da reserva"
         />
         <Row label="Valor total de reserva" value={report.totalReserve} strong />
 
@@ -116,7 +116,7 @@ function Caixa() {
 
       {buckets.length > 0 && (
         <section className="flex flex-col gap-2 px-4">
-          <h2 className="text-muted text-sm font-semibold">Baldes (fora do total)</h2>
+          <h2 className="text-muted text-sm font-semibold">Categorias da reserva (fora do total)</h2>
           <div className="border-border bg-card flex flex-col gap-2 rounded-xl border p-4 shadow-sm">
             {buckets.map((bucket) => (
               <Row key={bucket.id} label={bucket.name} value={bucket.value} />

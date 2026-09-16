@@ -162,7 +162,7 @@ export interface InvestmentReserve {
   totalQuotas: number;
 }
 
-/** A slice of the invested reserve earmarked for a topic ("balde"). */
+/** A slice of the invested reserve earmarked for a topic. Shown as "categoria" in the app, never "balde". */
 export interface InvestmentBucket {
   id: string;
   name: string;

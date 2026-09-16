@@ -163,7 +163,7 @@ describe('reserva investida e caixa em 15/09/2026 (fixtures da spec §9)', () =>
     new Date('2026-09-15T13:30:00.000Z'),
   );
 
-  it('divide as cotas entre a reserva livre e os baldes', () => {
+  it('divide as cotas entre a reserva livre e as categorias da reserva', () => {
     expect(freeReserveQuotas({ totalQuotas: 228 }, BUCKETS)).toBeCloseTo(163.4381, 4);
     expectMoney(summary.freeValue, 18017.42);
     expectMoney(summary.buckets[0].value, 5434.56);

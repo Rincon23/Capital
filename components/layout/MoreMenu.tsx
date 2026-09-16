@@ -1,0 +1,92 @@
+import Link from 'next/link';
+import { ChevronRight, type LucideIcon } from 'lucide-react';
+import { IconTile, type IconTone } from '@/components/ui/IconTile';
+
+export interface MoreMenuItem {
+  key: string;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  tone: IconTone;
+  /** Either a page to open or an action to run. */
+  href?: string;
+  onClick?: () => void;
+}
+
+export interface MoreMenuSection {
+  title: string;
+  items: MoreMenuItem[];
+}
+
+/**
+ * The "Mais" tab: who is signed in, then grouped entries, each with its own icon — the settings
+ * list look of a phone, rather than a bare list of links. Purely presentational.
+ */
+export function MoreMenu({
+  user,
+  sections,
+}: {
+  user: { name: string | null; email: string | null };
+  sections: MoreMenuSection[];
+}) {
+  const displayName = user.name?.trim() || user.email?.split('@')[0] || 'Sua conta';
+  const initial = displayName.charAt(0).toUpperCase();
+
+  return (
+    <div className="flex flex-col gap-5 px-4">
+      <Link
+        href="/configuracoes"
+        className="border-border bg-card hover:border-primary/40 flex items-center gap-3 rounded-2xl border p-4 shadow-sm transition"
+      >
+        <span
+          aria-hidden
+          className="bg-primary/15 text-primary flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-lg font-bold"
+        >
+          {initial}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="text-foreground block truncate font-semibold">{displayName}</span>
+          {user.email && <span className="text-muted block truncate text-sm">{user.email}</span>}
+        </span>
+        <ChevronRight aria-hidden className="text-muted h-5 w-5 shrink-0" />
+      </Link>
+
+      {sections.map((section) => (
+        <section key={section.title} className="flex flex-col gap-2">
+          <h2 className="text-muted px-1 text-xs font-semibold tracking-wide uppercase">
+            {section.title}
+          </h2>
+          <ul className="border-border bg-card divide-border divide-y overflow-hidden rounded-2xl border shadow-sm">
+            {section.items.map((item) => {
+              const content = (
+                <>
+                  <IconTile icon={item.icon} tone={item.tone} />
+                  <span className="min-w-0 flex-1 text-left">
+                    <span className="text-foreground block font-medium">{item.label}</span>
+                    <span className="text-muted block truncate text-xs">{item.description}</span>
+                  </span>
+                  <ChevronRight aria-hidden className="text-muted h-5 w-5 shrink-0" />
+                </>
+              );
+              const className =
+                'hover:bg-background flex min-h-[64px] w-full items-center gap-3 px-4 py-3 transition-colors';
+              return (
+                <li key={item.key}>
+                  {item.href ? (
+                    <Link href={item.href} className={className}>
+                      {content}
+                    </Link>
+                  ) : (
+                    <button type="button" onClick={item.onClick} className={className}>
+                      {content}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
+}

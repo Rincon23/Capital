@@ -287,7 +287,7 @@ export const investmentReserves = pgTable('investment_reserves', {
   updatedAt: updatedAt(),
 });
 
-/** Quotas of the reserve earmarked for a topic ("balde"). */
+/** Quotas of the reserve earmarked for a topic (shown as "categoria" in the app). */
 export const investmentBuckets = pgTable(
   'investment_buckets',
   {
