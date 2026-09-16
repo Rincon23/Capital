@@ -339,6 +339,12 @@ describe('PostgresBudgetRepository', () => {
 
     const sameUserElsewhere = new PostgresBudgetRepository(db, id);
     expect(resolveModules(await sameUserElsewhere.getSettings()).reimbursable).toBe(true);
+
+    // A client that does not know about modules (an old cached bundle) must not switch them off.
+    const withoutModules = { ...(await repo.getSettings()) };
+    delete withoutModules.modules;
+    await repo.saveSettings(withoutModules);
+    expect(resolveModules(await repo.getSettings()).reimbursable).toBe(true);
   });
 
   it('keeps an "A receber" expense on the card bill and out of every envelope', async () => {

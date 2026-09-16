@@ -442,19 +442,25 @@ export class PostgresBudgetRepository implements BudgetRepository {
 
   /**
    * Saving settings from the app never touches the onboarding flag (only `completeOnboarding`
-   * does); restoring a backup brings it back along with everything else.
+   * does), and leaves the modules alone unless the payload actually carries them — an older
+   * client (a cached bundle that predates the modules) must not switch them all off. Restoring
+   * a backup replaces both, along with everything else.
    */
   private async upsertSettings(
     ex: Executor,
     settings: BudgetSettings,
-    includeOnboarding: boolean,
+    restoringBackup: boolean,
   ): Promise<void> {
     const values = {
       topics: settings.topics,
       specialCategories: settings.specialCategories,
       specialCategoryColors: settings.specialCategoryColors ?? {},
-      modules: settings.modules ?? {},
-      ...(includeOnboarding && settings.onboardingCompleted !== undefined
+      ...(restoringBackup
+        ? { modules: settings.modules ?? {} }
+        : settings.modules !== undefined
+          ? { modules: settings.modules }
+          : {}),
+      ...(restoringBackup && settings.onboardingCompleted !== undefined
         ? { onboardingCompleted: settings.onboardingCompleted }
         : {}),
     };
