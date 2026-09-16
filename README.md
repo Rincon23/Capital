@@ -31,7 +31,11 @@ de sempre: nada de módulo desligado aparece em tela nenhuma.
     encerrados vão para uma seção recolhida em vez de serem apagados.
   - **Reserva investida** — cotas de um ativo (AUPO11 por padrão) divididas em baldes ligados a
     categorias. Remanejar compra cotas para o balde e lança o gasto na categoria, na mesma
-    transação. A cotação vem da brapi.dev (`BRAPI_TOKEN`) e fica em cache.
+    transação. A cotação é grátis e sem token (`lib/server/quotes.ts`): vem da própria B3
+    (`cotacao.b3.com.br`, com uns 15 min de atraso) e, se ela falhar, do Yahoo Finance; fica em
+    cache e se atualiza sozinha ao abrir a Carteira quando tem mais de 15 min. Nenhuma das duas é
+    uma API documentada com garantia, por isso há duas e o app nunca depende de uma resposta ao
+    vivo para abrir a tela.
   - **Caixa** — reserva em conta + reserva investida livre, dívida do cartão do mês aberto e dos
     parcelados (sem contar duas vezes a parcela que já virou gasto), reserva prevista e gap.
 - Em construção, já listados na tela: lembretes com notificação, lançar por voz/texto e monitor

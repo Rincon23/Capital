@@ -22,6 +22,13 @@
       "when": 1789531017186,
       "tag": "0002_carteira",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789557160593,
+      "tag": "0003_quote_sources",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { round2 } from './money';
-import type { InvestmentBucket, InvestmentReserve, PriceQuote } from './types';
+import type { InvestmentBucket, InvestmentReserve, PriceQuote, PriceSource } from './types';
 
 /**
  * The invested reserve: a position in one ticker (AUPO11 in my case), split into "baldes".
@@ -39,6 +39,10 @@ export interface InvestmentSummary {
   price: number | null;
   /** When the price was fetched, or null when there has never been a quote. */
   fetchedAt: string | null;
+  /** Which free source the price came from, when known. */
+  source: PriceSource | null;
+  /** The asset's name as the source gave it, when known. */
+  assetName: string | null;
   stale: boolean;
   freeQuotas: number;
   /** Value of the free reserve — the only part that counts in the cash report. */
@@ -72,6 +76,8 @@ export function summarizeInvestments(
     totalQuotas: reserve.totalQuotas,
     price,
     fetchedAt: quote?.fetchedAt ?? null,
+    source: quote?.source ?? null,
+    assetName: quote?.name ?? null,
     stale: isPriceStale(quote?.fetchedAt, now),
     freeQuotas,
     freeValue: price === null ? 0 : quotaValue(freeQuotas, price),

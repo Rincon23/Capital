@@ -4,7 +4,7 @@ import path from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   addMonthsClamped,
   computeMonthSummary,
@@ -27,6 +27,15 @@ beforeAll(async () => {
   db = pglite;
 }, 60_000);
 
+// No test ever reaches B3 or Yahoo: the network is off unless a test mocks an answer.
+beforeEach(() => {
+  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('sem rede nos testes')));
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 async function newAccount() {
   const id = randomUUID();
   await db.insert(schema.user).values({ id, name: 'Teste', email: `${id}@teste.local` });
@@ -39,11 +48,22 @@ async function topicId(budget: PostgresBudgetRepository, name = 'Diversos'): Pro
   return settings.topics.find((t) => t.name === name)!.id;
 }
 
-async function setPrice(ticker: string, price: number) {
+async function setPrice(ticker: string, price: number, fetchedAt = new Date()) {
   await db
     .insert(schema.priceCache)
-    .values({ ticker, price, fetchedAt: new Date() })
-    .onConflictDoUpdate({ target: schema.priceCache.ticker, set: { price, fetchedAt: new Date() } });
+    .values({ ticker, price, fetchedAt })
+    .onConflictDoUpdate({ target: schema.priceCache.ticker, set: { price, fetchedAt } });
+}
+
+/** B3's answer for `ticker` at `price`, the shape cotacao.b3.com.br really returns. */
+function b3Answer(ticker: string, price: number, desc: string) {
+  return new Response(
+    JSON.stringify({
+      BizSts: { cd: 'OK' },
+      Trad: [{ scty: { SctyQtn: { curPrc: price }, symb: ticker, desc } }],
+    }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+  );
 }
 
 /** A plan whose first charge is in `month`, so its charges are easy to place in tests. */
@@ -215,6 +235,46 @@ describe('PostgresWalletRepository', () => {
       singleInstallmentCard: false,
     });
     expect(computeMonthSummary(data!).topics.find((t) => t.topicId === metas)?.spent).toBe(250);
+  });
+
+  it('refreshes an old price by itself, for free, when the user holds quotas', async () => {
+    const { wallet } = await newAccount();
+    await wallet.setTicker('BOVA11');
+    await wallet.tradeQuotas(10);
+    await setPrice('BOVA11', 100, new Date(Date.now() - 60 * 60_000));
+    const fetchMock = vi.fn<(url: string) => Promise<Response>>(async () =>
+      b3Answer('BOVA11', 183.72, 'ISHARES   BOVACI'),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { investments } = await wallet.getSnapshot();
+
+    expect(investments.price).toBe(183.72);
+    expect(investments.source).toBe('b3');
+    expect(investments.assetName).toBe('ISHARES BOVACI');
+    expect(investments.totalValue).toBe(1837.2);
+    expect(String(fetchMock.mock.calls[0][0])).toContain('cotacao.b3.com.br');
+
+    // Fresh now: opening the Carteira again does not ask the sources again.
+    await wallet.getSnapshot();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the cached price when the sources are down, and never fetches for who holds nothing', async () => {
+    const holder = await newAccount();
+    await holder.wallet.setTicker('HGLG11');
+    await holder.wallet.tradeQuotas(5);
+    await setPrice('HGLG11', 150, new Date(Date.now() - 60 * 60_000));
+    // The default fetch mock rejects: B3 and Yahoo are both "down".
+    const { investments } = await holder.wallet.getSnapshot();
+    expect(investments.price).toBe(150);
+    expect(investments.stale).toBe(true);
+
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const nobody = await newAccount();
+    await nobody.wallet.getSnapshot();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('refuses to allocate without a quote or to sell quotas that do not exist', async () => {

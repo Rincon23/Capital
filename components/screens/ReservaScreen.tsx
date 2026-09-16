@@ -34,6 +34,8 @@ function formatQuotas(quotas: number): string {
   return quotas.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 4 });
 }
 
+const SOURCE_LABELS = { b3: 'B3', yahoo: 'Yahoo Finance' } as const;
+
 function formatFetchedAt(iso: string | null): string {
   if (!iso) return 'sem cotação';
   const date = new Date(iso);
@@ -102,10 +104,14 @@ function Reserva() {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-foreground text-lg font-semibold">{investments.ticker}</p>
+            {investments.assetName && (
+              <p className="text-muted truncate text-xs">{investments.assetName}</p>
+            )}
             <p className="text-muted text-xs">
               {investments.price === null
                 ? 'Sem cotação ainda'
                 : `${formatBRL(investments.price)} por cota · ${formatFetchedAt(investments.fetchedAt)}`}
+              {investments.source && ` · fonte: ${SOURCE_LABELS[investments.source]}`}
             </p>
           </div>
           <button

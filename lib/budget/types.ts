@@ -171,12 +171,18 @@ export interface InvestmentBucket {
   quotas: number;
 }
 
-/** Last known price of a ticker (brapi.dev), shared by every account. */
+/** Where a price came from: B3's own quotation service or, when it fails, Yahoo Finance. */
+export type PriceSource = 'b3' | 'yahoo';
+
+/** Last known price of a ticker, shared by every account. */
 export interface PriceQuote {
   ticker: string;
   price: number;
   /** ISO timestamp of when the price was fetched. */
   fetchedAt: string;
+  /** The asset's name as the source gave it. */
+  name?: string;
+  source?: PriceSource;
 }
 
 /** One line of the "if I lost my income" monthly cost. */

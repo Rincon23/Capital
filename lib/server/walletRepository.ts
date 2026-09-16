@@ -9,7 +9,7 @@ import {
   installmentsDueIn,
   upfrontExpense,
 } from '../budget/installments';
-import { quotasForAmount, summarizeInvestments } from '../budget/investments';
+import { isPriceStale, quotasForAmount, summarizeInvestments } from '../budget/investments';
 import { round2 } from '../budget/money';
 import type {
   CashSettings,
@@ -45,6 +45,11 @@ import { fetchQuote } from './quotes';
 /** The ticker the app starts from; every user can change it in the Reserva screen. */
 export const DEFAULT_TICKER = 'AUPO11';
 
+/** A cached price older than this is refreshed the next time the Carteira is opened. */
+const AUTO_REFRESH_MINUTES = 15;
+/** How long opening the Carteira waits for that refresh before showing the cached price. */
+const AUTO_REFRESH_WAIT_MS = 4_000;
+
 /**
  * The Carteira on Postgres, scoped to one user. Anything that also creates an expense (launching
  * an instalment, allocating money to a bucket) runs inside the budget repository's transaction,
@@ -71,7 +76,7 @@ export class PostgresWalletRepository implements WalletRepository {
       this.readCashSettings(),
     ]);
 
-    const quote = await this.readQuote(reserve.ticker);
+    const quote = await this.currentQuote(reserve, buckets);
     const investments = summarizeInvestments(reserve, buckets, quote);
     const card = await this.openMonthCard();
 
@@ -179,7 +184,40 @@ export class PostgresWalletRepository implements WalletRepository {
 
   private async readQuote(ticker: string): Promise<PriceQuote | null> {
     const [row] = await this.db.select().from(priceCache).where(eq(priceCache.ticker, ticker));
-    return row ? { ticker: row.ticker, price: row.price, fetchedAt: row.fetchedAt.toISOString() } : null;
+    if (!row) return null;
+    return {
+      ticker: row.ticker,
+      price: row.price,
+      fetchedAt: row.fetchedAt.toISOString(),
+      ...(row.name ? { name: row.name } : {}),
+      ...(row.source === 'b3' || row.source === 'yahoo' ? { source: row.source } : {}),
+    };
+  }
+
+  /**
+   * The cached price, refreshed first when it is older than AUTO_REFRESH_MINUTES and this user
+   * actually holds something (quotas or buckets) — the sources are free, so there is no reason
+   * to make anyone press "Atualizar". A slow or failed refresh never blocks the screen: after
+   * AUTO_REFRESH_WAIT_MS the cached price is shown, and the refresh still lands in the cache.
+   */
+  private async currentQuote(
+    reserve: InvestmentReserve,
+    buckets: InvestmentBucket[],
+  ): Promise<PriceQuote | null> {
+    const cached = await this.readQuote(reserve.ticker);
+    const holdsSomething = reserve.totalQuotas > 0 || buckets.length > 0;
+    if (!holdsSomething || !isPriceStale(cached?.fetchedAt, new Date(), AUTO_REFRESH_MINUTES)) {
+      return cached;
+    }
+
+    const refreshed = this.storeQuote(reserve.ticker).catch(() => null);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const gaveUp = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), AUTO_REFRESH_WAIT_MS);
+    });
+    const fresh = await Promise.race([refreshed, gaveUp]);
+    clearTimeout(timer);
+    return fresh ?? cached;
   }
 
   private async readCashSettings(): Promise<CashSettings> {
@@ -380,15 +418,32 @@ export class PostgresWalletRepository implements WalletRepository {
     });
   }
 
-  /** Fetches a fresh price from brapi.dev and caches it for every account. */
+  /** Fetches a fresh price (B3, then Yahoo Finance — no token) and caches it for every account. */
   async refreshPrice(): Promise<void> {
     const { ticker } = await this.readReserve();
-    const price = await fetchQuote(ticker);
+    await this.storeQuote(ticker);
+  }
+
+  private async storeQuote(ticker: string): Promise<PriceQuote> {
+    const quote = await fetchQuote(ticker);
     const fetchedAt = new Date();
+    const values = {
+      price: quote.price,
+      name: quote.name ?? null,
+      source: quote.source,
+      fetchedAt,
+    };
     await this.db
       .insert(priceCache)
-      .values({ ticker, price, fetchedAt })
-      .onConflictDoUpdate({ target: priceCache.ticker, set: { price, fetchedAt } });
+      .values({ ticker, ...values })
+      .onConflictDoUpdate({ target: priceCache.ticker, set: values });
+    return {
+      ticker,
+      price: quote.price,
+      fetchedAt: fetchedAt.toISOString(),
+      ...(quote.name ? { name: quote.name } : {}),
+      source: quote.source,
+    };
   }
 
   // -------------------------------------------------------------------------

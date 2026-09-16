@@ -305,10 +305,17 @@ export const investmentBuckets = pgTable(
   (t) => [primaryKey({ columns: [t.userId, t.id] })],
 );
 
-/** Last known price per ticker. Global (a price is not personal), refreshed on demand. */
+/**
+ * Last known price per ticker (B3 code, no ".SA"). Global — a price is not personal — so a
+ * portfolio with many assets shares the cache with every account.
+ */
 export const priceCache = pgTable('price_cache', {
   ticker: text('ticker').primaryKey(),
   price: numeric('price', { mode: 'number' }).notNull(),
+  /** The asset's name as the source gave it. */
+  name: text('name'),
+  /** Which free source answered: 'b3' or 'yahoo' (lib/server/quotes.ts). */
+  source: text('source'),
   fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
