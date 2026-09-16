@@ -20,15 +20,22 @@ import {
   primaryKey,
   text,
   timestamp,
+  unique,
   uuid,
 } from 'drizzle-orm/pg-core';
 import type {
   CategoryKind,
+  EmergencyCost,
+  ExpenseSource,
+  InstallmentAccounting,
   ModuleFlags,
   SpecialCategoryColors,
   SpecialCategoryLabels,
   TopicConfig,
 } from '../../budget/types';
+
+/** Every category an expense (or a template, or a plan) can have. */
+const CATEGORY_KINDS = sql`in ('topic', 'fixedCost', 'unforeseen', 'reimbursable')`;
 
 const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
 const updatedAt = () =>
@@ -189,6 +196,11 @@ export const expenses = pgTable(
     date: date('date', { mode: 'string' }).notNull(),
     /** `Expense.singleInstallmentCard`: the purchase lands on the credit-card bill. */
     card: boolean('card').notNull().default(false),
+    /** Where the expense came from: a form, a recurring template, an instalment, ... */
+    source: text('source').$type<ExpenseSource>(),
+    /** Set when this expense is one instalment of a plan. */
+    installmentId: text('installment_id'),
+    installmentNumber: integer('installment_number'),
     position: integer('position').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -200,9 +212,113 @@ export const expenses = pgTable(
       foreignColumns: [months.userId, months.month],
     }).onDelete('cascade'),
     index('expenses_user_month_idx').on(t.userId, t.month),
-    check(
-      'expenses_category_kind',
-      sql`${t.categoryKind} in ('topic', 'fixedCost', 'unforeseen', 'reimbursable')`,
-    ),
+    // One expense per instalment, ever: launching the same charge twice is impossible.
+    // (Rows with no instalment are unaffected — NULLs never collide in Postgres.)
+    unique('expenses_installment_unique').on(t.userId, t.installmentId, t.installmentNumber),
+    check('expenses_category_kind', sql`${t.categoryKind} ${CATEGORY_KINDS}`),
   ],
 );
+
+// ---------------------------------------------------------------------------
+// Carteira: recurring expenses, instalment plans, invested reserve and cash
+// ---------------------------------------------------------------------------
+
+/** Templates for the expenses that repeat every month, launched with one tap. */
+export const recurringExpenses = pgTable(
+  'recurring_expenses',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    id: text('id').notNull(),
+    categoryKind: text('category_kind').$type<CategoryKind>().notNull(),
+    topicId: text('topic_id'),
+    description: text('description').notNull(),
+    amount: numeric('amount', { mode: 'number' }).notNull(),
+    card: boolean('card').notNull().default(false),
+    position: integer('position').notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.id] }),
+    check('recurring_expenses_category_kind', sql`${t.categoryKind} ${CATEGORY_KINDS}`),
+  ],
+);
+
+/**
+ * A purchase split into monthly charges. Only what the user typed is stored: due dates, the
+ * instalment value, how many are left and the end date are always computed.
+ */
+export const installments = pgTable(
+  'installments',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    id: text('id').notNull(),
+    name: text('name').notNull(),
+    categoryKind: text('category_kind').$type<CategoryKind>().notNull(),
+    topicId: text('topic_id'),
+    firstDebitDate: date('first_debit_date', { mode: 'string' }).notNull(),
+    count: integer('count').notNull(),
+    totalAmount: numeric('total_amount', { mode: 'number' }).notNull(),
+    accounting: text('accounting').$type<InstallmentAccounting>().notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.id] }),
+    check('installments_category_kind', sql`${t.categoryKind} ${CATEGORY_KINDS}`),
+    check('installments_accounting', sql`${t.accounting} in ('installment', 'upfront')`),
+    check('installments_count', sql`${t.count} > 0`),
+  ],
+);
+
+/** One row per user: the ticker used as an invested reserve and how many quotas are held. */
+export const investmentReserves = pgTable('investment_reserves', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  ticker: text('ticker').notNull(),
+  totalQuotas: numeric('total_quotas', { precision: 18, scale: 8, mode: 'number' })
+    .notNull()
+    .default(0),
+  updatedAt: updatedAt(),
+});
+
+/** Quotas of the reserve earmarked for a topic ("balde"). */
+export const investmentBuckets = pgTable(
+  'investment_buckets',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    id: text('id').notNull(),
+    name: text('name').notNull(),
+    topicId: text('topic_id'),
+    quotas: numeric('quotas', { precision: 18, scale: 8, mode: 'number' }).notNull().default(0),
+    position: integer('position').notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.id] })],
+);
+
+/** Last known price per ticker. Global (a price is not personal), refreshed on demand. */
+export const priceCache = pgTable('price_cache', {
+  ticker: text('ticker').primaryKey(),
+  price: numeric('price', { mode: 'number' }).notNull(),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** What the cash report needs from each user. */
+export const cashSettings = pgTable('cash_settings', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  reserveAccountAmount: numeric('reserve_account_amount', { mode: 'number' }).notNull().default(0),
+  emergencyCosts: jsonb('emergency_costs').$type<EmergencyCost[]>().notNull().default([]),
+  reserveMultiplier: integer('reserve_multiplier').notNull().default(6),
+  updatedAt: updatedAt(),
+});

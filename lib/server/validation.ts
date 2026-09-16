@@ -54,14 +54,22 @@ export const incomeSchema = z.object({
   date: z.preprocess(absentAsUndefined, isoDate.optional()),
 });
 
+const categoryKindSchema = z.enum(['topic', 'fixedCost', 'unforeseen', 'reimbursable']);
+
 export const expenseSchema = z.object({
   id: z.string().min(1).max(100),
-  categoryKind: z.enum(['topic', 'fixedCost', 'unforeseen', 'reimbursable']),
+  categoryKind: categoryKindSchema,
   topicId: z.preprocess(absentAsUndefined, z.string().optional()),
   description: z.string().max(500),
   amount: z.number(),
   date: isoDate,
   singleInstallmentCard: z.boolean().optional(),
+  source: z
+    .enum(['form', 'voice', 'text', 'recurring', 'investment', 'installment', 'import'])
+    .optional(),
+  // Echoed back by the client when it edits an instalment's expense, so the link survives.
+  installmentId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
+  installmentNumber: z.preprocess(absentAsUndefined, z.number().int().positive().optional()),
 });
 
 export const monthDataSchema = z.object({
@@ -71,6 +79,65 @@ export const monthDataSchema = z.object({
   carryIn: z.record(z.string(), z.number()),
   topicsSnapshot: z.array(topicSchema),
   closed: z.boolean().optional(),
+});
+
+// ---------------------------------------------------------------------------
+// Carteira
+// ---------------------------------------------------------------------------
+
+const money = z.number().finite();
+
+export const recurringExpenseSchema = z.object({
+  id: z.string().min(1).max(100),
+  categoryKind: categoryKindSchema,
+  topicId: z.preprocess(absentAsUndefined, z.string().optional()),
+  description: z.string().min(1).max(500),
+  amount: money.positive(),
+  card: z.boolean(),
+});
+
+export const installmentPlanSchema = z.object({
+  id: z.string().min(1).max(100),
+  name: z.string().min(1).max(200),
+  categoryKind: categoryKindSchema,
+  topicId: z.preprocess(absentAsUndefined, z.string().optional()),
+  firstDebitDate: isoDate,
+  count: z.number().int().min(1).max(120),
+  totalAmount: money.positive(),
+  accounting: z.enum(['installment', 'upfront']),
+});
+
+/** An "À vista" plan may also be launched as a single expense when it is created. */
+export const saveInstallmentSchema = z.object({
+  plan: installmentPlanSchema,
+  upfront: z.object({ month: monthKeySchema, date: isoDate }).optional(),
+});
+
+export const investmentBucketSchema = z.object({
+  id: z.string().min(1).max(100),
+  name: z.string().min(1).max(200),
+  topicId: z.preprocess(absentAsUndefined, z.string().optional()),
+  quotas: z.number().finite().min(0),
+});
+
+export const tickerSchema = z.object({ ticker: z.string().min(1).max(20) });
+
+/** Buying is a positive delta, selling a negative one. */
+export const tradeQuotasSchema = z.object({ delta: z.number().finite() });
+
+export const allocateSchema = z.object({
+  bucketId: z.string().min(1).max(100),
+  amount: money.positive(),
+  month: monthKeySchema,
+  date: isoDate,
+});
+
+export const cashSettingsSchema = z.object({
+  reserveAccountAmount: money.min(0),
+  emergencyCosts: z
+    .array(z.object({ label: z.string().max(200), amount: money.min(0) }))
+    .max(50),
+  reserveMultiplier: z.number().int().min(1).max(60),
 });
 
 /** Body of "fechar mês": whether to open the next month in the same transaction. */

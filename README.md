@@ -22,9 +22,21 @@ de sempre: nada de módulo desligado aparece em tela nenhuma.
 - **Categoria "A receber"** — uma compra no cartão feita para outra pessoa, que vai devolver o
   valor. Entra na fatura (`cardTotal` e `reimbursableTotal`) e **não** entra em nenhuma
   categoria, no rateio dos custos fixos nem no gasto do mês.
-- Em construção, já listados na tela: gastos recorrentes, parcelados, reserva investida, caixa,
-  lembretes com notificação, lançar por voz/texto e monitor de Gmail. Os dois últimos são só do
-  dono do app (`OWNER_EMAIL`), porque usam o meu hardware e as minhas contas.
+- **Carteira** (aba própria, `/carteira`):
+  - **Gastos recorrentes** — modelos dos gastos de todo mês; "Lançar" abre o formulário de gasto
+    já preenchido, com a data de hoje, na competência que você estava vendo.
+  - **Parcelados** — vencimentos, parcela, restantes e fim são sempre calculados
+    (`lib/budget/installments.ts`). "Parcelada": a parcela vira gasto no cartão quando o mês é
+    criado (e já aparece na prévia); "À vista": opcionalmente lança o total de uma vez. Os
+    encerrados vão para uma seção recolhida em vez de serem apagados.
+  - **Reserva investida** — cotas de um ativo (AUPO11 por padrão) divididas em baldes ligados a
+    categorias. Remanejar compra cotas para o balde e lança o gasto na categoria, na mesma
+    transação. A cotação vem da brapi.dev (`BRAPI_TOKEN`) e fica em cache.
+  - **Caixa** — reserva em conta + reserva investida livre, dívida do cartão do mês aberto e dos
+    parcelados (sem contar duas vezes a parcela que já virou gasto), reserva prevista e gap.
+- Em construção, já listados na tela: lembretes com notificação, lançar por voz/texto e monitor
+  de Gmail. Os dois últimos são só do dono do app (`OWNER_EMAIL`), porque usam o meu hardware e
+  as minhas contas.
 
 Conforme os módulos ligam, a barra inferior muda (`lib/nav/items.ts`): entram as abas Lembretes
 e Carteira, e Histórico e Configurações passam a morar em **Mais**. A barra nunca passa de cinco
@@ -240,6 +252,11 @@ carga do mês seguinte, gasto no cartão (`cardTotal`), validação de soma de p
 estado `available <= 0`.
 
 Os demais testes:
+- **`lib/budget/__tests__/wallet-fixtures.test.ts`:** as fixtures de parcelados, reserva e caixa
+  da mesma planilha (dívida dos parcelados −3.093,20, gap da reserva 3.195,80).
+- **`lib/server/__tests__/walletRepository.test.ts`:** a Carteira contra o banco (PGlite):
+  parcelas nos meses abertos e na prévia, nunca em mês fechado nem duplicadas, exclusão de
+  plano, remanejar, caixa.
 - **`lib/budget/__tests__/fixtures.test.ts`:** as fixtures reais da planilha em 15/09/2026
   (§9 da spec do assistente), com tolerância de R$ 0,01 — a planilha não arredonda entre as
   etapas e o Capital arredonda cada uma. Inclui as regras da categoria "A receber".

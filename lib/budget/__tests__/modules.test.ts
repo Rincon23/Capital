@@ -22,6 +22,17 @@ describe('módulos', () => {
   it('só oferece para ligar o que já existe no app', () => {
     expect(MODULE_CATALOG.filter((info) => info.available).map((info) => info.key)).toEqual([
       'reimbursable',
+      'recurring',
+      'installments',
+      'investments',
+      'cash',
+    ]);
+  });
+
+  it('guarda voz e Gmail para o dono do app', () => {
+    expect(MODULE_CATALOG.filter((info) => info.ownerOnly).map((info) => info.key)).toEqual([
+      'voice',
+      'gmail',
     ]);
   });
 });

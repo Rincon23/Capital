@@ -94,17 +94,15 @@ export interface Income {
   date?: string;
 }
 
-/**
- * Prepared for v2 (installment card purchases). Not used by any v1
- * calculation; a plan is only ever attached to an expense for future use.
- */
-export interface InstallmentPlan {
-  totalAmount: number;
-  installmentCount: number;
-  startMonth: Month;
-  installmentAmount: number;
-  currentInstallment: number;
-}
+/** Where an expense came from. Absent means the expense form (the default). */
+export type ExpenseSource =
+  | 'form'
+  | 'voice'
+  | 'text'
+  | 'recurring'
+  | 'investment'
+  | 'installment'
+  | 'import';
 
 export interface Expense {
   id: string;
@@ -118,8 +116,82 @@ export interface Expense {
   date: string;
   /** Marks a purchase that lands on the credit-card bill. */
   singleInstallmentCard?: boolean;
-  /** v2 preparation only, see InstallmentPlan. */
-  installmentPlan?: InstallmentPlan;
+  source?: ExpenseSource;
+  /** Set when this expense is one instalment of a plan (see InstallmentPlan). */
+  installmentId?: string;
+  /** 1-based position of this instalment in its plan. */
+  installmentNumber?: number;
+}
+
+/** How an instalment plan is accounted for (bot spec §4.8 and correction 9). */
+export type InstallmentAccounting = 'installment' | 'upfront';
+
+/**
+ * A purchase split into `count` monthly charges on the card. The due dates, the instalment
+ * amount, how many are left and when it ends are all computed (lib/budget/installments.ts),
+ * never stored — that is what kept the spreadsheet showing plans that had already finished.
+ */
+export interface InstallmentPlan {
+  id: string;
+  name: string;
+  categoryKind: CategoryKind;
+  /** Required when categoryKind is 'topic'. */
+  topicId?: string;
+  /** ISO date (YYYY-MM-DD) of the first charge. */
+  firstDebitDate: string;
+  count: number;
+  totalAmount: number;
+  accounting: InstallmentAccounting;
+}
+
+/** A template for an expense that repeats every month (the bot's "custos fixos"). */
+export interface RecurringExpense {
+  id: string;
+  categoryKind: CategoryKind;
+  /** Required when categoryKind is 'topic'. */
+  topicId?: string;
+  description: string;
+  amount: number;
+  /** Whether launching it marks the expense as a card purchase. */
+  card: boolean;
+}
+
+/** The invested reserve: an ETF position (quotas of `ticker`) used as an emergency fund. */
+export interface InvestmentReserve {
+  ticker: string;
+  totalQuotas: number;
+}
+
+/** A slice of the invested reserve earmarked for a topic ("balde"). */
+export interface InvestmentBucket {
+  id: string;
+  name: string;
+  /** The envelope this bucket saves for; the allocation expense lands there. */
+  topicId?: string;
+  quotas: number;
+}
+
+/** Last known price of a ticker (brapi.dev), shared by every account. */
+export interface PriceQuote {
+  ticker: string;
+  price: number;
+  /** ISO timestamp of when the price was fetched. */
+  fetchedAt: string;
+}
+
+/** One line of the "if I lost my income" monthly cost. */
+export interface EmergencyCost {
+  label: string;
+  amount: number;
+}
+
+/** What the cash report needs from the user, per account. */
+export interface CashSettings {
+  /** Money sitting in the bank account, outside investments. */
+  reserveAccountAmount: number;
+  emergencyCosts: EmergencyCost[];
+  /** How many months of emergency costs the reserve should cover (6 by default). */
+  reserveMultiplier: number;
 }
 
 /** All data for a single competence month. */

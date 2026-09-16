@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react';
 import {
-  REIMBURSABLE_EXPLANATION,
   amountToInputValue,
   currentMonthKey,
   parseAmountInput,
@@ -18,7 +17,7 @@ import {
 } from '@/lib/budget';
 import { AmountInput } from '@/components/ui/AmountInput';
 import { BottomSheet } from '@/components/ui/BottomSheet';
-import { Chip } from '@/components/ui/Chip';
+import { CategoryPicker } from '@/components/ui/CategoryPicker';
 
 function defaultDateForMonth(month: Month): string {
   const today = new Date();
@@ -33,6 +32,8 @@ interface ExpenseFormSheetProps {
   /** Whether the "A receber" module is on for this user (see MODULE_CATALOG). */
   reimbursableEnabled?: boolean;
   initial?: Expense;
+  /** Overrides the sheet's title, e.g. when the form is confirming a recurring expense. */
+  title?: string;
   defaultCategoryKind?: CategoryKind;
   onClose: () => void;
   onSave: (expense: Expense) => Promise<void>;
@@ -45,6 +46,7 @@ export function ExpenseFormSheet({
   specialCategories,
   reimbursableEnabled = false,
   initial,
+  title,
   defaultCategoryKind,
   onClose,
   onSave,
@@ -114,46 +116,20 @@ export function ExpenseFormSheet({
   }
 
   return (
-    <BottomSheet open onClose={onClose} title={initial ? 'Editar gasto' : 'Lançar gasto'}>
+    <BottomSheet open onClose={onClose} title={title ?? (initial ? 'Editar gasto' : 'Lançar gasto')}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <AmountInput value={amount} onChange={setAmount} autoFocus={!initial} />
 
-        <div>
-          <p className="text-muted mb-2 text-sm font-medium">Categoria</p>
-          <div className="flex flex-wrap gap-2">
-            {activeTopics.map((topic) => (
-              <Chip
-                key={topic.id}
-                label={topic.name}
-                selected={categoryKind === 'topic' && topicId === topic.id}
-                onClick={() => {
-                  setCategoryKind('topic');
-                  setTopicId(topic.id);
-                }}
-              />
-            ))}
-            <Chip
-              label={labels.fixedCost}
-              selected={categoryKind === 'fixedCost'}
-              onClick={() => setCategoryKind('fixedCost')}
-            />
-            <Chip
-              label={labels.unforeseen}
-              selected={categoryKind === 'unforeseen'}
-              onClick={() => setCategoryKind('unforeseen')}
-            />
-            {showReimbursable && (
-              <Chip
-                label={labels.reimbursable}
-                selected={categoryKind === 'reimbursable'}
-                onClick={() => setCategoryKind('reimbursable')}
-              />
-            )}
-          </div>
-          {categoryKind === 'reimbursable' && (
-            <p className="text-muted mt-2 text-xs">{REIMBURSABLE_EXPLANATION}</p>
-          )}
-        </div>
+        <CategoryPicker
+          topics={topics}
+          specialCategories={labels}
+          value={{ categoryKind, topicId }}
+          onChange={(next) => {
+            setCategoryKind(next.categoryKind);
+            setTopicId(next.topicId);
+          }}
+          showReimbursable={showReimbursable}
+        />
 
         <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
           Descrição

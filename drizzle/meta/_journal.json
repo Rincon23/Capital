@@ -15,6 +15,13 @@
       "when": 1789528838739,
       "tag": "0001_modules_and_reimbursable",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789531017186,
+      "tag": "0002_carteira",
+      "breakpoints": true
     }
   ]
 }

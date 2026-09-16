@@ -3,9 +3,17 @@ import { computeMonthSummary } from '../budget/calculations';
 import { DEFAULT_SPECIAL_CATEGORY_LABELS } from '../budget/categories';
 import { DEFAULT_SPECIAL_CATEGORY_COLORS } from '../budget/colors';
 import { nextMonth } from '../budget/date';
+import { installmentExpense, installmentsDueIn } from '../budget/installments';
 import { cascadeCarryIn, createMonthData } from '../budget/rollover';
 import { createDefaultSettings } from '../budget/seed';
-import type { BudgetSettings, Expense, Income, Month, MonthData } from '../budget/types';
+import type {
+  BudgetSettings,
+  Expense,
+  Income,
+  InstallmentPlan,
+  Month,
+  MonthData,
+} from '../budget/types';
 import {
   BACKUP_VERSION,
   MonthClosedError,
@@ -13,8 +21,23 @@ import {
   type BackupPayload,
   type BudgetRepository,
 } from '../storage/repository';
-import { budgetSettings, expenses, incomes, months } from './db/schema';
+import { budgetSettings, expenses, incomes, installments, months } from './db/schema';
 import type { Database, Transaction } from './db/types';
+
+/**
+ * What a sibling repository gets while writing inside the budget's transaction. The wallet uses
+ * it to change its own tables and the month's expenses atomically — allocating to a bucket and
+ * charging the envelope, launching a recurring expense, creating the charges of a plan.
+ */
+export interface MonthWriteContext {
+  tx: Transaction;
+  /** Adds (or replaces) an expense in `month`, creating the month if needed. Refuses closed months. */
+  addExpense(month: Month, expense: Expense): Promise<void>;
+  /** Months that already exist and are still open, oldest first. */
+  openMonths(): Promise<Month[]>;
+  /** Marks `month` as changed, so carryIn cascades from it when the transaction ends. */
+  touch(month: Month): void;
+}
 
 /** The database or an open transaction: both run the same queries. */
 type Executor = Database | Transaction;
@@ -42,7 +65,26 @@ function toExpense(row: ExpenseRow): Expense {
     singleInstallmentCard: row.card,
   };
   if (row.topicId) expense.topicId = row.topicId;
+  if (row.source) expense.source = row.source;
+  if (row.installmentId) expense.installmentId = row.installmentId;
+  if (row.installmentNumber !== null) expense.installmentNumber = row.installmentNumber;
   return expense;
+}
+
+/** The columns of an expense, without the keys that identify the row. */
+function expenseValues(month: Month, expense: Expense) {
+  return {
+    month,
+    categoryKind: expense.categoryKind,
+    topicId: expense.topicId ?? null,
+    description: expense.description,
+    amount: expense.amount,
+    date: expense.date,
+    card: expense.singleInstallmentCard === true,
+    source: expense.source ?? null,
+    installmentId: expense.installmentId ?? null,
+    installmentNumber: expense.installmentNumber ?? null,
+  };
 }
 
 function groupByMonth<T extends { month: string }>(rows: T[]): Map<string, T[]> {
@@ -163,23 +205,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
   async saveExpense(month: Month, expense: Expense): Promise<void> {
     await this.write(async (tx) => {
       await this.ensureOpenMonthIn(tx, month);
-      const values = {
-        month,
-        categoryKind: expense.categoryKind,
-        topicId: expense.topicId ?? null,
-        description: expense.description,
-        amount: expense.amount,
-        date: expense.date,
-        card: expense.singleInstallmentCard === true,
-      };
-      const [last] = await tx
-        .select({ position: max(expenses.position) })
-        .from(expenses)
-        .where(and(eq(expenses.userId, this.userId), eq(expenses.month, month)));
-      await tx
-        .insert(expenses)
-        .values({ userId: this.userId, id: expense.id, position: (last?.position ?? -1) + 1, ...values })
-        .onConflictDoUpdate({ target: [expenses.userId, expenses.id], set: values });
+      await this.insertExpenseIn(tx, month, expense);
       await this.recascade(tx, month);
     });
   }
@@ -300,6 +326,81 @@ export class PostgresBudgetRepository implements BudgetRepository {
     });
   }
 
+  /**
+   * Runs `fn` inside this user's write transaction (see `MonthWriteContext`) and, at the end,
+   * re-cascades carryIn from the earliest month it touched. Everything `fn` does commits or
+   * rolls back together with the expenses it created.
+   */
+  writeWith<T>(fn: (ctx: MonthWriteContext) => Promise<T>): Promise<T> {
+    return this.write(async (tx) => {
+      let earliest: Month | undefined;
+      const touch = (month: Month) => {
+        if (!earliest || month < earliest) earliest = month;
+      };
+
+      const result = await fn({
+        tx,
+        touch,
+        addExpense: async (month, expense) => {
+          await this.ensureOpenMonthIn(tx, month);
+          await this.insertExpenseIn(tx, month, expense);
+          touch(month);
+        },
+        openMonths: async () => {
+          const rows = await tx
+            .select({ month: months.month })
+            .from(months)
+            .where(and(eq(months.userId, this.userId), eq(months.closed, false)))
+            .orderBy(asc(months.month));
+          return rows.map((row) => row.month);
+        },
+      });
+
+      if (earliest) await this.recascade(tx, earliest);
+      return result;
+    });
+  }
+
+  /** Writes one expense, keeping its place in the month's list (a new one goes last). */
+  private async insertExpenseIn(tx: Transaction, month: Month, expense: Expense): Promise<void> {
+    const values = expenseValues(month, expense);
+    const [last] = await tx
+      .select({ position: max(expenses.position) })
+      .from(expenses)
+      .where(and(eq(expenses.userId, this.userId), eq(expenses.month, month)));
+    await tx
+      .insert(expenses)
+      .values({ userId: this.userId, id: expense.id, position: (last?.position ?? -1) + 1, ...values })
+      .onConflictDoUpdate({ target: [expenses.userId, expenses.id], set: values });
+  }
+
+  /** This user's instalment plans, for the charges that belong to a month. */
+  private async loadInstallmentPlans(ex: Executor): Promise<InstallmentPlan[]> {
+    const rows = await ex
+      .select()
+      .from(installments)
+      .where(eq(installments.userId, this.userId))
+      .orderBy(asc(installments.createdAt));
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      categoryKind: row.categoryKind,
+      ...(row.topicId ? { topicId: row.topicId } : {}),
+      firstDebitDate: row.firstDebitDate,
+      count: row.count,
+      totalAmount: row.totalAmount,
+      accounting: row.accounting,
+    }));
+  }
+
+  /** The instalments charged during `month`, as expenses (correction 9 of the bot spec). */
+  private async installmentExpensesFor(ex: Executor, month: Month): Promise<Expense[]> {
+    const plans = await this.loadInstallmentPlans(ex);
+    return installmentsDueIn(plans, month).map(({ plan, number, dueDate }) =>
+      installmentExpense(plan, number, dueDate),
+    );
+  }
+
   private monthKey(month: Month): SQL {
     return and(eq(months.userId, this.userId), eq(months.month, month)) as SQL;
   }
@@ -336,6 +437,9 @@ export class PostgresBudgetRepository implements BudgetRepository {
         topicsSnapshot: created.topicsSnapshot,
       })
       .onConflictDoNothing();
+    // The instalments charged this month become real expenses as soon as the month exists;
+    // `buildMonth` already put them in `created`, so the preview and the month agree.
+    for (const expense of created.expenses) await this.insertExpenseIn(tx, month, expense);
     return created;
   }
 
@@ -349,7 +453,14 @@ export class PostgresBudgetRepository implements BudgetRepository {
       .orderBy(desc(months.month))
       .limit(1);
     const [previous] = prior ? await this.loadMonths(ex, eq(months.month, prior.month)) : [];
-    return createMonthData(month, settings.topics, previous ? computeMonthSummary(previous) : null);
+    const created = createMonthData(
+      month,
+      settings.topics,
+      previous ? computeMonthSummary(previous) : null,
+    );
+    // A month that does not exist yet still shows the instalments it will be charged, so the
+    // preview never changes the moment something is written to it.
+    return { ...created, expenses: await this.installmentExpensesFor(ex, month) };
   }
 
   /** This user's months matching `filter` (all of them without one), oldest first, with their entries. */
@@ -502,14 +613,8 @@ export class PostgresBudgetRepository implements BudgetRepository {
       m.expenses.map((expense, position) => ({
         userId: this.userId,
         id: expense.id,
-        month: m.month,
-        categoryKind: expense.categoryKind,
-        topicId: expense.topicId ?? null,
-        description: expense.description,
-        amount: expense.amount,
-        date: expense.date,
-        card: expense.singleInstallmentCard === true,
         position,
+        ...expenseValues(m.month, expense),
       })),
     );
     for (const chunk of chunks(expenseRows, INSERT_CHUNK)) await tx.insert(expenses).values(chunk);

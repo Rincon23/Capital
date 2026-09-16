@@ -5,24 +5,22 @@ import { MonthClosedError, MonthNotFoundError } from '@/lib/storage/repository';
 import { getAuth } from './auth';
 import { PostgresBudgetRepository } from './budgetRepository';
 import { getDb } from './db';
+import { HttpError } from './httpError';
 import { allowedOriginHosts } from './origins';
+import { QuoteUnavailableError } from './quotes';
+import { PostgresWalletRepository } from './walletRepository';
 
-/** An error with a status the API should answer with (message is user-facing, pt-BR). */
-export class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string,
-    message: string,
-  ) {
-    super(message);
-    this.name = 'HttpError';
-  }
-}
+export { HttpError };
 
 interface RouteArgs<P> {
   request: NextRequest;
   params: P;
+  /** Budget data (months, entries, settings) for the signed-in user. */
   repo: PostgresBudgetRepository;
+  /** Carteira data (recorrentes, parcelados, reserva, caixa) for the same user. */
+  wallet: PostgresWalletRepository;
+  /** The signed-in user's e-mail, for the owner-only routes. */
+  email: string | null;
 }
 
 /**
@@ -47,8 +45,16 @@ export function apiRoute<P = Record<string, never>>(
         throw new HttpError(401, 'UNAUTHENTICATED', 'Sessão expirada. Entre novamente para continuar.');
       }
 
-      const repo = new PostgresBudgetRepository(getDb(), session.user.id);
-      const result = await handler({ request, params: await context.params, repo });
+      const db = getDb();
+      const repo = new PostgresBudgetRepository(db, session.user.id);
+      const wallet = new PostgresWalletRepository(db, session.user.id, repo);
+      const result = await handler({
+        request,
+        params: await context.params,
+        repo,
+        wallet,
+        email: session.user.email ?? null,
+      });
 
       const response =
         result === undefined ? new NextResponse(null, { status: 204 }) : NextResponse.json(result);
@@ -105,6 +111,7 @@ function errorResponse(err: unknown): Response {
   if (err instanceof ZodError) return jsonError(400, 'INVALID_INPUT', 'Dados inválidos.');
   if (err instanceof MonthClosedError) return jsonError(409, 'MONTH_CLOSED', err.message);
   if (err instanceof MonthNotFoundError) return jsonError(404, 'MONTH_NOT_FOUND', err.message);
+  if (err instanceof QuoteUnavailableError) return jsonError(502, 'QUOTE_UNAVAILABLE', err.message);
   console.error('[api]', err);
   return jsonError(500, 'INTERNAL', 'Erro no servidor. Tente novamente em instantes.');
 }
