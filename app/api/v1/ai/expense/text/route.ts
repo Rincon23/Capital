@@ -7,7 +7,7 @@ import { aiExpenseTextSchema } from '@/lib/server/validation';
 export const POST = apiRoute(async ({ request, repo, email }) => {
   const { text } = await readJson(request, aiExpenseTextSchema);
   const access = await requireVoiceAccess(repo, email, { countAttempt: true });
-  return progressStream(request, (emit, signal) =>
+  return progressStream(request, `texto (${text.length} caracteres)`, (emit, signal) =>
     analyzeExpense(
       { kind: 'text', text },
       { options: access.options, today: access.today, signal },

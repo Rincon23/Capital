@@ -36,7 +36,8 @@ export const POST = apiRoute(async ({ request, repo, email }) => {
   const seconds = Number.isFinite(declared) && declared > 0 ? Math.min(declared, 120) : audio.size / 4000;
   const extension = EXTENSIONS[audio.type.split(';')[0]] ?? 'webm';
 
-  return progressStream(request, (emit, signal) =>
+  const label = `áudio (${seconds.toFixed(1)} s, ${Math.round(audio.size / 1024)} KB, ${audio.type || 'sem tipo'})`;
+  return progressStream(request, label, (emit, signal) =>
     analyzeExpense(
       { kind: 'audio', audio, filename: `gasto.${extension}`, seconds },
       { options: access.options, today: access.today, signal },

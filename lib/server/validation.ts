@@ -205,6 +205,12 @@ export const pushTestSchema = z.object({ deviceId: z.uuid().optional() });
 /** "Descreva o gasto": the sentence the AI reads. */
 export const aiExpenseTextSchema = z.object({ text: z.string().trim().min(1).max(500) });
 
+/** A failed analysis as the app saw it, for the server log. */
+export const aiProblemReportSchema = z.object({
+  kind: z.enum(['audio', 'text']),
+  detail: z.string().max(1000),
+});
+
 /** Body of "fechar mês": whether to open the next month in the same transaction. */
 export const closeMonthSchema = z.object({ openNext: z.boolean().optional() });
 

@@ -64,12 +64,23 @@ export async function analyzeExpense(
     );
   }
 
+  // What arrived and what happened to the page, to explain a cut-off analysis.
+  const received: string[] = [];
+  let tokens = 0;
+  let hiddenDuring = document.visibilityState === 'hidden';
+  const onVisibility = () => {
+    if (document.visibilityState === 'hidden') hiddenDuring = true;
+  };
+  document.addEventListener('visibilitychange', onVisibility);
+
   const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = '';
   const handle = (block: string): ExpenseDraftResult | undefined => {
     for (const line of block.split('\n')) {
       if (!line.startsWith('data:')) continue;
       const event = JSON.parse(line.slice(5)) as AiProgressEvent;
+      if (event.type === 'tokens') tokens = event.count;
+      else received.push(event.type === 'stage' ? `stage:${event.stage}` : event.type);
       if (event.type === 'error') throw new ApiRequestError(event.message, 502, event.code);
       onEvent(event);
       if (event.type === 'done') return event.result;
@@ -77,6 +88,7 @@ export async function analyzeExpense(
     return undefined;
   };
 
+  let cause = 'a resposta terminou sem o resultado';
   try {
     for (;;) {
       const { value, done } = await reader.read();
@@ -93,8 +105,32 @@ export async function analyzeExpense(
     if (result) return result;
   } catch (err) {
     if (err instanceof ApiRequestError || signal?.aborted) throw err;
+    cause = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  } finally {
+    document.removeEventListener('visibilitychange', onVisibility);
   }
+
+  const detail = [
+    `erro: ${cause}`,
+    `recebido: ${[...received, ...(tokens ? [`tokens×${tokens}`] : [])].join(' ') || 'nada'}`,
+    `sobra no buffer: ${buffer.length} caracteres`,
+    `tela oculta durante a análise: ${hiddenDuring ? 'sim' : 'não'}`,
+    `online: ${navigator.onLine ? 'sim' : 'não'}`,
+  ].join(' | ');
+  reportAnalysisProblem(request.kind, detail);
   throw new ApiRequestError('A análise foi interrompida. Tente de novo.', 0, 'INTERRUPTED');
+}
+
+/** Tells the server's log what the app saw when an analysis broke off. Failures don't matter. */
+function reportAnalysisProblem(kind: ExpenseAnalysisRequest['kind'], detail: string): void {
+  void fetch('/api/v1/ai/expense/report', {
+    method: 'POST',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind, detail: detail.slice(0, 1000) }),
+    keepalive: true,
+  }).catch(() => undefined);
 }
 
 /** Asks the server to get the AI ready while the user talks. Failures don't matter. */

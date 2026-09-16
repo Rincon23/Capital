@@ -59,22 +59,51 @@ export async function requireVoiceAccess(
  */
 export function progressStream(
   request: Request,
+  label: string,
   run: (emit: (event: AiProgressEvent) => void, signal: AbortSignal) => Promise<void>,
 ): Response {
   const encoder = new TextEncoder();
   const abort = new AbortController();
-  request.signal.addEventListener('abort', () => abort.abort(), { once: true });
+  const started = Date.now();
+  const elapsed = () => `${((Date.now() - started) / 1000).toFixed(1)} s`;
+  // What was sent, for the log line at the end ("plan stage:transcribe transcript … done").
+  const sent: string[] = [];
+  let tokens = 0;
+  const summary = () => [...sent, ...(tokens ? [`tokens×${tokens}`] : [])].join(' ');
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
+
+  request.signal.addEventListener(
+    'abort',
+    () => {
+      if (!abort.signal.aborted)
+        console.warn(`[ia] ${label}: o app desconectou após ${elapsed()} (${summary()})`);
+      abort.abort();
+    },
+    { once: true },
+  );
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      const emit = (event: AiProgressEvent) => {
+      const write = (text: string) => {
         if (abort.signal.aborted) return;
         try {
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
-        } catch {
-          // the app went away
+          controller.enqueue(encoder.encode(text));
+        } catch (err) {
+          console.warn(
+            `[ia] ${label}: não consegui enviar após ${elapsed()}:`,
+            err instanceof Error ? err.message : err,
+          );
         }
       };
+      const emit = (event: AiProgressEvent) => {
+        if (event.type === 'tokens') tokens = event.count;
+        else sent.push(event.type === 'stage' ? `stage:${event.stage}` : event.type);
+        write(`data: ${JSON.stringify(event)}\n\n`);
+      };
+      // A comment every few seconds, so no proxy or mobile network drops a quiet connection
+      // while whisper or the model works. The app ignores lines that aren't `data:`.
+      heartbeat = setInterval(() => write(': ping\n\n'), 3000);
+
       run(emit, abort.signal)
         .catch((err: unknown) => {
           if (abort.signal.aborted) return;
@@ -89,6 +118,8 @@ export function progressStream(
           }
         })
         .finally(() => {
+          clearInterval(heartbeat);
+          console.log(`[ia] ${label}: terminou em ${elapsed()} (${summary()})`);
           try {
             controller.close();
           } catch {
@@ -96,7 +127,9 @@ export function progressStream(
           }
         });
     },
-    cancel() {
+    cancel(reason) {
+      clearInterval(heartbeat);
+      console.warn(`[ia] ${label}: o app fechou a resposta após ${elapsed()} (${summary()})`, reason ?? '');
       abort.abort();
     },
   });
