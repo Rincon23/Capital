@@ -39,9 +39,21 @@ de sempre: nada de módulo desligado aparece em tela nenhuma.
     vivo para abrir a tela.
   - **Caixa** — reserva em conta + reserva investida livre, dívida do cartão do mês aberto e dos
     parcelados (sem contar duas vezes a parcela que já virou gasto), reserva prevista e gap.
-- Em construção, já listados na tela: lembretes com notificação, lançar por voz/texto e monitor
-  de Gmail. Os dois últimos são só do dono do app (`OWNER_EMAIL`), porque usam o meu hardware e
-  as minhas contas.
+- **Lembretes** (aba própria, `/lembretes`), com notificação no celular (Web Push):
+  - **Tipos:** uma vez (data e hora, com aviso antecipado opcional de 30 min, 1 hora ou 1 dia),
+    tarefa do dia (aparece todo dia e avisa nos horários escolhidos até ser concluída; concluída,
+    vai para o histórico), toda semana (vários dias) e todo mês (dia 29–31 cai no último dia dos
+    meses curtos).
+  - **Nada de horário fixo:** cada lembrete tem o seu horário, e cada pessoa escolhe em
+    Configurações → Lembretes quando lembrar de novo o que não foi marcado como feito (padrão
+    08:00, 12:00, 15:00 e 18:00; dá para desligar em geral ou em cada lembrete). O que ficou para
+    trás continua avisando nos dias seguintes, como "atrasado desde dd/MM".
+  - **Notificação:** o botão "Realizado ✅" funciona sem abrir o app (token assinado, 36 h), e as
+    tarefas do mesmo horário vão numa notificação só. As regras são puras em `lib/reminders`.
+  - **Telas:** Hoje (atrasados, hoje, tarefas e amanhã), Todos (por tipo, com histórico) e
+    Calendário dos compromissos; card "Lembretes de hoje" no Início.
+- Em construção, já listados na tela: lançar por voz/texto e monitor de Gmail, só do dono do app
+  (`OWNER_EMAIL`), porque usam o meu hardware e as minhas contas.
 
 Conforme os módulos ligam, a barra inferior muda (`lib/nav/items.ts`): entram as abas Lembretes
 e Carteira, e Histórico e Configurações passam a morar em **Mais**. A barra nunca passa de cinco
@@ -99,6 +111,8 @@ No Pi, tudo do Capital fica em `~/capitalapp`:
    # BETTER_AUTH_URL=https://capital.rincon.dev.br
    # APP_ALLOWED_ORIGINS=capital.rincon.dev.br
    # SMTP_* (Gmail com senha de app)
+   # VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY e VAPID_SUBJECT (notificações) e ACTION_TOKEN_SECRET
+   #   — um par/segredo próprio do Pi; os comandos para gerar estão no .env.example
    docker compose --env-file .env.local up -d --build
    ```
 
@@ -145,6 +159,8 @@ na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de 
   /layout, /ui, /providers, /pwa
 /lib
   /budget                 Regras de negócio — funções puras, sem React nem storage
+  /reminders              Regras dos lembretes (vencimentos, quando notificar, textos), puras, no fuso de São Paulo
+  /notifications          Web Push: tipos, nome dos aparelhos e o lado do navegador (permissão, inscrição)
   /nav                    Quais abas a barra inferior mostra, conforme os módulos ligados
   /storage                Contrato BudgetRepository e o repositório do navegador (HTTP)
   /server                 Só no servidor: banco (Drizzle), repositório Postgres, auth, e-mail, API
@@ -154,8 +170,17 @@ na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de 
 /deploy/postgres          Stack Docker do banco no Orange Pi (Postgres + backup)
 /scripts                  Migrações manuais e a geração dos ícones do PWA
 /proxy.ts                 Portão das rotas: sem cookie de sessão → /login (páginas) ou 401 (API)
-/instrumentation.ts       Aplica as migrações quando o servidor sobe
+/instrumentation.ts       Aplica as migrações e liga a agenda em segundo plano quando o servidor sobe
 ```
+
+### Agenda em segundo plano (`lib/server/scheduler.ts`)
+
+Roda dentro do próprio servidor do Capital, sem n8n nem container extra: a cada minuto (5 s
+depois da virada) envia as notificações de lembrete que venceram e, no horário da B3 (dias úteis,
+10:00–18:30), atualiza a cotação dos ativos que alguém tem, a cada 30 min. Cada tarefa guarda
+quando rodou (`job_runs`): depois de um deploy ou reinício ela recupera o que ficou para trás, e
+cada envio é anotado antes (`reminder_deliveries`, chave única), então nada sai duas vezes.
+`SCHEDULER=off` desliga a agenda num servidor.
 
 ### Lógica de negócio pura (`/lib/budget`)
 
@@ -234,7 +259,13 @@ conforme pedido — nunca dados financeiros.
 
 - `public/manifest.json` — instalável, ícones 192/512 (`any` e `maskable`).
 - `public/sw.js` — service worker escrito à mão, registrado por
-  `components/pwa/RegisterServiceWorker.tsx` apenas em produção.
+  `components/pwa/RegisterServiceWorker.tsx` apenas em produção. Também mostra as notificações
+  (`push`), executa os botões delas (`notificationclick`) e reinscreve o aparelho quando o
+  navegador troca a inscrição (`pushsubscriptionchange`). No `npm run dev` ele só é registrado
+  ao ativar as notificações, como `/sw.js?dev=1`, sem cache.
+- Notificações: Configurações → Notificações ativa o aparelho (a permissão só é pedida num
+  toque), manda um teste e lista os aparelhos. No Brave, ative antes "Usar os serviços do Google
+  para mensagens push" em `brave://settings/privacy`.
   - Estratégias de cache: cache-first para os assets do Next com hash no nome, network-first com
     fallback para navegação e stale-while-revalidate para o restante.
   - Mantém o _app shell_ disponível offline.
@@ -271,6 +302,12 @@ Os demais testes:
   módulos por usuário, isolamento entre contas e escritas simultâneas.
 - **Componentes** (`components/**/__tests__`, Testing Library): o formulário de gasto com a
   categoria "A receber" e a prévia do "Fechar mês".
+- **`lib/reminders/__tests__/schedule.test.ts`:** os lembretes com relógio falso em São Paulo:
+  mês curto, vários dias da semana, aviso antecipado, repetição até "Realizado", atrasados,
+  horários do usuário, tarefas agrupadas e o que não dispara antes da criação.
+- **`lib/server/__tests__/reminders.test.ts` e `push.test.ts`:** a agenda contra o banco (envia no
+  minuto certo, nunca duas vezes, recupera o que perdeu fora do ar, só para quem ligou o módulo),
+  o token do "Realizado" (válido, expirado e adulterado) e os aparelhos (404/410 apaga).
 - **Repositório HTTP** (`lib/storage/__tests__`) e a **barra de navegação** por módulos
   (`lib/nav/__tests__`).
 - O **limitador de tentativas** de login.

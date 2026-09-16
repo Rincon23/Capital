@@ -61,8 +61,8 @@ export const MODULE_CATALOG: ModuleInfo[] = [
   {
     key: 'reminders',
     name: 'Lembretes',
-    description: 'Lembretes e tarefas do dia, com notificação no celular.',
-    available: false,
+    description: 'Lembretes e tarefas do dia, no horário que você escolher, com notificação no celular.',
+    available: true,
   },
   {
     key: 'voice',

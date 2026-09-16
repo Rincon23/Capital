@@ -26,6 +26,7 @@ describe('módulos', () => {
       'installments',
       'investments',
       'cash',
+      'reminders',
     ]);
   });
 

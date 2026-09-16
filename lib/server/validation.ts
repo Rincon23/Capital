@@ -140,6 +140,68 @@ export const cashSettingsSchema = z.object({
   reserveMultiplier: z.number().int().min(1).max(60),
 });
 
+/** A browser's `PushSubscription.toJSON()`. Push services only hand out https endpoints. */
+export const pushSubscriptionSchema = z.object({
+  endpoint: z.url({ protocol: /^https$/ }).max(2000),
+  keys: z.object({
+    p256dh: z.string().min(1).max(500),
+    auth: z.string().min(1).max(500),
+  }),
+  previousEndpoint: z.string().max(2000).optional(),
+});
+
+// ---------------------------------------------------------------------------
+// Lembretes
+// ---------------------------------------------------------------------------
+
+const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Horário inválido.');
+
+const reminderFields = {
+  id: z.string().min(1).max(100),
+  message: z.string().trim().min(1, 'Escreva o lembrete.').max(300),
+  repeat: z.boolean(),
+};
+
+export const reminderInputSchema = z.discriminatedUnion('kind', [
+  z.object({
+    ...reminderFields,
+    kind: z.literal('once'),
+    date: isoDate,
+    time: timeOfDay,
+    notifyBeforeMinutes: z.union([z.literal(30), z.literal(60), z.literal(1440)]).nullable(),
+  }),
+  z.object({
+    ...reminderFields,
+    kind: z.literal('daily'),
+    times: z.array(timeOfDay).min(1).max(12),
+  }),
+  z.object({
+    ...reminderFields,
+    kind: z.literal('weekly'),
+    weekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7),
+    time: timeOfDay,
+  }),
+  z.object({
+    ...reminderFields,
+    kind: z.literal('monthly'),
+    dayOfMonth: z.number().int().min(1).max(31),
+    time: timeOfDay,
+  }),
+]);
+
+export const reminderSettingsSchema = z.object({
+  repeatEnabled: z.boolean(),
+  repeatTimes: z.array(timeOfDay).max(12),
+});
+
+export const reminderDoneSchema = z.object({ dueDate: isoDate, done: z.boolean() });
+
+/** "Realizado ✅" from a notification: only the signed token, no session. */
+export const reminderActionSchema = z.object({ token: z.string().min(10).max(2000) });
+
+/** Body of "enviar notificação de teste": one device, or all of them. */
+export const pushTestSchema = z.object({ deviceId: z.uuid().optional() });
+
 /** Body of "fechar mês": whether to open the next month in the same transaction. */
 export const closeMonthSchema = z.object({ openNext: z.boolean().optional() });
 

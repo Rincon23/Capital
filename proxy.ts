@@ -5,8 +5,11 @@ import { getSessionCookie } from 'better-auth/cookies';
 // that a session cookie exists. Whether the session is actually valid is checked by the
 // authenticated layout (pages) and by every /api/v1 route.
 
-/** Path prefixes reachable without a session. */
-const PUBLIC_PREFIXES = ['/login', '/auth', '/redefinir-senha', '/api/auth'];
+/**
+ * Path prefixes reachable without a session. The notification actions carry their own signed
+ * token instead (lib/server/reminderActionToken.ts).
+ */
+const PUBLIC_PREFIXES = ['/login', '/auth', '/redefinir-senha', '/api/auth', '/api/v1/reminders/actions'];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));

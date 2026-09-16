@@ -33,6 +33,7 @@ import type {
   SpecialCategoryLabels,
   TopicConfig,
 } from '../../budget/types';
+import type { ReminderKind, TimeOfDay } from '../../reminders/types';
 
 /** Every category an expense (or a template, or a plan) can have. */
 const CATEGORY_KINDS = sql`in ('topic', 'fixedCost', 'unforeseen', 'reimbursable')`;
@@ -328,4 +329,126 @@ export const cashSettings = pgTable('cash_settings', {
   emergencyCosts: jsonb('emergency_costs').$type<EmergencyCost[]>().notNull().default([]),
   reserveMultiplier: integer('reserve_multiplier').notNull().default(6),
   updatedAt: updatedAt(),
+});
+
+// ---------------------------------------------------------------------------
+// Notifications (Web Push)
+// ---------------------------------------------------------------------------
+
+/**
+ * One row per device (browser) that accepted notifications. The endpoint is the push
+ * service's address for that browser, unique worldwide: if another account signs in on the
+ * same browser and turns notifications on, the row moves to that account.
+ */
+export const pushSubscriptions = pgTable(
+  'push_subscriptions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    endpoint: text('endpoint').notNull().unique(),
+    /** The browser's public key and auth secret, used to encrypt every payload. */
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
+    /** To tell the devices apart in Settings ("Chrome no Android"). */
+    userAgent: text('user_agent'),
+    createdAt: createdAt(),
+    /** Last time the push service accepted a notification for this device. */
+    lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
+  },
+  (t) => [index('push_subscriptions_user_id_idx').on(t.userId)],
+);
+
+// ---------------------------------------------------------------------------
+// Lembretes
+// ---------------------------------------------------------------------------
+
+/**
+ * A reminder or a daily task. Which columns are used depends on `kind`: once → date + time
+ * (+ notify_before_minutes), daily → times, weekly → weekdays + time, monthly → day_of_month +
+ * time. Due days are always computed (lib/reminders), never stored ahead.
+ */
+export const reminders = pgTable(
+  'reminders',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    id: text('id').notNull(),
+    kind: text('kind').$type<ReminderKind>().notNull(),
+    message: text('message').notNull(),
+    date: date('date', { mode: 'string' }),
+    time: text('time').$type<TimeOfDay>(),
+    times: jsonb('times').$type<TimeOfDay[]>().notNull().default([]),
+    weekdays: jsonb('weekdays').$type<number[]>().notNull().default([]),
+    dayOfMonth: integer('day_of_month'),
+    notifyBeforeMinutes: integer('notify_before_minutes'),
+    repeat: boolean('repeat').notNull().default(true),
+    /** Daily tasks only: when it was done (and so archived). */
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.id] }),
+    check('reminders_kind', sql`${t.kind} in ('once', 'daily', 'weekly', 'monthly')`),
+  ],
+);
+
+/** "Realizado" for one due day of a once / weekly / monthly reminder. */
+export const reminderCompletions = pgTable(
+  'reminder_completions',
+  {
+    userId: uuid('user_id').notNull(),
+    reminderId: text('reminder_id').notNull(),
+    dueDate: date('due_date', { mode: 'string' }).notNull(),
+    doneAt: timestamp('done_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.reminderId, t.dueDate] }),
+    foreignKey({
+      columns: [t.userId, t.reminderId],
+      foreignColumns: [reminders.userId, reminders.id],
+    }).onDelete('cascade'),
+  ],
+);
+
+/** Each user's reminder preferences; no row means the defaults (lib/reminders/types.ts). */
+export const reminderSettings = pgTable('reminder_settings', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  repeatEnabled: boolean('repeat_enabled').notNull().default(true),
+  repeatTimes: jsonb('repeat_times').$type<TimeOfDay[]>().notNull(),
+  updatedAt: updatedAt(),
+});
+
+/**
+ * Every notification slot already delivered. The primary key is what makes the scheduler safe to
+ * run again (after a restart, or twice at once): a slot is sent only by whoever records it first.
+ * Old rows are pruned by the scheduler.
+ */
+export const reminderDeliveries = pgTable(
+  'reminder_deliveries',
+  {
+    userId: uuid('user_id').notNull(),
+    reminderId: text('reminder_id').notNull(),
+    slotAt: timestamp('slot_at', { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.reminderId, t.slotAt] }),
+    foreignKey({
+      columns: [t.userId, t.reminderId],
+      foreignColumns: [reminders.userId, reminders.id],
+    }).onDelete('cascade'),
+    index('reminder_deliveries_slot_at_idx').on(t.slotAt),
+  ],
+);
+
+/** When each background job last ran (the scheduler picks up from there after a restart). */
+export const jobRuns = pgTable('job_runs', {
+  name: text('name').primaryKey(),
+  lastRunAt: timestamp('last_run_at', { withTimezone: true }).notNull(),
 });

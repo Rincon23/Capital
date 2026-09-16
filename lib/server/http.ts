@@ -7,7 +7,9 @@ import { PostgresBudgetRepository } from './budgetRepository';
 import { getDb } from './db';
 import { HttpError } from './httpError';
 import { allowedOriginHosts } from './origins';
+import { PostgresPushRepository } from './push';
 import { QuoteUnavailableError } from './quotes';
+import { PostgresRemindersRepository } from './remindersRepository';
 import { PostgresWalletRepository } from './walletRepository';
 
 export { HttpError };
@@ -19,6 +21,10 @@ interface RouteArgs<P> {
   repo: PostgresBudgetRepository;
   /** Carteira data (recorrentes, parcelados, reserva, caixa) for the same user. */
   wallet: PostgresWalletRepository;
+  /** The devices that receive this user's notifications. */
+  push: PostgresPushRepository;
+  /** Lembretes and daily tasks. */
+  reminders: PostgresRemindersRepository;
   /** The signed-in user's e-mail, for the owner-only routes. */
   email: string | null;
 }
@@ -53,6 +59,8 @@ export function apiRoute<P = Record<string, never>>(
         params: await context.params,
         repo,
         wallet,
+        push: new PostgresPushRepository(db, session.user.id),
+        reminders: new PostgresRemindersRepository(db, session.user.id),
         email: session.user.email ?? null,
       });
 

@@ -8,7 +8,11 @@ export interface Greeting {
 }
 
 export function greetingFor(date: Date = new Date()): Greeting {
-  const hour = date.getHours();
+  return greetingAtHour(date.getHours());
+}
+
+/** The same greeting for an hour (0–23) already in the right time zone, e.g. a reminder's slot. */
+export function greetingAtHour(hour: number): Greeting {
   if (hour >= 5 && hour < 12) return { text: 'Bom dia', emoji: '☀️' };
   if (hour >= 12 && hour < 18) return { text: 'Boa tarde', emoji: '🌤️' };
   return { text: 'Boa noite', emoji: '🌙' };

@@ -2,6 +2,8 @@
 
 import { useEffect, useState, type ChangeEvent } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { NotificationsSection } from '@/components/settings/NotificationsSection';
+import { ReminderSettingsSection } from '@/components/settings/ReminderSettingsSection';
 import { useOnboarding } from '@/components/onboarding/OnboardingProvider';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
@@ -328,6 +330,14 @@ function ConfiguracoesForm({
           {busy ? 'Salvando…' : 'Salvar configurações'}
         </button>
       </section>
+
+      {/* Notifications exist for the reminders: without that module, nothing new shows up here. */}
+      {resolveModules(settings).reminders && (
+        <>
+          <NotificationsSection />
+          <ReminderSettingsSection />
+        </>
+      )}
 
       <section className="flex flex-col gap-3 px-4">
         <h2 className="text-muted text-sm font-semibold">Tema</h2>

@@ -11,7 +11,16 @@ import { useSettings } from '@/components/providers/SettingsProvider';
  * link, a bookmark) explains what it is and offers to turn it on, instead of showing an empty
  * screen or a 404.
  */
-export function ModuleGate({ module, children }: { module: ModuleKey; children: ReactNode }) {
+export function ModuleGate({
+  module,
+  backHref = '/carteira',
+  children,
+}: {
+  module: ModuleKey;
+  /** Where "voltar" goes; the Carteira by default. */
+  backHref?: string;
+  children: ReactNode;
+}) {
   const { settings, loading } = useSettings();
 
   if (loading || !settings) {
@@ -23,7 +32,7 @@ export function ModuleGate({ module, children }: { module: ModuleKey; children: 
   const info = MODULE_CATALOG.find((entry) => entry.key === module);
   return (
     <div className="flex flex-1 flex-col gap-4 pb-10">
-      <PageHeader title={info?.name ?? 'Módulo desligado'} backHref="/carteira" />
+      <PageHeader title={info?.name ?? 'Módulo desligado'} backHref={backHref} />
       <div className="border-border bg-card mx-4 flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
         <p className="text-muted text-sm">{info?.description}</p>
         <p className="text-muted text-sm">

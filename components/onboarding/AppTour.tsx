@@ -35,7 +35,9 @@ export function AppTour({ onSkip, onComplete }: AppTourProps) {
   const skippedOrCompletedRef = useRef(false);
   // The bottom bar changes with the modules the user turned on, so the steps that point at
   // it have to follow it: with enough modules on, History and Settings live under "Mais".
-  const groupedNav = navKeysFor(settings).includes('mais');
+  const navKeys = navKeysFor(settings);
+  const groupedNav = navKeys.includes('mais');
+  const hasReminders = navKeys.includes('lembretes');
 
   useEffect(() => {
     const month = getLastViewedMonth() ?? currentMonthKey();
@@ -81,6 +83,18 @@ export function AppTour({ onSkip, onComplete }: AppTourProps) {
         description: 'Aqui fica a lista completa de tudo que você lançou no mês, com filtros por categoria.',
         side: 'top',
       },
+      ...(hasReminders
+        ? [
+            {
+              route: '/lembretes',
+              selector: '[data-tour="nav-lembretes"]',
+              title: 'Lembretes',
+              description:
+                'Seus lembretes e tarefas do dia. Cada um avisa no horário que você escolher, com notificação no celular.',
+              side: 'top' as const,
+            },
+          ]
+        : []),
       ...(groupedNav
         ? [
             {

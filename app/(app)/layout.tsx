@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { BottomNav } from '@/components/layout/BottomNav';
+import { PushSubscriptionSync } from '@/components/pwa/PushSubscriptionSync';
 import { AppProviders } from '@/components/providers/AppProviders';
 import { LocalDataImportBanner } from '@/components/storage/LocalDataImportBanner';
 import { getAuth } from '@/lib/server/auth';
@@ -36,6 +37,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         {children}
       </div>
       <BottomNav />
+      <PushSubscriptionSync />
     </AppProviders>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { formatMonthLabel, nextMonth } from '@/lib/budget';
+import { formatMonthLabel, isModuleOn, nextMonth } from '@/lib/budget';
 import { useMonthContext } from '@/components/month/MonthContext';
 import { CloseMonthSheet } from '@/components/month/CloseMonthSheet';
 import { GreetingHeader } from '@/components/month/GreetingHeader';
@@ -11,6 +11,7 @@ import { SummaryHeader } from '@/components/month/SummaryHeader';
 import { CardBillCard } from '@/components/month/CardBillCard';
 import { TopicCard } from '@/components/month/TopicCard';
 import { FixedCostsCard } from '@/components/month/FixedCostsCard';
+import { TodayRemindersCard } from '@/components/month/TodayRemindersCard';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { useToast } from '@/components/ui/Toast';
@@ -116,6 +117,8 @@ export function DashboardScreen() {
         specialCategories={settings.specialCategories}
         specialCategoryColors={settings.specialCategoryColors}
       />
+
+      {isModuleOn(settings, 'reminders') && <TodayRemindersCard />}
 
       {!monthData?.closed && (
         <button

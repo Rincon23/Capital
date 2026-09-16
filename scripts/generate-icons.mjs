@@ -37,6 +37,20 @@ function roundedSvg(size) {
   `;
 }
 
+/**
+ * Notification badge (Android status bar): the system only uses the alpha channel, so it is a
+ * white glyph on transparency.
+ */
+function badgeSvg(size) {
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <text x="${size / 2}" y="${size / 2}" text-anchor="middle" dominant-baseline="central"
+        font-family="'DejaVu Sans', Arial, sans-serif" font-weight="700"
+        font-size="${Math.round(size * 0.9)}" fill="#ffffff">C</text>
+    </svg>
+  `;
+}
+
 async function render(svg, size, outFile) {
   await sharp(Buffer.from(svg)).resize(size, size).png().toFile(path.join(publicDir, outFile));
   console.log('wrote', outFile);
@@ -52,6 +66,7 @@ async function main() {
   await render(fullBleedSvg(0.42), 192, 'icon-maskable-192.png');
   // iOS home-screen icon: no transparency, iOS applies its own rounding.
   await render(fullBleedSvg(0.55), 180, 'apple-touch-icon.png');
+  await render(badgeSvg(96), 96, 'badge-96.png');
 
   await writeFile(
     path.join(publicDir, 'icon-note.txt'),
