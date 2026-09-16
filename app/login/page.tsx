@@ -8,13 +8,18 @@ export const metadata: Metadata = {
   title: 'Entrar — Capital',
 };
 
+// Always rendered per request (it reads the session); never prerendered at build time.
+export const dynamic = 'force-dynamic';
+
 export default async function LoginPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  // Read the headers before anything touches the database (see the authenticated layout).
+  const requestHeaders = await headers();
   // A valid session (not just a leftover cookie) goes straight to the app.
-  const session = await getAuth().api.getSession({ headers: await headers() });
+  const session = await getAuth().api.getSession({ headers: requestHeaders });
   if (session) redirect('/');
 
   const { senha } = await searchParams;

@@ -11,8 +11,14 @@ import { getAuth } from '@/lib/server/auth';
  * here the session itself is validated, and the user handed to Client Components as
  * `initialUser` (so they render without an auth loading flash).
  */
+// Always rendered per request (they depend on the session); never prerendered at build time.
+export const dynamic = 'force-dynamic';
+
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const session = await getAuth().api.getSession({ headers: await headers() });
+  // Read the headers before anything touches the database: that marks the route dynamic, so
+  // `next build` never tries to prerender these screens (and to reach Postgres to do it).
+  const requestHeaders = await headers();
+  const session = await getAuth().api.getSession({ headers: requestHeaders });
   if (!session) redirect('/login');
 
   return (
