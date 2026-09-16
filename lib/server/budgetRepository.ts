@@ -59,10 +59,9 @@ function chunks<T>(list: T[], size: number): T[][] {
 }
 
 /**
- * BudgetRepository on Postgres, scoped to one user. Same contract and semantics as the
- * previous Supabase implementation: every write to a month re-cascades carryIn for the
- * later months, writes to a closed month are rejected, and the default envelopes are
- * seeded on first read. Each month is stored as a `months` row plus its `incomes` and
+ * BudgetRepository on Postgres, scoped to one user: every write to a month re-cascades
+ * carryIn for the later months, writes to a closed month are rejected, and the default
+ * envelopes are seeded on first read. Each month is stored as a `months` row plus its `incomes` and
  * `expenses` rows, and read back as the exact `MonthData` shape.
  *
  * Every write runs in a transaction holding a per-user advisory lock, so concurrent writes

@@ -6,7 +6,6 @@ import { getDb } from './db';
 import { account, session, user, verification } from './db/schema';
 import { confirmEmailMessage, resetPasswordMessage, sendMail } from './mailer';
 import { allowedOriginHosts } from './origins';
-import { hashAccountPassword, verifyAccountPassword } from './passwords';
 
 const DAY_IN_SECONDS = 60 * 60 * 24;
 
@@ -31,7 +30,6 @@ function createAuth() {
       enabled: true,
       requireEmailVerification: true,
       minPasswordLength: 8,
-      password: { hash: hashAccountPassword, verify: verifyAccountPassword },
       sendResetPassword: async ({ user: target, url }) => {
         await sendMail(resetPasswordMessage(target.email, url));
       },

@@ -84,31 +84,6 @@ da instalação do PWA. Ele é publicado em `https://capital.rincon.dev.br` por 
 (container `cloudflared` no Pi) apontando para a porta 3000; `tailscale funnel`/`serve` também
 serve. Mantenha a mesma URL: trocar de domínio perde a instalação do PWA no celular.
 
-### Migração do Supabase (uma vez)
-
-Os dados da versão anterior (Supabase) passam para o Postgres do Pi com
-`scripts/migrate-from-supabase.ts`:
-- **O que vai:** as contas (mesmo id, mesmo e-mail e **mesma senha**, porque o hash bcrypt é
-  copiado), as configurações e todos os meses.
-- **Ensaio antes:** por padrão o script só ensaia, num Postgres em memória, e mostra o relatório.
-  Com `--write`, grava.
-- **Conferência:** depois de importar, recalcula o resumo de cada mês e confere se bate exatamente
-  com o da origem.
-- **Pode rodar de novo:** substitui os dados de cada conta migrada pelos atuais do Supabase.
-
-```bash
-# 1) SUPABASE_DB_URL: Supabase → Connect → "Session pooler"
-# 2) túnel até o banco de produção do Pi (deixe aberto em outro terminal)
-ssh -N -L 15432:127.0.0.1:5432 orangepi@100.81.141.54
-# 3) ensaio; se estiver tudo certo, a gravação
-SUPABASE_DB_URL='postgres://…' npx tsx scripts/migrate-from-supabase.ts
-SUPABASE_DB_URL='postgres://…' DATABASE_URL='postgres://capital:<senha>@127.0.0.1:15432/capital' \
-  npx tsx scripts/migrate-from-supabase.ts --write
-```
-
-Rode a gravação logo antes de subir a versão nova do app, para não perder o que for lançado no
-meio-tempo.
-
 ### Instalar no Android
 
 Abra a URL HTTPS no **Chrome do Android** → menu ⋮ → **Instalar app**. Vira um app standalone
@@ -211,8 +186,6 @@ tela de Configurações.
   confere se existe cookie de sessão. O layout autenticado e cada rota da API validam a sessão
   de fato.
 - **Operações de login:** são Server Actions (`lib/auth/actions.ts`), com limite de tentativas.
-- **Contas migradas do Supabase:** mantêm o hash bcrypt da senha (`lib/server/passwords.ts`) até
-  a próxima troca, que passa a usar scrypt.
 
 ### Preferências leves (`lib/storage/preferences.ts`)
 
@@ -251,7 +224,7 @@ Os demais testes:
   rollover, mês fechado/inexistente, apagar mês, export→import, isolamento entre contas e
   escritas simultâneas.
 - **Repositório HTTP** (`lib/storage/__tests__`).
-- **Senhas** (bcrypt e scrypt) e o **limitador de tentativas**.
+- O **limitador de tentativas** de login.
 
 ## Checklist de aderência
 
