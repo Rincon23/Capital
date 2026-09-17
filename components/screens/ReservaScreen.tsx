@@ -18,7 +18,11 @@ import { AmountInput } from '@/components/ui/AmountInput';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { useToast } from '@/components/ui/Toast';
-import { ModuleGate } from '@/components/wallet/ModuleGate';
+import { ModuleGate } from '@/components/modules/ModuleGate';
+import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
+import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
+import { useBackHref } from '@/components/modules/useBackHref';
+import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { useWallet } from '@/components/wallet/WalletProvider';
 
 export function ReservaScreen() {
@@ -46,6 +50,7 @@ function formatFetchedAt(iso: string | null): string {
 }
 
 function Reserva() {
+  const backHref = useBackHref('investments');
   const { settings } = useSettings();
   const { snapshot, loading, error, month, run } = useWallet();
   const confirm = useConfirm();
@@ -54,6 +59,8 @@ function Reserva() {
   const [allocating, setAllocating] = useState(false);
   const [editingBucket, setEditingBucket] = useState<InvestmentBucket | 'new' | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [configuring, setConfiguring] = useState(false);
+  useModuleIntro('investments', { ready: !!snapshot });
 
   if ((loading && !snapshot) || !snapshot) {
     return <div className="text-muted flex flex-1 items-center justify-center px-4 py-16">Carregando…</div>;
@@ -95,12 +102,25 @@ function Reserva() {
       <PageHeader
         title="Reserva investida"
         subtitle={`Competência: ${formatMonthLabel(month)}`}
-        backHref="/carteira"
+        backHref={backHref}
+        action={
+          <>
+            <ModuleHelpButton module="investments" />
+            <ModuleSettingsButton
+              module="investments"
+              tourAnchor="reserva-config"
+              onClick={() => setConfiguring(true)}
+            />
+          </>
+        }
       />
 
       {error && <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{error}</p>}
 
-      <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
+      <section
+        data-tour="reserva-valor"
+        className="border-border bg-card mx-4 flex flex-col gap-3 rounded-xl border p-4 shadow-sm"
+      >
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-foreground text-lg font-semibold">{investments.ticker}</p>
@@ -118,6 +138,7 @@ function Reserva() {
             type="button"
             onClick={() => void handleRefresh()}
             disabled={refreshing}
+            data-tour="reserva-cotacao"
             className="border-border text-foreground min-h-[36px] shrink-0 rounded-lg border px-3 text-sm font-medium disabled:opacity-50"
           >
             {refreshing ? 'Atualizando…' : 'Atualizar'}
@@ -161,7 +182,7 @@ function Reserva() {
         )}
       </section>
 
-      <section className="flex flex-col gap-2 px-4">
+      <section className="flex flex-col gap-2 px-4" data-tour="reserva-categorias">
         <div className="flex items-center justify-between">
           <h2 className="text-muted text-sm font-semibold">Categorias da reserva</h2>
           <button
@@ -210,7 +231,11 @@ function Reserva() {
         )}
       </section>
 
-      <TickerSection ticker={investments.ticker} />
+      {configuring && (
+        <ModuleSettingsSheet module="investments" onClose={() => setConfiguring(false)}>
+          <TickerSection ticker={investments.ticker} />
+        </ModuleSettingsSheet>
+      )}
 
       {trading && (
         <TradeSheet

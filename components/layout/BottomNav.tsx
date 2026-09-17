@@ -1,33 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import {
-  Bell,
-  ChartColumn,
-  House,
-  LayoutGrid,
-  ReceiptText,
-  Settings,
-  Wallet,
-  type LucideIcon,
-} from 'lucide-react';
+import { LayoutGrid } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { getLastViewedMonth } from '@/lib/storage/preferences';
 import { currentMonthKey } from '@/lib/budget';
-import { navItemsFor, type NavKey } from '@/lib/nav/items';
+import { activeNavKey, navEntry, resolveNav } from '@/lib/modules';
+import { navVisual } from '@/components/modules/visuals';
 import { useSettings } from '@/components/providers/SettingsProvider';
-
-/** One icon per tab, from the same set used across the app (lucide), so they read as a family. */
-const ICONS: Record<NavKey, LucideIcon> = {
-  inicio: House,
-  lancamentos: ReceiptText,
-  lembretes: Bell,
-  carteira: Wallet,
-  historico: ChartColumn,
-  configuracoes: Settings,
-  mais: LayoutGrid,
-};
 
 export function BottomNav() {
   const pathname = usePathname();
@@ -46,8 +27,18 @@ export function BottomNav() {
   }, [monthFromPath]);
 
   const month = monthFromPath ?? fallbackMonth;
-  // Which tabs exist depends on the modules this user turned on (see lib/nav/items.ts).
-  const items = navItemsFor(settings);
+  // The entries this user picked (or the default for the modules they turned on), then "Mais",
+  // which is always there: the other screens, Módulos and Configurações live in it.
+  const nav = settings ? resolveNav(settings) : [];
+  const active = activeNavKey(nav, pathname);
+
+  const tabs = [
+    ...nav.map((key) => {
+      const entry = navEntry(key);
+      return { key, label: entry.label, href: entry.href(month), icon: navVisual(key).icon };
+    }),
+    ...(settings ? [{ key: 'mais' as const, label: 'Mais', href: '/mais', icon: LayoutGrid }] : []),
+  ];
 
   return (
     <nav
@@ -55,22 +46,22 @@ export function BottomNav() {
       className="border-border bg-card/95 supports-[backdrop-filter]:bg-card/80 fixed inset-x-0 bottom-0 z-40 border-t backdrop-blur"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <ul className="mx-auto flex max-w-lg items-stretch justify-around">
-        {items.map((item) => {
-          const active = item.isActive(pathname);
-          const Icon = ICONS[item.key];
+      <ul className="mx-auto flex min-h-[56px] max-w-lg items-stretch justify-around">
+        {tabs.map((tab) => {
+          const current = active === tab.key;
+          const Icon = tab.icon;
           return (
-            <li key={item.key} className="flex-1">
+            <li key={tab.key} className="min-w-0 flex-1">
               <Link
-                href={item.href(month)}
-                data-tour={item.tourId}
-                className={`flex min-h-[56px] flex-col items-center justify-center gap-0.5 text-xs font-medium transition-colors ${
-                  active ? 'text-primary' : 'text-muted hover:text-foreground'
+                href={tab.href}
+                data-tour={`nav-${tab.key}`}
+                className={`flex min-h-[56px] flex-col items-center justify-center gap-0.5 px-0.5 text-[11px] leading-tight font-medium transition-colors ${
+                  current ? 'text-primary' : 'text-muted hover:text-foreground'
                 }`}
-                aria-current={active ? 'page' : undefined}
+                aria-current={current ? 'page' : undefined}
               >
-                <Icon aria-hidden className="h-6 w-6" strokeWidth={active ? 2.25 : 1.75} />
-                {item.label}
+                <Icon aria-hidden className="h-6 w-6" strokeWidth={current ? 2.25 : 1.75} />
+                <span className="max-w-full truncate">{tab.label}</span>
               </Link>
             </li>
           );

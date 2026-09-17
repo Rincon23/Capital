@@ -1,11 +1,14 @@
 import type { BudgetSettings, Expense, Income, Month, MonthData } from '../budget/types';
 
-/** What a backup exported today declares. Version 2 added the modules and the "A receber" category. */
-export const BACKUP_VERSION = 2;
+/**
+ * What a backup exported today declares. Version 2 added the modules and the "A receber"
+ * category; version 3, the bottom bar and the dismissed notices.
+ */
+export const BACKUP_VERSION = 3;
 
 export interface BackupPayload {
-  /** 1 is still accepted on import: it simply has no modules and no "A receber" expenses. */
-  version: 1 | 2;
+  /** Older versions are still accepted on import: they simply lack the newer fields. */
+  version: 1 | 2 | 3;
   exportedAt: string;
   settings: BudgetSettings;
   months: MonthData[];

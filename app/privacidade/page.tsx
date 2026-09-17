@@ -26,7 +26,7 @@ export default function PrivacyPage() {
       <header className="flex flex-col gap-1">
         <p className="text-primary text-sm font-semibold">Capital</p>
         <h1 className="text-foreground text-2xl font-bold">Política de privacidade</h1>
-        <p className="text-muted text-sm">Última atualização: 16 de setembro de 2026.</p>
+        <p className="text-muted text-sm">Última atualização: 17 de setembro de 2026.</p>
       </header>
 
       <Section title="O que é o Capital">
@@ -109,14 +109,15 @@ export default function PrivacyPage() {
 
       <Section title="Apagar os seus dados">
         <p>
-          Em Configurações você pode apagar os dados do orçamento e desligar qualquer módulo. Para apagar a
-          conta inteira, fale com quem administra o Capital (o contato aparece na tela de autorização do
-          Google).
+          Em Mais → Configurações você pode apagar os dados do orçamento, e em Mais → Módulos, desligar
+          qualquer módulo. Para apagar a conta inteira, fale com quem administra o Capital (o contato aparece
+          na tela de autorização do Google).
         </p>
       </Section>
 
       <p className="text-muted text-sm">
-        <Link href="/login" className="text-primary underline">
+        {/* "/" opens the app for a signed-in person and the login for anyone else (see proxy.ts). */}
+        <Link href="/" className="text-primary underline">
           Voltar ao Capital
         </Link>
       </p>

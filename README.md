@@ -13,16 +13,53 @@ Orange Pi**, sem serviço de banco na nuvem: o navegador só fala com a API do p
 grava no banco sempre em nome do usuário logado. Cada conta só enxerga os próprios dados. Sem
 conexão o app abre, mas as telas ficam carregando até a rede voltar.
 
-### Módulos (recursos opcionais)
+### Módulos: cada pessoa monta o seu Capital
 
-Além do orçamento, o Capital tem recursos extras que **começam desligados** e cada usuário liga
-em Configurações → Módulos (`lib/budget/modules.ts`). Quem não liga nada continua vendo o app
-de sempre: nada de módulo desligado aparece em tela nenhuma.
+**Tudo o que o app faz é um módulo**, e todos **começam desligados** numa conta nova. Cada pessoa
+liga os seus em **Mais → Módulos** (`/modulos`). Desligar um módulo nunca apaga dados: ele só
+some do rodapé, do Mais, do Início e dos formulários. Religou, está tudo lá.
 
-- **Categoria "A receber"** — uma compra no cartão feita para outra pessoa, que vai devolver o
-  valor. Entra na fatura (`cardTotal` e `reimbursableTotal`) e **não** entra em nenhuma
-  categoria, no rateio dos custos fixos nem no gasto do mês.
-- **Carteira** (aba própria, `/carteira`):
+A ficha de cada módulo (nome, explicação, grupo, dependências, tela e card do Início) fica escrita
+uma vez em `lib/modules/catalog.ts`. O rodapé, o Mais, o Início e a tela Módulos leem dela. Os
+ícones e os cards ficam em `components/modules`.
+
+**Dependências.** Alguns módulos precisam de outro para funcionar. A tela Módulos mostra os
+módulos como uma árvore, cada um embaixo do módulo de que depende:
+
+- Lançamentos
+  - Gastos por categoria
+    - Histórico e gráficos
+  - Cartão de crédito
+    - A receber
+    - Parcelados
+  - Gastos recorrentes
+  - Reserva investida
+  - Lançar por voz ou texto
+- Caixa, Lembretes e Monitor de Gmail funcionam sozinhos.
+
+Um módulo cujo pai está desligado aparece com **cadeado** e "Precisa de …". Tentar ligá-lo não
+liga nada, e **o app nunca liga o pai sozinho**: a linha balança, o que falta ligar se acende e um
+aviso diz a ordem. Desligar um módulo de que outros dependem pede confirmação e desliga os filhos
+junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no servidor:
+`resolveModules` só considera ligado um módulo cujos pais estão ligados.
+
+**Dinheiro do mês**
+
+- **Lançamentos** (`/mes/[mês]/lancamentos`) — gastos e rendas do mês com busca, abas por
+  categoria, "Lançar gasto", "Renda" e "Apagar dados do mês". Sem ele não existe formulário de gasto.
+- **Gastos por categoria** (`/mes/[mês]/categorias`) — metas em % da renda, "posso gastar", sobra
+  por categoria, custos fixos e imprevistos com o rateio, e "Fechar mês". Detalhe da categoria em
+  `/mes/[mês]/categoria/[id]`. Desligado, o gasto continua sendo lançado numa categoria (que segue
+  editável na engrenagem de Lançamentos, com nome, descrição e cor), mas somem as metas, o
+  percentual e a regra dos 100%. As regras das categorias estão em "Categorias" logo abaixo.
+- **Cartão de crédito** — a pergunta "A compra foi no cartão?" e a fatura do mês. Desligado, a
+  pergunta some; gastos antigos marcados no cartão continuam marcados.
+- **A receber** — uma compra no cartão feita para outra pessoa, que vai devolver o valor. Entra na
+  fatura (`cardTotal` e `reimbursableTotal`) e **não** entra em nenhuma categoria, no rateio dos
+  custos fixos nem no gasto do mês. Tem uma aba em Lançamentos.
+- **Histórico e gráficos** (`/historico`) — aderência à meta, gráficos e a tabela mês a mês.
+
+**Carteira** (cada um com tela própria; o antigo painel `/carteira` redireciona para o Início):
   - **Gastos recorrentes** — modelos dos gastos de todo mês; "Lançar" abre o formulário de gasto
     já preenchido, com a data de hoje, na competência que você estava vendo.
   - **Parcelados** — vencimentos, parcela, restantes e fim são sempre calculados
@@ -39,7 +76,9 @@ de sempre: nada de módulo desligado aparece em tela nenhuma.
     vivo para abrir a tela.
   - **Caixa** — reserva em conta + reserva investida livre, dívida do cartão do mês aberto e dos
     parcelados (sem contar duas vezes a parcela que já virou gasto), reserva prevista e gap.
-- **Lembretes** (aba própria, `/lembretes`), com notificação no celular (Web Push):
+**Assistente**
+
+- **Lembretes** (`/lembretes`), com notificação no celular (Web Push):
   - **Tipos:** uma vez (data e hora, com aviso antecipado opcional de 30 min, 1 hora ou 1 dia),
     tarefa do dia (aparece todo dia e avisa nos horários escolhidos até ser concluída; concluída,
     vai para o histórico), toda semana (vários dias) e todo mês (dia 29–31 cai no último dia dos
@@ -63,7 +102,7 @@ de sempre: nada de módulo desligado aparece em tela nenhuma.
   - **Progresso real:** o servidor transmite cada etapa (transcrevendo, carregando a IA, lendo,
     montando) e os tokens conforme saem; a barra usa esses sinais e o tempo medido no Pi.
   - Ao abrir a tela, o servidor já carrega o modelo e lê o começo do prompt (aquecimento).
-- **Monitor de Gmail** (tela `/gmail`, em **Mais**): cada pessoa conecta o próprio Gmail com
+- **Monitor de Gmail** (`/gmail`): cada pessoa conecta o próprio Gmail com
   "Login com Google" (permissão só de leitura) e, a cada minuto, avisa no celular quando chega um
   e-mail com uma das palavras-chave no assunto, no remetente ou na prévia (sem ligar para
   maiúsculas e acentos). **Uma** notificação por e-mail, com todas as palavras encontradas, e
@@ -71,9 +110,77 @@ de sempre: nada de módulo desligado aparece em tela nenhuma.
   Ignora o que você enviou, rascunhos e spam. Se o Google recusar a conexão, avisa uma vez e pede
   para conectar de novo.
 
-Conforme os módulos ligam, a barra inferior muda (`lib/nav/items.ts`): entram as abas Lembretes
-e Carteira, e Histórico e Configurações passam a morar em **Mais**. A barra nunca passa de cinco
-abas.
+### Navegação: rodapé, Mais e Início
+
+- **Rodapé** (`resolveNav` em `lib/modules/nav.ts`): até **4 itens e o Mais sempre no fim**. Os
+  itens podem ser o Início e os módulos ligados que têm tela. A escolha fica por conta, em
+  `budget_settings.nav` (vale em todos os aparelhos). Sem escolha salva, o padrão é o Início e os
+  primeiros módulos ligados com tela, na ordem do catálogo. Módulos desligados saem sozinhos. Se o
+  Início sair do rodapé, `/` abre o primeiro item.
+- **Escolher e ordenar o rodapé** (`/rodape`, em Mais): prévia ao vivo e uma lista
+  única; o que fica acima da linha do Mais está no rodapé. Arrasta-se pela alça (`@dnd-kit`, com
+  toque, mouse e teclado, avisos em português para leitor de tela) ou pelos botões subir, descer,
+  pôr e tirar. Um quinto item empurra o último para o Mais; o rodapé nunca fica vazio. Salva na hora,
+  com "Desfazer", e "Voltar ao padrão" apaga a escolha.
+- **Mais** (`/mais`): a lista completa. O Início, a tela de **todo** módulo ligado (mesmo os que já
+  estão no rodapé), agrupadas em Dinheiro do mês, Carteira e Assistente, e sempre Módulos, Rodapé,
+  Privacidade (`/privacidade`) e Configurações. Uma tela fora do rodapé aberta pelo Mais acende a
+  aba Mais.
+- **Início** (`/mes/[mês]`): um painel com **um card por módulo ligado**, na ordem do rodapé e
+  depois do Mais (Cartão e A receber logo depois de quem eles dependem). Tocar num card abre a
+  tela do módulo. Cada card carrega os próprios dados, mostra esqueleto enquanto carrega e, se
+  falhar, não derruba os outros. O card do Histórico lê só os últimos 6 meses. Sem nenhum módulo,
+  o Início mostra "Escolha o que o seu Capital vai ter".
+- **Tela de módulo desligado** (`ModuleGate`): explica o módulo e oferece ligar ali mesmo, ou diz
+  qual módulo precisa ser ligado antes.
+- **Avisos já vistos**: `budget_settings.dismissed_notices` guarda, por conta, as chaves dos avisos
+  de uma vez só (a apresentação de cada módulo, `intro:<módulo>`, e futuros cards de novidade).
+
+### Ajuda, configurações e primeira visita de cada módulo
+
+- **Ajuda ("?")**: todo módulo tem um botão que roda o tour só dele, o spotlight do driver.js que
+  escurece a tela, destaca uma parte por vez e explica para que serve. Fica no topo da tela do
+  módulo; nos módulos sem tela, no card do Cartão no Início, na aba A receber de Lançamentos e na
+  janela de voz. Os passos ficam em `lib/modules/tours.ts` (um `Record` por módulo, então módulo sem
+  tour não compila) e apontam só para a tela do módulo, nunca para o rodapé. Todo tour termina no
+  próprio botão de ajuda. O motor (`components/modules/tour/TourProvider.tsx`) navega entre as
+  telas, espera cada elemento aparecer, abre e fecha o formulário de gasto ou a janela de voz quando
+  o passo pede e volta para onde começou. Um teste confere que toda âncora de tour existe nas telas e
+  que todo módulo tem o botão de ajuda.
+- **Configurações do módulo (engrenagem)**: ficam na tela do próprio módulo. Categorias: nome,
+  descrição, cor, ordem e metas (com a regra dos 100%), e "Restaurar categorias padrão".
+  Lançamentos: nome, descrição e cor das categorias, sem metas. Lembretes: notificações deste
+  aparelho e horários para lembrar de novo. Gmail: notificações. Caixa: reserva em conta e custos de
+  emergência. Reserva: o ativo. **Configurações** fica só com o que é geral: conta, tema, backup,
+  dados locais e apagar tudo (Módulos, Rodapé e Privacidade ficam no Mais).
+- **Primeira visita** (`useModuleIntro`): a primeira vez que a pessoa abre a tela de um módulo, o
+  tour dele começa sozinho. Nas Categorias vêm antes as perguntas das porcentagens (veja abaixo).
+  Fica guardado por conta, então acontece uma vez só, no aparelho que chegar primeiro. Não existe
+  mais um tour geral do app nem uma "Ajuda" no Mais: a ajuda de cada coisa fica na tela dela.
+
+### Categorias
+
+- **As quatro padrão** (`DEFAULT_TOPICS` em `lib/budget/topics.ts`) vêm com uma descrição que ensina
+  o jeito certo de usar: **Diversos** (os prazeres e confortos da vida, presentes e o que poderia
+  esperar, mas você quer agora), **Investimentos** (qualquer investimento que faça o dinheiro
+  render), **Metas** (casa, carro, casamento, aniversário, viagem) e **Conhecimentos** (tudo que
+  agrega conhecimento). Toda categoria tem descrição, que a pessoa escreve ao criar e pode editar.
+  Cada padrão guarda um `preset`, para ser reconhecida mesmo renomeada.
+- **Custo fixo**: um gasto que se repete todo mês e é maior do que a categoria recebe vai para custo
+  fixo (uma faculdade de R$ 1.000 por mês, por exemplo). A tela Categorias explica renda, custos
+  fixos, imprevistos e cada categoria.
+- **Criar é possível, mas desaconselhado**: ao lado de todo "Adicionar categoria" o app diz que a
+  maioria das pessoas fica satisfeita com as quatro padrão, e pede confirmação antes de criar.
+- **Nunca se exclui, só se arquiva.** A categoria arquivada some da lista (não há lista de
+  arquivadas) e os meses passados continuam como estavam. No mês atual e nos próximos ela some na
+  hora; se o mês atual já tiver gastos nela, ela fica até o fim do mês, marcada como arquivada e sem
+  % da renda, para nenhum gasto sumir dos totais. O servidor garante: um salvamento que deixe uma
+  categoria de fora a guarda arquivada (`keepEveryTopic`).
+- **Restaurar categorias padrão** (na engrenagem): as quatro padrão voltam como vieram (nome,
+  descrição, cor e %) e todas as outras são arquivadas, com "Desfazer".
+- **"Me ajude com as %"** (botão na tela Categorias, e na primeira visita): perguntas de renda,
+  custos fixos e imprevistos, para que serve cada categoria e as porcentagens, com a prévia de
+  quanto cada % deixa para gastar. Dá para criar uma categoria ali também, com o mesmo aviso.
 
 ## Como rodar (desenvolvimento)
 
@@ -171,7 +278,8 @@ na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de 
   /api/v1                API do app (Route Handlers): o único caminho até o banco
   /api/auth              Endpoints do Better Auth (destino dos links dos e-mails)
 /components
-  /screens               Uma tela por arquivo (Dashboard, Categoria, Lançamentos, Histórico, Configurações, Login)
+  /screens               Uma tela por arquivo (Início, Categorias, Lançamentos, Módulos, Mais, Configurações…)
+  /modules               Ícones dos módulos, a tela bloqueada, ligar/desligar e os cards do Início
   /month                  Componentes e contexto compartilhados pelas rotas /mes/[month]/*
   /history                Gráficos (Recharts) e o indicador de aderência à meta
   /layout, /ui, /providers, /pwa
@@ -181,7 +289,7 @@ na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de 
   /ai                     Lançar por voz/texto: regras de leitura do gasto, prompt, rascunho e progresso (puras)
   /gmail                  Monitor de Gmail: palavras-chave num e-mail e o texto da notificação (puras)
   /notifications          Web Push: tipos, nome dos aparelhos e o lado do navegador (permissão, inscrição)
-  /nav                    Quais abas a barra inferior mostra, conforme os módulos ligados
+  /modules                A ficha de cada módulo, dependências, rodapé, Mais e cards do Início (puras)
   /storage                Contrato BudgetRepository e o repositório do navegador (HTTP)
   /server                 Só no servidor: banco (Drizzle), repositório Postgres, auth, e-mail, API
   /auth                   Server Actions de autenticação (entrar, criar conta, sair, redefinir senha)
@@ -349,9 +457,10 @@ Os demais testes:
 - **`lib/server/__tests__/budgetRepository.test.ts`:** cobre o repositório Postgres contra o
   schema e as migrações reais, num Postgres em memória (PGlite). Casos: seed, cascata de
   rollover, mês fechado/inexistente, fechar abrindo o mês seguinte, apagar mês, export→import,
-  módulos por usuário, isolamento entre contas e escritas simultâneas.
+  módulos, rodapé e avisos vistos por usuário (e no backup), isolamento entre contas e escritas
+  simultâneas.
 - **Componentes** (`components/**/__tests__`, Testing Library): o formulário de gasto com a
-  categoria "A receber" e a prévia do "Fechar mês".
+  categoria "A receber" e sem o módulo Cartão, e a prévia do "Fechar mês".
 - **`lib/reminders/__tests__/schedule.test.ts`:** os lembretes com relógio falso em São Paulo:
   mês curto, vários dias da semana, aviso antecipado, repetição até "Realizado", atrasados,
   horários do usuário, tarefas agrupadas e o que não dispara antes da criação.
@@ -367,8 +476,16 @@ Os demais testes:
   (maiúsculas, acentos, remetente, prévia), um aviso por e-mail com todas as palavras e nunca
   repetido, e-mails enviados e spam ignorados, `historyId` expirado, conexão recusada (avisa uma
   vez e para), token cifrado e o `state` do OAuth, com o Gmail simulado.
-- **Repositório HTTP** (`lib/storage/__tests__`) e a **barra de navegação** por módulos
-  (`lib/nav/__tests__`).
+- **`lib/modules/__tests__`:** o catálogo, as dependências (filho travado sem o pai, o que ligar
+  antes e em que ordem, desligar em cascata, a árvore), o rodapé (padrão, escolha, cortes, arrastar,
+  botões, nunca vazio), o Mais, a aba acesa, a ordem dos cards do Início e os tours (todo módulo tem
+  tour e botão de ajuda, e toda âncora existe nas telas).
+- **`lib/budget/__tests__/topics.test.ts`, `components/settings/__tests__` e
+  `components/onboarding/__tests__`:** as categorias padrão e suas descrições, restaurar o padrão
+  (inclusive com dados antigos, sem `preset`), nunca apagar uma categoria, a arquivada no mês atual,
+  nos próximos e nos passados, o editor sem "Excluir" e com os avisos, e o "Me ajude com as %"
+  criando uma categoria com descrição.
+- **Repositório HTTP** (`lib/storage/__tests__`).
 - O **limitador de tentativas** de login.
 
 ## Checklist de aderência
@@ -386,11 +503,12 @@ Os demais testes:
 
 ### Telas (seção 7)
 
-- [x] **Dashboard do mês** — seletor de mês, cabeçalho com renda/gasto/posso-gastar/saldo, card por categoria com barra de progresso (verde/amarelo/vermelho), card de custos fixos/imprevistos com rateio por categoria, FAB "+ Lançar gasto" e botão "+ Renda"
+- [x] **Início** — painel com um card por módulo ligado, seletor de mês, FAB "+ Lançar gasto", "+ Renda" e o microfone
+- [x] **Categorias do mês** — cabeçalho com renda/gasto/posso-gastar/saldo, card por categoria com barra de progresso (verde/amarelo/vermelho), card de custos fixos/imprevistos com rateio por categoria e "Fechar mês"
 - [x] **Detalhe da categoria** — lista de gastos editável/excluível e a conta completa (`renda × pct − rateio + mês passado = posso gastar`)
 - [x] **Lançamentos do mês** — abas Gastos / Renda / Custos Fixos / Imprevistos, busca e edição/exclusão inline
 - [x] **Histórico & Gráficos** — tabela mês a mês, evolução do gasto por categoria (linhas), composição do gasto por mês (barras empilhadas), sobra acumulada/rollover (linhas) e indicador de aderência à meta
-- [x] **Configurações** — editor de categorias (nome/%/ordem/arquivar) com validador de 100%, categorias especiais renomeáveis, exportar/importar JSON, apagar tudo, tema claro/escuro, conta (e-mail + sair), importar dados locais
+- [x] **Configurações** — exportar/importar JSON, apagar tudo, tema claro/escuro, conta (e-mail + sair), importar dados locais. O editor de categorias (nome/descrição/%/ordem/arquivar, validador de 100% e restaurar padrão) fica na engrenagem de Categorias
 - [x] **Login** — entrar / criar conta / esqueci a senha, com confirmação de e-mail
 
 ### Requisitos não-funcionais (seção 8)

@@ -1,17 +1,8 @@
 import { DEFAULT_SPECIAL_CATEGORY_LABELS } from './categories';
-import { DEFAULT_SPECIAL_CATEGORY_COLORS, DEFAULT_TOPIC_COLORS } from './colors';
+import { DEFAULT_SPECIAL_CATEGORY_COLORS } from './colors';
 import { createId } from './id';
+import { createDefaultTopics } from './topics';
 import type { BudgetSettings, Month, MonthData, TopicConfig } from './types';
-
-/** Default envelopes, mirroring the original spreadsheet. */
-export function createDefaultTopics(): TopicConfig[] {
-  return [
-    { id: createId(), name: 'Diversos', targetPct: 0.2, order: 0, color: DEFAULT_TOPIC_COLORS[0] },
-    { id: createId(), name: 'Investimentos', targetPct: 0.45, order: 1, color: DEFAULT_TOPIC_COLORS[1] },
-    { id: createId(), name: 'Metas', targetPct: 0.25, order: 2, color: DEFAULT_TOPIC_COLORS[2] },
-    { id: createId(), name: 'Conhecimentos', targetPct: 0.1, order: 3, color: DEFAULT_TOPIC_COLORS[3] },
-  ];
-}
 
 export function createDefaultSettings(): BudgetSettings {
   return {

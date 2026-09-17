@@ -8,14 +8,19 @@ import { NotificationsHint } from '@/components/pwa/NotificationsHint';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { IconTile } from '@/components/ui/IconTile';
 import { useToast } from '@/components/ui/Toast';
-import { ModuleGate } from '@/components/wallet/ModuleGate';
+import { ModuleGate } from '@/components/modules/ModuleGate';
+import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
+import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
+import { useModuleIntro } from '@/components/modules/useModuleIntro';
+import { NotificationsSection } from '@/components/settings/NotificationsSection';
+import { useBackHref } from '@/components/modules/useBackHref';
 import { senderName, type GmailAlert, type GmailOverview } from '@/lib/gmail';
 import { GMAIL_CONNECT_URL, gmailRepository } from '@/lib/storage';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
 
 export function GmailScreen() {
   return (
-    <ModuleGate module="gmail" backHref="/mais">
+    <ModuleGate module="gmail">
       <Gmail />
     </ModuleGate>
   );
@@ -43,15 +48,20 @@ function formatChecked(iso: string, now: number): string {
   return `em ${formatWhen(iso)}`;
 }
 
-function Card({ children }: { children: ReactNode }) {
+function Card({ children, tour }: { children: ReactNode; tour?: string }) {
   return (
-    <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm">
+    <section
+      data-tour={tour}
+      className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm"
+    >
       {children}
     </section>
   );
 }
 
 function Gmail() {
+  const backHref = useBackHref('gmail');
+  const [configuring, setConfiguring] = useState(false);
   const router = useRouter();
   const confirm = useConfirm();
   const { showToast } = useToast();
@@ -95,10 +105,25 @@ function Gmail() {
     }
   }
 
+  useModuleIntro('gmail', { ready: !!overview });
+
+  const header = (
+    <PageHeader
+      title="Monitor de Gmail"
+      backHref={backHref}
+      action={
+        <>
+          <ModuleHelpButton module="gmail" />
+          <ModuleSettingsButton module="gmail" tourAnchor="gmail-config" onClick={() => setConfiguring(true)} />
+        </>
+      }
+    />
+  );
+
   if (!overview) {
     return (
       <div className="flex flex-1 flex-col gap-4 pb-10">
-        <PageHeader title="Monitor de Gmail" backHref="/mais" />
+        {header}
         {error ? (
           <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{error}</p>
         ) : (
@@ -112,7 +137,7 @@ function Gmail() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 pb-10">
-      <PageHeader title="Monitor de Gmail" backHref="/mais" />
+      {header}
 
       {connectError && (
         <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{connectError}</p>
@@ -120,7 +145,7 @@ function Gmail() {
 
       <NotificationsHint />
 
-      <Card>
+      <Card tour="gmail-conta">
         {!overview.configured ? (
           <SetupSteps redirectUri={overview.redirectUri} />
         ) : !account ? (
@@ -222,7 +247,7 @@ function Gmail() {
         )}
       </Card>
 
-      <Card>
+      <Card tour="gmail-palavras">
         <div>
           <p className="text-foreground font-semibold">Palavras-chave</p>
           <p className="text-muted text-sm">
@@ -294,7 +319,7 @@ function Gmail() {
         )}
       </Card>
 
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-2" data-tour="gmail-alertas">
         <h2 className="text-muted px-4 text-sm font-semibold">Alertas recentes</h2>
         {overview.alerts.length === 0 ? (
           <p className="text-muted px-4 text-sm">
@@ -308,6 +333,12 @@ function Gmail() {
           </ul>
         )}
       </section>
+
+      {configuring && (
+        <ModuleSettingsSheet module="gmail" onClose={() => setConfiguring(false)}>
+          <NotificationsSection />
+        </ModuleSettingsSheet>
+      )}
     </div>
   );
 }

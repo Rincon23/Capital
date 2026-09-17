@@ -5,37 +5,6 @@ import {
   specialCategoryLabel,
 } from '../categories';
 import { greetingFor, greetingLine } from '../greeting';
-import { MODULE_CATALOG, isModuleOn, resolveModules } from '../modules';
-import { createDefaultSettings } from '../seed';
-import type { BudgetSettings } from '../types';
-
-describe('módulos', () => {
-  it('deixa tudo desligado quando a conta nunca abriu a tela de Módulos', () => {
-    expect(Object.values(resolveModules(undefined)).every((on) => on === false)).toBe(true);
-    expect(Object.values(resolveModules({ modules: undefined })).every((on) => on === false)).toBe(true);
-    expect(Object.values(resolveModules(createDefaultSettings())).every((on) => on === false)).toBe(true);
-  });
-
-  it('liga só o que foi gravado, mantendo o resto desligado', () => {
-    const settings = { modules: { reimbursable: true } } as Pick<BudgetSettings, 'modules'>;
-    expect(isModuleOn(settings, 'reimbursable')).toBe(true);
-    expect(isModuleOn(settings, 'reminders')).toBe(false);
-    expect(isModuleOn(null, 'reimbursable')).toBe(false);
-  });
-
-  it('só oferece para ligar o que já existe no app', () => {
-    expect(MODULE_CATALOG.filter((info) => info.available).map((info) => info.key)).toEqual([
-      'reimbursable',
-      'recurring',
-      'installments',
-      'investments',
-      'cash',
-      'reminders',
-      'voice',
-      'gmail',
-    ]);
-  });
-});
 
 describe('rótulos das categorias especiais', () => {
   it('chama a categoria do bot de "A receber", nunca de "Ressarcido"', () => {

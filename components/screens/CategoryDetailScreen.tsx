@@ -1,11 +1,20 @@
 'use client';
 
+import { ModuleGate } from '@/components/modules/ModuleGate';
 import { useMonthContext } from '@/components/month/MonthContext';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { computeProgressState, formatBRL, formatMonthLabel, formatPct } from '@/lib/budget';
 
 export function CategoryDetailScreen({ topicId }: { topicId: string }) {
+  return (
+    <ModuleGate module="budget">
+      <CategoryDetail topicId={topicId} />
+    </ModuleGate>
+  );
+}
+
+function CategoryDetail({ topicId }: { topicId: string }) {
   const { month, summary, monthData, loading, openExpenseForm } = useMonthContext();
 
   if (loading || !summary || !monthData) {
@@ -16,7 +25,7 @@ export function CategoryDetailScreen({ topicId }: { topicId: string }) {
   if (!topic) {
     return (
       <div className="flex flex-1 flex-col gap-4">
-        <PageHeader title="Categoria" backHref={`/mes/${month}`} />
+        <PageHeader title="Categoria" backHref={`/mes/${month}/categorias`} />
         <p className="text-muted px-4">Categoria não encontrada neste mês.</p>
       </div>
     );
@@ -34,7 +43,7 @@ export function CategoryDetailScreen({ topicId }: { topicId: string }) {
       <PageHeader
         title={topic.name}
         subtitle={formatMonthLabel(month)}
-        backHref={`/mes/${month}`}
+        backHref={`/mes/${month}/categorias`}
         accentColor={topic.color}
       />
 

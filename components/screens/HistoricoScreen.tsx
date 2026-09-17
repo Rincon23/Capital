@@ -2,6 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { ModuleGate } from '@/components/modules/ModuleGate';
+import { ModuleHelpButton } from '@/components/modules/ModuleHelpButton';
+import { useBackHref } from '@/components/modules/useBackHref';
+import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { AdherenceMeter } from '@/components/history/AdherenceMeter';
 import {
   CompositionBarChart,
@@ -14,6 +18,15 @@ import { useSettings } from '@/components/providers/SettingsProvider';
 import { formatBRL, formatMonthLabel, formatPct } from '@/lib/budget';
 
 export function HistoricoScreen() {
+  return (
+    <ModuleGate module="history">
+      <Historico />
+    </ModuleGate>
+  );
+}
+
+function Historico() {
+  const backHref = useBackHref('history');
   const { settings } = useSettings();
   const { summaries, loading, error } = useAllMonths(settings?.topics);
 
@@ -38,34 +51,58 @@ export function HistoricoScreen() {
     return found === -1 ? summaries.length - 1 : found;
   }, [summaries, selectedMonth]);
   const tableSummary = tableIndex === -1 ? undefined : summaries[tableIndex];
+  useModuleIntro('history', { ready: !loading && !error });
 
   if (loading) {
     return <div className="text-muted flex flex-1 items-center justify-center px-4 py-16">Carregando…</div>;
   }
 
+  const header = (
+    <PageHeader
+      title="Histórico & Gráficos"
+      backHref={backHref}
+      action={<ModuleHelpButton module="history" />}
+    />
+  );
+
   if (error) {
     return (
       <div className="flex flex-1 flex-col gap-4">
-        <PageHeader title="Histórico" />
+        {header}
         <p className="text-danger px-4 text-sm">{error}</p>
       </div>
     );
   }
 
+  // Without any month yet, the sections are still there (empty), so the tour can show them.
   if (summaries.length === 0) {
+    const empty = (text: string) => (
+      <div className="border-border bg-card text-muted rounded-xl border p-4 text-sm shadow-sm">{text}</div>
+    );
     return (
-      <div className="flex flex-1 flex-col gap-4">
-        <PageHeader title="Histórico" />
-        <p className="text-muted px-4">Nenhum mês registrado ainda.</p>
+      <div className="flex flex-1 flex-col gap-6 pb-10">
+        {header}
+        <section className="flex flex-col gap-2 px-4" data-tour="historico-aderencia">
+          <h2 className="text-muted text-sm font-semibold">Aderência à meta</h2>
+          {empty('Aparece quando o primeiro mês tiver lançamentos.')}
+        </section>
+        <section className="flex flex-col gap-2 px-4" data-tour="historico-graficos">
+          <h2 className="text-muted text-sm font-semibold">Gráficos</h2>
+          {empty('A evolução do gasto, a composição de cada mês e a sobra acumulada aparecem aqui.')}
+        </section>
+        <section className="flex flex-col gap-2 px-4" data-tour="historico-tabela">
+          <h2 className="text-muted text-sm font-semibold">Tabela mês a mês</h2>
+          {empty('Nenhum mês registrado ainda.')}
+        </section>
       </div>
     );
   }
 
   return (
     <div className="flex flex-1 flex-col gap-6 pb-10">
-      <PageHeader title="Histórico & Gráficos" />
+      {header}
 
-      <section className="flex flex-col gap-2 px-4">
+      <section className="flex flex-col gap-2 px-4" data-tour="historico-aderencia">
         <h2 className="text-muted text-sm font-semibold">
           Aderência à meta ({latest ? formatMonthLabel(latest.month) : ''})
         </h2>
@@ -82,28 +119,30 @@ export function HistoricoScreen() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-2 px-4">
-        <h2 className="text-muted text-sm font-semibold">Evolução do gasto por categoria</h2>
-        <div className="border-border bg-card rounded-xl border p-3 shadow-sm">
-          <SpendingLineChart summaries={summaries} topics={topics} />
-        </div>
-      </section>
+      <div className="flex flex-col gap-6" data-tour="historico-graficos">
+        <section className="flex flex-col gap-2 px-4">
+          <h2 className="text-muted text-sm font-semibold">Evolução do gasto por categoria</h2>
+          <div className="border-border bg-card rounded-xl border p-3 shadow-sm">
+            <SpendingLineChart summaries={summaries} topics={topics} />
+          </div>
+        </section>
 
-      <section className="flex flex-col gap-2 px-4">
-        <h2 className="text-muted text-sm font-semibold">Composição do gasto por mês</h2>
-        <div className="border-border bg-card rounded-xl border p-3 shadow-sm">
-          <CompositionBarChart summaries={summaries} topics={topics} />
-        </div>
-      </section>
+        <section className="flex flex-col gap-2 px-4">
+          <h2 className="text-muted text-sm font-semibold">Composição do gasto por mês</h2>
+          <div className="border-border bg-card rounded-xl border p-3 shadow-sm">
+            <CompositionBarChart summaries={summaries} topics={topics} />
+          </div>
+        </section>
 
-      <section className="flex flex-col gap-2 px-4">
-        <h2 className="text-muted text-sm font-semibold">Sobra acumulada (rollover) por categoria</h2>
-        <div className="border-border bg-card rounded-xl border p-3 shadow-sm">
-          <RemainingLineChart summaries={summaries} topics={topics} />
-        </div>
-      </section>
+        <section className="flex flex-col gap-2 px-4">
+          <h2 className="text-muted text-sm font-semibold">Sobra acumulada (rollover) por categoria</h2>
+          <div className="border-border bg-card rounded-xl border p-3 shadow-sm">
+            <RemainingLineChart summaries={summaries} topics={topics} />
+          </div>
+        </section>
+      </div>
 
-      <section className="flex flex-col gap-2 px-4">
+      <section className="flex flex-col gap-2 px-4" data-tour="historico-tabela">
         <h2 className="text-muted text-sm font-semibold">Tabela mês a mês</h2>
         <div className="border-border bg-card flex flex-col rounded-xl border shadow-sm">
           <div className="border-border flex items-center justify-between gap-2 border-b px-3 py-2">

@@ -14,10 +14,20 @@ export type Month = string;
  */
 export type CategoryKind = 'topic' | 'fixedCost' | 'unforeseen' | 'reimbursable';
 
-/** A budget envelope ("Diversos", "Investimentos", ...). */
+/** The categories every account starts with (see DEFAULT_TOPICS). */
+export type TopicPreset = 'diversos' | 'investimentos' | 'metas' | 'conhecimentos';
+
+/**
+ * A budget envelope ("Diversos", "Investimentos", ...). Never deleted, only archived: past months
+ * keep what it had, and archived categories are never shown.
+ */
 export interface TopicConfig {
   id: string;
   name: string;
+  /** What the category is for. Absent in older data; resolve with `topicDescription`. */
+  description?: string;
+  /** Set on the default categories, so "restore defaults" finds them even after a rename. */
+  preset?: TopicPreset;
   /** Target percentage of income allocated to this topic, expressed as 0..1. */
   targetPct: number;
   order: number;
@@ -47,12 +57,20 @@ export interface SpecialCategoryColors {
 }
 
 /**
- * Optional features ("módulos do assistente"), each one off until the user turns it on in
- * Settings. An account with nothing turned on sees exactly the budgeting app of before.
+ * Everything the app does is a module ("módulo") each user turns on. Nothing is on for a new
+ * account; the rules (dependencies, navigation, home cards) live in `lib/modules`.
  */
 export interface ModuleFlags {
+  /** Expenses and incomes of the month (the "Lançamentos" screen and the expense form). */
+  expenses: boolean;
+  /** Envelope budgeting: targets, "posso gastar", leftovers and closing the month. */
+  budget: boolean;
+  /** Marking card purchases and the monthly card bill. */
+  card: boolean;
   /** The "A receber" category (see CategoryKind). */
   reimbursable: boolean;
+  /** History charts and the month-by-month table. */
+  history: boolean;
   /** Recurring-expense templates. */
   recurring: boolean;
   /** Installment plans. */
@@ -71,6 +89,9 @@ export interface ModuleFlags {
 
 export type ModuleKey = keyof ModuleFlags;
 
+/** An entry the bottom bar can hold: the home dashboard or a module that has a screen. */
+export type NavKey = 'inicio' | ModuleKey;
+
 /** Global (not month-scoped) budget configuration. */
 export interface BudgetSettings {
   topics: TopicConfig[];
@@ -83,8 +104,15 @@ export interface BudgetSettings {
    * account's first-ever settings row is created with this explicitly false.
    */
   onboardingCompleted?: boolean;
-  /** Which optional modules this user turned on. Absent/partial means "off"; resolve with `resolveModules`. */
+  /** Which modules this user turned on. Absent/partial means "off"; resolve with `resolveModules`. */
   modules?: Partial<ModuleFlags>;
+  /**
+   * The bottom bar the user picked, in order (without "Mais", which is always there). Absent or
+   * null means the default; resolve with `resolveNav`.
+   */
+  nav?: NavKey[] | null;
+  /** One-time notices ("Novidade" cards and the like) this account already dismissed, by key. */
+  dismissedNotices?: string[];
 }
 
 export interface Income {

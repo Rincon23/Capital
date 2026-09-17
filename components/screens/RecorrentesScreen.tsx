@@ -6,7 +6,6 @@ import {
   createId,
   formatBRL,
   formatMonthLabel,
-  isModuleOn,
   parseAmountInput,
   resolveSpecialCategoryLabels,
   specialCategoryLabel,
@@ -15,6 +14,7 @@ import {
   type RecurringExpense,
   type TopicConfig,
 } from '@/lib/budget';
+import { isModuleOn } from '@/lib/modules';
 import { budgetRepository, walletRepository } from '@/lib/storage';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ExpenseFormSheet } from '@/components/month/ExpenseFormSheet';
@@ -24,7 +24,10 @@ import { BottomSheet } from '@/components/ui/BottomSheet';
 import { CategoryPicker, type CategoryValue } from '@/components/ui/CategoryPicker';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { useToast } from '@/components/ui/Toast';
-import { ModuleGate } from '@/components/wallet/ModuleGate';
+import { ModuleGate } from '@/components/modules/ModuleGate';
+import { ModuleHelpButton } from '@/components/modules/ModuleHelpButton';
+import { useBackHref } from '@/components/modules/useBackHref';
+import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { useWallet } from '@/components/wallet/WalletProvider';
 
 export function RecorrentesScreen() {
@@ -44,6 +47,7 @@ function categoryLabel(item: RecurringExpense, topics: TopicConfig[], labels: Pa
 }
 
 function Recorrentes() {
+  const backHref = useBackHref('recurring');
   const { settings } = useSettings();
   const { snapshot, loading, error, month, run } = useWallet();
   const confirm = useConfirm();
@@ -52,6 +56,7 @@ function Recorrentes() {
   const [creating, setCreating] = useState(false);
   /** The expense a "Lançar no mês" is about to create, shown in the normal expense form. */
   const [launching, setLaunching] = useState<Expense | null>(null);
+  useModuleIntro('recurring', { ready: !!snapshot });
 
   if (loading && !snapshot) {
     return <div className="text-muted flex flex-1 items-center justify-center px-4 py-16">Carregando…</div>;
@@ -98,7 +103,7 @@ function Recorrentes() {
       description: item.description,
       amount: item.amount,
       date: todayISO(),
-      singleInstallmentCard: item.card,
+      singleInstallmentCard: item.card && isModuleOn(settings, 'card'),
       source: 'recurring',
     });
   }
@@ -108,58 +113,65 @@ function Recorrentes() {
       <PageHeader
         title="Gastos recorrentes"
         subtitle={`Lançar em ${formatMonthLabel(month)}`}
-        backHref="/carteira"
+        backHref={backHref}
         action={
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            aria-label="Novo recorrente"
-            className="bg-primary text-primary-foreground flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-          >
-            +
-          </button>
+          <>
+            <ModuleHelpButton module="recurring" />
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              aria-label="Novo recorrente"
+              data-tour="recorrentes-novo"
+              className="bg-primary text-primary-foreground flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+            >
+              +
+            </button>
+          </>
         }
       />
 
       {error && <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{error}</p>}
 
-      <ul className="flex flex-col gap-2 px-4">
-        {items.map((item) => (
-          <li
-            key={item.id}
-            className="border-border bg-card flex items-center gap-2 rounded-xl border px-4 py-3 shadow-sm"
-          >
-            <button type="button" onClick={() => setEditing(item)} className="min-w-0 flex-1 text-left">
-              <span className="text-foreground block truncate font-medium">{item.description}</span>
-              <span className="text-muted block text-xs">
-                {categoryLabel(item, topics, labels)}
-                {item.card ? ' · cartão' : ''}
-              </span>
-            </button>
-            <span className="text-foreground shrink-0 font-semibold">{formatBRL(item.amount)}</span>
-            <button
-              type="button"
-              onClick={() => startLaunch(item)}
-              className="border-border text-foreground min-h-[36px] shrink-0 rounded-lg border px-3 text-sm font-medium"
+      <div data-tour="recorrentes-lista" className="flex flex-col">
+        <ul className="flex flex-col gap-2 px-4">
+          {items.map((item) => (
+            <li
+              key={item.id}
+              className="border-border bg-card flex items-center gap-2 rounded-xl border px-4 py-3 shadow-sm"
             >
-              Lançar
-            </button>
-          </li>
-        ))}
-      </ul>
+              <button type="button" onClick={() => setEditing(item)} className="min-w-0 flex-1 text-left">
+                <span className="text-foreground block truncate font-medium">{item.description}</span>
+                <span className="text-muted block text-xs">
+                  {categoryLabel(item, topics, labels)}
+                  {item.card && isModuleOn(settings, 'card') ? ' · cartão' : ''}
+                </span>
+              </button>
+              <span className="text-foreground shrink-0 font-semibold">{formatBRL(item.amount)}</span>
+              <button
+                type="button"
+                onClick={() => startLaunch(item)}
+                className="border-border text-foreground min-h-[36px] shrink-0 rounded-lg border px-3 text-sm font-medium"
+              >
+                Lançar
+              </button>
+            </li>
+          ))}
+        </ul>
 
-      {items.length === 0 && (
-        <p className="text-muted px-4 py-10 text-center text-sm">
-          Nenhum gasto recorrente ainda. Crie um modelo para os gastos que se repetem todo mês —
-          aluguel, internet, faculdade — e lance com um toque.
-        </p>
-      )}
+        {items.length === 0 && (
+          <p className="text-muted px-4 py-10 text-center text-sm">
+            Nenhum gasto recorrente ainda. Crie um modelo para os gastos que se repetem todo mês — aluguel,
+            internet, faculdade — e lance com um toque.
+          </p>
+        )}
+      </div>
 
       {(creating || editing) && settings && (
         <RecurringFormSheet
           topics={topics}
           specialCategories={settings.specialCategories}
           showReimbursable={isModuleOn(settings, 'reimbursable')}
+          cardEnabled={isModuleOn(settings, 'card')}
           initial={editing ?? undefined}
           onClose={() => {
             setCreating(false);
@@ -176,6 +188,7 @@ function Recorrentes() {
           topics={topics}
           specialCategories={settings.specialCategories}
           reimbursableEnabled={isModuleOn(settings, 'reimbursable')}
+          cardEnabled={isModuleOn(settings, 'card')}
           initial={launching}
           title="Lançar recorrente"
           onClose={() => setLaunching(null)}
@@ -195,6 +208,7 @@ function RecurringFormSheet({
   topics,
   specialCategories,
   showReimbursable,
+  cardEnabled,
   initial,
   onClose,
   onSave,
@@ -203,6 +217,8 @@ function RecurringFormSheet({
   topics: TopicConfig[];
   specialCategories: Parameters<typeof resolveSpecialCategoryLabels>[0];
   showReimbursable: boolean;
+  /** Without the card module the template keeps its card flag but does not ask about it. */
+  cardEnabled: boolean;
   initial?: RecurringExpense;
   onClose: () => void;
   onSave: (item: RecurringExpense) => Promise<void>;
@@ -271,15 +287,17 @@ function RecurringFormSheet({
           />
         </label>
 
-        <label className="text-foreground flex min-h-[44px] items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={card}
-            onChange={(e) => setCard(e.target.checked)}
-            className="border-border h-5 w-5 rounded"
-          />
-          Esse gasto é pago no cartão?
-        </label>
+        {cardEnabled && (
+          <label className="text-foreground flex min-h-[44px] items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={card}
+              onChange={(e) => setCard(e.target.checked)}
+              className="border-border h-5 w-5 rounded"
+            />
+            Esse gasto é pago no cartão?
+          </label>
+        )}
 
         {errors.length > 0 && (
           <ul className="bg-danger-bg text-danger rounded-lg px-3 py-2 text-sm">

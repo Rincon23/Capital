@@ -29,7 +29,7 @@ const settings = {
     { id: 't-old', name: 'Viagem', targetPct: 0, order: 4, archived: true },
   ],
   specialCategories: { fixedCost: 'Custo Fixo', unforeseen: 'Imprevistos' },
-  modules: { reimbursable: true },
+  modules: { expenses: true, card: true, reimbursable: true },
 };
 const options = categoryOptions(settings);
 const byKind = (kind: string, topicId?: string) =>

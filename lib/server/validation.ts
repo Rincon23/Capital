@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import type { ModuleKey, NavKey } from '@/lib/budget';
+import { MAX_NAV_ITEMS, MODULE_KEYS } from '@/lib/modules';
 
 /** Validates everything the API receives. Unknown keys are dropped. */
 
@@ -15,21 +17,20 @@ const topicSchema = z.object({
   order: z.number(),
   archived: z.boolean().optional(),
   color: z.string().optional(),
+  description: z.string().max(300, 'A descrição da categoria pode ter até 300 caracteres.').optional(),
+  preset: z.enum(['diversos', 'investimentos', 'metas', 'conhecimentos']).optional(),
 });
 
-/** Every optional module, as booleans. Anything absent stays off (see `resolveModules`). */
-const modulesSchema = z
-  .object({
-    reimbursable: z.boolean(),
-    recurring: z.boolean(),
-    installments: z.boolean(),
-    investments: z.boolean(),
-    cash: z.boolean(),
-    reminders: z.boolean(),
-    voice: z.boolean(),
-    gmail: z.boolean(),
-  })
-  .partial();
+/** Every module, as booleans. Anything absent stays off (see `resolveModules`). */
+const modulesSchema = z.object(
+  Object.fromEntries(MODULE_KEYS.map((key) => [key, z.boolean().optional()])) as Record<
+    ModuleKey,
+    z.ZodOptional<z.ZodBoolean>
+  >,
+);
+
+/** The bottom bar: Início or a module, at most four (resolveNav drops what no longer applies). */
+const navSchema = z.array(z.enum(['inicio', ...MODULE_KEYS] as [NavKey, ...NavKey[]])).max(MAX_NAV_ITEMS);
 
 export const settingsSchema = z.object({
   topics: z.array(topicSchema),
@@ -45,6 +46,8 @@ export const settingsSchema = z.object({
     .optional(),
   onboardingCompleted: z.boolean().optional(),
   modules: modulesSchema.optional(),
+  nav: navSchema.nullable().optional(),
+  dismissedNotices: z.array(z.string().min(1).max(60)).max(200).optional(),
 });
 
 export const incomeSchema = z.object({
@@ -218,8 +221,8 @@ export const aiProblemReportSchema = z.object({
 export const closeMonthSchema = z.object({ openNext: z.boolean().optional() });
 
 export const backupSchema = z.object({
-  // v2 added the modules and the "A receber" category; a v1 file still imports fine.
-  version: z.union([z.literal(1), z.literal(2)]),
+  // v2 added the modules and the "A receber" category, v3 the bottom bar; older files still import.
+  version: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   exportedAt: z.string(),
   settings: settingsSchema,
   months: z.array(monthDataSchema),

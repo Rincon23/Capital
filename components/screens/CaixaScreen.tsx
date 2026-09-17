@@ -12,7 +12,11 @@ import {
 import { walletRepository } from '@/lib/storage';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useToast } from '@/components/ui/Toast';
-import { ModuleGate } from '@/components/wallet/ModuleGate';
+import { ModuleGate } from '@/components/modules/ModuleGate';
+import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
+import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
+import { useBackHref } from '@/components/modules/useBackHref';
+import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { useWallet } from '@/components/wallet/WalletProvider';
 
 export function CaixaScreen() {
@@ -54,7 +58,10 @@ function Row({
 }
 
 function Caixa() {
+  const backHref = useBackHref('cash');
   const { snapshot, loading, error } = useWallet();
+  const [configuring, setConfiguring] = useState(false);
+  useModuleIntro('cash', { ready: !!snapshot });
 
   if ((loading && !snapshot) || !snapshot) {
     return <div className="text-muted flex flex-1 items-center justify-center px-4 py-16">Carregando…</div>;
@@ -65,21 +72,33 @@ function Caixa() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 pb-10">
-      <PageHeader title="Caixa" backHref="/carteira" />
+      <PageHeader
+        title="Caixa"
+        backHref={backHref}
+        action={
+          <>
+            <ModuleHelpButton module="cash" />
+            <ModuleSettingsButton module="cash" tourAnchor="caixa-config" onClick={() => setConfiguring(true)} />
+          </>
+        }
+      />
 
       {error && <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{error}</p>}
 
       <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
-        <Row label="Reserva em conta" value={report.reserveAccount} />
-        <Row
-          label="Reserva investida"
-          value={report.investedReserve}
-          hint="Só a parte livre, fora das categorias da reserva"
-        />
-        <Row label="Valor total de reserva" value={report.totalReserve} strong />
+        <div data-tour="caixa-reserva" className="flex flex-col gap-3">
+          <Row label="Reserva em conta" value={report.reserveAccount} />
+          <Row
+            label="Reserva investida"
+            value={report.investedReserve}
+            hint="Só a parte livre, fora das categorias da reserva"
+          />
+          <Row label="Valor total de reserva" value={report.totalReserve} strong />
+        </div>
 
         <hr className="border-border" />
 
+        <div data-tour="caixa-dividas" className="flex flex-col gap-3">
         <Row
           label="Dívida do cartão"
           value={report.cardDebt}
@@ -93,9 +112,11 @@ function Caixa() {
           tone={report.installmentDebt < 0 ? 'danger' : undefined}
         />
         <Row label="Dívida total" value={report.totalDebt} strong tone={report.totalDebt < 0 ? 'danger' : undefined} />
+        </div>
 
         <hr className="border-border" />
 
+        <div data-tour="caixa-gap" className="flex flex-col gap-3">
         <Row
           label="Reserva prevista"
           value={report.expectedReserve}
@@ -112,6 +133,7 @@ function Caixa() {
           strong
           tone={report.gap >= 0 ? 'success' : 'danger'}
         />
+        </div>
       </section>
 
       {buckets.length > 0 && (
@@ -129,7 +151,11 @@ function Caixa() {
         </section>
       )}
 
-      <CashSettingsForm settings={snapshot.cash.settings} />
+      {configuring && (
+        <ModuleSettingsSheet module="cash" onClose={() => setConfiguring(false)}>
+          <CashSettingsForm settings={snapshot.cash.settings} />
+        </ModuleSettingsSheet>
+      )}
     </div>
   );
 }

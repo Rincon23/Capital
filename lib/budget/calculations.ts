@@ -1,11 +1,19 @@
 import { resolveTopicColor, withCurrentTopicDisplay } from './colors';
 import { currentMonthKey } from './date';
 import { round2, sum } from './money';
+import { topicDescription } from './topics';
 import type { Expense, MonthData, TopicConfig } from './types';
 
 export interface TopicResult {
   topicId: string;
   name: string;
+  /** What the category is for (see `topicDescription`). */
+  description: string;
+  /**
+   * Archived, but kept in this month because it already has expenses in it. It gets no share of
+   * the income and is gone from the next month on.
+   */
+  archived: boolean;
   targetPct: number;
   /** Hex color for this envelope (from config, or a palette default). */
   color: string;
@@ -119,6 +127,8 @@ export function computeTopicResult(
   return {
     topicId: topic.id,
     name: topic.name,
+    description: topicDescription(topic),
+    archived: topic.archived === true,
     targetPct: topic.targetPct,
     color,
     spent,
@@ -141,6 +151,10 @@ export function computeTopicResult(
  * and going forward, but a month that has already passed keeps the math it had
  * — its snapshot stays frozen. Topics no longer in settings keep their
  * snapshot name/color/targetPct either way.
+ *
+ * Archiving a category also applies to the current and future months, with one
+ * exception: a month that already has expenses in it keeps it, with a 0% target,
+ * so nothing already spent vanishes from the totals.
  */
 export function computeMonthSummary(
   monthData: MonthData,
@@ -148,7 +162,11 @@ export function computeMonthSummary(
 ): MonthSummary {
   const isPastMonth = monthData.month < currentMonthKey();
   const displayTopics = withCurrentTopicDisplay(monthData.topicsSnapshot, currentTopics, !isPastMonth);
-  const activeTopics = displayTopics.filter((t) => !t.archived);
+  const hasExpenses = (topicId: string) =>
+    monthData.expenses.some((e) => e.categoryKind === 'topic' && e.topicId === topicId);
+  const activeTopics = displayTopics
+    .filter((t) => !t.archived || (!isPastMonth && hasExpenses(t.id)))
+    .map((t) => (t.archived ? { ...t, targetPct: 0 } : t));
   const incomeTotal = computeIncomeTotal(monthData);
   const fixedTotal = computeFixedTotal(monthData.expenses);
   const unforeseenTotal = computeUnforeseenTotal(monthData.expenses);

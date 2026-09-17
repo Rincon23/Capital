@@ -50,6 +50,13 @@
       "when": 1789588962210,
       "tag": "0006_gmail",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789614196974,
+      "tag": "0007_modular",
+      "breakpoints": true
     }
   ]
 }

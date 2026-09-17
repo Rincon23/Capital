@@ -23,11 +23,29 @@ export function TodayRemindersCard() {
 }
 
 function TodayReminders() {
-  const { snapshot, run } = useReminders();
+  const { snapshot, error, run } = useReminders();
   const { showToast } = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  if (!snapshot) return null;
+  if (!snapshot) {
+    // Same frame as the loaded card, so the dashboard does not jump when it arrives.
+    return (
+      <section
+        className="border-border bg-card flex flex-col gap-3 rounded-2xl border p-4 shadow-sm"
+        aria-label="Lembretes de hoje"
+      >
+        <div className="flex items-center gap-3">
+          <IconTile icon={Bell} tone="amber" />
+          <p className="text-foreground font-semibold">Lembretes de hoje</p>
+        </div>
+        {error ? (
+          <p className="text-danger text-sm">{error}</p>
+        ) : (
+          <span aria-hidden className="bg-border block h-4 w-2/3 animate-pulse rounded" />
+        )}
+      </section>
+    );
+  }
 
   const day = reminderDay(snapshot.reminders, snapshot.completions, snapshot.today);
   const pending = [...day.overdue, ...day.today.filter((item) => !item.done)];
@@ -49,7 +67,11 @@ function TodayReminders() {
   }
 
   return (
-    <section className="border-border bg-card flex flex-col gap-3 rounded-2xl border p-4 shadow-sm" aria-label="Lembretes de hoje">
+    <section
+      className="border-border bg-card flex flex-col gap-3 rounded-2xl border p-4 shadow-sm"
+      aria-label="Lembretes de hoje"
+      data-tour="card-reminders"
+    >
       <Link href="/lembretes" className="flex items-center gap-3">
         <IconTile icon={Bell} tone={total > 0 ? 'amber' : 'green'} />
         <div className="min-w-0 flex-1">

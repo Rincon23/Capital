@@ -64,6 +64,7 @@ export function CategoryPicker({
         {showReimbursable && (
           <Chip
             label={labels.reimbursable}
+            tourAnchor="categoria-a-receber"
             selected={value.categoryKind === 'reimbursable'}
             onClick={() => onChange({ categoryKind: 'reimbursable', topicId: value.topicId })}
           />

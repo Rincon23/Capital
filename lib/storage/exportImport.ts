@@ -25,7 +25,7 @@ function isBackupPayload(value: unknown): value is BackupPayload {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as Record<string, unknown>;
   return (
-    (candidate.version === 1 || candidate.version === 2) &&
+    [1, 2, 3].includes(candidate.version as number) &&
     typeof candidate.exportedAt === 'string' &&
     typeof candidate.settings === 'object' &&
     Array.isArray(candidate.months)

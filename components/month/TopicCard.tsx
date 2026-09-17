@@ -21,8 +21,18 @@ export function TopicCard({ month, topic }: { month: Month; topic: TopicResult }
           />
           <span className="text-foreground truncate font-semibold">{topic.name}</span>
         </span>
-        <span className="text-muted shrink-0 text-xs">meta {formatPct(topic.targetPct, 0)}</span>
+        <span className="text-muted shrink-0 text-xs">
+          {topic.archived ? 'arquivada' : `meta ${formatPct(topic.targetPct, 0)}`}
+        </span>
       </div>
+
+      {topic.archived ? (
+        <p className="text-muted mb-2 text-xs">
+          Fica até o fim do mês por já ter gastos. No mês que vem, ela some.
+        </p>
+      ) : (
+        topic.description && <p className="text-muted mb-2 line-clamp-2 text-xs">{topic.description}</p>
+      )}
 
       <div className="mb-2 flex items-baseline justify-between gap-2 text-sm">
         <span className="text-muted">Gasto {formatBRL(topic.spent)}</span>

@@ -1,5 +1,5 @@
 import { DEFAULT_SPECIAL_CATEGORY_LABELS, resolveSpecialCategoryLabels } from '../budget/categories';
-import { isModuleOn } from '../budget/modules';
+import { isModuleOn } from '../modules/flags';
 import type { BudgetSettings } from '../budget/types';
 import { foldText, phrasePattern } from './text';
 import type { CategoryOption } from './types';

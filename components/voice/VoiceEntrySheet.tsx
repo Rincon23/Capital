@@ -10,7 +10,9 @@ import {
   type Month,
 } from '@/lib/budget';
 import type { ExpenseDraftResult, ProgressState } from '@/lib/ai';
+import { isModuleOn } from '@/lib/modules';
 import { analyzeExpense, warmUpExpenseAi, type ExpenseAnalysisRequest } from '@/lib/storage/ai';
+import { ModuleHelpButton } from '@/components/modules/ModuleHelpButton';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { useToast } from '@/components/ui/Toast';
 import { AnalysisProgress } from './AnalysisProgress';
@@ -26,11 +28,15 @@ type Phase =
   | { name: 'review'; kind: Kind; result: ExpenseDraftResult }
   | { name: 'error'; kind: Kind; message: string };
 
-/** The draft as an expense, for saving or for opening the form. */
+/**
+ * The draft as an expense, for saving or for opening the form. Without the card module, what the
+ * AI understood about the card is left out.
+ */
 export function draftToExpense(
   result: ExpenseDraftResult,
   kind: Kind,
   specialCategories: BudgetSettings['specialCategories'],
+  cardEnabled: boolean,
 ): Partial<Expense> {
   const { draft } = result;
   const source: ExpenseSource = kind === 'audio' ? 'voice' : 'text';
@@ -42,7 +48,7 @@ export function draftToExpense(
       (draft.categoryKind ? specialCategoryLabel(draft.categoryKind, specialCategories) : ''),
     amount: draft.amount,
     date: draft.date,
-    singleInstallmentCard: draft.card,
+    singleInstallmentCard: cardEnabled && draft.card,
     source,
   };
 }
@@ -64,7 +70,7 @@ export function VoiceEntrySheet({
   onEdit,
 }: {
   month: Month;
-  settings: Pick<BudgetSettings, 'topics' | 'specialCategories' | 'specialCategoryColors'>;
+  settings: Pick<BudgetSettings, 'topics' | 'specialCategories' | 'specialCategoryColors' | 'modules'>;
   onClose: () => void;
   onSave: (expense: Expense) => Promise<void>;
   /** Opens the expense form filled with the draft. */
@@ -141,7 +147,7 @@ export function VoiceEntrySheet({
   }
 
   async function handleSave(result: ExpenseDraftResult, kind: Kind) {
-    const partial = draftToExpense(result, kind, settings.specialCategories);
+    const partial = draftToExpense(result, kind, settings.specialCategories, isModuleOn(settings, 'card'));
     if (!partial.categoryKind || partial.amount === undefined) return;
     setSaving(true);
     try {
@@ -166,6 +172,7 @@ export function VoiceEntrySheet({
       open
       onClose={onClose}
       title={phase.name === 'review' ? 'Confira o gasto' : 'Lançar por voz ou texto'}
+      headerAction={<ModuleHelpButton module="voice" onBeforeTour={onClose} />}
     >
       {phase.name === 'input' && !recorder.recording && (
         <div className="flex flex-col gap-5">
@@ -173,6 +180,7 @@ export function VoiceEntrySheet({
             <button
               type="button"
               onClick={() => void recorder.start()}
+              data-tour="voz-gravar"
               aria-label="Gravar o gasto"
               className="bg-primary text-primary-foreground flex h-20 w-20 items-center justify-center rounded-full shadow-lg transition-transform active:scale-95"
             >
@@ -200,6 +208,7 @@ export function VoiceEntrySheet({
 
           <form
             className="flex flex-col gap-3"
+            data-tour="voz-escrever"
             onSubmit={(event) => {
               event.preventDefault();
               if (text.trim()) void analyze({ kind: 'text', text: text.trim() });
@@ -300,7 +309,17 @@ export function VoiceEntrySheet({
             month={month}
             settings={settings}
             kind={phase.kind}
-            onEdit={() => onEdit(draftToExpense(phase.result, phase.kind, settings.specialCategories))}
+            cardEnabled={isModuleOn(settings, 'card')}
+            onEdit={() =>
+              onEdit(
+                draftToExpense(
+                  phase.result,
+                  phase.kind,
+                  settings.specialCategories,
+                  isModuleOn(settings, 'card'),
+                ),
+              )
+            }
           />
           <div className="flex gap-3">
             <button

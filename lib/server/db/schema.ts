@@ -29,6 +29,7 @@ import type {
   ExpenseSource,
   InstallmentAccounting,
   ModuleFlags,
+  NavKey,
   SpecialCategoryColors,
   SpecialCategoryLabels,
   TopicConfig,
@@ -130,8 +131,12 @@ export const budgetSettings = pgTable('budget_settings', {
     .default({}),
   /** Only a brand-new account's first row is created with false (see the repository's seed). */
   onboardingCompleted: boolean('onboarding_completed').notNull().default(true),
-  /** Optional assistant modules this user turned on. Anything absent is off. */
+  /** The modules this user turned on. Anything absent is off. */
   modules: jsonb('modules').$type<Partial<ModuleFlags>>().notNull().default({}),
+  /** The bottom bar the user picked, in order; null means the default (see `resolveNav`). */
+  nav: jsonb('nav').$type<NavKey[]>(),
+  /** Keys of the one-time notices this account already dismissed. */
+  dismissedNotices: jsonb('dismissed_notices').$type<string[]>().notNull().default([]),
   updatedAt: updatedAt(),
 });
 

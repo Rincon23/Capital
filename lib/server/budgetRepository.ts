@@ -6,6 +6,7 @@ import { nextMonth } from '../budget/date';
 import { installmentExpense, installmentsDueIn } from '../budget/installments';
 import { cascadeCarryIn, createMonthData } from '../budget/rollover';
 import { createDefaultSettings } from '../budget/seed';
+import { keepEveryTopic } from '../budget/topics';
 import type {
   BudgetSettings,
   Expense,
@@ -128,7 +129,12 @@ export class PostgresBudgetRepository implements BudgetRepository {
   }
 
   async saveSettings(settings: BudgetSettings): Promise<void> {
-    await this.upsertSettings(this.db, settings, false);
+    await this.write(async (tx) => {
+      // A category is never deleted, only archived (past months keep what it had).
+      const previous = await this.readSettings(tx);
+      const topics = keepEveryTopic(previous?.topics ?? [], settings.topics);
+      await this.upsertSettings(tx, { ...settings, topics }, false);
+    });
   }
 
   /** Marks this account as having finished (or skipped) the new-user wizard/tour, for good. */
@@ -548,14 +554,16 @@ export class PostgresBudgetRepository implements BudgetRepository {
       specialCategoryColors: { ...DEFAULT_SPECIAL_CATEGORY_COLORS, ...row.specialCategoryColors },
       onboardingCompleted: row.onboardingCompleted,
       modules: row.modules,
+      nav: row.nav,
+      dismissedNotices: row.dismissedNotices,
     };
   }
 
   /**
    * Saving settings from the app never touches the onboarding flag (only `completeOnboarding`
-   * does), and leaves the modules alone unless the payload actually carries them — an older
-   * client (a cached bundle that predates the modules) must not switch them all off. Restoring
-   * a backup replaces both, along with everything else.
+   * does), and leaves the modules, the bottom bar and the dismissed notices alone unless the
+   * payload actually carries them — an older client (a cached bundle that predates them) must
+   * not wipe them. Restoring a backup replaces all of it, along with everything else.
    */
   private async upsertSettings(
     ex: Executor,
@@ -566,11 +574,11 @@ export class PostgresBudgetRepository implements BudgetRepository {
       topics: settings.topics,
       specialCategories: settings.specialCategories,
       specialCategoryColors: settings.specialCategoryColors ?? {},
-      ...(restoringBackup
-        ? { modules: settings.modules ?? {} }
-        : settings.modules !== undefined
-          ? { modules: settings.modules }
-          : {}),
+      ...(restoringBackup || settings.modules !== undefined ? { modules: settings.modules ?? {} } : {}),
+      ...(restoringBackup || settings.nav !== undefined ? { nav: settings.nav ?? null } : {}),
+      ...(restoringBackup || settings.dismissedNotices !== undefined
+        ? { dismissedNotices: settings.dismissedNotices ?? [] }
+        : {}),
       ...(restoringBackup && settings.onboardingCompleted !== undefined
         ? { onboardingCompleted: settings.onboardingCompleted }
         : {}),

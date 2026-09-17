@@ -5,14 +5,8 @@ import { PGlite } from '@electric-sql/pglite';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeAll, describe, expect, it } from 'vitest';
-import {
-  NO_MODULES,
-  computeMonthSummary,
-  currentMonthKey,
-  previousMonth,
-  resolveModules,
-  type Expense,
-} from '@/lib/budget';
+import { computeMonthSummary, currentMonthKey, previousMonth, type Expense } from '@/lib/budget';
+import { NO_MODULES, resolveModules, resolveNav } from '@/lib/modules';
 import { BACKUP_VERSION, MonthClosedError, MonthNotFoundError } from '@/lib/storage/repository';
 import { PostgresBudgetRepository } from '../budgetRepository';
 import * as schema from '../db/schema';
@@ -325,13 +319,36 @@ describe('PostgresBudgetRepository', () => {
     expect(await bob.repo.listMonths()).toEqual([]);
   });
 
+  it('never deletes a category: one left out of a save comes back archived, and descriptions persist', async () => {
+    const { repo } = await newAccount();
+    const settings = await repo.getSettings();
+    expect(settings.topics.map((t) => t.preset)).toEqual(['diversos', 'investimentos', 'metas', 'conhecimentos']);
+    expect(settings.topics.every((t) => (t.description ?? '').length > 0)).toBe(true);
+
+    const [diversos, ...rest] = settings.topics;
+    await repo.saveSettings({
+      ...settings,
+      topics: [...rest.map((t) => (t.preset === 'metas' ? { ...t, description: 'Viagem' } : t))],
+    });
+
+    const saved = (await repo.getSettings()).topics;
+    expect(saved).toHaveLength(4);
+    expect(saved.find((t) => t.id === diversos.id)).toMatchObject({ archived: true, name: 'Diversos' });
+    expect(saved.find((t) => t.preset === 'metas')?.description).toBe('Viagem');
+  });
+
   it('stores the modules a user turned on, and starts everyone with none', async () => {
     const { id, repo } = await newAccount();
     const settings = await repo.getSettings();
     expect(resolveModules(settings)).toEqual(NO_MODULES);
 
-    await repo.saveSettings({ ...settings, modules: { reimbursable: true } });
-    expect(resolveModules(await repo.getSettings())).toEqual({ ...NO_MODULES, reimbursable: true });
+    await repo.saveSettings({ ...settings, modules: { expenses: true, card: true, reimbursable: true } });
+    expect(resolveModules(await repo.getSettings())).toEqual({
+      ...NO_MODULES,
+      expenses: true,
+      card: true,
+      reimbursable: true,
+    });
 
     // Another account is untouched: modules are per user, like every other setting.
     const other = await newAccount();
@@ -345,6 +362,46 @@ describe('PostgresBudgetRepository', () => {
     delete withoutModules.modules;
     await repo.saveSettings(withoutModules);
     expect(resolveModules(await repo.getSettings()).reimbursable).toBe(true);
+  });
+
+  it('stores the bottom bar and the dismissed notices per account, in every device', async () => {
+    const { id, repo } = await newAccount();
+    const settings = await repo.getSettings();
+    expect(settings.nav).toBeNull();
+    expect(settings.dismissedNotices).toEqual([]);
+
+    await repo.saveSettings({
+      ...settings,
+      modules: { reminders: true, gmail: true },
+      nav: ['reminders', 'gmail', 'inicio'],
+      dismissedNotices: ['modular-intro'],
+    });
+
+    const elsewhere = await new PostgresBudgetRepository(db, id).getSettings();
+    expect(resolveNav(elsewhere)).toEqual(['reminders', 'gmail', 'inicio']);
+    expect(elsewhere.dismissedNotices).toEqual(['modular-intro']);
+
+    // Saving without them (an older client) keeps them.
+    const withoutNav = { ...elsewhere };
+    delete withoutNav.nav;
+    delete withoutNav.dismissedNotices;
+    await repo.saveSettings(withoutNav);
+    expect((await repo.getSettings()).nav).toEqual(['reminders', 'gmail', 'inicio']);
+    expect((await repo.getSettings()).dismissedNotices).toEqual(['modular-intro']);
+
+    // Nobody else's app changes.
+    const other = await newAccount();
+    const otherSettings = await other.repo.getSettings();
+    expect(otherSettings.nav).toBeNull();
+    expect(resolveNav(otherSettings)).toEqual(['inicio']);
+
+    // The backup carries them to another account.
+    const { repo: target } = await newAccount();
+    await target.importData(await repo.exportData());
+    const restored = await target.getSettings();
+    expect(restored.nav).toEqual(['reminders', 'gmail', 'inicio']);
+    expect(restored.dismissedNotices).toEqual(['modular-intro']);
+    expect(resolveModules(restored).gmail).toBe(true);
   });
 
   it('keeps an "A receber" expense on the card bill and out of every envelope', async () => {

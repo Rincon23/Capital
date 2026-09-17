@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   currentMonthKey,
-  isModuleOn,
   withCurrentTopicDisplay,
   type CategoryKind,
   type Expense,
@@ -11,15 +10,24 @@ import {
   type Month,
 } from '@/lib/budget';
 import { useMonthData } from '@/lib/hooks/useMonthData';
+import { isModuleOn } from '@/lib/modules';
 import { setLastViewedMonth } from '@/lib/storage/preferences';
 import { useSettings } from '@/components/providers/SettingsProvider';
+import { subscribeTourSheets } from '@/components/modules/tour/tourSheets';
 import { VoiceEntrySheet } from '@/components/voice/VoiceEntrySheet';
 import { MonthContext } from './MonthContext';
 import { ExpenseFormSheet } from './ExpenseFormSheet';
 import { IncomeFormSheet } from './IncomeFormSheet';
 
 type ExpenseFormState =
-  | { open: true; initial?: Expense; draft?: Partial<Expense>; defaultCategoryKind?: CategoryKind }
+  | {
+      open: true;
+      initial?: Expense;
+      draft?: Partial<Expense>;
+      defaultCategoryKind?: CategoryKind;
+      /** Opened by a tour to show the form: no keyboard popping up over it. */
+      forTour?: boolean;
+    }
   | { open: false };
 type IncomeFormState = { open: true; initial?: Income } | { open: false };
 
@@ -34,6 +42,28 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
   useEffect(() => {
     setLastViewedMonth(month);
   }, [month]);
+
+  // A tour step can ask for the expense form (the card question, "A receber") or the voice entry.
+  useEffect(
+    () =>
+      subscribeTourSheets((request) => {
+        if (request === 'close') {
+          setExpenseForm({ open: false });
+          setVoiceOpen(false);
+        } else if (request === 'voice') {
+          setExpenseForm({ open: false });
+          setVoiceOpen(true);
+        } else {
+          setVoiceOpen(false);
+          setExpenseForm({
+            open: true,
+            forTour: true,
+            defaultCategoryKind: request === 'expense-form-reimbursable' ? 'reimbursable' : undefined,
+          });
+        }
+      }),
+    [],
+  );
 
   const openExpenseForm = useCallback((initial?: Expense, defaultCategoryKind?: CategoryKind) => {
     setExpenseForm({ open: true, initial, defaultCategoryKind });
@@ -92,9 +122,11 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
           }
           specialCategories={settings.specialCategories}
           reimbursableEnabled={isModuleOn(settings, 'reimbursable')}
+          cardEnabled={isModuleOn(settings, 'card')}
           initial={expenseForm.initial}
           draft={expenseForm.draft}
           defaultCategoryKind={expenseForm.defaultCategoryKind}
+          autoFocusAmount={!expenseForm.forTour}
           onClose={() => setExpenseForm({ open: false })}
           onSave={monthData.saveExpense}
           onDelete={monthData.deleteExpense}

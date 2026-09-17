@@ -74,3 +74,34 @@ describe('ExpenseFormSheet e a categoria "A receber"', () => {
     expect(screen.queryByRole('button', { name: 'A receber' })).not.toBeInTheDocument();
   });
 });
+
+describe('ExpenseFormSheet sem o módulo Cartão de crédito', () => {
+  it('não pergunta se a compra foi no cartão e salva sem marcar', async () => {
+    const { onSave } = renderSheet({ cardEnabled: false });
+    expect(screen.queryByText('A compra foi no cartão?')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/valor em reais/i), { target: { value: '20,00' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect((onSave.mock.calls[0][0] as Expense).singleInstallmentCard).toBe(false);
+  });
+
+  it('mantém marcado no cartão um gasto antigo que já estava', async () => {
+    const existing: Expense = {
+      id: 'e1',
+      categoryKind: 'topic',
+      topicId: 'diversos',
+      description: 'Mercado',
+      amount: 50,
+      date: '2026-09-03',
+      singleInstallmentCard: true,
+    };
+    const { onSave } = renderSheet({ cardEnabled: false, initial: existing });
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect((onSave.mock.calls[0][0] as Expense).singleInstallmentCard).toBe(true);
+  });
+});

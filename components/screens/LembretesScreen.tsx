@@ -11,7 +11,13 @@ import { useReminders } from '@/components/reminders/RemindersProvider';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { IconTile } from '@/components/ui/IconTile';
 import { useToast } from '@/components/ui/Toast';
-import { ModuleGate } from '@/components/wallet/ModuleGate';
+import { ModuleGate } from '@/components/modules/ModuleGate';
+import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
+import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
+import { useBackHref } from '@/components/modules/useBackHref';
+import { useModuleIntro } from '@/components/modules/useModuleIntro';
+import { NotificationsSection } from '@/components/settings/NotificationsSection';
+import { ReminderSettingsSection } from '@/components/settings/ReminderSettingsSection';
 import { formatMonthLabel, nextMonth } from '@/lib/budget';
 import {
   WEEKDAY_LETTERS,
@@ -40,7 +46,7 @@ const TABS: { key: Tab; label: string }[] = [
 
 export function LembretesScreen() {
   return (
-    <ModuleGate module="reminders" backHref="/mais">
+    <ModuleGate module="reminders">
       <Lembretes />
     </ModuleGate>
   );
@@ -58,13 +64,16 @@ function longDate(date: ISODate): string {
 }
 
 function Lembretes() {
-  const { snapshot, loading, error, run } = useReminders();
+  const backHref = useBackHref('reminders');
+  const { snapshot, loading, error, run, refresh } = useReminders();
   const confirm = useConfirm();
   const { showToast } = useToast();
   const [tab, setTab] = useState<Tab>('hoje');
   const [editing, setEditing] = useState<Reminder | null>(null);
   const [creating, setCreating] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [configuring, setConfiguring] = useState(false);
+  useModuleIntro('reminders', { ready: !!snapshot });
 
   if (loading && !snapshot) {
     return <div className="text-muted flex flex-1 items-center justify-center px-4 py-16">Carregando…</div>;
@@ -117,19 +126,29 @@ function Lembretes() {
       <PageHeader
         title="Lembretes"
         subtitle={longDate(snapshot.today)}
+        backHref={backHref}
         action={
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            aria-label="Novo lembrete"
-            className="bg-primary text-primary-foreground flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl"
-          >
-            +
-          </button>
+          <>
+            <ModuleHelpButton module="reminders" />
+            <ModuleSettingsButton
+              module="reminders"
+              tourAnchor="lembretes-config"
+              onClick={() => setConfiguring(true)}
+            />
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              aria-label="Novo lembrete"
+              data-tour="lembretes-novo"
+              className="bg-primary text-primary-foreground flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl"
+            >
+              +
+            </button>
+          </>
         }
       />
 
-      <div className="px-4">
+      <div className="px-4" data-tour="lembretes-abas">
         <div role="tablist" className="bg-card border-border grid grid-cols-3 gap-1 rounded-xl border p-1">
           {TABS.map((option) => (
             <button
@@ -153,6 +172,20 @@ function Lembretes() {
       {tab === 'hoje' && <TodayView snapshot={snapshot} actions={actions} onCreate={() => setCreating(true)} />}
       {tab === 'todos' && <AllView snapshot={snapshot} onOpen={actions.open} onCreate={() => setCreating(true)} />}
       {tab === 'calendario' && <CalendarView snapshot={snapshot} onOpen={actions.open} />}
+
+      {configuring && (
+        <ModuleSettingsSheet
+          module="reminders"
+          onClose={() => {
+            setConfiguring(false);
+            // The repeat setting shows up in the reminder form.
+            void refresh();
+          }}
+        >
+          <NotificationsSection />
+          <ReminderSettingsSection />
+        </ModuleSettingsSheet>
+      )}
 
       {(creating || editing) && (
         <ReminderFormSheet

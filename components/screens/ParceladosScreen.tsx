@@ -8,7 +8,6 @@ import {
   installmentAmount,
   installmentEndDate,
   isInstallmentFinished,
-  isModuleOn,
   parseAmountInput,
   remainingInstallments,
   resolveSpecialCategoryLabels,
@@ -18,6 +17,7 @@ import {
   type InstallmentPlan,
   type TopicConfig,
 } from '@/lib/budget';
+import { isModuleOn } from '@/lib/modules';
 import { walletRepository } from '@/lib/storage';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useSettings } from '@/components/providers/SettingsProvider';
@@ -26,7 +26,10 @@ import { BottomSheet } from '@/components/ui/BottomSheet';
 import { CategoryPicker, type CategoryValue } from '@/components/ui/CategoryPicker';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { useToast } from '@/components/ui/Toast';
-import { ModuleGate } from '@/components/wallet/ModuleGate';
+import { ModuleGate } from '@/components/modules/ModuleGate';
+import { ModuleHelpButton } from '@/components/modules/ModuleHelpButton';
+import { useBackHref } from '@/components/modules/useBackHref';
+import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { useWallet } from '@/components/wallet/WalletProvider';
 
 export function ParceladosScreen() {
@@ -44,12 +47,14 @@ function shortDate(iso: string): string {
 }
 
 function Parcelados() {
+  const backHref = useBackHref('installments');
   const { settings } = useSettings();
   const { snapshot, loading, error, month, run } = useWallet();
   const confirm = useConfirm();
   const { showToast } = useToast();
   const [creating, setCreating] = useState(false);
   const [showFinished, setShowFinished] = useState(false);
+  useModuleIntro('installments', { ready: !!snapshot });
 
   if ((loading && !snapshot) || !snapshot) {
     return <div className="text-muted flex flex-1 items-center justify-center px-4 py-16">Carregando…</div>;
@@ -137,36 +142,45 @@ function Parcelados() {
       <PageHeader
         title="Parcelados"
         subtitle={`Competência: ${formatMonthLabel(month)}`}
-        backHref="/carteira"
+        backHref={backHref}
         action={
-          <button
-            type="button"
-            onClick={() => setCreating(true)}
-            aria-label="Novo parcelamento"
-            className="bg-primary text-primary-foreground flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-          >
-            +
-          </button>
+          <>
+            <ModuleHelpButton module="installments" />
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              aria-label="Novo parcelamento"
+              data-tour="parcelados-novo"
+              className="bg-primary text-primary-foreground flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+            >
+              +
+            </button>
+          </>
         }
       />
 
       {error && <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{error}</p>}
 
-      <div className="border-border bg-card mx-4 flex items-center justify-between rounded-xl border p-4 text-sm shadow-sm">
+      <div
+        data-tour="parcelados-total"
+        className="border-border bg-card mx-4 flex items-center justify-between rounded-xl border p-4 text-sm shadow-sm"
+      >
         <span className="text-muted">Ainda a pagar no cartão</span>
         <span className="text-foreground font-semibold">
           {formatBRL(snapshot.cash.report.installmentDebt)}
         </span>
       </div>
 
-      <ul className="flex flex-col gap-2 px-4">{active.map(planRow)}</ul>
+      <div data-tour="parcelados-lista" className="flex flex-col">
+        <ul className="flex flex-col gap-2 px-4">{active.map(planRow)}</ul>
 
-      {active.length === 0 && (
-        <p className="text-muted px-4 py-10 text-center text-sm">
-          Nenhum parcelamento em andamento. Cadastre uma compra parcelada e o app lança a parcela
-          de cada mês no cartão para você.
-        </p>
-      )}
+        {active.length === 0 && (
+          <p className="text-muted px-4 py-10 text-center text-sm">
+            Nenhum parcelamento em andamento. Cadastre uma compra parcelada e o app lança a parcela
+            de cada mês no cartão para você.
+          </p>
+        )}
+      </div>
 
       {finished.length > 0 && (
         <section className="px-4">

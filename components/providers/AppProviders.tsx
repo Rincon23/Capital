@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { OnboardingProvider } from '@/components/onboarding/OnboardingProvider';
+import { TourProvider } from '@/components/modules/tour/TourProvider';
 import { ConfirmProvider } from '@/components/ui/ConfirmSheet';
 import { ToastProvider } from '@/components/ui/Toast';
 import { AuthProvider, type AuthUser } from './AuthProvider';
@@ -20,7 +20,7 @@ export function AppProviders({
       <ToastProvider>
         <ConfirmProvider>
           <SettingsProvider>
-            <OnboardingProvider>{children}</OnboardingProvider>
+            <TourProvider>{children}</TourProvider>
           </SettingsProvider>
         </ConfirmProvider>
       </ToastProvider>

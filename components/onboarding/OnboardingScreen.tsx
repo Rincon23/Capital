@@ -10,7 +10,7 @@ interface OnboardingScreenProps {
   footer: ReactNode;
 }
 
-/** Full-screen shell shared by the setup wizard and the app tour: progress dots, a persistent "Pular", scrollable content, and a footer for nav buttons. */
+/** Full-screen shell of the setup wizard: progress dots, a persistent "Pular", scrollable content, and a footer for nav buttons. */
 export function OnboardingScreen({ step, totalSteps, onSkip, children, footer }: OnboardingScreenProps) {
   return (
     <div className="bg-background fixed inset-0 z-50 flex flex-col" role="dialog" aria-modal="true">

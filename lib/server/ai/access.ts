@@ -1,5 +1,5 @@
 import 'server-only';
-import { isModuleOn } from '@/lib/budget';
+import { isModuleOn } from '@/lib/modules';
 import { categoryOptions, type AiProgressEvent, type CategoryOption } from '@/lib/ai';
 import { zonedToday } from '@/lib/reminders/time';
 import type { PostgresBudgetRepository } from '../budgetRepository';
@@ -27,7 +27,7 @@ export async function requireVoiceAccess(
 ): Promise<VoiceAccess> {
   const settings = await repo.getSettings();
   if (!isModuleOn(settings, 'voice')) {
-    throw new HttpError(403, 'MODULE_OFF', 'Ligue "Lançar por voz ou texto" em Configurações → Módulos.');
+    throw new HttpError(403, 'MODULE_OFF', 'Ligue "Lançar por voz ou texto" em Mais → Módulos.');
   }
   const config = aiConfig();
   if (!config) {

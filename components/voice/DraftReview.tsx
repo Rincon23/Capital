@@ -23,12 +23,15 @@ export function DraftReview({
   month,
   settings,
   kind,
+  cardEnabled,
   onEdit,
 }: {
   result: ExpenseDraftResult;
   month: Month;
   settings: Pick<BudgetSettings, 'topics' | 'specialCategories' | 'specialCategoryColors'>;
   kind: 'audio' | 'text';
+  /** Without the card module there is no card question, so no card line either. */
+  cardEnabled: boolean;
   onEdit: () => void;
 }) {
   const { draft, warnings, aiFields, transcript } = result;
@@ -96,9 +99,11 @@ export function DraftReview({
               </span>
             )}
           </Row>
-          <Row label="Cartão" field="card" aiFields={aiFields} onEdit={onEdit}>
-            {draft.card ? 'Sim, no crédito' : 'Não'}
-          </Row>
+          {cardEnabled && (
+            <Row label="Cartão" field="card" aiFields={aiFields} onEdit={onEdit}>
+              {draft.card ? 'Sim, no crédito' : 'Não'}
+            </Row>
+          )}
         </div>
       </div>
 

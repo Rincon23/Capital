@@ -14,20 +14,30 @@ import { createId } from '@/lib/budget';
 
 export type ToastKind = 'success' | 'error' | 'info';
 
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface Toast {
   id: string;
   kind: ToastKind;
   message: string;
+  action?: ToastAction;
 }
 
 interface ToastContextValue {
-  /** Shows a short message at the bottom of the screen. Replaces the bot's ✅ / ↩️ / ⚠️ replies. */
-  showToast: (message: string, kind?: ToastKind) => void;
+  /**
+   * Shows a short message at the bottom of the screen. Replaces the bot's ✅ / ↩️ / ⚠️ replies.
+   * An `action` (e.g. "Desfazer") adds a button and keeps the message up a little longer.
+   */
+  showToast: (message: string, kind?: ToastKind, options?: { action?: ToastAction }) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 const VISIBLE_MS = 3200;
+const WITH_ACTION_MS = 6000;
 
 const STYLES: Record<ToastKind, string> = {
   success: 'bg-success-bg text-success border-success/30',
@@ -49,12 +59,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const showToast = useCallback(
-    (message: string, kind: ToastKind = 'success') => {
+    (message: string, kind: ToastKind = 'success', options?: { action?: ToastAction }) => {
       const id = createId();
-      setToasts((prev) => [...prev, { id, kind, message }]);
+      const action = options?.action;
+      setToasts((prev) => [...prev, { id, kind, message, action }]);
       timers.current.set(
         id,
-        setTimeout(() => dismiss(id), VISIBLE_MS),
+        setTimeout(() => dismiss(id), action ? WITH_ACTION_MS : VISIBLE_MS),
       );
     },
     [dismiss],
@@ -79,17 +90,37 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         role="status"
         aria-live="polite"
       >
-        {toasts.map((toast) => (
-          <button
-            key={toast.id}
-            type="button"
-            onClick={() => dismiss(toast.id)}
-            className={`pointer-events-auto flex w-full max-w-sm items-start gap-2 rounded-xl border px-4 py-3 text-left text-sm font-medium shadow-lg ${STYLES[toast.kind]}`}
-          >
-            <span aria-hidden>{ICONS[toast.kind]}</span>
-            <span className="flex-1">{toast.message}</span>
-          </button>
-        ))}
+        {toasts.map((toast) =>
+          toast.action ? (
+            <div
+              key={toast.id}
+              className={`pointer-events-auto flex w-full max-w-sm items-center gap-2 rounded-xl border py-2 pr-2 pl-4 text-left text-sm font-medium shadow-lg ${STYLES[toast.kind]}`}
+            >
+              <span aria-hidden>{ICONS[toast.kind]}</span>
+              <span className="flex-1">{toast.message}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  dismiss(toast.id);
+                  toast.action?.onClick();
+                }}
+                className="min-h-[40px] shrink-0 rounded-lg px-3 font-semibold underline underline-offset-2"
+              >
+                {toast.action.label}
+              </button>
+            </div>
+          ) : (
+            <button
+              key={toast.id}
+              type="button"
+              onClick={() => dismiss(toast.id)}
+              className={`pointer-events-auto flex w-full max-w-sm items-start gap-2 rounded-xl border px-4 py-3 text-left text-sm font-medium shadow-lg ${STYLES[toast.kind]}`}
+            >
+              <span aria-hidden>{ICONS[toast.kind]}</span>
+              <span className="flex-1">{toast.message}</span>
+            </button>
+          ),
+        )}
       </div>
     </ToastContext.Provider>
   );

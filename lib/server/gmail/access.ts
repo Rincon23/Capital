@@ -1,5 +1,5 @@
 import 'server-only';
-import { isModuleOn } from '@/lib/budget';
+import { isModuleOn } from '@/lib/modules';
 import type { PostgresBudgetRepository } from '../budgetRepository';
 import { HttpError } from '../httpError';
 
@@ -9,6 +9,6 @@ import { HttpError } from '../httpError';
  */
 export async function requireGmailAccess(repo: PostgresBudgetRepository): Promise<void> {
   if (!isModuleOn(await repo.getSettings(), 'gmail')) {
-    throw new HttpError(403, 'MODULE_OFF', 'Ligue "Monitor de Gmail" em Configurações → Módulos.');
+    throw new HttpError(403, 'MODULE_OFF', 'Ligue "Monitor de Gmail" em Mais → Módulos.');
   }
 }

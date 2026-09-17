@@ -31,14 +31,18 @@ interface ExpenseFormSheetProps {
   month: Month;
   topics: TopicConfig[];
   specialCategories: SpecialCategoryLabels;
-  /** Whether the "A receber" module is on for this user (see MODULE_CATALOG). */
+  /** Whether the "A receber" module is on for this user. */
   reimbursableEnabled?: boolean;
+  /** Whether the card module is on: without it the card question is not asked. */
+  cardEnabled?: boolean;
   initial?: Expense;
   /** A new expense filled in ahead (what the voice entry understood), still to be checked. */
   draft?: Partial<Expense>;
   /** Overrides the sheet's title, e.g. when the form is confirming a recurring expense. */
   title?: string;
   defaultCategoryKind?: CategoryKind;
+  /** False when the form is opened only to be shown (a tour step): no keyboard over it. */
+  autoFocusAmount?: boolean;
   onClose: () => void;
   onSave: (expense: Expense) => Promise<void>;
   onDelete?: (expenseId: string) => Promise<void>;
@@ -51,10 +55,12 @@ export function ExpenseFormSheet({
   topics,
   specialCategories,
   reimbursableEnabled = false,
+  cardEnabled = true,
   initial,
   draft,
   title,
   defaultCategoryKind,
+  autoFocusAmount = true,
   onClose,
   onSave,
   onDelete,
@@ -109,7 +115,9 @@ export function ExpenseFormSheet({
         description: description.trim() || specialCategoryLabel(categoryKind, labels),
         amount: parsedAmount,
         date,
-        singleInstallmentCard: forcedCard || singleInstallmentCard,
+        // With the card module off, an expense keeps whatever it already had (nothing is unmarked).
+        singleInstallmentCard:
+          forcedCard || (cardEnabled ? singleInstallmentCard : (prefill?.singleInstallmentCard ?? false)),
         source,
       });
       onClose();
@@ -150,7 +158,7 @@ export function ExpenseFormSheet({
       }
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-        <AmountInput value={amount} onChange={setAmount} autoFocus={!prefill} />
+        <AmountInput value={amount} onChange={setAmount} autoFocus={autoFocusAmount && !prefill} />
 
         <CategoryPicker
           topics={topics}
@@ -189,16 +197,18 @@ export function ExpenseFormSheet({
           )}
         </label>
 
-        <label className="text-foreground flex min-h-[44px] items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={forcedCard || singleInstallmentCard}
-            disabled={forcedCard}
-            onChange={(e) => setSingleInstallmentCard(e.target.checked)}
-            className="border-border h-5 w-5 rounded disabled:opacity-60"
-          />
-          {forcedCard ? `${labels.reimbursable} é sempre no cartão` : 'A compra foi no cartão?'}
-        </label>
+        {cardEnabled && (
+          <label className="text-foreground flex min-h-[44px] items-center gap-2 text-sm" data-tour="cartao-pergunta">
+            <input
+              type="checkbox"
+              checked={forcedCard || singleInstallmentCard}
+              disabled={forcedCard}
+              onChange={(e) => setSingleInstallmentCard(e.target.checked)}
+              className="border-border h-5 w-5 rounded disabled:opacity-60"
+            />
+            {forcedCard ? `${labels.reimbursable} é sempre no cartão` : 'A compra foi no cartão?'}
+          </label>
+        )}
 
         {errors.length > 0 && (
           <ul className="bg-danger-bg text-danger rounded-lg px-3 py-2 text-sm">

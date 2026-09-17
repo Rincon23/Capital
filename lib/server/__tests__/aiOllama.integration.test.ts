@@ -19,7 +19,7 @@ const options = categoryOptions({
     { id: 't-con', name: 'Conhecimentos', targetPct: 0.1, order: 3 },
   ],
   specialCategories: { fixedCost: 'Custo Fixo', unforeseen: 'Imprevistos' },
-  modules: { reimbursable: true },
+  modules: { expenses: true, card: true, reimbursable: true },
 });
 
 const noTranscriber: Transcriber = { transcribe: async () => '' };
