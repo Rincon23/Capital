@@ -452,3 +452,67 @@ export const jobRuns = pgTable('job_runs', {
   name: text('name').primaryKey(),
   lastRunAt: timestamp('last_run_at', { withTimezone: true }).notNull(),
 });
+
+// ---------------------------------------------------------------------------
+// Monitor de Gmail
+// ---------------------------------------------------------------------------
+
+/**
+ * The Gmail account connected with "Login com Google" (read-only scope). The refresh token is
+ * stored encrypted (AES-256-GCM with ENCRYPTION_KEY); `last_history_id` is where the next check
+ * starts, so only e-mails received after it are read.
+ */
+export const gmailAccounts = pgTable(
+  'gmail_accounts',
+  {
+    userId: uuid('user_id')
+      .primaryKey()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    email: text('email').notNull(),
+    refreshToken: text('refresh_token').notNull(),
+    lastHistoryId: text('last_history_id'),
+    /** ok, error (the last check failed, it tries again) or reconnect (Google refused the token). */
+    status: text('status').$type<'ok' | 'error' | 'reconnect'>().notNull().default('ok'),
+    lastError: text('last_error'),
+    lastCheckedAt: timestamp('last_checked_at', { withTimezone: true }),
+    connectedAt: timestamp('connected_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [check('gmail_accounts_status', sql`${t.status} in ('ok', 'error', 'reconnect')`)],
+);
+
+export const gmailKeywords = pgTable(
+  'gmail_keywords',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    id: uuid('id').notNull().defaultRandom(),
+    keyword: text('keyword').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.id] })],
+);
+
+/**
+ * One row per e-mail that matched (correction 13): the primary key is what keeps an e-mail from
+ * being notified twice, and the rows are the history shown on the screen.
+ */
+export const gmailAlerts = pgTable(
+  'gmail_alerts',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    messageId: text('message_id').notNull(),
+    keywords: jsonb('keywords').$type<string[]>().notNull(),
+    subject: text('subject').notNull(),
+    from: text('from').notNull(),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull(),
+    notifiedAt: timestamp('notified_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.messageId] }),
+    index('gmail_alerts_user_received_idx').on(t.userId, t.receivedAt),
+  ],
+);

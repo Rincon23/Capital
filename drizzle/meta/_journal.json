@@ -43,6 +43,13 @@
       "when": 1789563569382,
       "tag": "0005_reminders",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789588962210,
+      "tag": "0006_gmail",
+      "breakpoints": true
     }
   ]
 }

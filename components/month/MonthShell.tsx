@@ -12,7 +12,6 @@ import {
 } from '@/lib/budget';
 import { useMonthData } from '@/lib/hooks/useMonthData';
 import { setLastViewedMonth } from '@/lib/storage/preferences';
-import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { VoiceEntrySheet } from '@/components/voice/VoiceEntrySheet';
 import { MonthContext } from './MonthContext';
@@ -26,7 +25,6 @@ type IncomeFormState = { open: true; initial?: Income } | { open: false };
 
 export function MonthShell({ month, children }: { month: Month; children: ReactNode }) {
   const { settings } = useSettings();
-  const { user } = useAuth();
   const monthData = useMonthData(month, settings?.topics);
 
   const [expenseForm, setExpenseForm] = useState<ExpenseFormState>({ open: false });
@@ -43,8 +41,7 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
   const openIncomeForm = useCallback((initial?: Income) => {
     setIncomeForm({ open: true, initial });
   }, []);
-  // The AI runs on the owner's server: only the owner, with the module on (the API checks again).
-  const voiceAvailable = user.isOwner && isModuleOn(settings, 'voice');
+  const voiceAvailable = isModuleOn(settings, 'voice');
   const openVoiceEntry = useCallback(() => {
     setExpenseForm({ open: false });
     setVoiceOpen(true);

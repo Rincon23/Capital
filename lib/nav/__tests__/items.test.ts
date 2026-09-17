@@ -16,6 +16,10 @@ describe('barra de navegação por módulos', () => {
     expect(navKeysFor({ reminders: true })).toEqual(['inicio', 'lancamentos', 'lembretes', 'mais']);
   });
 
+  it('com só o monitor de Gmail, abre Mais (é onde ele fica)', () => {
+    expect(navKeysFor({ gmail: true })).toEqual(['inicio', 'lancamentos', 'mais']);
+  });
+
   it.each(['recurring', 'installments', 'investments', 'cash'] as const)(
     'abre a aba Carteira com o módulo %s',
     (module) => {
@@ -45,6 +49,7 @@ describe('barra de navegação por módulos', () => {
     // "Mais" guarda o Histórico e as Configurações, então fica aceso nas duas.
     expect(NAV_ITEMS.mais.isActive('/historico')).toBe(true);
     expect(NAV_ITEMS.mais.isActive('/configuracoes')).toBe(true);
+    expect(NAV_ITEMS.mais.isActive('/gmail')).toBe(true);
     expect(NAV_ITEMS.mais.isActive('/mes/2026-09')).toBe(false);
   });
 

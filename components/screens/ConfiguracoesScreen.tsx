@@ -310,9 +310,7 @@ function ConfiguracoesForm({
                   />
                 </label>
               </div>
-              {key === 'reimbursable' && (
-                <p className="text-muted text-xs">{REIMBURSABLE_EXPLANATION}</p>
-              )}
+              {key === 'reimbursable' && <p className="text-muted text-xs">{REIMBURSABLE_EXPLANATION}</p>}
             </div>
           ))}
         </div>
@@ -331,13 +329,9 @@ function ConfiguracoesForm({
         </button>
       </section>
 
-      {/* Notifications exist for the reminders: without that module, nothing new shows up here. */}
-      {resolveModules(settings).reminders && (
-        <>
-          <NotificationsSection />
-          <ReminderSettingsSection />
-        </>
-      )}
+      {/* Notifications exist for the reminders and the Gmail monitor: without them, nothing new shows up here. */}
+      {(resolveModules(settings).reminders || resolveModules(settings).gmail) && <NotificationsSection />}
+      {resolveModules(settings).reminders && <ReminderSettingsSection />}
 
       <section className="flex flex-col gap-3 px-4">
         <h2 className="text-muted text-sm font-semibold">Tema</h2>
@@ -395,8 +389,7 @@ function ConfiguracoesForm({
 /**
  * The optional assistant modules. Everything is off until the user turns it on here, so an
  * account that ignores this section keeps exactly the app it had. Modules still being built
- * are listed but cannot be turned on, and the owner-only ones (they run on my own hardware
- * and accounts) only show for the owner.
+ * are listed but cannot be turned on. Every module is for every user: each one turns on their own.
  */
 function ModulesSection({
   modules,
@@ -405,9 +398,6 @@ function ModulesSection({
   modules: ModuleFlags;
   onChange: (next: ModuleFlags) => void;
 }) {
-  const { user } = useAuth();
-  const visible = MODULE_CATALOG.filter((info) => !info.ownerOnly || user.isOwner);
-
   function toggle(key: ModuleKey) {
     onChange({ ...modules, [key]: !modules[key] });
   }
@@ -417,10 +407,10 @@ function ModulesSection({
       <h2 className="text-muted text-sm font-semibold">Módulos</h2>
       <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
         <p className="text-muted text-sm">
-          Recursos extras do Capital. Ligue só o que você usa — o que ficar desligado não aparece
-          em lugar nenhum do app.
+          Recursos extras do Capital. Ligue só o que você usa — o que ficar desligado não aparece em lugar
+          nenhum do app.
         </p>
-        {visible.map((info) => (
+        {MODULE_CATALOG.map((info) => (
           <div key={info.key} className="border-border flex items-start gap-3 rounded-lg border p-3">
             <div className="min-w-0 flex-1">
               <p className="text-foreground text-sm font-medium">{info.name}</p>
@@ -542,8 +532,8 @@ function LocalDataSection() {
       <h2 className="text-muted text-sm font-semibold">Dados locais deste dispositivo</h2>
       <div className="border-border bg-card flex flex-col gap-2 rounded-xl border p-4 shadow-sm">
         <p className="text-muted text-sm">
-          Este dispositivo tem dados da versão anterior (salvos só no navegador). Importe-os para a
-          sua conta para acessá-los em qualquer lugar.
+          Este dispositivo tem dados da versão anterior (salvos só no navegador). Importe-os para a sua conta
+          para acessá-los em qualquer lugar.
         </p>
         <button
           type="button"

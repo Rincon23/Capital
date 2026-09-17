@@ -10,6 +10,7 @@ import {
   reminderDeliveries,
 } from './db/schema';
 import type { Database } from './db/types';
+import { runGmailJob } from './gmail/job';
 import { sendPushToUser, type PushSender } from './push';
 import { fetchQuotes } from './quotes';
 import { signReminderAction } from './reminderActionToken';
@@ -208,6 +209,7 @@ export function startScheduler(getDb: () => Database): void {
       const db = getDb();
       await runRemindersJob(db);
       await runQuotesJob(db).catch((err) => console.error('[cotações] falha na atualização:', err));
+      await runGmailJob(db).catch((err) => console.error('[gmail] falha na verificação:', err));
     } catch (err) {
       console.error('[agenda] falha na rodada:', err);
     } finally {
@@ -223,5 +225,5 @@ export function startScheduler(getDb: () => Database): void {
     }, delay).unref?.();
   };
   scheduleNext();
-  console.log('[agenda] lembretes e cotações em segundo plano ativados.');
+  console.log('[agenda] lembretes, cotações e Gmail em segundo plano ativados.');
 }

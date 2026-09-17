@@ -52,8 +52,8 @@ de sempre: nada de módulo desligado aparece em tela nenhuma.
     tarefas do mesmo horário vão numa notificação só. As regras são puras em `lib/reminders`.
   - **Telas:** Hoje (atrasados, hoje, tarefas e amanhã), Todos (por tipo, com histórico) e
     Calendário dos compromissos; card "Lembretes de hoje" no Início.
-- **Lançar por voz ou texto** (só do dono do app, `OWNER_EMAIL`, porque usa a IA do meu Orange
-  Pi): microfone no Início e no formulário de gasto. Grava até 60 s ou recebe o texto
+- **Lançar por voz ou texto** (usa a IA local do servidor, Whisper e Ollama): microfone no Início
+  e no formulário de gasto. Grava até 60 s ou recebe o texto
   ("Descreva o gasto") e mostra **"Confira o gasto"**, com um lápis que abre o formulário
   preenchido. Nada é salvo sem confirmar.
   - **Regras primeiro, IA depois:** valor, categoria (as do usuário, sem ligar para maiúsculas,
@@ -63,7 +63,13 @@ de sempre: nada de módulo desligado aparece em tela nenhuma.
   - **Progresso real:** o servidor transmite cada etapa (transcrevendo, carregando a IA, lendo,
     montando) e os tokens conforme saem; a barra usa esses sinais e o tempo medido no Pi.
   - Ao abrir a tela, o servidor já carrega o modelo e lê o começo do prompt (aquecimento).
-- Em construção, já listado na tela: monitor de Gmail, só do dono do app.
+- **Monitor de Gmail** (tela `/gmail`, em **Mais**): cada pessoa conecta o próprio Gmail com
+  "Login com Google" (permissão só de leitura) e, a cada minuto, avisa no celular quando chega um
+  e-mail com uma das palavras-chave no assunto, no remetente ou na prévia (sem ligar para
+  maiúsculas e acentos). **Uma** notificação por e-mail, com todas as palavras encontradas, e
+  nunca o mesmo e-mail duas vezes; tocar abre o e-mail no Gmail. Mostra o histórico de alertas.
+  Ignora o que você enviou, rascunhos e spam. Se o Google recusar a conexão, avisa uma vez e pede
+  para conectar de novo.
 
 Conforme os módulos ligam, a barra inferior muda (`lib/nav/items.ts`): entram as abas Lembretes
 e Carteira, e Histórico e Configurações passam a morar em **Mais**. A barra nunca passa de cinco
@@ -124,6 +130,7 @@ No Pi, tudo do Capital fica em `~/capitalapp`:
    # VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY e VAPID_SUBJECT (notificações) e ACTION_TOKEN_SECRET
    #   — um par/segredo próprio do Pi; os comandos para gerar estão no .env.example
    # WHISPER_URL e OLLAMA_URL (lançar por voz ou texto), ex.: http://100.81.141.54:8090 e :11434
+   # GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET e ENCRYPTION_KEY (monitor de Gmail; passo a passo no .env.example)
    docker compose --env-file .env.local up -d --build
    ```
 
@@ -172,6 +179,7 @@ na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de 
   /budget                 Regras de negócio — funções puras, sem React nem storage
   /reminders              Regras dos lembretes (vencimentos, quando notificar, textos), puras, no fuso de São Paulo
   /ai                     Lançar por voz/texto: regras de leitura do gasto, prompt, rascunho e progresso (puras)
+  /gmail                  Monitor de Gmail: palavras-chave num e-mail e o texto da notificação (puras)
   /notifications          Web Push: tipos, nome dos aparelhos e o lado do navegador (permissão, inscrição)
   /nav                    Quais abas a barra inferior mostra, conforme os módulos ligados
   /storage                Contrato BudgetRepository e o repositório do navegador (HTTP)
@@ -188,11 +196,30 @@ na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de 
 ### Agenda em segundo plano (`lib/server/scheduler.ts`)
 
 Roda dentro do próprio servidor do Capital, sem n8n nem container extra: a cada minuto (5 s
-depois da virada) envia as notificações de lembrete que venceram e, no horário da B3 (dias úteis,
-10:00–18:30), atualiza a cotação dos ativos que alguém tem, a cada 30 min. Cada tarefa guarda
+depois da virada) envia as notificações de lembrete que venceram, confere o Gmail das contas
+conectadas e, no horário da B3 (dias úteis, 10:00–18:30), atualiza a cotação dos ativos que alguém
+tem, a cada 30 min. Cada tarefa guarda
 quando rodou (`job_runs`): depois de um deploy ou reinício ela recupera o que ficou para trás, e
 cada envio é anotado antes (`reminder_deliveries`, chave única), então nada sai duas vezes.
 `SCHEDULER=off` desliga a agenda num servidor.
+
+### Monitor de Gmail (`lib/server/gmail`)
+
+OAuth web próprio, com `fetch` e sem SDK: `/api/v1/gmail/oauth/start` manda ao Google com o escopo
+`gmail.readonly` e um cookie assinado com o `state`; `/callback` confere o `state`, troca o código
+pelo refresh token, guarda-o cifrado (AES-256-GCM, `ENCRYPTION_KEY`, `lib/server/secretBox.ts`) e
+começa a olhar a partir do `historyId` atual. A verificação usa `history.list` desde o último
+`historyId` (se ele expirou, os e-mails do último dia), lê Subject, From e snippet, e grava em
+`gmail_alerts` antes de notificar: a chave primária é o que impede o alerta repetido.
+"Desconectar" apaga a conexão guardada, mas não revoga a permissão no Google, porque o n8n pode usar
+o mesmo cliente OAuth e perderia o acesso junto.
+
+**Limites do Google:** a permissão de ler e-mails é um escopo "restrito". Com o app "Em produção"
+e sem a verificação paga do Google, até 100 pessoas conseguem conectar, e cada uma vê uma vez o aviso
+"app não verificado" (Avançado → Acessar). A verificação só compensa para abrir a muito mais gente.
+O servidor guarda, cifrado, o acesso de leitura ao e-mail de cada pessoa que conectar: quem
+administra o servidor precisa ser de confiança para elas. Cada conta gasta poucas chamadas por
+minuto, quase só espera de rede.
 
 ### IA local (`lib/server/ai`)
 
@@ -202,8 +229,8 @@ Whisper (whisper.cpp, `WHISPER_URL`, com `--convert` para aceitar o webm do nave
 `/text` respondem em `text/event-stream`: plano com a estimativa de cada etapa, início de cada
 etapa, transcrição, tokens e, no fim, o rascunho (`{ draft, transcript, warnings }`). A resposta
 do modelo é restrita por JSON schema aos campos que faltam e às categorias do usuário, e a geração
-para assim que o JSON fecha. `/warmup` aquece o modelo. Só o dono, com o módulo ligado, 40 análises
-por hora. Os tempos de cada etapa são aprendidos em memória a cada análise.
+para assim que o JSON fecha. `/warmup` aquece o modelo. Qualquer usuário com o módulo ligado, até 40
+análises por hora cada. O Ollama atende uma análise por vez: com duas ao mesmo tempo, a segunda espera. Os tempos de cada etapa são aprendidos em memória a cada análise.
 
 ### Lógica de negócio pura (`/lib/budget`)
 
@@ -336,6 +363,10 @@ Os demais testes:
   90", "vai me devolver"), valores, datas relativas, cartão, normalização de categorias, schema da
   resposta e as etapas transmitidas, com a IA simulada. `aiOllama.integration.test.ts` roda os
   mesmos exemplos contra o Ollama real, só com `OLLAMA_TEST_URL` definido.
+- **`lib/gmail/__tests__/match.test.ts` e `lib/server/__tests__/gmail.test.ts`:** palavras-chave
+  (maiúsculas, acentos, remetente, prévia), um aviso por e-mail com todas as palavras e nunca
+  repetido, e-mails enviados e spam ignorados, `historyId` expirado, conexão recusada (avisa uma
+  vez e para), token cifrado e o `state` do OAuth, com o Gmail simulado.
 - **Repositório HTTP** (`lib/storage/__tests__`) e a **barra de navegação** por módulos
   (`lib/nav/__tests__`).
 - O **limitador de tentativas** de login.

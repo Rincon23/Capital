@@ -7,6 +7,7 @@ import { PostgresBudgetRepository } from './budgetRepository';
 import { getDb } from './db';
 import { HttpError } from './httpError';
 import { allowedOriginHosts } from './origins';
+import { PostgresGmailRepository } from './gmail/repository';
 import { PostgresPushRepository } from './push';
 import { QuoteUnavailableError } from './quotes';
 import { PostgresRemindersRepository } from './remindersRepository';
@@ -25,6 +26,9 @@ interface RouteArgs<P> {
   push: PostgresPushRepository;
   /** Lembretes and daily tasks. */
   reminders: PostgresRemindersRepository;
+  /** The Gmail monitor (owner only; see lib/server/gmail/access.ts). */
+  gmail: PostgresGmailRepository;
+  userId: string;
   /** The signed-in user's e-mail, for the owner-only routes. */
   email: string | null;
 }
@@ -61,6 +65,8 @@ export function apiRoute<P = Record<string, never>>(
         wallet,
         push: new PostgresPushRepository(db, session.user.id),
         reminders: new PostgresRemindersRepository(db, session.user.id),
+        gmail: new PostgresGmailRepository(db, session.user.id),
+        userId: session.user.id,
         email: session.user.email ?? null,
       });
 

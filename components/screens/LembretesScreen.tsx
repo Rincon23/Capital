@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
-import Link from 'next/link';
-import { Bell, BellOff, ChevronRight } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { Bell, ChevronRight } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { NotificationsHint } from '@/components/pwa/NotificationsHint';
 import { DueRow, KIND_STYLE, TaskRow } from '@/components/reminders/ReminderRows';
 import { ReminderFormSheet } from '@/components/reminders/ReminderFormSheet';
 import { BottomSheet } from '@/components/ui/BottomSheet';
@@ -13,7 +13,6 @@ import { IconTile } from '@/components/ui/IconTile';
 import { useToast } from '@/components/ui/Toast';
 import { ModuleGate } from '@/components/wallet/ModuleGate';
 import { formatMonthLabel, nextMonth } from '@/lib/budget';
-import { currentSubscription, pushSupport } from '@/lib/notifications/browser';
 import {
   WEEKDAY_LETTERS,
   daysInMonth,
@@ -193,29 +192,6 @@ function Section({ title, tone, children }: { title: string; tone?: 'danger'; ch
       <h2 className={`text-sm font-semibold ${tone === 'danger' ? 'text-danger' : 'text-muted'}`}>{title}</h2>
       <ul className="flex flex-col gap-2">{children}</ul>
     </section>
-  );
-}
-
-/** A nudge when this device would not receive the notifications. */
-function NotificationsHint() {
-  const [show, setShow] = useState(false);
-
-  useEffect(() => {
-    if (pushSupport() !== 'supported') return;
-    currentSubscription()
-      .then((subscription) => setShow(!subscription))
-      .catch(() => setShow(false));
-  }, []);
-
-  if (!show) return null;
-  return (
-    <div className="border-border bg-card mx-4 flex items-center gap-3 rounded-xl border p-3 shadow-sm">
-      <IconTile icon={BellOff} tone="amber" />
-      <p className="text-muted min-w-0 flex-1 text-sm">Este aparelho ainda não recebe os avisos.</p>
-      <Link href="/configuracoes" className="text-primary shrink-0 text-sm font-semibold">
-        Ativar
-      </Link>
-    </div>
   );
 }
 

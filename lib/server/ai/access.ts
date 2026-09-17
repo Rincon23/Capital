@@ -4,7 +4,6 @@ import { categoryOptions, type AiProgressEvent, type CategoryOption } from '@/li
 import { zonedToday } from '@/lib/reminders/time';
 import type { PostgresBudgetRepository } from '../budgetRepository';
 import { HttpError } from '../httpError';
-import { isOwnerEmail } from '../owner';
 import { allowAttempt } from '../rateLimit';
 import { AnalysisError } from './engine';
 import { aiConfig, OllamaExtractor, WhisperTranscriber, type AiConfig } from './providers';
@@ -18,17 +17,14 @@ export interface VoiceAccess {
 }
 
 /**
- * The AI runs on the owner's hardware (decision D3): only the owner, with the module on,
- * and within a rate limit. Checked on every request, whatever the browser shows.
+ * Any user with the module on, within a per-user rate limit (the AI is shared by everyone on
+ * this server). Checked on every request, whatever the browser shows.
  */
 export async function requireVoiceAccess(
   repo: PostgresBudgetRepository,
   email: string | null,
   { countAttempt }: { countAttempt: boolean },
 ): Promise<VoiceAccess> {
-  if (!isOwnerEmail(email)) {
-    throw new HttpError(403, 'NOT_OWNER', 'Lançar por voz ou texto é exclusivo do dono deste app.');
-  }
   const settings = await repo.getSettings();
   if (!isModuleOn(settings, 'voice')) {
     throw new HttpError(403, 'MODULE_OFF', 'Ligue "Lançar por voz ou texto" em Configurações → Módulos.');

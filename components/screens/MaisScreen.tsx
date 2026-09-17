@@ -1,10 +1,12 @@
 'use client';
 
-import { ChartColumn, CircleHelp, Settings } from 'lucide-react';
+import { ChartColumn, CircleHelp, Mail, Settings } from 'lucide-react';
+import { isModuleOn } from '@/lib/budget';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { MoreMenu } from '@/components/layout/MoreMenu';
 import { useOnboarding } from '@/components/onboarding/OnboardingProvider';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { useSettings } from '@/components/providers/SettingsProvider';
 
 /**
  * Everything that moves out of the bottom bar once the assistant modules fill it up
@@ -13,6 +15,8 @@ import { useAuth } from '@/components/providers/AuthProvider';
 export function MaisScreen() {
   const { user } = useAuth();
   const { open: openTour } = useOnboarding();
+  const { settings } = useSettings();
+  const gmail = isModuleOn(settings, 'gmail');
 
   return (
     <div className="flex flex-1 flex-col gap-4 pb-10">
@@ -31,6 +35,18 @@ export function MaisScreen() {
                 tone: 'blue',
                 href: '/historico',
               },
+              ...(gmail
+                ? [
+                    {
+                      key: 'gmail',
+                      label: 'Monitor de Gmail',
+                      description: 'Avisos de e-mails com as suas palavras-chave',
+                      icon: Mail,
+                      tone: 'red' as const,
+                      href: '/gmail',
+                    },
+                  ]
+                : []),
             ],
           },
           {

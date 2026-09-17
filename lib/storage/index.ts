@@ -5,6 +5,7 @@ export * from './httpRepository';
 export * from './walletHttpRepository';
 export * from './notifications';
 export * from './reminders';
+export * from './gmail';
 export * from './preferences';
 export * from './exportImport';
 
@@ -14,6 +15,7 @@ import type { WalletRepository } from './wallet';
 import { HttpWalletRepository } from './walletHttpRepository';
 import { HttpNotificationsRepository, type NotificationsRepository } from './notifications';
 import { HttpRemindersRepository, type RemindersRepository } from './reminders';
+import { HttpGmailRepository, type GmailRepository } from './gmail';
 
 /**
  * Singleton repository used throughout the app: the app's own API (Postgres on the server,
@@ -30,3 +32,6 @@ export const notificationsRepository: NotificationsRepository = new HttpNotifica
 
 /** Lembretes and daily tasks. */
 export const remindersRepository: RemindersRepository = new HttpRemindersRepository();
+
+/** The Gmail monitor (owner only). */
+export const gmailRepository: GmailRepository = new HttpGmailRepository();

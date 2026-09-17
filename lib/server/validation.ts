@@ -205,6 +205,9 @@ export const pushTestSchema = z.object({ deviceId: z.uuid().optional() });
 /** "Descreva o gasto": the sentence the AI reads. */
 export const aiExpenseTextSchema = z.object({ text: z.string().trim().min(1).max(500) });
 
+/** A keyword for the Gmail monitor. */
+export const gmailKeywordSchema = z.object({ keyword: z.string().trim().min(1).max(100) });
+
 /** A failed analysis as the app saw it, for the server log. */
 export const aiProblemReportSchema = z.object({
   kind: z.enum(['audio', 'text']),

@@ -7,7 +7,6 @@ import 'driver.js/dist/driver.css';
 import './tour.css';
 import { currentMonthKey, isModuleOn } from '@/lib/budget';
 import { navKeysFor } from '@/lib/nav/items';
-import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { getLastViewedMonth } from '@/lib/storage/preferences';
 
@@ -39,8 +38,7 @@ export function AppTour({ onSkip, onComplete }: AppTourProps) {
   const navKeys = navKeysFor(settings);
   const groupedNav = navKeys.includes('mais');
   const hasReminders = navKeys.includes('lembretes');
-  const { user } = useAuth();
-  const hasVoice = user.isOwner && isModuleOn(settings, 'voice');
+  const hasVoice = isModuleOn(settings, 'voice');
 
   useEffect(() => {
     const month = getLastViewedMonth() ?? currentMonthKey();

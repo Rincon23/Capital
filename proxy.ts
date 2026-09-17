@@ -9,7 +9,15 @@ import { getSessionCookie } from 'better-auth/cookies';
  * Path prefixes reachable without a session. The notification actions carry their own signed
  * token instead (lib/server/reminderActionToken.ts).
  */
-const PUBLIC_PREFIXES = ['/login', '/auth', '/redefinir-senha', '/api/auth', '/api/v1/reminders/actions'];
+const PUBLIC_PREFIXES = [
+  '/login',
+  '/auth',
+  '/redefinir-senha',
+  // The privacy policy linked from Google's consent screen.
+  '/privacidade',
+  '/api/auth',
+  '/api/v1/reminders/actions',
+];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));

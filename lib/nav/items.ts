@@ -1,13 +1,7 @@
 import { resolveModules, type BudgetSettings, type ModuleFlags, type Month } from '@/lib/budget';
 
 export type NavKey =
-  | 'inicio'
-  | 'lancamentos'
-  | 'lembretes'
-  | 'carteira'
-  | 'historico'
-  | 'configuracoes'
-  | 'mais';
+  'inicio' | 'lancamentos' | 'lembretes' | 'carteira' | 'historico' | 'configuracoes' | 'mais';
 
 export interface NavItem {
   key: NavKey;
@@ -66,7 +60,11 @@ export const NAV_ITEMS: Record<NavKey, NavItem> = {
     label: 'Mais',
     tourId: 'nav-mais',
     href: () => '/mais',
-    isActive: (p) => p.startsWith('/mais') || p.startsWith('/historico') || p.startsWith('/configuracoes'),
+    isActive: (p) =>
+      p.startsWith('/mais') ||
+      p.startsWith('/historico') ||
+      p.startsWith('/configuracoes') ||
+      p.startsWith('/gmail'),
   },
 };
 
@@ -79,7 +77,8 @@ function hasWallet(modules: ModuleFlags): boolean {
  * Which tabs the bottom bar shows for this user. Nobody gets a tab for a module they did not
  * turn on, so an account with nothing on keeps the four tabs the app always had. As soon as
  * Lembretes or Carteira join, History and Settings move behind "Mais" — the bar never grows
- * past five tabs, which is as many as fit on a phone.
+ * past five tabs, which is as many as fit on a phone. The Gmail monitor has no tab of its own: it
+ * lives in "Mais", so turning it on brings that tab too.
  */
 export function navKeysFor(
   source: Pick<BudgetSettings, 'modules'> | Partial<ModuleFlags> | null | undefined,
@@ -88,7 +87,7 @@ export function navKeysFor(
   const keys: NavKey[] = ['inicio', 'lancamentos'];
   if (modules.reminders) keys.push('lembretes');
   if (hasWallet(modules)) keys.push('carteira');
-  if (keys.length > 2) keys.push('mais');
+  if (keys.length > 2 || modules.gmail) keys.push('mais');
   else keys.push('historico', 'configuracoes');
   return keys;
 }

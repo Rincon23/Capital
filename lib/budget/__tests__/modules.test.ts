@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_SPECIAL_CATEGORY_LABELS, resolveSpecialCategoryLabels, specialCategoryLabel } from '../categories';
+import {
+  DEFAULT_SPECIAL_CATEGORY_LABELS,
+  resolveSpecialCategoryLabels,
+  specialCategoryLabel,
+} from '../categories';
 import { greetingFor, greetingLine } from '../greeting';
 import { MODULE_CATALOG, isModuleOn, resolveModules } from '../modules';
 import { createDefaultSettings } from '../seed';
@@ -27,12 +31,6 @@ describe('módulos', () => {
       'investments',
       'cash',
       'reminders',
-      'voice',
-    ]);
-  });
-
-  it('guarda voz e Gmail para o dono do app', () => {
-    expect(MODULE_CATALOG.filter((info) => info.ownerOnly).map((info) => info.key)).toEqual([
       'voice',
       'gmail',
     ]);

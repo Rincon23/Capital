@@ -18,8 +18,6 @@ export interface ModuleInfo {
   description: string;
   /** False while the feature is still being built: it is listed, but cannot be turned on. */
   available: boolean;
-  /** Only the owner (OWNER_EMAIL) may turn this one on. */
-  ownerOnly?: boolean;
 }
 
 /**
@@ -69,14 +67,12 @@ export const MODULE_CATALOG: ModuleInfo[] = [
     name: 'Lançar por voz ou texto',
     description: 'Fale ou escreva o gasto e a IA do servidor monta o lançamento para você conferir antes de salvar.',
     available: true,
-    ownerOnly: true,
   },
   {
     key: 'gmail',
     name: 'Monitor de Gmail',
-    description: 'Avisa quando chega um e-mail com uma das suas palavras-chave.',
-    available: false,
-    ownerOnly: true,
+    description: 'Avisa no celular quando chega um e-mail com uma das suas palavras-chave.',
+    available: true,
   },
 ];
 

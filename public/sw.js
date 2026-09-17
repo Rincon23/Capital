@@ -4,8 +4,8 @@
 // ever served. With no connection the app shell still loads but stays on "Carregando…"
 // until the network returns.
 //
-// It also shows the push notifications (reminders) and runs their buttons.
-const CACHE_VERSION = 'capital-v4';
+// It also shows the push notifications (reminders, Gmail alerts) and runs their buttons.
+const CACHE_VERSION = 'capital-v5';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const OFFLINE_URL = '/offline.html';
@@ -161,9 +161,16 @@ async function runAction(action, fallbackUrl) {
   }
 }
 
-/** Focuses the app if it is already open (on the notification's page), or opens it. */
+/**
+ * Focuses the app if it is already open (on the notification's page), or opens it. A link to
+ * another site (a Gmail alert opens the e-mail) goes to a new window, never replacing the app.
+ */
 async function openApp(url) {
   const target = new URL(url, self.location.origin).href;
+  if (new URL(target).origin !== self.location.origin) {
+    await self.clients.openWindow(target);
+    return;
+  }
   const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
   const open = windows.find((client) => new URL(client.url).origin === self.location.origin);
   if (open) {
