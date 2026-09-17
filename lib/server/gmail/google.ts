@@ -95,7 +95,11 @@ export function verifyOAuthState(
   }
 }
 
-export function authorizationUrl(config: GoogleConfig, state: string, loginHint?: string | null): string {
+/**
+ * Google's consent URL. The Gmail to watch is often not the address used to sign in to Capital
+ * (a second account, say), so there is no login hint and Google always asks which account.
+ */
+export function authorizationUrl(config: GoogleConfig, state: string): string {
   const params = new URLSearchParams({
     client_id: config.clientId,
     redirect_uri: config.redirectUri,
@@ -103,11 +107,10 @@ export function authorizationUrl(config: GoogleConfig, state: string, loginHint?
     scope: GMAIL_SCOPE,
     // offline + consent: Google returns a refresh token every time, so reconnecting works.
     access_type: 'offline',
-    prompt: 'consent',
+    prompt: 'select_account consent',
     include_granted_scopes: 'false',
     state,
   });
-  if (loginHint) params.set('login_hint', loginHint);
   return `${AUTH_URL}?${params}`;
 }
 

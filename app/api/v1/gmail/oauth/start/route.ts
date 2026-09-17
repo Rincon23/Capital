@@ -28,7 +28,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     if (!config) return back('O Google ainda não está configurado neste servidor.');
 
     const { state, cookie } = createOAuthState(session.user.id);
-    const response = NextResponse.redirect(authorizationUrl(config, state, session.user.email), 303);
+    const response = NextResponse.redirect(authorizationUrl(config, state), 303);
     response.cookies.set(OAUTH_STATE_COOKIE, cookie, {
       httpOnly: true,
       secure: appBaseUrl().startsWith('https://'),

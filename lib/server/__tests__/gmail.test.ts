@@ -10,6 +10,7 @@ import type { GmailMessageSummary } from '@/lib/gmail';
 import * as schema from '../db/schema';
 import type { Database } from '../db/types';
 import {
+  authorizationUrl,
   createOAuthState,
   GmailAuthError,
   GmailHistoryExpiredError,
@@ -125,6 +126,18 @@ describe('secretBox', () => {
     const { id } = await newOwner();
     const [row] = await db.select().from(schema.gmailAccounts).where(eq(schema.gmailAccounts.userId, id));
     expect(row.refreshToken).not.toContain('refresh-token-secreto');
+  });
+});
+
+describe('authorizationUrl', () => {
+  it('always lets the user pick the Google account (it may not be the one used for Capital)', () => {
+    const url = new URL(
+      authorizationUrl({ clientId: 'id', clientSecret: 's', redirectUri: 'https://app/cb' }, 'estado'),
+    );
+    expect(url.searchParams.get('prompt')).toBe('select_account consent');
+    expect(url.searchParams.has('login_hint')).toBe(false);
+    expect(url.searchParams.get('scope')).toBe('https://www.googleapis.com/auth/gmail.readonly');
+    expect(url.searchParams.get('access_type')).toBe('offline');
   });
 });
 
