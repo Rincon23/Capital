@@ -134,6 +134,9 @@
 
 html {
   color-scheme: light;
+  /* Stops a sideways drag from being read as the browser's own back/forward swipe gesture
+     (Chrome/Safari on phones), which looked like dragging jumped to the next bottom-bar tab. */
+  overscroll-behavior-x: none;
 }
 
 html.dark {
@@ -143,6 +146,7 @@ html.dark {
 body {
   background: var(--color-background);
   color: var(--color-foreground);
+  overscroll-behavior-x: none;
 }
 
 * {
