@@ -23,7 +23,7 @@ export function GreetingHeader() {
   return (
     <p className="text-foreground text-base font-semibold">
       <span aria-hidden>{greetingFor(now).emoji} </span>
-      {greetingLine(user.name ?? user.email?.split('@')[0], now)}
+      {greetingLine(user.name, now)}
     </p>
   );
 }

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Blocks } from 'lucide-react';
 import { homeCards, isModuleOn } from '@/lib/modules';
 import { HomeCards } from '@/components/modules/home/HomeCards';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { GreetingHeader } from '@/components/month/GreetingHeader';
 import { MONTH_ACTIONS_PADDING, MonthActions } from '@/components/month/MonthActions';
 import { useMonthContext } from '@/components/month/MonthContext';
@@ -29,7 +30,10 @@ export function DashboardScreen() {
 
   return (
     <div className={`flex flex-1 flex-col gap-4 px-4 pt-4 ${withActions ? MONTH_ACTIONS_PADDING : 'pb-10'}`}>
-      <GreetingHeader />
+      <div className="flex items-center justify-between gap-2">
+        <GreetingHeader />
+        <NotificationBell />
+      </div>
 
       {monthly && <MonthSwitcher month={month} />}
 
