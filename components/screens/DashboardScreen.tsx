@@ -29,32 +29,35 @@ export function DashboardScreen() {
   );
 
   return (
-    <div className={`flex flex-1 flex-col gap-4 px-4 pt-4 ${withActions ? MONTH_ACTIONS_PADDING : 'pb-10'}`}>
-      <div className="flex items-center justify-between gap-2">
-        <GreetingHeader />
-        <NotificationBell />
+    <div className={`flex flex-1 flex-col ${withActions ? MONTH_ACTIONS_PADDING : 'pb-10'}`}>
+      <div className="border-border bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-20 flex flex-col gap-3 border-b px-4 py-3 backdrop-blur">
+        <div className="flex items-center justify-between gap-2">
+          <GreetingHeader />
+          <NotificationBell />
+        </div>
+        {monthly && <MonthSwitcher month={month} />}
       </div>
 
-      {monthly && <MonthSwitcher month={month} />}
-
-      {cards.length === 0 ? (
-        <div className="border-border bg-card flex flex-col items-center gap-3 rounded-2xl border p-6 text-center shadow-sm">
-          <IconTile icon={Blocks} tone="blue" size="lg" />
-          <p className="text-foreground font-semibold">Escolha o que o seu Capital vai ter</p>
-          <p className="text-muted text-sm">
-            Cada recurso do app é um módulo: lançamentos, metas por categoria, cartão, lembretes e mais. Ligue
-            os que você quer usar e o resumo de cada um aparece aqui.
-          </p>
-          <Link
-            href="/modulos"
-            className="bg-primary text-primary-foreground flex min-h-[44px] items-center rounded-lg px-4 text-sm font-semibold"
-          >
-            Escolher módulos
-          </Link>
-        </div>
-      ) : (
-        <HomeCards keys={cards} />
-      )}
+      <div className="flex flex-col gap-4 px-4 pt-4">
+        {cards.length === 0 ? (
+          <div className="border-border bg-card flex flex-col items-center gap-3 rounded-2xl border p-6 text-center shadow-sm">
+            <IconTile icon={Blocks} tone="blue" size="lg" />
+            <p className="text-foreground font-semibold">Escolha o que o seu Capital vai ter</p>
+            <p className="text-muted text-sm">
+              Cada recurso do app é um módulo: lançamentos, metas por categoria, cartão, lembretes e mais. Ligue
+              os que você quer usar e o resumo de cada um aparece aqui.
+            </p>
+            <Link
+              href="/modulos"
+              className="bg-primary text-primary-foreground flex min-h-[44px] items-center rounded-lg px-4 text-sm font-semibold"
+            >
+              Escolher módulos
+            </Link>
+          </div>
+        ) : (
+          <HomeCards keys={cards} />
+        )}
+      </div>
 
       {withActions && <MonthActions />}
     </div>
