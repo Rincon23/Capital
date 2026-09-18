@@ -64,6 +64,13 @@
       "when": 1789733673854,
       "tag": "0008_wealthy_stryfe",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789736778704,
+      "tag": "0009_tranquil_kylun",
+      "breakpoints": true
     }
   ]
 }

@@ -29,6 +29,7 @@ import type {
   ExpenseSource,
   InstallmentAccounting,
   ModuleFlags,
+  ModuleKey,
   NavKey,
   SpecialCategoryColors,
   SpecialCategoryLabels,
@@ -143,6 +144,10 @@ export const budgetSettings = pgTable('budget_settings', {
     .$type<Partial<Record<NotificationCategory, boolean>>>()
     .notNull()
     .default({}),
+  /** The order picked in "Organizar Início"; null means the default (see `resolveHomeCards`). */
+  homeOrder: jsonb('home_order').$type<ModuleKey[]>(),
+  /** Which resizable Início cards were stretched to full width. */
+  homeCardSizes: jsonb('home_card_sizes').$type<Partial<Record<ModuleKey, 'half' | 'full'>>>().notNull().default({}),
   updatedAt: updatedAt(),
 });
 

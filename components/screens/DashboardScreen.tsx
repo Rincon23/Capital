@@ -1,8 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { Blocks } from 'lucide-react';
-import { homeCards, isModuleOn } from '@/lib/modules';
+import { Blocks, Check, Pencil } from 'lucide-react';
+import { isModuleOn, resolveHomeCards } from '@/lib/modules';
+import { EditableHomeCards } from '@/components/modules/home/EditableHomeCards';
 import { HomeCards } from '@/components/modules/home/HomeCards';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { GreetingHeader } from '@/components/month/GreetingHeader';
@@ -12,16 +14,17 @@ import { MonthSwitcher } from '@/components/month/MonthSwitcher';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { IconTile } from '@/components/ui/IconTile';
 
-/** Início: a card with the summary of each module that is on, in the order of the bottom bar. */
+/** Início: a card with the summary of each module that is on, in the order the user picked. */
 export function DashboardScreen() {
   const { month } = useMonthContext();
   const { settings } = useSettings();
+  const [editing, setEditing] = useState(false);
 
   if (!settings) {
     return <div className="text-muted flex flex-1 items-center justify-center px-4 py-16">Carregando…</div>;
   }
 
-  const cards = homeCards(settings);
+  const cards = resolveHomeCards(settings);
   const withActions = isModuleOn(settings, 'expenses');
   // The month only matters to the cards of the month (Lançamentos, Categorias, Cartão, A receber, Histórico).
   const monthly = cards.some((key) =>
@@ -33,7 +36,24 @@ export function DashboardScreen() {
       <div className="border-border bg-background/95 supports-[backdrop-filter]:bg-background/80 sticky top-0 z-20 flex flex-col gap-3 border-b px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between gap-2">
           <GreetingHeader />
-          <NotificationBell />
+          <div className="flex items-center gap-1">
+            {cards.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setEditing((current) => !current)}
+                aria-label={editing ? 'Concluir organização da Início' : 'Organizar Início'}
+                title={editing ? 'Concluído' : 'Organizar Início'}
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${
+                  editing
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted hover:text-foreground hover:bg-card'
+                }`}
+              >
+                {editing ? <Check aria-hidden className="h-5 w-5" /> : <Pencil aria-hidden className="h-5 w-5" />}
+              </button>
+            )}
+            <NotificationBell />
+          </div>
         </div>
         {monthly && <MonthSwitcher month={month} />}
       </div>
@@ -54,12 +74,20 @@ export function DashboardScreen() {
               Escolher módulos
             </Link>
           </div>
+        ) : editing ? (
+          <EditableHomeCards keys={cards} sizes={settings.homeCardSizes ?? {}} />
         ) : (
-          <HomeCards keys={cards} />
+          <HomeCards keys={cards} sizes={settings.homeCardSizes} />
+        )}
+        {editing && cards.length > 0 && (
+          <p className="text-muted pb-4 text-center text-sm">
+            Segure e arraste um card para reorganizar. Toque em{' '}
+            <Check aria-hidden className="inline h-4 w-4 align-text-bottom" /> quando terminar.
+          </p>
         )}
       </div>
 
-      {withActions && <MonthActions />}
+      {withActions && !editing && <MonthActions />}
     </div>
   );
 }

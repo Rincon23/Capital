@@ -557,6 +557,8 @@ export class PostgresBudgetRepository implements BudgetRepository {
       nav: row.nav,
       dismissedNotices: row.dismissedNotices,
       notificationPrefs: row.notificationPrefs,
+      homeOrder: row.homeOrder,
+      homeCardSizes: row.homeCardSizes,
     };
   }
 
@@ -582,6 +584,10 @@ export class PostgresBudgetRepository implements BudgetRepository {
         : {}),
       ...(restoringBackup || settings.notificationPrefs !== undefined
         ? { notificationPrefs: settings.notificationPrefs ?? {} }
+        : {}),
+      ...(restoringBackup || settings.homeOrder !== undefined ? { homeOrder: settings.homeOrder ?? null } : {}),
+      ...(restoringBackup || settings.homeCardSizes !== undefined
+        ? { homeCardSizes: settings.homeCardSizes ?? {} }
         : {}),
       ...(restoringBackup && settings.onboardingCompleted !== undefined
         ? { onboardingCompleted: settings.onboardingCompleted }

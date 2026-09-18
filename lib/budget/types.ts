@@ -116,6 +116,13 @@ export interface BudgetSettings {
   dismissedNotices?: string[];
   /** Which notification categories push to this account's devices; see `isNotificationCategoryOn`. */
   notificationPrefs?: Partial<Record<NotificationCategory, boolean>>;
+  /**
+   * The order the user picked for the Início cards in "Organizar Início". Absent or null means
+   * the default (see `resolveHomeCards`).
+   */
+  homeOrder?: ModuleKey[] | null;
+  /** Which of the resizable Início cards (the half-width tiles) the user stretched to full width. */
+  homeCardSizes?: Partial<Record<ModuleKey, 'half' | 'full'>>;
 }
 
 export interface Income {

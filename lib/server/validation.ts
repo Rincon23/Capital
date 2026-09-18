@@ -1,6 +1,15 @@
 import { z } from 'zod';
 import type { ModuleKey, NavKey } from '@/lib/budget';
 import { MAX_NAV_ITEMS, MODULE_KEYS } from '@/lib/modules';
+import type { NotificationCategory } from '@/lib/notifications';
+
+const NOTIFICATION_CATEGORIES: NotificationCategory[] = ['reminder', 'gmail', 'feature', 'system'];
+
+/** A partial map keyed by every module (or notification category): every key optional, like
+ * `Partial<Record<K, V>>` — unlike `z.record` with an enum key, which demands every key present. */
+function partialMap<K extends string, V extends z.ZodType>(keys: K[], value: V) {
+  return z.object(Object.fromEntries(keys.map((key) => [key, value.optional()])) as Record<K, z.ZodOptional<V>>);
+}
 
 /** Validates everything the API receives. Unknown keys are dropped. */
 
@@ -48,6 +57,9 @@ export const settingsSchema = z.object({
   modules: modulesSchema.optional(),
   nav: navSchema.nullable().optional(),
   dismissedNotices: z.array(z.string().min(1).max(60)).max(200).optional(),
+  notificationPrefs: partialMap(NOTIFICATION_CATEGORIES, z.boolean()).optional(),
+  homeOrder: z.array(z.enum(MODULE_KEYS as [ModuleKey, ...ModuleKey[]])).nullable().optional(),
+  homeCardSizes: partialMap(MODULE_KEYS, z.enum(['half', 'full'])).optional(),
 });
 
 export const incomeSchema = z.object({

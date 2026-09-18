@@ -118,6 +118,21 @@ export function homeCards(source: NavSource): ModuleKey[] {
   return order.filter((key) => moduleDefinition(key).homeCard);
 }
 
+/**
+ * `homeCards()`'s order, overridden by whatever the user rearranged in "Organizar Início"
+ * (`homeOrder`) — the same idea as `resolveNav` keeping a saved bottom bar in step with the
+ * modules that are actually on: anything turned off or no longer eligible drops out, anything
+ * new lands at the end.
+ */
+export function resolveHomeCards(source: NavSource & Pick<BudgetSettings, 'homeOrder'>): ModuleKey[] {
+  const base = homeCards(source);
+  const saved = source?.homeOrder;
+  if (!saved) return base;
+  const kept = saved.filter((key, index) => base.includes(key) && saved.indexOf(key) === index);
+  const added = base.filter((key) => !kept.includes(key));
+  return [...kept, ...added];
+}
+
 /** The row that separates the bottom bar from Mais in the bottom-bar editor. */
 export const MORE_DIVIDER = 'mais';
 
