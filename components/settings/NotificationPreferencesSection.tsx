@@ -39,7 +39,7 @@ export function NotificationPreferencesSection() {
       <h2 className="text-muted text-sm font-semibold">Quais avisos chegam no celular</h2>
       <div className="border-border bg-card flex flex-col gap-4 rounded-xl border p-4 shadow-sm">
         <p className="text-muted text-xs">
-          O navegador só tem um interruptor por aparelho ("Neste aparelho", acima). Isto escolhe,
+          O navegador só tem um interruptor por aparelho (&quot;Neste aparelho&quot;, acima). Isto escolhe,
           dentro dele, quais tipos de aviso o usam — todos continuam aparecendo aqui na Central de
           notificações de qualquer jeito.
         </p>

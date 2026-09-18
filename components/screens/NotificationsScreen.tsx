@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Bell, CheckCheck, Clock, Mail, Settings as SettingsIcon, Sparkles, type LucideIcon } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useNotifications } from '@/components/notifications/NotificationsProvider';
+import { SwipeToDelete } from '@/components/notifications/SwipeToDelete';
 import { NotificationPreferencesSection } from '@/components/settings/NotificationPreferencesSection';
 import { NotificationsSection } from '@/components/settings/NotificationsSection';
 import { BottomSheet } from '@/components/ui/BottomSheet';
@@ -26,15 +28,16 @@ function formatWhen(iso: string): string {
 
 /** Central de notificações: everything the app has ever told this account, most recent first. */
 export function NotificationsScreen() {
-  const { snapshot, loading, markRead, markAllRead } = useNotifications();
+  const { snapshot, loading, markRead, markAllRead, remove } = useNotifications();
   const [configuring, setConfiguring] = useState(false);
+  const router = useRouter();
 
   const items = snapshot?.notifications ?? [];
   const unread = snapshot?.unread ?? 0;
 
-  async function open(item: AppNotification) {
+  async function openNotification(item: AppNotification) {
     if (!item.readAt) await markRead(item.id);
-    if (item.href) window.location.href = item.href;
+    if (item.href) router.push(item.href);
   }
 
   return (
@@ -77,39 +80,44 @@ export function NotificationsScreen() {
           <p className="text-muted text-sm">Tudo que o Capital te avisar aparece nesta lista.</p>
         </div>
       ) : (
-        <ul className="flex flex-col gap-2 px-4">
-          {items.map((item) => {
-            const visual = CATEGORY_VISUAL[item.category];
-            const unreadItem = !item.readAt;
-            return (
-              <li key={item.id}>
-                <button
-                  type="button"
-                  onClick={() => void open(item)}
-                  className={`border-border bg-card hover:border-primary/40 flex w-full items-start gap-3 rounded-xl border p-3 text-left shadow-sm ${
-                    unreadItem ? '' : 'opacity-70'
-                  }`}
-                >
-                  <IconTile icon={visual.icon} tone={visual.tone} />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2">
-                      <span
-                        className={`text-foreground block truncate ${unreadItem ? 'font-semibold' : 'font-medium'}`}
-                      >
-                        {item.title}
+        <>
+          <p className="text-muted px-4 text-xs">Arraste uma notificação para o lado para excluí-la.</p>
+          <ul className="flex flex-col gap-2 px-4" data-no-swipe-nav>
+            {items.map((item) => {
+              const visual = CATEGORY_VISUAL[item.category];
+              const unreadItem = !item.readAt;
+              return (
+                <li key={item.id}>
+                  <SwipeToDelete onDelete={() => void remove(item.id)}>
+                    <button
+                      type="button"
+                      onClick={() => void openNotification(item)}
+                      className={`border-border bg-card hover:border-primary/40 flex w-full items-start gap-3 border p-3 text-left shadow-sm ${
+                        unreadItem ? '' : 'opacity-70'
+                      }`}
+                    >
+                      <IconTile icon={visual.icon} tone={visual.tone} />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-2">
+                          <span
+                            className={`text-foreground block truncate ${unreadItem ? 'font-semibold' : 'font-medium'}`}
+                          >
+                            {item.title}
+                          </span>
+                          {unreadItem && <span aria-hidden className="bg-primary h-2 w-2 shrink-0 rounded-full" />}
+                        </span>
+                        <span className="text-muted block text-sm">{item.body}</span>
+                        <span className="text-muted/80 block text-xs">
+                          {NOTIFICATION_CATEGORY_LABELS[item.category]} · {formatWhen(item.createdAt)}
+                        </span>
                       </span>
-                      {unreadItem && <span aria-hidden className="bg-primary h-2 w-2 shrink-0 rounded-full" />}
-                    </span>
-                    <span className="text-muted block text-sm">{item.body}</span>
-                    <span className="text-muted/80 block text-xs">
-                      {NOTIFICATION_CATEGORY_LABELS[item.category]} · {formatWhen(item.createdAt)}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                    </button>
+                  </SwipeToDelete>
+                </li>
+              );
+            })}
+          </ul>
+        </>
       )}
 
       {configuring && (

@@ -9,6 +9,7 @@ interface NotificationsContextValue {
   refresh: () => Promise<void>;
   markRead: (id: string) => Promise<void>;
   markAllRead: () => Promise<void>;
+  remove: (id: string) => Promise<void>;
 }
 
 const NotificationsContext = createContext<NotificationsContextValue | null>(null);
@@ -55,9 +56,17 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     await refresh();
   }, [refresh]);
 
+  const remove = useCallback(
+    async (id: string) => {
+      await notificationsFeedRepository.remove(id);
+      await refresh();
+    },
+    [refresh],
+  );
+
   const value = useMemo(
-    () => ({ snapshot, loading, refresh, markRead, markAllRead }),
-    [snapshot, loading, refresh, markRead, markAllRead],
+    () => ({ snapshot, loading, refresh, markRead, markAllRead, remove }),
+    [snapshot, loading, refresh, markRead, markAllRead, remove],
   );
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;
 }

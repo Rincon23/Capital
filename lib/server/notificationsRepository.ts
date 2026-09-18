@@ -47,6 +47,11 @@ export class PostgresNotificationsRepository {
       .set({ readAt: new Date() })
       .where(and(eq(notifications.userId, this.userId), isNull(notifications.readAt)));
   }
+
+  /** Removes one notification from the history — the swipe-to-dismiss gesture. */
+  async remove(id: string): Promise<void> {
+    await this.db.delete(notifications).where(and(eq(notifications.userId, this.userId), eq(notifications.id, id)));
+  }
 }
 
 function toNotification(row: typeof notifications.$inferSelect): AppNotification {

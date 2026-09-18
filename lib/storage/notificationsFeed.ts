@@ -12,6 +12,7 @@ export interface NotificationsFeedRepository {
   list(): Promise<NotificationsSnapshot>;
   markRead(id: string): Promise<void>;
   markAllRead(): Promise<void>;
+  remove(id: string): Promise<void>;
 }
 
 export class HttpNotificationsFeedRepository implements NotificationsFeedRepository {
@@ -25,5 +26,9 @@ export class HttpNotificationsFeedRepository implements NotificationsFeedReposit
 
   markAllRead(): Promise<void> {
     return apiRequest('POST', '/notifications/read-all');
+  }
+
+  remove(id: string): Promise<void> {
+    return apiRequest('DELETE', `/notifications/${seg(id)}`);
   }
 }
