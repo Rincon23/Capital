@@ -4,6 +4,7 @@ import { Blocks, PanelBottom, Settings, ShieldCheck } from 'lucide-react';
 import { HOME_NAV, moduleDefinition, moreItems, navEntry } from '@/lib/modules';
 import { useLastViewedMonth } from '@/lib/hooks/useLastViewedMonth';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { MoreMenu, type MoreMenuSection } from '@/components/layout/MoreMenu';
 import { HOME_VISUAL, MODULE_VISUALS } from '@/components/modules/visuals';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -86,7 +87,7 @@ export function MaisScreen() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 pb-10">
-      <PageHeader title="Mais" />
+      <PageHeader title="Mais" action={<NotificationBell />} />
       <MoreMenu user={{ name: user.name, email: user.email }} sections={sections} />
     </div>
   );
