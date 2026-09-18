@@ -50,3 +50,42 @@ export interface PushSubscriptionInput {
   /** The endpoint this one replaces, when the browser rotated the subscription. */
   previousEndpoint?: string;
 }
+
+// ---------------------------------------------------------------------------
+// The in-app notification center (every notification the app ever generated,
+// independent of whether push itself is on for this account or this device).
+// ---------------------------------------------------------------------------
+
+/** What kind of thing generated a notification, so the bell can show an icon per row. */
+export type NotificationCategory = 'reminder' | 'gmail' | 'feature' | 'system';
+
+/** Label for each category in the notification-preferences switches. */
+export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> = {
+  reminder: 'Lembretes',
+  gmail: 'Monitor de Gmail',
+  feature: 'Novidades do app',
+  system: 'Outros avisos',
+};
+
+/** One row of the in-app notification center. */
+export interface AppNotification {
+  id: string;
+  category: NotificationCategory;
+  title: string;
+  body: string;
+  href: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+/**
+ * Whether `category` should push to this account's phone. Absent (or an unlisted category, such
+ * as `system`) means on — only an explicit `false` turns a category off. The in-app bell always
+ * gets every notification regardless of this; it only gates the push to the phone.
+ */
+export function isNotificationCategoryOn(
+  prefs: Partial<Record<NotificationCategory, boolean>> | undefined,
+  category: NotificationCategory,
+): boolean {
+  return prefs?.[category] !== false;
+}

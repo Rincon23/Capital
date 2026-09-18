@@ -1,5 +1,7 @@
 import { and, eq, exists, gt, lt, or, sql } from 'drizzle-orm';
+import { FEATURE_ANNOUNCEMENTS } from '../notifications/announcements';
 import { notificationSlots, planNotifications, weekdayOf, zonedMoment } from '../reminders';
+import { runAnnouncementsJob } from './announcements';
 import {
   budgetSettings,
   investmentBuckets,
@@ -11,7 +13,8 @@ import {
 } from './db/schema';
 import type { Database } from './db/types';
 import { runGmailJob } from './gmail/job';
-import { sendPushToUser, type PushSender } from './push';
+import { sendUserNotification } from './notify';
+import type { PushSender } from './push';
 import { fetchQuotes } from './quotes';
 import { signReminderAction } from './reminderActionToken';
 import { PostgresRemindersRepository } from './remindersRepository';
@@ -110,26 +113,29 @@ async function notifyUser(
     if (recorded.length === 0) continue;
 
     const token = note.done ? signReminderAction({ userId, ...note.done }, now) : null;
-    await sendPushToUser(
+    await sendUserNotification(
       db,
       userId,
       {
-        title: note.title,
-        body: note.body,
-        url: note.url,
-        tag: note.tag,
-        ...(token
-          ? {
-              actions: [
-                {
-                  action: 'done',
-                  title: 'Realizado ✅',
-                  endpoint: '/api/v1/reminders/actions/done',
-                  body: { token },
-                },
-              ],
-            }
-          : {}),
+        category: 'reminder',
+        message: {
+          title: note.title,
+          body: note.body,
+          url: note.url,
+          tag: note.tag,
+          ...(token
+            ? {
+                actions: [
+                  {
+                    action: 'done',
+                    title: 'Realizado ✅',
+                    endpoint: '/api/v1/reminders/actions/done',
+                    body: { token },
+                  },
+                ],
+              }
+            : {}),
+        },
       },
       { sender, ttlSeconds: REMINDER_TTL_SECONDS, urgency: 'high' },
     );
@@ -210,6 +216,9 @@ export function startScheduler(getDb: () => Database): void {
       await runRemindersJob(db);
       await runQuotesJob(db).catch((err) => console.error('[cotações] falha na atualização:', err));
       await runGmailJob(db).catch((err) => console.error('[gmail] falha na verificação:', err));
+      await runAnnouncementsJob(db, FEATURE_ANNOUNCEMENTS).catch((err) =>
+        console.error('[novidades] falha ao notificar:', err),
+      );
     } catch (err) {
       console.error('[agenda] falha na rodada:', err);
     } finally {

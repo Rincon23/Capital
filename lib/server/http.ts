@@ -8,6 +8,7 @@ import { getDb } from './db';
 import { HttpError } from './httpError';
 import { allowedOriginHosts } from './origins';
 import { PostgresGmailRepository } from './gmail/repository';
+import { PostgresNotificationsRepository } from './notificationsRepository';
 import { PostgresPushRepository } from './push';
 import { QuoteUnavailableError } from './quotes';
 import { PostgresRemindersRepository } from './remindersRepository';
@@ -28,6 +29,8 @@ interface RouteArgs<P> {
   reminders: PostgresRemindersRepository;
   /** The Gmail monitor (owner only; see lib/server/gmail/access.ts). */
   gmail: PostgresGmailRepository;
+  /** The in-app notification history (the bell / Central de notificações). */
+  notifications: PostgresNotificationsRepository;
   userId: string;
   /** The signed-in user's e-mail, for the owner-only routes. */
   email: string | null;
@@ -66,6 +69,7 @@ export function apiRoute<P = Record<string, never>>(
         push: new PostgresPushRepository(db, session.user.id),
         reminders: new PostgresRemindersRepository(db, session.user.id),
         gmail: new PostgresGmailRepository(db, session.user.id),
+        notifications: new PostgresNotificationsRepository(db, session.user.id),
         userId: session.user.id,
         email: session.user.email ?? null,
       });

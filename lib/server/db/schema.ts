@@ -34,6 +34,7 @@ import type {
   SpecialCategoryLabels,
   TopicConfig,
 } from '../../budget/types';
+import type { NotificationCategory } from '../../notifications/types';
 import type { ReminderKind, TimeOfDay } from '../../reminders/types';
 
 /** Every category an expense (or a template, or a plan) can have. */
@@ -137,6 +138,11 @@ export const budgetSettings = pgTable('budget_settings', {
   nav: jsonb('nav').$type<NavKey[]>(),
   /** Keys of the one-time notices this account already dismissed. */
   dismissedNotices: jsonb('dismissed_notices').$type<string[]>().notNull().default([]),
+  /** Which notification categories push to this account's devices; absent key means on. */
+  notificationPrefs: jsonb('notification_prefs')
+    .$type<Partial<Record<NotificationCategory, boolean>>>()
+    .notNull()
+    .default({}),
   updatedAt: updatedAt(),
 });
 
@@ -363,6 +369,35 @@ export const pushSubscriptions = pgTable(
     lastSuccessAt: timestamp('last_success_at', { withTimezone: true }),
   },
   (t) => [index('push_subscriptions_user_id_idx').on(t.userId)],
+);
+
+/**
+ * One row per notification shown in the in-app bell — the full history of everything the app
+ * has told this account, whether or not push itself reached a device. `sourceKey` is set only
+ * for notifications a background job could generate again for the same reason (a feature
+ * announcement, for instance); the unique index on (user, source key) keeps those from being
+ * recorded twice, while ad-hoc notifications (reminders, Gmail alerts — sourceKey null) are
+ * never deduped by it, since NULL never equals NULL in a Postgres unique index.
+ */
+export const notifications = pgTable(
+  'notifications',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    category: text('category').$type<NotificationCategory>().notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    href: text('href'),
+    sourceKey: text('source_key'),
+    readAt: timestamp('read_at', { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index('notifications_user_created_idx').on(t.userId, t.createdAt),
+    unique('notifications_user_source_unique').on(t.userId, t.sourceKey),
+  ],
 );
 
 // ---------------------------------------------------------------------------

@@ -57,6 +57,13 @@
       "when": 1789614196974,
       "tag": "0007_modular",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789733673854,
+      "tag": "0008_wealthy_stryfe",
+      "breakpoints": true
     }
   ]
 }

@@ -4,6 +4,7 @@ export * from './indexedDbRepository';
 export * from './httpRepository';
 export * from './walletHttpRepository';
 export * from './notifications';
+export * from './notificationsFeed';
 export * from './reminders';
 export * from './gmail';
 export * from './preferences';
@@ -14,6 +15,7 @@ import { HttpBudgetRepository } from './httpRepository';
 import type { WalletRepository } from './wallet';
 import { HttpWalletRepository } from './walletHttpRepository';
 import { HttpNotificationsRepository, type NotificationsRepository } from './notifications';
+import { HttpNotificationsFeedRepository, type NotificationsFeedRepository } from './notificationsFeed';
 import { HttpRemindersRepository, type RemindersRepository } from './reminders';
 import { HttpGmailRepository, type GmailRepository } from './gmail';
 
@@ -29,6 +31,9 @@ export const walletRepository: WalletRepository = new HttpWalletRepository();
 
 /** The devices that receive this user's notifications. */
 export const notificationsRepository: NotificationsRepository = new HttpNotificationsRepository();
+
+/** The signed-in user's notification history (the bell / Central de notificações). */
+export const notificationsFeedRepository: NotificationsFeedRepository = new HttpNotificationsFeedRepository();
 
 /** Lembretes and daily tasks. */
 export const remindersRepository: RemindersRepository = new HttpRemindersRepository();

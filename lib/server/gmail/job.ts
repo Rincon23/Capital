@@ -3,7 +3,8 @@ import { eq, sql } from 'drizzle-orm';
 import { gmailAlertNotification, isReceivedMail, matchKeywords } from '@/lib/gmail';
 import { budgetSettings, gmailAccounts } from '../db/schema';
 import type { Database } from '../db/types';
-import { sendPushToUser, type PushSender } from '../push';
+import { sendUserNotification } from '../notify';
+import type { PushSender } from '../push';
 import {
   GmailAuthError,
   GmailHistoryExpiredError,
@@ -123,11 +124,12 @@ export async function checkGmailAccount(
           receivedAt: new Date(message.receivedAt),
         });
         if (!recorded) continue;
-        await sendPushToUser(db, userId, gmailAlertNotification(message, found, credentials.email), {
-          sender: deps.sender,
-          ttlSeconds: ALERT_TTL_SECONDS,
-          urgency: 'high',
-        });
+        await sendUserNotification(
+          db,
+          userId,
+          { category: 'gmail', message: gmailAlertNotification(message, found, credentials.email) },
+          { sender: deps.sender, ttlSeconds: ALERT_TTL_SECONDS, urgency: 'high' },
+        );
         await repo.markNotified(message.id, now);
         alerts += 1;
       }
@@ -144,14 +146,17 @@ export async function checkGmailAccount(
       );
       // Tell the user once, when it stops working, not every minute.
       if (previous?.status !== 'reconnect') {
-        await sendPushToUser(
+        await sendUserNotification(
           db,
           userId,
           {
-            title: '📩 O monitor de Gmail parou',
-            body: 'O Google não aceita mais a conexão. Toque para conectar de novo.',
-            url: '/gmail',
-            tag: 'gmail-reconnect',
+            category: 'gmail',
+            message: {
+              title: '📩 O monitor de Gmail parou',
+              body: 'O Google não aceita mais a conexão. Toque para conectar de novo.',
+              url: '/gmail',
+              tag: 'gmail-reconnect',
+            },
           },
           { sender: deps.sender, urgency: 'normal' },
         ).catch((pushErr) => console.error('[gmail] aviso de reconexão falhou:', pushErr));

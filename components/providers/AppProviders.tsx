@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { TourProvider } from '@/components/modules/tour/TourProvider';
+import { NotificationsProvider } from '@/components/notifications/NotificationsProvider';
 import { ConfirmProvider } from '@/components/ui/ConfirmSheet';
 import { ToastProvider } from '@/components/ui/Toast';
 import { AuthProvider, type AuthUser } from './AuthProvider';
@@ -20,7 +21,9 @@ export function AppProviders({
       <ToastProvider>
         <ConfirmProvider>
           <SettingsProvider>
-            <TourProvider>{children}</TourProvider>
+            <NotificationsProvider>
+              <TourProvider>{children}</TourProvider>
+            </NotificationsProvider>
           </SettingsProvider>
         </ConfirmProvider>
       </ToastProvider>

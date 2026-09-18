@@ -4,6 +4,7 @@
  * so the same definitions serve the pure calculation layer, the storage
  * layer, and the UI.
  */
+import type { NotificationCategory } from '../notifications/types';
 
 /** Competence month, formatted "YYYY-MM" (e.g. "2026-09"). */
 export type Month = string;
@@ -113,6 +114,8 @@ export interface BudgetSettings {
   nav?: NavKey[] | null;
   /** One-time notices ("Novidade" cards and the like) this account already dismissed, by key. */
   dismissedNotices?: string[];
+  /** Which notification categories push to this account's devices; see `isNotificationCategoryOn`. */
+  notificationPrefs?: Partial<Record<NotificationCategory, boolean>>;
 }
 
 export interface Income {

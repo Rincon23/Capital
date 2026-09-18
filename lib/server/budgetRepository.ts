@@ -556,6 +556,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
       modules: row.modules,
       nav: row.nav,
       dismissedNotices: row.dismissedNotices,
+      notificationPrefs: row.notificationPrefs,
     };
   }
 
@@ -578,6 +579,9 @@ export class PostgresBudgetRepository implements BudgetRepository {
       ...(restoringBackup || settings.nav !== undefined ? { nav: settings.nav ?? null } : {}),
       ...(restoringBackup || settings.dismissedNotices !== undefined
         ? { dismissedNotices: settings.dismissedNotices ?? [] }
+        : {}),
+      ...(restoringBackup || settings.notificationPrefs !== undefined
+        ? { notificationPrefs: settings.notificationPrefs ?? {} }
         : {}),
       ...(restoringBackup && settings.onboardingCompleted !== undefined
         ? { onboardingCompleted: settings.onboardingCompleted }
