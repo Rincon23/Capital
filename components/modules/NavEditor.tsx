@@ -145,6 +145,7 @@ export function NavEditor() {
           <ul
             className="border-border bg-card flex flex-col gap-1 rounded-2xl border p-2 shadow-sm"
             data-tour="rodape-lista"
+            data-no-swipe-nav
           >
             {items.map((item, index) =>
               item === MORE_DIVIDER ? (

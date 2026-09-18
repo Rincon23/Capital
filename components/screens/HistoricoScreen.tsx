@@ -168,7 +168,7 @@ function Historico() {
               ›
             </button>
           </div>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto" data-no-swipe-nav>
             <table className="w-full min-w-[520px] border-collapse text-sm">
               <thead>
                 <tr className="border-border text-muted border-b text-left">

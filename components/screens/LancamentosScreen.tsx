@@ -153,7 +153,7 @@ function Lancamentos({ initialTab }: { initialTab?: LancamentosTab }) {
         <ClosedMonthBanner />
       </div>
 
-      <div className="flex gap-2 overflow-x-auto px-4" data-tour="lancamentos-abas">
+      <div className="flex gap-2 overflow-x-auto px-4" data-tour="lancamentos-abas" data-no-swipe-nav>
         {tabs.map((t) => (
           <button
             key={t.key}
