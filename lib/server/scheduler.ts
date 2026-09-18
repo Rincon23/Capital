@@ -1,4 +1,4 @@
-import { and, eq, exists, gt, lt, or, sql } from 'drizzle-orm';
+import { eq, exists, gt, lt, or, sql } from 'drizzle-orm';
 import { FEATURE_ANNOUNCEMENTS } from '../notifications/announcements';
 import { notificationSlots, planNotifications, weekdayOf, zonedMoment } from '../reminders';
 import { runAnnouncementsJob } from './announcements';
@@ -8,7 +8,6 @@ import {
   investmentReserves,
   jobRuns,
   priceCache,
-  pushSubscriptions,
   reminderDeliveries,
 } from './db/schema';
 import type { Database } from './db/types';
@@ -47,8 +46,10 @@ async function markRun(db: Database, name: string, at: Date): Promise<void> {
 
 /**
  * Sends every reminder notification due since the last run, for each user with the Lembretes
- * module on and at least one device. A slot is recorded in `reminder_deliveries` before it is
- * sent, and only whoever records it sends it — running this twice never notifies twice.
+ * module on — with or without a device registered for push: it is always recorded in the
+ * Central de notificações either way, and also pushed to a device when there is one. A slot is
+ * recorded in `reminder_deliveries` before it is sent, and only whoever records it sends it —
+ * running this twice never notifies twice.
  */
 export async function runRemindersJob(
   db: Database,
@@ -64,17 +65,7 @@ export async function runRemindersJob(
   const users = await db
     .select({ userId: budgetSettings.userId })
     .from(budgetSettings)
-    .where(
-      and(
-        sql`coalesce((${budgetSettings.modules}->>'reminders')::boolean, false)`,
-        exists(
-          db
-            .select({ one: sql`1` })
-            .from(pushSubscriptions)
-            .where(eq(pushSubscriptions.userId, budgetSettings.userId)),
-        ),
-      ),
-    );
+    .where(sql`coalesce((${budgetSettings.modules}->>'reminders')::boolean, false)`);
 
   let notifications = 0;
   for (const { userId } of users) {

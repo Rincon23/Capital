@@ -5,14 +5,22 @@ import { LayoutGrid } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { getLastViewedMonth } from '@/lib/storage/preferences';
-import { currentMonthKey } from '@/lib/budget';
+import { currentMonthKey, type NavKey } from '@/lib/budget';
 import { activeNavKey, navEntry, resolveNav } from '@/lib/modules';
 import { navVisual } from '@/components/modules/visuals';
+import { useNotifications } from '@/components/notifications/NotificationsProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
+import type { NotificationCategory } from '@/lib/notifications';
+
+/** Which nav icons carry a notification badge, and which category counts toward it. */
+const NAV_KEY_NOTIFICATION_CATEGORY: Partial<Record<NavKey, NotificationCategory>> = {
+  reminders: 'reminder',
+};
 
 export function BottomNav() {
   const pathname = usePathname();
   const { settings } = useSettings();
+  const { snapshot } = useNotifications();
   const monthFromPath = pathname.match(/^\/mes\/([\d-]+)/)?.[1];
   // Starts from `currentMonthKey()` (deterministic, matches the server) so hydration never
   // sees a mismatched href; the last-viewed month (localStorage, client-only) is applied
@@ -32,12 +40,22 @@ export function BottomNav() {
   const nav = settings ? resolveNav(settings) : [];
   const active = activeNavKey(nav, pathname);
 
+  const unreadInCategory = (category: NotificationCategory): number =>
+    snapshot?.notifications.filter((n) => n.category === category && !n.readAt).length ?? 0;
+
   const tabs = [
     ...nav.map((key) => {
       const entry = navEntry(key);
-      return { key, label: entry.label, href: entry.href(month), icon: navVisual(key).icon };
+      const category = NAV_KEY_NOTIFICATION_CATEGORY[key];
+      return {
+        key,
+        label: entry.label,
+        href: entry.href(month),
+        icon: navVisual(key).icon,
+        badge: category ? unreadInCategory(category) : 0,
+      };
     }),
-    ...(settings ? [{ key: 'mais' as const, label: 'Mais', href: '/mais', icon: LayoutGrid }] : []),
+    ...(settings ? [{ key: 'mais' as const, label: 'Mais', href: '/mais', icon: LayoutGrid, badge: 0 }] : []),
   ];
 
   return (
@@ -60,8 +78,23 @@ export function BottomNav() {
                 }`}
                 aria-current={current ? 'page' : undefined}
               >
-                <Icon aria-hidden className="h-6 w-6" strokeWidth={current ? 2.25 : 1.75} />
-                <span className="max-w-full truncate">{tab.label}</span>
+                <span className="relative">
+                  <Icon aria-hidden className="h-6 w-6" strokeWidth={current ? 2.25 : 1.75} />
+                  {tab.badge > 0 && (
+                    <span
+                      aria-hidden
+                      className="bg-danger ring-card absolute -top-1 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-0.5 text-[10px] font-bold text-white ring-2"
+                    >
+                      {tab.badge > 9 ? '9+' : tab.badge}
+                    </span>
+                  )}
+                </span>
+                <span className="max-w-full truncate">
+                  {tab.label}
+                  {tab.badge > 0 && (
+                    <span className="sr-only"> · {tab.badge} não {tab.badge === 1 ? 'lida' : 'lidas'}</span>
+                  )}
+                </span>
               </Link>
             </li>
           );
