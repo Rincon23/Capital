@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Bell, ChevronRight } from 'lucide-react';
+import { ChevronRight, Clock } from 'lucide-react';
 import { DueRow, TaskRow } from '@/components/reminders/ReminderRows';
 import { RemindersProvider, useReminders } from '@/components/reminders/RemindersProvider';
 import { IconTile } from '@/components/ui/IconTile';
@@ -35,7 +35,7 @@ function TodayReminders() {
         aria-label="Lembretes de hoje"
       >
         <div className="flex items-center gap-3">
-          <IconTile icon={Bell} tone="amber" />
+          <IconTile icon={Clock} tone="amber" />
           <p className="text-foreground font-semibold">Lembretes de hoje</p>
         </div>
         {error ? (
@@ -73,7 +73,7 @@ function TodayReminders() {
       data-tour="card-reminders"
     >
       <Link href="/lembretes" className="flex items-center gap-3">
-        <IconTile icon={Bell} tone={total > 0 ? 'amber' : 'green'} />
+        <IconTile icon={Clock} tone={total > 0 ? 'amber' : 'green'} />
         <div className="min-w-0 flex-1">
           <p className="text-foreground font-semibold">Lembretes de hoje</p>
           <p className="text-muted text-xs">

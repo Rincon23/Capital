@@ -1,7 +1,7 @@
 import {
-  Bell,
   ChartColumn,
   ChartPie,
+  Clock,
   CreditCard,
   HandCoins,
   House,
@@ -33,7 +33,7 @@ export const MODULE_VISUALS: Record<ModuleKey, ModuleVisual> = {
   installments: { icon: CreditCard, tone: 'orange' },
   investments: { icon: PiggyBank, tone: 'green' },
   cash: { icon: Scale, tone: 'purple' },
-  reminders: { icon: Bell, tone: 'amber' },
+  reminders: { icon: Clock, tone: 'amber' },
   voice: { icon: Mic, tone: 'pink' },
   gmail: { icon: Mail, tone: 'red' },
 };

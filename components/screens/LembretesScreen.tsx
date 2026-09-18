@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { Bell, ChevronRight } from 'lucide-react';
+import { ChevronRight, Clock } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { NotificationsHint } from '@/components/pwa/NotificationsHint';
 import { DueRow, KIND_STYLE, TaskRow } from '@/components/reminders/ReminderRows';
@@ -246,7 +246,7 @@ function TodayView({
 
       {nothingToday && (
         <div className="border-border bg-card mx-4 flex flex-col items-center gap-2 rounded-2xl border p-6 text-center shadow-sm">
-          <IconTile icon={Bell} tone="green" size="lg" />
+          <IconTile icon={Clock} tone="green" size="lg" />
           <p className="text-foreground font-semibold">Nada para hoje</p>
           <p className="text-muted text-sm">
             {snapshot.reminders.length === 0
@@ -340,7 +340,7 @@ function AllView({
   if (snapshot.reminders.length === 0) {
     return (
       <div className="border-border bg-card mx-4 flex flex-col items-center gap-2 rounded-2xl border p-6 text-center shadow-sm">
-        <IconTile icon={Bell} tone="neutral" size="lg" />
+        <IconTile icon={Clock} tone="neutral" size="lg" />
         <p className="text-foreground font-semibold">Nenhum lembrete ainda</p>
         <button
           type="button"
