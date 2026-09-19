@@ -11,7 +11,8 @@ export const MODULE_GROUPS: { key: ModuleGroup; label: string }[] = [
 
 /** A screen that can sit in the bottom bar or in Mais. */
 export interface ModuleScreen {
-  /** Short label for the bottom bar. */
+  /** Short label for the bottom bar, where there is only room for a word. Everywhere with
+   *  room for the whole thing (Mais, the home cards, the module list) uses `name`. */
   label: string;
   href: (month: Month) => string;
   isActive: (pathname: string) => boolean;
@@ -144,7 +145,7 @@ export const MODULES: ModuleDefinition[] = [
     group: 'wallet',
     dependsOn: ['expenses'],
     screen: {
-      label: 'Reserva',
+      label: 'Investida',
       href: () => '/carteira/reserva',
       isActive: (pathname) => pathname.startsWith('/carteira/reserva'),
     },
@@ -152,14 +153,14 @@ export const MODULES: ModuleDefinition[] = [
   },
   {
     key: 'cash',
-    name: 'Caixa',
+    name: 'Reserva de emergência',
     description:
       'Quanto você tem, quanto deve no cartão e nos parcelados e quanto falta para a reserva de emergência.',
     tagline: 'Reserva, dívidas e o que falta',
     group: 'wallet',
     dependsOn: [],
     screen: {
-      label: 'Caixa',
+      label: 'Emergência',
       href: () => '/carteira/caixa',
       isActive: (pathname) => pathname.startsWith('/carteira/caixa'),
     },

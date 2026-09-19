@@ -30,7 +30,7 @@ export function HomeCard({
       <div className="flex items-center gap-3">
         <IconTile icon={visual.icon} tone={visual.tone} />
         <p className="text-foreground min-w-0 flex-1 truncate font-semibold">
-          {title ?? moduleDefinition(module).screen?.label ?? moduleDefinition(module).name}
+          {title ?? moduleDefinition(module).name}
         </p>
         {href && <ChevronRight aria-hidden className="text-muted h-4 w-4 shrink-0" />}
       </div>
@@ -76,7 +76,7 @@ export function HomeTile({
       </div>
       <div className="min-w-0">
         <p className="text-muted truncate text-xs font-medium">
-          {title ?? moduleDefinition(module).screen?.label ?? moduleDefinition(module).name}
+          {title ?? moduleDefinition(module).name}
         </p>
         {value === null ? (
           <Skeleton className="mt-1 h-6 w-24" />

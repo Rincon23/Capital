@@ -35,7 +35,7 @@ módulos como uma árvore, cada um embaixo do módulo de que depende:
   - Gastos recorrentes
   - Reserva investida
   - Lançar por voz ou texto
-- Caixa, Lembretes e Monitor de Gmail funcionam sozinhos.
+- Reserva de emergência, Lembretes e Monitor de Gmail funcionam sozinhos.
 
 Um módulo cujo pai está desligado aparece com **cadeado** e "Precisa de …". Tentar ligá-lo não
 liga nada, e **o app nunca liga o pai sozinho**: a linha balança, o que falta ligar se acende e um
@@ -74,8 +74,9 @@ junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no s
     cache e se atualiza sozinha ao abrir a Carteira quando tem mais de 15 min. Nenhuma das duas é
     uma API documentada com garantia, por isso há duas e o app nunca depende de uma resposta ao
     vivo para abrir a tela.
-  - **Caixa** — reserva em conta + reserva investida livre, dívida do cartão do mês aberto e dos
-    parcelados (sem contar duas vezes a parcela que já virou gasto), reserva prevista e gap.
+  - **Reserva de emergência** — reserva em conta + reserva investida livre, dívida do cartão do
+    mês aberto e dos parcelados (sem contar duas vezes a parcela que já virou gasto), reserva
+    prevista e gap.
 **Assistente**
 
 - **Lembretes** (`/lembretes`), com notificação no celular (Web Push):
@@ -150,9 +151,10 @@ junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no s
 - **Configurações do módulo (engrenagem)**: ficam na tela do próprio módulo. Categorias: nome,
   descrição, cor, ordem e metas (com a regra dos 100%), e "Restaurar categorias padrão".
   Lançamentos: nome, descrição e cor das categorias, sem metas. Lembretes: notificações deste
-  aparelho e horários para lembrar de novo. Gmail: notificações. Caixa: reserva em conta e custos de
-  emergência. Reserva: o ativo. **Configurações** fica só com o que é geral: conta, tema, backup,
-  dados locais e apagar tudo (Módulos, Rodapé e Privacidade ficam no Mais).
+  aparelho e horários para lembrar de novo. Gmail: notificações. Reserva de emergência: reserva em
+  conta e custos de emergência. Reserva investida: o ativo. **Configurações** fica só com o que é
+  geral: conta, tema, backup, dados locais e apagar tudo (Módulos, Rodapé e Privacidade ficam no
+  Mais).
 - **Primeira visita** (`useModuleIntro`): a primeira vez que a pessoa abre a tela de um módulo, o
   tour dele começa sozinho. Nas Categorias vêm antes as perguntas das porcentagens (veja abaixo).
   Fica guardado por conta, então acontece uma vez só, no aparelho que chegar primeiro. Não existe

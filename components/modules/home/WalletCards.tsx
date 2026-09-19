@@ -83,7 +83,7 @@ export function InvestmentsHomeTile() {
   );
 }
 
-/** Caixa: total reserve, debts and the gap, with how much of the target reserve is covered. */
+/** Reserva de emergência: total reserve, debts and the gap, with how much of the target reserve is covered. */
 export function CashHomeCard() {
   const { snapshot, error } = useWallet();
 

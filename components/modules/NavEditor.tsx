@@ -29,6 +29,7 @@ import {
   navEditorItems,
   navEntry,
   navFromEditor,
+  navName,
   resolveNav,
   type NavChange,
   type NavEditorItem,
@@ -38,7 +39,7 @@ import { IconTile } from '@/components/ui/IconTile';
 import { useToast } from '@/components/ui/Toast';
 import { navVisual } from './visuals';
 
-const labelOf = (id: UniqueIdentifier) => (id === MORE_DIVIDER ? 'a linha do Mais' : navEntry(id as NavKey).label);
+const labelOf = (id: UniqueIdentifier) => (id === MORE_DIVIDER ? 'a linha do Mais' : navName(id as NavKey));
 
 /** What a screen reader hears while dragging (dnd-kit's defaults are in English). */
 const ANNOUNCEMENTS: Announcements = {
@@ -94,7 +95,7 @@ export function NavEditor() {
       await saveSettings({ ...settings, nav: change.nav });
       showToast(
         change.bumped
-          ? `Rodapé atualizado. ${navEntry(change.bumped).label} foi para o Mais.`
+          ? `Rodapé atualizado. ${navName(change.bumped)} foi para o Mais.`
           : change.nav === null
             ? 'Rodapé de volta ao padrão.'
             : 'Rodapé atualizado.',
@@ -227,7 +228,8 @@ function NavRow({
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
     useSortable({ id: item });
-  const entry = navEntry(item);
+  // The row says the whole name; only the preview above (and the bar itself) uses the short one.
+  const name = navName(item);
   const visual = navVisual(item);
 
   return (
@@ -243,16 +245,18 @@ function NavRow({
         ref={setActivatorNodeRef}
         {...attributes}
         {...listeners}
-        aria-label={`Arrastar ${entry.label}`}
+        aria-label={`Arrastar ${name}`}
         className="text-muted flex h-11 w-8 shrink-0 cursor-grab touch-none items-center justify-center active:cursor-grabbing"
       >
         <GripVertical aria-hidden className="h-5 w-5" />
       </button>
       <IconTile icon={visual.icon} tone={visual.tone} />
       <span
-        className={`min-w-0 flex-1 truncate text-sm font-medium ${inBar ? 'text-foreground' : 'text-muted'}`}
+        className={`line-clamp-2 min-w-0 flex-1 text-sm leading-tight font-medium ${
+          inBar ? 'text-foreground' : 'text-muted'
+        }`}
       >
-        {entry.label}
+        {name}
       </span>
       {inBar ? (
         <>
@@ -260,7 +264,7 @@ function NavRow({
             type="button"
             onClick={() => onChange('up')}
             disabled={first}
-            aria-label={`Subir ${entry.label}`}
+            aria-label={`Subir ${name}`}
             className={ROW_BUTTON}
           >
             <ChevronUp aria-hidden className="h-5 w-5" />
@@ -269,7 +273,7 @@ function NavRow({
             type="button"
             onClick={() => onChange('down')}
             disabled={last}
-            aria-label={`Descer ${entry.label}`}
+            aria-label={`Descer ${name}`}
             className={ROW_BUTTON}
           >
             <ChevronDown aria-hidden className="h-5 w-5" />
@@ -277,7 +281,7 @@ function NavRow({
           <button
             type="button"
             onClick={() => onChange('remove')}
-            aria-label={`Tirar ${entry.label} do rodapé`}
+            aria-label={`Tirar ${name} do rodapé`}
             className={ROW_BUTTON}
           >
             <Minus aria-hidden className="h-5 w-5" />
@@ -287,7 +291,7 @@ function NavRow({
         <button
           type="button"
           onClick={() => onChange('add')}
-          aria-label={`Pôr ${entry.label} no rodapé`}
+          aria-label={`Pôr ${name} no rodapé`}
           className={ROW_BUTTON}
         >
           <Plus aria-hidden className="h-5 w-5" />

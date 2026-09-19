@@ -37,15 +37,11 @@ export interface CashReport {
   monthlyCost: number;
   multiplier: number;
   expectedReserve: number;
-  /** The 3× reserve, always shown next to the chosen multiplier as a nearer target. */
-  minimumReserve: number;
   /** Positive: the reserve is already there. Negative: this much is missing. */
   gap: number;
 }
 
 export const DEFAULT_RESERVE_MULTIPLIER = 6;
-/** The smaller target the spreadsheet also showed. */
-export const MINIMUM_RESERVE_MULTIPLIER = 3;
 
 export function createDefaultCashSettings(): CashSettings {
   return {
@@ -82,7 +78,6 @@ export function computeCashReport(input: CashReportInput): CashReport {
     monthlyCost,
     multiplier,
     expectedReserve,
-    minimumReserve: round2(monthlyCost * MINIMUM_RESERVE_MULTIPLIER),
     gap: round2(totalReserve + totalDebt - expectedReserve),
   };
 }

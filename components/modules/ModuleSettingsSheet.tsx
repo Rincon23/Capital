@@ -17,7 +17,7 @@ export function ModuleSettingsSheet({
 }) {
   const info = moduleDefinition(module);
   return (
-    <BottomSheet open title={`Configurar ${info.screen?.label ?? info.name}`} onClose={onClose}>
+    <BottomSheet open title={`Configurar ${info.name}`} onClose={onClose}>
       <div className="-mx-4 flex flex-col gap-6">{children}</div>
     </BottomSheet>
   );

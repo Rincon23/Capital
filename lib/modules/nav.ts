@@ -32,6 +32,14 @@ export function navEntry(key: NavKey): NavEntry {
   return { key, ...screen };
 }
 
+/**
+ * The whole name of a bar entry, for lists with room for it (the bottom-bar editor, the
+ * announcements a screen reader reads). `navEntry(key).label` is the short one, for the bar itself.
+ */
+export function navName(key: NavKey): string {
+  return key === 'inicio' ? HOME_NAV.label : moduleDefinition(key).name;
+}
+
 /** What can go in the bottom bar right now: Início and every module that is on and has a screen. */
 export function availableNavKeys(source: NavSource): NavKey[] {
   const modules = resolveModules(source);

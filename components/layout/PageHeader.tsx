@@ -29,7 +29,7 @@ export function PageHeader({
         </Link>
       )}
       <div className="min-w-0 flex-1">
-        <h1 className="text-foreground flex items-center gap-2 text-lg font-semibold">
+        <h1 className="text-foreground flex items-center gap-2 text-lg leading-tight font-semibold">
           {accentColor && (
             <span
               aria-hidden
@@ -37,7 +37,9 @@ export function PageHeader({
               style={{ backgroundColor: accentColor }}
             />
           )}
-          <span className="truncate">{title}</span>
+          {/* Two lines rather than a cut-off word: a long name ("Reserva de emergência") does not
+              fit next to a back arrow and two buttons on a phone. */}
+          <span className="line-clamp-2">{title}</span>
         </h1>
         {subtitle && <p className="text-muted truncate text-sm">{subtitle}</p>}
       </div>

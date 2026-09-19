@@ -197,7 +197,6 @@ describe('reserva investida e caixa em 15/09/2026 (fixtures da spec §9)', () =>
     expectMoney(report.totalDebt, -3821.62);
     expectMoney(report.monthlyCost, 2000);
     expectMoney(report.expectedReserve, 12000);
-    expectMoney(report.minimumReserve, 6000);
     expectMoney(report.gap, 3195.8);
   });
 });

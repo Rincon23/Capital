@@ -193,7 +193,7 @@ function Recorrentes() {
           title="Lançar recorrente"
           onClose={() => setLaunching(null)}
           onSave={async (expense) => {
-            // Through `run`, so the Caixa (card debt) reflects the new expense right away.
+            // Through `run`, so the reserva de emergência (card debt) reflects the new expense right away.
             await run(() => budgetRepository.saveExpense(month, expense));
             setLaunching(null);
             showToast('Gasto adicionado com sucesso!');

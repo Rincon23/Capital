@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import {
-  MINIMUM_RESERVE_MULTIPLIER,
   amountToInputValue,
   formatBRL,
   formatMonthLabel,
@@ -73,7 +72,7 @@ function Caixa() {
   return (
     <div className="flex flex-1 flex-col gap-4 pb-10">
       <PageHeader
-        title="Caixa"
+        title="Reserva de emergência"
         backHref={backHref}
         action={
           <>
@@ -121,10 +120,6 @@ function Caixa() {
           label="Reserva prevista"
           value={report.expectedReserve}
           hint={`${report.multiplier}× o custo mensal de ${formatBRL(report.monthlyCost)}`}
-        />
-        <Row
-          label={`Reserva mínima (${MINIMUM_RESERVE_MULTIPLIER}×)`}
-          value={report.minimumReserve}
         />
         <Row
           label="Gap da reserva"
@@ -206,7 +201,7 @@ function CashSettingsForm({ settings }: { settings: CashSettings }) {
 
   return (
     <section className="flex flex-col gap-2 px-4">
-      <h2 className="text-muted text-sm font-semibold">Configuração do caixa</h2>
+      <h2 className="text-muted text-sm font-semibold">Reserva e custos mensais</h2>
       <div className="border-border bg-card flex flex-col gap-4 rounded-xl border p-4 shadow-sm">
         <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
           Reserva em conta (R$)

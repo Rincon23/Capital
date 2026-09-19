@@ -39,7 +39,7 @@ export function MaisScreen() {
       title: group.label,
       items: group.keys.map((key) => ({
         key,
-        label: moduleDefinition(key).screen?.label ?? moduleDefinition(key).name,
+        label: moduleDefinition(key).name,
         description: moduleDefinition(key).tagline,
         icon: MODULE_VISUALS[key].icon,
         tone: MODULE_VISUALS[key].tone,
