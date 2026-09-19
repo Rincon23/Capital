@@ -71,6 +71,13 @@
       "when": 1789736778704,
       "tag": "0009_tranquil_kylun",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789835664181,
+      "tag": "0010_luxuriant_pride",
+      "breakpoints": true
     }
   ]
 }

@@ -14,7 +14,8 @@ const ANNOUNCEMENTS_EVERY_MS = 60 * 60 * 1000;
  * `publishedAt` never get it — their app was already born with that feature, nothing about it
  * is news to them. Idempotent: each (user, announcement) pair is recorded once (see
  * `sendUserNotification`'s `sourceKey`), so running this again only catches new accounts or new
- * announcements.
+ * announcements — including when the person swiped the announcement away, since dismissing one
+ * leaves the row behind (`dismissedAt`) precisely so this job does not send it all over again.
  */
 export async function runAnnouncementsJob(
   db: Database,

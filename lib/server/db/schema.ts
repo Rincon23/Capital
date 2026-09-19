@@ -383,6 +383,11 @@ export const pushSubscriptions = pgTable(
  * announcement, for instance); the unique index on (user, source key) keeps those from being
  * recorded twice, while ad-hoc notifications (reminders, Gmail alerts — sourceKey null) are
  * never deduped by it, since NULL never equals NULL in a Postgres unique index.
+ *
+ * `dismissedAt` is what makes that dedupe survive the swipe-to-dismiss gesture: throwing a
+ * notification with a `sourceKey` away only hides the row, leaving it as a headstone the unique
+ * index still sees, so the job that created it does not simply create it again on its next run.
+ * One without a `sourceKey` is nobody's to recreate, so it is deleted outright.
  */
 export const notifications = pgTable(
   'notifications',
@@ -397,6 +402,8 @@ export const notifications = pgTable(
     href: text('href'),
     sourceKey: text('source_key'),
     readAt: timestamp('read_at', { withTimezone: true }),
+    /** Set when the person swiped it away: the row stays, the bell stops showing it. */
+    dismissedAt: timestamp('dismissed_at', { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [

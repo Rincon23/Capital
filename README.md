@@ -308,10 +308,17 @@ na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de 
 Roda dentro do próprio servidor do Capital, sem n8n nem container extra: a cada minuto (5 s
 depois da virada) envia as notificações de lembrete que venceram, confere o Gmail das contas
 conectadas e, no horário da B3 (dias úteis, 10:00–18:30), atualiza a cotação dos ativos que alguém
-tem, a cada 30 min. Cada tarefa guarda
+tem, a cada 30 min. De hora em hora também avisa, pelo sino, quem já tinha conta quando uma
+novidade do app entrou no ar (`lib/notifications/announcements.ts`). Cada tarefa guarda
 quando rodou (`job_runs`): depois de um deploy ou reinício ela recupera o que ficou para trás, e
 cada envio é anotado antes (`reminder_deliveries`, chave única), então nada sai duas vezes.
 `SCHEDULER=off` desliga a agenda num servidor.
+
+Excluir uma notificação (arrastando para o lado) **não** apaga a linha quando ela tem `source_key`
+— a de uma novidade, por exemplo: só marca `dismissed_at`, e a linha continua lá como lápide. Sem
+isso o índice único `(user_id, source_key)` deixaria de enxergá-la e a tarefa mandaria exatamente o
+mesmo aviso na hora seguinte, e na outra, e na outra. Notificação sem `source_key` (lembrete,
+alerta do Gmail) ninguém recria, então essa é apagada de verdade.
 
 ### Monitor de Gmail (`lib/server/gmail`)
 

@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import type { AppNotification } from '../notifications/types';
 import { notifications } from './db/schema';
 import type { Database } from './db/types';
@@ -18,18 +18,23 @@ export class PostgresNotificationsRepository {
     private readonly userId: string,
   ) {}
 
+  /** Everything this account still keeps in the bell — dismissed rows are history, not inbox. */
+  private get visible() {
+    return and(eq(notifications.userId, this.userId), isNull(notifications.dismissedAt));
+  }
+
   async list(): Promise<NotificationsSnapshot> {
     const [rows, [{ unread }]] = await Promise.all([
       this.db
         .select()
         .from(notifications)
-        .where(eq(notifications.userId, this.userId))
+        .where(this.visible)
         .orderBy(desc(notifications.createdAt))
         .limit(LIST_LIMIT),
       this.db
         .select({ unread: sql<number>`count(*)::int` })
         .from(notifications)
-        .where(and(eq(notifications.userId, this.userId), isNull(notifications.readAt))),
+        .where(and(this.visible, isNull(notifications.readAt))),
     ]);
     return { notifications: rows.map(toNotification), unread };
   }
@@ -45,12 +50,23 @@ export class PostgresNotificationsRepository {
     await this.db
       .update(notifications)
       .set({ readAt: new Date() })
-      .where(and(eq(notifications.userId, this.userId), isNull(notifications.readAt)));
+      .where(and(this.visible, isNull(notifications.readAt)));
   }
 
-  /** Removes one notification from the history — the swipe-to-dismiss gesture. */
+  /**
+   * The swipe-to-dismiss gesture. One a background job could produce again (it has a
+   * `sourceKey`) is only hidden: the row has to stay, or the unique index it is deduped by
+   * stops seeing it and the next run of that job sends the very same notification once more.
+   * Anything else — a reminder, a Gmail alert — nothing will recreate, so it really goes.
+   */
   async remove(id: string): Promise<void> {
-    await this.db.delete(notifications).where(and(eq(notifications.userId, this.userId), eq(notifications.id, id)));
+    const mine = and(eq(notifications.userId, this.userId), eq(notifications.id, id));
+    const hidden = await this.db
+      .update(notifications)
+      .set({ dismissedAt: new Date() })
+      .where(and(mine, isNotNull(notifications.sourceKey)))
+      .returning({ id: notifications.id });
+    if (hidden.length === 0) await this.db.delete(notifications).where(mine);
   }
 }
 
