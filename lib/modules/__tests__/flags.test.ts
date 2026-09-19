@@ -19,7 +19,7 @@ import {
 const on = (...keys: ModuleKey[]) => Object.fromEntries(keys.map((key) => [key, true]));
 
 describe('catálogo de módulos', () => {
-  it('tem os 12 módulos, cada um depois dos que ele precisa', () => {
+  it('tem os 13 módulos, cada um depois dos que ele precisa', () => {
     expect(MODULE_KEYS).toEqual([
       'expenses',
       'budget',
@@ -27,6 +27,7 @@ describe('catálogo de módulos', () => {
       'reimbursable',
       'history',
       'recurring',
+      'cards',
       'installments',
       'investments',
       'cash',
@@ -117,11 +118,12 @@ describe('dependências', () => {
       'reimbursable',
       'history',
       'recurring',
+      'cards',
       'installments',
       'investments',
       'voice',
     ]);
-    expect(dependentsOf('card')).toEqual(['reimbursable', 'installments']);
+    expect(dependentsOf('card')).toEqual(['reimbursable', 'cards', 'installments']);
     expect(dependentsOf('budget')).toEqual(['history']);
     expect(dependentsOf('gmail')).toEqual([]);
   });
@@ -152,6 +154,6 @@ describe('dependências', () => {
       'voice',
     ]);
     const card = expenses.children.find((node) => node.key === 'card');
-    expect(card?.children.map((node) => node.key)).toEqual(['reimbursable', 'installments']);
+    expect(card?.children.map((node) => node.key)).toEqual(['reimbursable', 'cards', 'installments']);
   });
 });

@@ -3,7 +3,7 @@ import type { ModuleKey, NavKey } from '@/lib/budget';
 import { MAX_NAV_ITEMS, MODULE_KEYS } from '@/lib/modules';
 import type { NotificationCategory } from '@/lib/notifications';
 
-const NOTIFICATION_CATEGORIES: NotificationCategory[] = ['reminder', 'gmail', 'feature', 'system'];
+const NOTIFICATION_CATEGORIES: NotificationCategory[] = ['reminder', 'card', 'gmail', 'feature', 'system'];
 
 /** A partial map keyed by every module (or notification category): every key optional, like
  * `Partial<Record<K, V>>` — unlike `z.record` with an enum key, which demands every key present. */
@@ -16,6 +16,7 @@ function partialMap<K extends string, V extends z.ZodType>(keys: K[], value: V) 
 export const monthKeySchema = z.string().regex(/^\d{4}-\d{2}$/, 'Mês inválido.');
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida.');
+const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Horário inválido.');
 /** Older data may carry null or '' where a field is simply absent. */
 const absentAsUndefined = (value: unknown) => (value === null || value === '' ? undefined : value);
 
@@ -79,6 +80,7 @@ export const expenseSchema = z.object({
   amount: z.number(),
   date: isoDate,
   singleInstallmentCard: z.boolean().optional(),
+  cardId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
   source: z
     .enum(['form', 'voice', 'text', 'recurring', 'investment', 'installment', 'import'])
     .optional(),
@@ -109,6 +111,7 @@ export const recurringExpenseSchema = z.object({
   description: z.string().min(1).max(500),
   amount: money.positive(),
   card: z.boolean(),
+  cardId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
 });
 
 export const installmentPlanSchema = z.object({
@@ -120,12 +123,33 @@ export const installmentPlanSchema = z.object({
   count: z.number().int().min(1).max(120),
   totalAmount: money.positive(),
   accounting: z.enum(['installment', 'upfront']),
+  cardId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
 });
 
 /** An "À vista" plan may also be launched as a single expense when it is created. */
 export const saveInstallmentSchema = z.object({
   plan: installmentPlanSchema,
   upfront: z.object({ month: monthKeySchema, date: isoDate }).optional(),
+});
+
+export const creditCardSchema = z.object({
+  id: z.string().min(1).max(100),
+  name: z.string().trim().min(1, 'Dê um nome ao cartão.').max(60),
+  dueDay: z.number().int().min(1).max(31),
+  dueMonth: z.enum(['same', 'next']),
+  notifyEnabled: z.boolean(),
+  notifyBeforeDays: z.number().int().min(0).max(30),
+  isDefault: z.boolean(),
+  color: z.preprocess(absentAsUndefined, z.string().max(20).optional()),
+  order: z.number().int().min(0).max(1000),
+});
+
+/** Tying the card purchases of one competence to a card. */
+export const assignCardSchema = z.object({ month: monthKeySchema });
+
+export const cardSettingsSchema = z.object({
+  notifyTime: timeOfDay,
+  repeatUntilPaid: z.boolean(),
 });
 
 export const investmentBucketSchema = z.object({
@@ -169,7 +193,6 @@ export const pushSubscriptionSchema = z.object({
 // Lembretes
 // ---------------------------------------------------------------------------
 
-const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Horário inválido.');
 
 const reminderFields = {
   id: z.string().min(1).max(100),
@@ -211,8 +234,8 @@ export const reminderSettingsSchema = z.object({
 
 export const reminderDoneSchema = z.object({ dueDate: isoDate, done: z.boolean() });
 
-/** "Realizado ✅" from a notification: only the signed token, no session. */
-export const reminderActionSchema = z.object({ token: z.string().min(10).max(2000) });
+/** "Realizado ✅" / "Fatura paga ✅" from a notification: only the signed token, no session. */
+export const actionTokenSchema = z.object({ token: z.string().min(10).max(2000) });
 
 /** Body of "enviar notificação de teste": one device, or all of them. */
 export const pushTestSchema = z.object({ deviceId: z.uuid().optional() });

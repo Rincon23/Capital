@@ -5,6 +5,7 @@ export * from './categories';
 export * from './greeting';
 export * from './calculations';
 export * from './installments';
+export * from './cards';
 export * from './investments';
 export * from './cash';
 export * from './rollover';

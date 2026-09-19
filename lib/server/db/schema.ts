@@ -24,6 +24,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import type {
+  CardDueMonth,
   CategoryKind,
   EmergencyCost,
   ExpenseSource,
@@ -151,6 +152,109 @@ export const budgetSettings = pgTable('budget_settings', {
   updatedAt: updatedAt(),
 });
 
+// ---------------------------------------------------------------------------
+// Cartoes: the registered credit cards and their bills. Defined here, before the
+// entries, because `expenses` (and the recurring templates and instalment plans)
+// point at a card.
+// ---------------------------------------------------------------------------
+
+/**
+ * A credit card the person registered. Only what they typed is stored: the due date of each
+ * bill, the postponement off a weekend and how late it is are computed (lib/budget/cards.ts).
+ */
+export const cards = pgTable(
+  'cards',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    id: text('id').notNull(),
+    name: text('name').notNull(),
+    /** Day of the month the bill is due; a month without that day uses its last day. */
+    dueDay: integer('due_day').notNull(),
+    /** Whether the bill of a competence is due in that same month or in the next one. */
+    dueMonth: text('due_month').$type<CardDueMonth>().notNull().default('next'),
+    notifyEnabled: boolean('notify_enabled').notNull().default(true),
+    /** Extra notice before the due date, in days (0 = only on the day itself). */
+    notifyBeforeDays: integer('notify_before_days').notNull().default(1),
+    /** Pre-selected wherever a purchase picks a card; at most one per user. */
+    isDefault: boolean('is_default').notNull().default(false),
+    color: text('color'),
+    position: integer('position').notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.id] }),
+    check('cards_due_day', sql`${t.dueDay} between 1 and 31`),
+    check('cards_due_month', sql`${t.dueMonth} in ('same', 'next')`),
+    check('cards_notify_before_days', sql`${t.notifyBeforeDays} between 0 and 30`),
+  ],
+);
+
+/**
+ * "Fatura paga": one row per bill the person marked as paid. Its existence is what takes the
+ * bill out of the debt - a card's bill never leaves on its own, however late it gets.
+ */
+export const cardBillPayments = pgTable(
+  'card_bill_payments',
+  {
+    userId: uuid('user_id').notNull(),
+    cardId: text('card_id').notNull(),
+    month: text('month').notNull(),
+    /** What the bill was worth when it was marked as paid. */
+    amount: numeric('amount', { mode: 'number' }).notNull(),
+    paidAt: timestamp('paid_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.cardId, t.month] }),
+    foreignKey({
+      columns: [t.userId, t.cardId],
+      foreignColumns: [cards.userId, cards.id],
+    }).onDelete('cascade'),
+    check('card_bill_payments_month_format', sql`${t.month} ~ '^[0-9]{4}-[0-9]{2}$'`),
+  ],
+);
+
+/** Each user's settings for the bill notices; no row means the defaults (lib/budget/cards.ts). */
+export const cardSettings = pgTable('card_settings', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  notifyTime: text('notify_time').$type<TimeOfDay>().notNull().default('09:00'),
+  /** Keep warning once a day while the bill is not marked as paid. */
+  repeatUntilPaid: boolean('repeat_until_paid').notNull().default(true),
+  updatedAt: updatedAt(),
+});
+
+/**
+ * Every bill notice already delivered, the same idea as `reminder_deliveries`: a slot is sent
+ * only by whoever records it first, so a restart (or two servers) never notifies twice. Old
+ * rows are pruned by the scheduler.
+ */
+export const cardBillDeliveries = pgTable(
+  'card_bill_deliveries',
+  {
+    userId: uuid('user_id').notNull(),
+    cardId: text('card_id').notNull(),
+    month: text('month').notNull(),
+    slotAt: timestamp('slot_at', { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.cardId, t.month, t.slotAt] }),
+    foreignKey({
+      columns: [t.userId, t.cardId],
+      foreignColumns: [cards.userId, cards.id],
+    }).onDelete('cascade'),
+    index('card_bill_deliveries_slot_at_idx').on(t.slotAt),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Budget (continued)
+// ---------------------------------------------------------------------------
+
 /** One row per (user, competence month "YYYY-MM"). carryIn and topicsSnapshot keep the MonthData shape. */
 export const months = pgTable(
   'months',
@@ -213,6 +317,12 @@ export const expenses = pgTable(
     date: date('date', { mode: 'string' }).notNull(),
     /** `Expense.singleInstallmentCard`: the purchase lands on the credit-card bill. */
     card: boolean('card').notNull().default(false),
+    /**
+     * Which registered card it landed on; null means no card in particular (see `cards`).
+     * Deliberately not a foreign key: Postgres' composite ON DELETE SET NULL would also null
+     * `user_id`, so deleting a card unties its purchases in the repository instead.
+     */
+    cardId: text('card_id'),
     /** Where the expense came from: a form, a recurring template, an instalment, ... */
     source: text('source').$type<ExpenseSource>(),
     /** Set when this expense is one instalment of a plan. */
@@ -229,6 +339,7 @@ export const expenses = pgTable(
       foreignColumns: [months.userId, months.month],
     }).onDelete('cascade'),
     index('expenses_user_month_idx').on(t.userId, t.month),
+    index('expenses_user_card_idx').on(t.userId, t.cardId),
     // One expense per instalment, ever: launching the same charge twice is impossible.
     // (Rows with no instalment are unaffected — NULLs never collide in Postgres.)
     unique('expenses_installment_unique').on(t.userId, t.installmentId, t.installmentNumber),
@@ -253,6 +364,7 @@ export const recurringExpenses = pgTable(
     description: text('description').notNull(),
     amount: numeric('amount', { mode: 'number' }).notNull(),
     card: boolean('card').notNull().default(false),
+    cardId: text('card_id'),
     position: integer('position').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -281,6 +393,7 @@ export const installments = pgTable(
     count: integer('count').notNull(),
     totalAmount: numeric('total_amount', { mode: 'number' }).notNull(),
     accounting: text('accounting').$type<InstallmentAccounting>().notNull(),
+    cardId: text('card_id'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

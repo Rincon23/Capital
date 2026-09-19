@@ -2,15 +2,16 @@ import { eq, exists, gt, lt, or, sql } from 'drizzle-orm';
 import { FEATURE_ANNOUNCEMENTS } from '../notifications/announcements';
 import { notificationSlots, planNotifications, weekdayOf, zonedMoment } from '../reminders';
 import { runAnnouncementsJob } from './announcements';
+import { runCardBillsJob } from './cardBills';
 import {
   budgetSettings,
   investmentBuckets,
   investmentReserves,
-  jobRuns,
   priceCache,
   reminderDeliveries,
 } from './db/schema';
 import type { Database } from './db/types';
+import { catchUpFrom, lastRun, markRun } from './jobRuns';
 import { runGmailJob } from './gmail/job';
 import { sendUserNotification } from './notify';
 import type { PushSender } from './push';
@@ -26,23 +27,9 @@ import { PostgresRemindersRepository } from './remindersRepository';
 
 const REMINDERS_JOB = 'reminders';
 const QUOTES_JOB = 'quotes';
-/** After a longer outage, notifications older than this are dropped rather than sent late. */
-const MAX_CATCH_UP_MS = 12 * 60 * 60 * 1000;
 const DELIVERY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 /** A reminder is still worth receiving a few hours late (the phone was off, for instance). */
 const REMINDER_TTL_SECONDS = 6 * 60 * 60;
-
-async function lastRun(db: Database, name: string): Promise<Date | null> {
-  const [row] = await db.select().from(jobRuns).where(eq(jobRuns.name, name));
-  return row?.lastRunAt ?? null;
-}
-
-async function markRun(db: Database, name: string, at: Date): Promise<void> {
-  await db
-    .insert(jobRuns)
-    .values({ name, lastRunAt: at })
-    .onConflictDoUpdate({ target: jobRuns.name, set: { lastRunAt: at } });
-}
 
 /**
  * Sends every reminder notification due since the last run, for each user with the Lembretes
@@ -56,10 +43,7 @@ export async function runRemindersJob(
   now: Date = new Date(),
   sender?: PushSender,
 ): Promise<{ notifications: number }> {
-  const previous = await lastRun(db, REMINDERS_JOB);
-  const from = previous
-    ? new Date(Math.max(previous.getTime(), now.getTime() - MAX_CATCH_UP_MS))
-    : new Date(now.getTime() - 60_000);
+  const from = await catchUpFrom(db, REMINDERS_JOB, now);
   if (from >= now) return { notifications: 0 };
 
   const users = await db
@@ -205,6 +189,7 @@ export function startScheduler(getDb: () => Database): void {
     try {
       const db = getDb();
       await runRemindersJob(db);
+      await runCardBillsJob(db).catch((err) => console.error('[cartões] falha nos avisos:', err));
       await runQuotesJob(db).catch((err) => console.error('[cotações] falha na atualização:', err));
       await runGmailJob(db).catch((err) => console.error('[gmail] falha na verificação:', err));
       await runAnnouncementsJob(db, FEATURE_ANNOUNCEMENTS).catch((err) =>
@@ -225,5 +210,5 @@ export function startScheduler(getDb: () => Database): void {
     }, delay).unref?.();
   };
   scheduleNext();
-  console.log('[agenda] lembretes, cotações e Gmail em segundo plano ativados.');
+  console.log('[agenda] lembretes, cartões, cotações e Gmail em segundo plano ativados.');
 }

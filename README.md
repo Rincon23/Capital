@@ -31,6 +31,7 @@ módulos como uma árvore, cada um embaixo do módulo de que depende:
     - Histórico e gráficos
   - Cartão de crédito
     - A receber
+    - Cartões
     - Parcelados
   - Gastos recorrentes
   - Reserva investida
@@ -62,6 +63,18 @@ junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no s
 **Carteira** (cada um com tela própria; o antigo painel `/carteira` redireciona para o Início):
   - **Gastos recorrentes** — modelos dos gastos de todo mês; "Lançar" abre o formulário de gasto
     já preenchido, com a data de hoje, na competência que você estava vendo.
+  - **Cartões** (`/carteira/cartoes`) — os cartões cadastrados, com o dia do vencimento, a fatura
+    de cada competência e o botão **Fatura paga**. Toda compra no cartão passa a perguntar em qual
+    cartão foi (formulário de gasto, recorrentes e parcelados), já com o cartão padrão escolhido.
+    **A regra das duas faturas** (`lib/budget/cards.ts`): a fatura das compras **sem cartão**
+    cadastrado sai da dívida sozinha no dia 1º do mês seguinte, como sempre foi; a de um cartão
+    cadastrado **só sai quando a pessoa marca como paga**, então ela continua contando (e
+    avisando) depois do vencimento, e duas competências em aberto se somam. O vencimento é sempre
+    calculado: o dia do cartão, no mês seguinte à competência (ou no mesmo, se a pessoa escolher),
+    caindo para o último dia nos meses curtos e, **se cair em sábado ou domingo, passando para a
+    segunda**, como no banco — o adiamento pode atravessar o mês sem mudar a competência da fatura.
+    Feriados não entram: precisariam de um calendário que o app não tem. Excluir um cartão não
+    apaga nada: as compras só perdem o vínculo e voltam à regra do dia 1º.
   - **Parcelados** — vencimentos, parcela, restantes e fim são sempre calculados
     (`lib/budget/installments.ts`). "Parcelada": a parcela vira gasto no cartão quando o mês é
     criado (e já aparece na prévia); "À vista": opcionalmente lança o total de uma vez. Os
@@ -74,9 +87,18 @@ junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no s
     cache e se atualiza sozinha ao abrir a Carteira quando tem mais de 15 min. Nenhuma das duas é
     uma API documentada com garantia, por isso há duas e o app nunca depende de uma resposta ao
     vivo para abrir a tela.
-  - **Reserva de emergência** — reserva em conta + reserva investida livre, dívida do cartão do
-    mês aberto e dos parcelados (sem contar duas vezes a parcela que já virou gasto), reserva
-    prevista e gap.
+  - **Reserva de emergência** — reserva em conta + reserva investida livre, dívida do cartão e dos
+    parcelados (sem contar duas vezes a parcela que já virou gasto), reserva prevista e gap. Com o
+    módulo Cartões ligado, a dívida do cartão é a soma das faturas **em aberto** (de todos os
+    cartões e competências); sem ele, continua sendo a fatura do mês aberto.
+**Avisos da fatura** (módulo Cartões, `lib/server/cardBills.ts`): um job por minuto, no mesmo
+motor dos lembretes, avisa no celular com a antecedência escolhida em cada cartão (só no dia, 1, 2,
+3, 5 ou 7 dias antes), de novo no dia do vencimento e, enquanto a fatura não for marcada como paga,
+uma vez por dia por até uma semana depois — tudo pela data já adiada do fim de semana. O horário e
+o "insistir até marcar como paga" ficam na engrenagem da tela Cartões. A notificação traz o botão
+**Fatura paga ✅**, que funciona sem abrir o app (token assinado, igual ao "Realizado" dos
+lembretes), e a categoria "Cartões" pode ser desligada na Central de notificações.
+
 **Assistente**
 
 - **Lembretes** (`/lembretes`), com notificação no celular (Web Push):
@@ -151,7 +173,8 @@ junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no s
 - **Configurações do módulo (engrenagem)**: ficam na tela do próprio módulo. Categorias: nome,
   descrição, cor, ordem e metas (com a regra dos 100%), e "Restaurar categorias padrão".
   Lançamentos: nome, descrição e cor das categorias, sem metas. Lembretes: notificações deste
-  aparelho e horários para lembrar de novo. Gmail: notificações. Reserva de emergência: reserva em
+  aparelho e horários para lembrar de novo. Gmail: notificações. Cartões: horário do aviso, insistir
+  até a fatura ser paga e notificações deste aparelho. Reserva de emergência: reserva em
   conta e custos de emergência. Reserva investida: o ativo. **Configurações** fica só com o que é
   geral: conta, tema, backup, dados locais e apagar tudo (Módulos, Rodapé e Privacidade ficam no
   Mais).

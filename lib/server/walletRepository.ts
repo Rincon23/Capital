@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { computeMonthSummary } from '../budget/calculations';
+import { cardBills, DEFAULT_CARD_SETTINGS, openCardDebt, type CardBill, type CardBillTotal } from '../budget/cards';
 import { computeCashReport, createDefaultCashSettings } from '../budget/cash';
 import { currentMonthKey, todayISO } from '../budget/date';
 import { createId } from '../budget/id';
@@ -12,7 +13,10 @@ import {
 import { isPriceStale, quotasForAmount, summarizeInvestments } from '../budget/investments';
 import { round2 } from '../budget/money';
 import type {
+  CardBillPayment,
+  CardSettings as CardNoticeSettings,
   CashSettings,
+  CreditCard,
   Expense,
   InstallmentPlan,
   InvestmentBucket,
@@ -21,14 +25,21 @@ import type {
   PriceQuote,
   RecurringExpense,
 } from '../budget/types';
+import { isModuleOn } from '../modules';
 import type {
   AllocateInput,
+  AssignCardInput,
+  BillRef,
   UpfrontLaunch,
   WalletRepository,
   WalletSnapshot,
 } from '../storage/wallet';
 import type { PostgresBudgetRepository } from './budgetRepository';
 import {
+  budgetSettings,
+  cardBillPayments,
+  cards,
+  cardSettings,
   cashSettings,
   expenses,
   installments,
@@ -68,34 +79,54 @@ export class PostgresWalletRepository implements WalletRepository {
 
   async getSnapshot(): Promise<WalletSnapshot> {
     const today = todayISO();
-    const [recurring, plans, reserve, buckets, settings] = await Promise.all([
-      this.listRecurring(),
-      this.listInstallments(),
-      this.readReserve(),
-      this.listBuckets(),
-      this.readCashSettings(),
-    ]);
+    const [recurring, plans, reserve, buckets, settings, cardList, payments, noticeSettings] =
+      await Promise.all([
+        this.listRecurring(),
+        this.listInstallments(),
+        this.readReserve(),
+        this.listBuckets(),
+        this.readCashSettings(),
+        this.listCards(),
+        this.listBillPayments(),
+        this.readCardSettings(),
+      ]);
 
     const quote = await this.currentQuote(reserve, buckets);
     const investments = summarizeInvestments(reserve, buckets, quote);
     const card = await this.openMonthCard();
+    const bills = cardBills(cardList, await this.billTotals(), payments, today);
 
     return {
       recurring,
       installments: plans,
+      cards: cardList,
+      bills,
+      cardSettings: noticeSettings,
       investments,
       cash: {
         settings,
         report: computeCashReport({
           settings,
           investedReserve: investments.freeValue,
-          cardDebt: -card.cardTotal,
+          // With the Cartões module on, a bill only leaves the debt when it is marked as paid
+          // (or, with no card, on the 1st of the next month). Without it, the debt is still
+          // simply the card bill of the open month.
+          cardDebt: (await this.cardsModuleOn()) ? openCardDebt(bills) : -card.cardTotal,
           installmentDebt: installmentDebt(plans, today, await this.launchedInstallmentIds()),
           cardMonth: card.month,
         }),
       },
       today,
     };
+  }
+
+  /** Whether this user turned the Cartões module on (it changes how the debt is counted). */
+  private async cardsModuleOn(): Promise<boolean> {
+    const [row] = await this.db
+      .select({ modules: budgetSettings.modules })
+      .from(budgetSettings)
+      .where(eq(budgetSettings.userId, this.userId));
+    return isModuleOn(row?.modules, 'cards');
   }
 
   /**
@@ -137,6 +168,7 @@ export class PostgresWalletRepository implements WalletRepository {
       description: row.description,
       amount: row.amount,
       card: row.card,
+      ...(row.cardId ? { cardId: row.cardId } : {}),
     }));
   }
 
@@ -155,7 +187,64 @@ export class PostgresWalletRepository implements WalletRepository {
       count: row.count,
       totalAmount: row.totalAmount,
       accounting: row.accounting,
+      ...(row.cardId ? { cardId: row.cardId } : {}),
     }));
+  }
+
+  async listCards(): Promise<CreditCard[]> {
+    const rows = await this.db
+      .select()
+      .from(cards)
+      .where(eq(cards.userId, this.userId))
+      .orderBy(asc(cards.position));
+    return rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      dueDay: row.dueDay,
+      dueMonth: row.dueMonth,
+      notifyEnabled: row.notifyEnabled,
+      notifyBeforeDays: row.notifyBeforeDays,
+      isDefault: row.isDefault,
+      ...(row.color ? { color: row.color } : {}),
+      order: row.position,
+    }));
+  }
+
+  private async listBillPayments(): Promise<CardBillPayment[]> {
+    const rows = await this.db
+      .select()
+      .from(cardBillPayments)
+      .where(eq(cardBillPayments.userId, this.userId));
+    return rows.map((row) => ({
+      cardId: row.cardId,
+      month: row.month,
+      amount: row.amount,
+      paidAt: row.paidAt.toISOString(),
+    }));
+  }
+
+  /**
+   * What each card owes in each competence: every purchase marked as a card purchase, grouped.
+   * The bill of a competence is exactly that sum — "A receber" included, since it is on the
+   * bill too even though it is not money the person spent.
+   */
+  private async billTotals(): Promise<CardBillTotal[]> {
+    const rows = await this.db
+      .select({
+        month: expenses.month,
+        cardId: expenses.cardId,
+        total: sql<string>`sum(${expenses.amount})`,
+      })
+      .from(expenses)
+      .where(and(eq(expenses.userId, this.userId), eq(expenses.card, true)))
+      .groupBy(expenses.month, expenses.cardId);
+    return rows.map((row) => ({ month: row.month, cardId: row.cardId, total: Number(row.total) }));
+  }
+
+  async readCardSettings(): Promise<CardNoticeSettings> {
+    const [row] = await this.db.select().from(cardSettings).where(eq(cardSettings.userId, this.userId));
+    if (!row) return DEFAULT_CARD_SETTINGS;
+    return { notifyTime: row.notifyTime, repeatUntilPaid: row.repeatUntilPaid };
   }
 
   private async readReserve(): Promise<InvestmentReserve> {
@@ -231,6 +320,137 @@ export class PostgresWalletRepository implements WalletRepository {
   }
 
   // -------------------------------------------------------------------------
+  // Cards and their bills
+  // -------------------------------------------------------------------------
+
+  async saveCard(card: CreditCard): Promise<void> {
+    const values = {
+      name: card.name.trim(),
+      dueDay: card.dueDay,
+      dueMonth: card.dueMonth,
+      notifyEnabled: card.notifyEnabled,
+      notifyBeforeDays: card.notifyBeforeDays,
+      color: card.color ?? null,
+    };
+    const existing = await this.listCards();
+    const known = existing.find((item) => item.id === card.id);
+    // The first card is always the default one; after that, only what the person asked for.
+    const isDefault = card.isDefault || existing.length === 0 || (known?.isDefault === true && existing.length === 1);
+    const position = known?.order ?? existing.length;
+
+    await this.db.transaction(async (tx) => {
+      await tx
+        .insert(cards)
+        .values({ userId: this.userId, id: card.id, position, isDefault, ...values })
+        .onConflictDoUpdate({ target: [cards.userId, cards.id], set: { ...values, isDefault } });
+      if (isDefault) {
+        await tx
+          .update(cards)
+          .set({ isDefault: false })
+          .where(and(eq(cards.userId, this.userId), sql`${cards.id} <> ${card.id}`));
+      }
+    });
+  }
+
+  /**
+   * Deletes the card. Nothing it paid for is deleted with it: the purchases, the templates and
+   * the plans only lose the link and go back to the "sem cartão" rule (out of the debt on the
+   * 1st of the next month).
+   */
+  async deleteCard(id: string): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      const untie = { cardId: null };
+      await tx
+        .update(expenses)
+        .set(untie)
+        .where(and(eq(expenses.userId, this.userId), eq(expenses.cardId, id)));
+      await tx
+        .update(recurringExpenses)
+        .set(untie)
+        .where(and(eq(recurringExpenses.userId, this.userId), eq(recurringExpenses.cardId, id)));
+      await tx
+        .update(installments)
+        .set(untie)
+        .where(and(eq(installments.userId, this.userId), eq(installments.cardId, id)));
+      await tx.delete(cards).where(and(eq(cards.userId, this.userId), eq(cards.id, id)));
+      const [first] = await tx
+        .select({ id: cards.id, isDefault: cards.isDefault })
+        .from(cards)
+        .where(eq(cards.userId, this.userId))
+        .orderBy(asc(cards.position))
+        .limit(1);
+      // Never leave the person without a default card to pre-select.
+      if (first && !first.isDefault) {
+        await tx.update(cards).set({ isDefault: true }).where(and(eq(cards.userId, this.userId), eq(cards.id, first.id)));
+      }
+    });
+  }
+
+  async payBill({ cardId, month }: BillRef): Promise<void> {
+    const bill = await this.requireBill(cardId, month);
+    const values = { amount: bill.total, paidAt: new Date() };
+    await this.db
+      .insert(cardBillPayments)
+      .values({ userId: this.userId, cardId, month, ...values })
+      .onConflictDoUpdate({
+        target: [cardBillPayments.userId, cardBillPayments.cardId, cardBillPayments.month],
+        set: values,
+      });
+  }
+
+  async unpayBill({ cardId, month }: BillRef): Promise<void> {
+    await this.db
+      .delete(cardBillPayments)
+      .where(
+        and(
+          eq(cardBillPayments.userId, this.userId),
+          eq(cardBillPayments.cardId, cardId),
+          eq(cardBillPayments.month, month),
+        ),
+      );
+  }
+
+  /** Ties the card purchases of `month` that are on no card to `cardId`. */
+  async assignMonthToCard({ cardId, month }: AssignCardInput): Promise<void> {
+    await this.requireCard(cardId);
+    await this.db
+      .update(expenses)
+      .set({ cardId })
+      .where(
+        and(
+          eq(expenses.userId, this.userId),
+          eq(expenses.month, month),
+          eq(expenses.card, true),
+          sql`${expenses.cardId} is null`,
+        ),
+      );
+  }
+
+  async saveCardSettings(settings: CardNoticeSettings): Promise<void> {
+    const values = { notifyTime: settings.notifyTime, repeatUntilPaid: settings.repeatUntilPaid };
+    await this.db
+      .insert(cardSettings)
+      .values({ userId: this.userId, ...values })
+      .onConflictDoUpdate({ target: cardSettings.userId, set: values });
+  }
+
+  private async requireCard(id: string): Promise<CreditCard> {
+    const card = (await this.listCards()).find((item) => item.id === id);
+    if (!card) throw new HttpError(404, 'CARD_NOT_FOUND', 'Esse cartão não existe mais.');
+    return card;
+  }
+
+  /** The bill as it stands right now, so "Fatura paga" records what was actually paid. */
+  private async requireBill(cardId: string, month: Month): Promise<CardBill> {
+    const card = await this.requireCard(cardId);
+    const bill = cardBills([card], await this.billTotals(), [], todayISO()).find(
+      (item) => item.cardId === cardId && item.month === month,
+    );
+    if (!bill) throw new HttpError(404, 'BILL_NOT_FOUND', 'Essa fatura não tem nada para pagar.');
+    return bill;
+  }
+
+  // -------------------------------------------------------------------------
   // Recurring expenses
   // -------------------------------------------------------------------------
 
@@ -241,6 +461,7 @@ export class PostgresWalletRepository implements WalletRepository {
       description: item.description,
       amount: item.amount,
       card: item.card,
+      cardId: item.card ? (item.cardId ?? null) : null,
     };
     const [last] = await this.db
       .select({ position: sql<number | null>`max(${recurringExpenses.position})` })
@@ -271,6 +492,7 @@ export class PostgresWalletRepository implements WalletRepository {
       count: plan.count,
       totalAmount: plan.totalAmount,
       accounting: plan.accounting,
+      cardId: plan.cardId ?? null,
     };
 
     await this.budget.writeWith(async ({ tx, addExpense, openMonths }) => {

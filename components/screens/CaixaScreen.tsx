@@ -5,10 +5,14 @@ import {
   amountToInputValue,
   formatBRL,
   formatMonthLabel,
+  formatMonthShort,
+  openBills,
   parseAmountInput,
   type CashSettings,
 } from '@/lib/budget';
+import { isModuleOn } from '@/lib/modules';
 import { walletRepository } from '@/lib/storage';
+import { useSettings } from '@/components/providers/SettingsProvider';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useToast } from '@/components/ui/Toast';
 import { ModuleGate } from '@/components/modules/ModuleGate';
@@ -59,6 +63,7 @@ function Row({
 function Caixa() {
   const backHref = useBackHref('cash');
   const { snapshot, loading, error } = useWallet();
+  const { settings } = useSettings();
   const [configuring, setConfiguring] = useState(false);
   useModuleIntro('cash', { ready: !!snapshot });
 
@@ -68,6 +73,14 @@ function Caixa() {
 
   const { report } = snapshot.cash;
   const { buckets } = snapshot.investments;
+  // With the Cartões module on, the debt is every bill still waiting for "Fatura paga" — which
+  // can be more than one competence. Without it, it is simply the bill of the open month.
+  const open = isModuleOn(settings, 'cards') ? openBills(snapshot.bills) : null;
+  const cardDebtHint = open
+    ? open.length === 0
+      ? 'Todas as faturas pagas'
+      : `Faturas em aberto: ${open.map((bill) => `${bill.cardName} (${formatMonthShort(bill.month)})`).join(', ')}`
+    : `Fatura de ${formatMonthLabel(report.cardMonth)}`;
 
   return (
     <div className="flex flex-1 flex-col gap-4 pb-10">
@@ -101,7 +114,7 @@ function Caixa() {
         <Row
           label="Dívida do cartão"
           value={report.cardDebt}
-          hint={`Fatura de ${formatMonthLabel(report.cardMonth)}`}
+          hint={cardDebtHint}
           tone={report.cardDebt < 0 ? 'danger' : undefined}
         />
         <Row

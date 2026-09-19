@@ -2,7 +2,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell, CheckCheck, Clock, Mail, Settings as SettingsIcon, Sparkles, type LucideIcon } from 'lucide-react';
+import {
+  Bell,
+  CheckCheck,
+  Clock,
+  CreditCard,
+  Mail,
+  Settings as SettingsIcon,
+  Sparkles,
+  type LucideIcon,
+} from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useNotifications } from '@/components/notifications/NotificationsProvider';
 import { SwipeToDelete } from '@/components/notifications/SwipeToDelete';
@@ -14,6 +23,7 @@ import { NOTIFICATION_CATEGORY_LABELS, type AppNotification, type NotificationCa
 
 const CATEGORY_VISUAL: Record<NotificationCategory, { icon: LucideIcon; tone: IconTone }> = {
   reminder: { icon: Clock, tone: 'amber' },
+  card: { icon: CreditCard, tone: 'orange' },
   gmail: { icon: Mail, tone: 'red' },
   feature: { icon: Sparkles, tone: 'purple' },
   system: { icon: Bell, tone: 'neutral' },

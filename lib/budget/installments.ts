@@ -113,6 +113,7 @@ export function installmentExpense(plan: InstallmentPlan, number: number, dueDat
     installmentId: plan.id,
     installmentNumber: number,
   };
+  if (plan.cardId) expense.cardId = plan.cardId;
   if (plan.topicId) expense.topicId = plan.topicId;
   return expense;
 }
@@ -153,6 +154,7 @@ export function upfrontExpense(plan: InstallmentPlan, id: string, date: string):
     singleInstallmentCard: true,
     source: 'installment',
   };
+  if (plan.cardId) expense.cardId = plan.cardId;
   if (plan.topicId) expense.topicId = plan.topicId;
   return expense;
 }

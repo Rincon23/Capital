@@ -17,8 +17,10 @@ import {
   type SpecialCategoryLabels,
   type TopicConfig,
 } from '@/lib/budget';
+import { useCards } from '@/components/cards/CardsProvider';
 import { AmountInput } from '@/components/ui/AmountInput';
 import { BottomSheet } from '@/components/ui/BottomSheet';
+import { CardPicker } from '@/components/ui/CardPicker';
 import { CategoryPicker } from '@/components/ui/CategoryPicker';
 
 function defaultDateForMonth(month: Month): string {
@@ -90,6 +92,12 @@ export function ExpenseFormSheet({
   const [description, setDescription] = useState(prefill?.description ?? '');
   const [date, setDate] = useState(prefill?.date ?? defaultDateForMonth(month));
   const [singleInstallmentCard, setSingleInstallmentCard] = useState(prefill?.singleInstallmentCard ?? false);
+  const { cards, defaultCard } = useCards();
+  // A new card purchase starts on the default card; one that already exists keeps its own
+  // (and keeps having none, when it was made before any card was registered).
+  const [cardId, setCardId] = useState<string | undefined>(
+    prefill ? prefill.cardId : (defaultCard?.id ?? undefined),
+  );
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -118,6 +126,7 @@ export function ExpenseFormSheet({
         // With the card module off, an expense keeps whatever it already had (nothing is unmarked).
         singleInstallmentCard:
           forcedCard || (cardEnabled ? singleInstallmentCard : (prefill?.singleInstallmentCard ?? false)),
+        ...(cardId ? { cardId } : {}),
         source,
       });
       onClose();
@@ -208,6 +217,10 @@ export function ExpenseFormSheet({
             />
             {forcedCard ? `${labels.reimbursable} é sempre no cartão` : 'A compra foi no cartão?'}
           </label>
+        )}
+
+        {cardEnabled && (forcedCard || singleInstallmentCard) && (
+          <CardPicker cards={cards} value={cardId} onChange={setCardId} tourAnchor="cartao-qual" />
         )}
 
         {errors.length > 0 && (

@@ -1,4 +1,5 @@
 import {
+  CalendarClock,
   ChartColumn,
   ChartPie,
   Clock,
@@ -30,7 +31,8 @@ export const MODULE_VISUALS: Record<ModuleKey, ModuleVisual> = {
   reimbursable: { icon: HandCoins, tone: 'green' },
   history: { icon: ChartColumn, tone: 'pink' },
   recurring: { icon: Repeat, tone: 'blue' },
-  installments: { icon: CreditCard, tone: 'orange' },
+  cards: { icon: CreditCard, tone: 'orange' },
+  installments: { icon: CalendarClock, tone: 'amber' },
   investments: { icon: PiggyBank, tone: 'green' },
   cash: { icon: Scale, tone: 'purple' },
   reminders: { icon: Clock, tone: 'amber' },

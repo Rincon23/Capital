@@ -123,6 +123,21 @@ export const MODULES: ModuleDefinition[] = [
     homeCard: true,
   },
   {
+    key: 'cards',
+    name: 'Cartões',
+    description:
+      'Seus cartões de crédito: o dia em que a fatura vence, quanto vai nela e o botão de fatura paga, com aviso no celular antes do vencimento.',
+    tagline: 'Vencimento da fatura e aviso de pagamento',
+    group: 'wallet',
+    dependsOn: ['card'],
+    screen: {
+      label: 'Cartões',
+      href: () => '/carteira/cartoes',
+      isActive: (pathname) => pathname.startsWith('/carteira/cartoes'),
+    },
+    homeCard: true,
+  },
+  {
     key: 'installments',
     name: 'Parcelados',
     description: 'Compras parceladas no cartão, com a parcela do mês lançada automaticamente.',

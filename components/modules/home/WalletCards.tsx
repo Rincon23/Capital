@@ -1,6 +1,6 @@
 'use client';
 
-import { formatBRL, isInstallmentFinished } from '@/lib/budget';
+import { dueLabel, formatBRL, isInstallmentFinished, openBills } from '@/lib/budget';
 import { useWallet } from '@/components/wallet/WalletProvider';
 import { CardNote, HomeCard, HomeTile, Skeleton, Stat } from './HomeCard';
 
@@ -23,6 +23,38 @@ export function RecurringHomeTile() {
       caption={
         snapshot
           ? `${plural(snapshot.recurring.length, 'modelo', 'modelos')} por mês`
+          : error
+            ? 'não foi possível carregar'
+            : 'carregando…'
+      }
+    />
+  );
+}
+
+/** Cartões: what the open bills add up to, and when the next one is due. */
+export function CardsHomeTile() {
+  const { snapshot, error } = useWallet();
+  const open = snapshot ? openBills(snapshot.bills) : [];
+  const next = open.find((bill) => bill.dueDate !== null);
+  const late = open.filter((bill) => bill.daysUntilDue !== null && bill.daysUntilDue < 0).length;
+
+  return (
+    <HomeTile
+      module="cards"
+      href="/carteira/cartoes"
+      value={
+        snapshot ? formatBRL(open.reduce((total, bill) => total + bill.total, 0)) : error ? '—' : null
+      }
+      valueTone={late > 0 ? 'danger' : undefined}
+      caption={
+        snapshot
+          ? late > 0
+            ? plural(late, 'fatura atrasada', 'faturas atrasadas')
+            : next
+              ? `${next.cardName} ${dueLabel(next)}`
+              : open.length > 0
+                ? 'sai na virada do mês'
+                : 'tudo pago'
           : error
             ? 'não foi possível carregar'
             : 'carregando…'

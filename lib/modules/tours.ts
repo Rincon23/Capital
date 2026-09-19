@@ -205,6 +205,48 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       side: 'bottom',
     },
   ],
+  cards: [
+    {
+      route: () => '/carteira/cartoes',
+      anchor: 'cartoes-total',
+      title: 'O que ainda falta pagar',
+      description:
+        'A soma das faturas que você ainda não marcou como pagas, de todos os cartões, e quando vence a próxima.',
+      side: 'bottom',
+    },
+    {
+      route: () => '/carteira/cartoes',
+      anchor: 'cartoes-pagar',
+      title: 'Fatura paga',
+      description:
+        'A dívida de um cartão cadastrado só sai quando você toca aqui. Enquanto isso ela continua na Reserva de emergência, e o aviso insiste. As compras sem cartão saem sozinhas no dia 1º do mês seguinte.',
+      side: 'bottom',
+    },
+    {
+      route: () => '/carteira/cartoes',
+      anchor: 'cartoes-lista',
+      title: 'Seus cartões',
+      description:
+        'Cada cartão mostra a fatura da competência, o dia em que ela vence e se já foi paga. Vencimento em sábado ou domingo passa para a segunda, como no banco.',
+      side: 'bottom',
+    },
+    {
+      route: () => '/carteira/cartoes',
+      anchor: 'cartoes-novo',
+      title: 'Novo cartão',
+      description:
+        'Cadastre o nome, o dia do vencimento e com quantos dias de antecedência quer ser avisado. A partir daí, toda compra no cartão pergunta em qual deles foi.',
+      side: 'bottom',
+    },
+    {
+      route: () => '/carteira/cartoes',
+      anchor: 'cartoes-config',
+      title: 'Avisos no celular',
+      description:
+        'Na engrenagem você escolhe o horário do aviso, se ele deve insistir até a fatura ser paga e ativa as notificações neste aparelho.',
+      side: 'bottom',
+    },
+  ],
   installments: [
     {
       route: () => '/carteira/parcelados',
@@ -388,6 +430,7 @@ export const MODULE_HELP: Record<ModuleKey, Pick<TourStepDefinition, 'route' | '
   reimbursable: { route: (month) => `${entries(month)}?aba=a-receber` },
   history: { route: () => '/historico' },
   recurring: { route: () => '/carteira/recorrentes' },
+  cards: { route: () => '/carteira/cartoes' },
   installments: { route: () => '/carteira/parcelados' },
   investments: { route: () => '/carteira/reserva' },
   cash: { route: () => '/carteira/caixa' },

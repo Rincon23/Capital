@@ -1,6 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { CardsProvider } from '@/components/cards/CardsProvider';
 import { TourProvider } from '@/components/modules/tour/TourProvider';
 import { NotificationsProvider } from '@/components/notifications/NotificationsProvider';
 import { ConfirmProvider } from '@/components/ui/ConfirmSheet';
@@ -22,7 +23,9 @@ export function AppProviders({
         <ConfirmProvider>
           <SettingsProvider>
             <NotificationsProvider>
-              <TourProvider>{children}</TourProvider>
+              <CardsProvider>
+                <TourProvider>{children}</TourProvider>
+              </CardsProvider>
             </NotificationsProvider>
           </SettingsProvider>
         </ConfirmProvider>

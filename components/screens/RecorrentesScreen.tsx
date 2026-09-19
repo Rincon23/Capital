@@ -16,11 +16,13 @@ import {
 } from '@/lib/budget';
 import { isModuleOn } from '@/lib/modules';
 import { budgetRepository, walletRepository } from '@/lib/storage';
+import { useCards } from '@/components/cards/CardsProvider';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ExpenseFormSheet } from '@/components/month/ExpenseFormSheet';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { AmountInput } from '@/components/ui/AmountInput';
 import { BottomSheet } from '@/components/ui/BottomSheet';
+import { CardPicker } from '@/components/ui/CardPicker';
 import { CategoryPicker, type CategoryValue } from '@/components/ui/CategoryPicker';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { useToast } from '@/components/ui/Toast';
@@ -104,6 +106,7 @@ function Recorrentes() {
       amount: item.amount,
       date: todayISO(),
       singleInstallmentCard: item.card && isModuleOn(settings, 'card'),
+      ...(item.card && item.cardId ? { cardId: item.cardId } : {}),
       source: 'recurring',
     });
   }
@@ -233,6 +236,10 @@ function RecurringFormSheet({
     topicId: initial?.topicId ?? activeTopics[0]?.id,
   });
   const [card, setCard] = useState(initial?.card ?? false);
+  const { cards, defaultCard } = useCards();
+  const [cardId, setCardId] = useState<string | undefined>(
+    initial ? initial.cardId : (defaultCard?.id ?? undefined),
+  );
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -257,6 +264,7 @@ function RecurringFormSheet({
         description: description.trim(),
         amount: parsed,
         card,
+        ...(card && cardId ? { cardId } : {}),
       });
     } finally {
       setSaving(false);
@@ -298,6 +306,8 @@ function RecurringFormSheet({
             Esse gasto é pago no cartão?
           </label>
         )}
+
+        {cardEnabled && card && <CardPicker cards={cards} value={cardId} onChange={setCardId} />}
 
         {errors.length > 0 && (
           <ul className="bg-danger-bg text-danger rounded-lg px-3 py-2 text-sm">

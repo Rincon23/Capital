@@ -1,6 +1,20 @@
-import type { CashSettings, InstallmentPlan, InvestmentBucket, RecurringExpense } from '../budget/types';
+import type {
+  CardSettings,
+  CashSettings,
+  CreditCard,
+  InstallmentPlan,
+  InvestmentBucket,
+  RecurringExpense,
+} from '../budget/types';
 import { apiRequest, seg } from './apiClient';
-import type { AllocateInput, UpfrontLaunch, WalletRepository, WalletSnapshot } from './wallet';
+import type {
+  AllocateInput,
+  AssignCardInput,
+  BillRef,
+  UpfrontLaunch,
+  WalletRepository,
+  WalletSnapshot,
+} from './wallet';
 
 /** Browser-side WalletRepository: the Carteira screens against the app's own API. */
 export class HttpWalletRepository implements WalletRepository {
@@ -22,6 +36,30 @@ export class HttpWalletRepository implements WalletRepository {
 
   deleteInstallment(id: string): Promise<void> {
     return apiRequest('DELETE', `/wallet/installments/${seg(id)}`);
+  }
+
+  saveCard(card: CreditCard): Promise<void> {
+    return apiRequest('PUT', `/wallet/cards/${seg(card.id)}`, card);
+  }
+
+  deleteCard(id: string): Promise<void> {
+    return apiRequest('DELETE', `/wallet/cards/${seg(id)}`);
+  }
+
+  payBill({ cardId, month }: BillRef): Promise<void> {
+    return apiRequest('POST', `/wallet/cards/${seg(cardId)}/bills/${seg(month)}/pay`);
+  }
+
+  unpayBill({ cardId, month }: BillRef): Promise<void> {
+    return apiRequest('DELETE', `/wallet/cards/${seg(cardId)}/bills/${seg(month)}/pay`);
+  }
+
+  assignMonthToCard({ cardId, month }: AssignCardInput): Promise<void> {
+    return apiRequest('POST', `/wallet/cards/${seg(cardId)}/assign`, { month });
+  }
+
+  saveCardSettings(settings: CardSettings): Promise<void> {
+    return apiRequest('PUT', '/wallet/cards/settings', settings);
   }
 
   setTicker(ticker: string): Promise<void> {

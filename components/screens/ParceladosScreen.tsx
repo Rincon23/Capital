@@ -3,26 +3,32 @@
 import { useState } from 'react';
 import {
   createId,
+  currentMonthKey,
   formatBRL,
   formatMonthLabel,
   installmentAmount,
   installmentEndDate,
   isInstallmentFinished,
+  nextMonth,
+  nominalDueDate,
   parseAmountInput,
   remainingInstallments,
   resolveSpecialCategoryLabels,
   sortInstallments,
   todayISO,
+  type CreditCard,
   type InstallmentAccounting,
   type InstallmentPlan,
   type TopicConfig,
 } from '@/lib/budget';
 import { isModuleOn } from '@/lib/modules';
 import { walletRepository } from '@/lib/storage';
+import { useCards } from '@/components/cards/CardsProvider';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { AmountInput } from '@/components/ui/AmountInput';
 import { BottomSheet } from '@/components/ui/BottomSheet';
+import { CardPicker } from '@/components/ui/CardPicker';
 import { CategoryPicker, type CategoryValue } from '@/components/ui/CategoryPicker';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { useToast } from '@/components/ui/Toast';
@@ -229,7 +235,14 @@ function InstallmentFormSheet({
   const [name, setName] = useState('');
   const [total, setTotal] = useState('');
   const [count, setCount] = useState('10');
-  const [firstDebitDate, setFirstDebitDate] = useState(todayISO());
+  const { cards, defaultCard } = useCards();
+  const [cardId, setCardId] = useState<string | undefined>(defaultCard?.id ?? undefined);
+  // Picking a card fills the first charge with its next due date. The nominal day is what goes
+  // in, never the one pushed off a weekend: every later instalment is "first debit + k months",
+  // so starting from a postponed day would drag the whole series along.
+  const [firstDebitDate, setFirstDebitDate] = useState(
+    defaultCard ? nextChargeDate(defaultCard) : todayISO(),
+  );
   const [accounting, setAccounting] = useState<InstallmentAccounting>('installment');
   const [launchUpfront, setLaunchUpfront] = useState(false);
   const [category, setCategory] = useState<CategoryValue>({
@@ -270,6 +283,7 @@ function InstallmentFormSheet({
           count: parsedCount,
           totalAmount: parsedTotal,
           accounting,
+          ...(cardId ? { cardId } : {}),
         },
         accounting === 'upfront' && launchUpfront,
       );
@@ -325,6 +339,16 @@ function InstallmentFormSheet({
           value={category}
           onChange={setCategory}
           showReimbursable={showReimbursable}
+        />
+
+        <CardPicker
+          cards={cards}
+          value={cardId}
+          onChange={(id) => {
+            setCardId(id);
+            const chosen = cards.find((card) => card.id === id);
+            if (chosen) setFirstDebitDate(nextChargeDate(chosen));
+          }}
         />
 
         <div>
@@ -387,4 +411,16 @@ function InstallmentFormSheet({
       </form>
     </BottomSheet>
   );
+}
+
+/**
+ * The next charge of a card: its day in the current competence while that has not passed, the
+ * next one's afterwards. Always the card's own day, never the one pushed off a weekend — see
+ * where the state is set.
+ */
+function nextChargeDate(card: Pick<CreditCard, 'dueDay' | 'dueMonth'>): string {
+  const today = todayISO();
+  const month = currentMonthKey();
+  const due = nominalDueDate(card, month);
+  return due >= today ? due : nominalDueDate(card, nextMonth(month));
 }

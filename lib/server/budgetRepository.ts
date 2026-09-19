@@ -65,6 +65,7 @@ function toExpense(row: ExpenseRow): Expense {
     date: row.date,
     singleInstallmentCard: row.card,
   };
+  if (row.cardId) expense.cardId = row.cardId;
   if (row.topicId) expense.topicId = row.topicId;
   if (row.source) expense.source = row.source;
   if (row.installmentId) expense.installmentId = row.installmentId;
@@ -82,6 +83,7 @@ function expenseValues(month: Month, expense: Expense) {
     amount: expense.amount,
     date: expense.date,
     card: expense.singleInstallmentCard === true,
+    cardId: expense.singleInstallmentCard === true ? (expense.cardId ?? null) : null,
     source: expense.source ?? null,
     installmentId: expense.installmentId ?? null,
     installmentNumber: expense.installmentNumber ?? null,

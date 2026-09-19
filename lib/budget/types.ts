@@ -68,6 +68,8 @@ export interface ModuleFlags {
   budget: boolean;
   /** Marking card purchases and the monthly card bill. */
   card: boolean;
+  /** The registered credit cards: due date, bill paid and the reminder to pay it. */
+  cards: boolean;
   /** The "A receber" category (see CategoryKind). */
   reimbursable: boolean;
   /** History charts and the month-by-month table. */
@@ -154,6 +156,8 @@ export interface Expense {
   date: string;
   /** Marks a purchase that lands on the credit-card bill. */
   singleInstallmentCard?: boolean;
+  /** Which registered card it landed on (module "Cartões"); absent means no card in particular. */
+  cardId?: string;
   source?: ExpenseSource;
   /** Set when this expense is one instalment of a plan (see InstallmentPlan). */
   installmentId?: string;
@@ -180,6 +184,8 @@ export interface InstallmentPlan {
   count: number;
   totalAmount: number;
   accounting: InstallmentAccounting;
+  /** The card every charge of this plan lands on (module "Cartões"). */
+  cardId?: string;
 }
 
 /** A template for an expense that repeats every month (the bot's "custos fixos"). */
@@ -192,6 +198,51 @@ export interface RecurringExpense {
   amount: number;
   /** Whether launching it marks the expense as a card purchase. */
   card: boolean;
+  /** The card it is paid with, when it is a card purchase (module "Cartões"). */
+  cardId?: string;
+}
+
+/** Whether a card's bill for a competence falls due in that same month or in the next one. */
+export type CardDueMonth = 'same' | 'next';
+
+/**
+ * A credit card the person registered (module "Cartões"). Only what they typed is stored: the
+ * due date of each bill, whether it was pushed off a weekend and how late it is are computed
+ * (lib/budget/cards.ts).
+ */
+export interface CreditCard {
+  id: string;
+  name: string;
+  /** Day of the month the bill is due; a month without that day uses its last day. */
+  dueDay: number;
+  dueMonth: CardDueMonth;
+  /** Whether this card's bill notifies at all. */
+  notifyEnabled: boolean;
+  /** Extra notice before the due date, in days (0 = only on the day itself). */
+  notifyBeforeDays: number;
+  /** Pre-selected wherever a purchase picks a card; at most one card per person has it. */
+  isDefault: boolean;
+  /** Hex color (e.g. "#2a78d6") that identifies the card in the lists. */
+  color?: string;
+  order: number;
+}
+
+/** "Fatura paga": one bill of one card, in one competence. */
+export interface CardBillPayment {
+  cardId: string;
+  month: Month;
+  /** What the bill was worth when it was marked as paid. */
+  amount: number;
+  /** ISO instant. */
+  paidAt: string;
+}
+
+/** Each person's own settings for the bill notices. */
+export interface CardSettings {
+  /** "HH:MM" the notices go out at. */
+  notifyTime: string;
+  /** Keep warning once a day while a bill is not marked as paid. */
+  repeatUntilPaid: boolean;
 }
 
 /** The invested reserve: an ETF position (quotas of `ticker`) used as an emergency fund. */

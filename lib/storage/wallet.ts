@@ -1,7 +1,10 @@
+import type { CardBill } from '../budget/cards';
 import type { CashReport } from '../budget/cash';
 import type { InvestmentSummary } from '../budget/investments';
 import type {
+  CardSettings,
   CashSettings,
+  CreditCard,
   InstallmentPlan,
   InvestmentBucket,
   Month,
@@ -18,6 +21,11 @@ import type {
 export interface WalletSnapshot {
   recurring: RecurringExpense[];
   installments: InstallmentPlan[];
+  /** The registered credit cards, in the order they were created. */
+  cards: CreditCard[];
+  /** Every bill worth showing, already computed (see `cardBills`). */
+  bills: CardBill[];
+  cardSettings: CardSettings;
   investments: InvestmentSummary;
   cash: {
     settings: CashSettings;
@@ -31,6 +39,17 @@ export interface WalletSnapshot {
 export interface UpfrontLaunch {
   month: Month;
   date: string;
+}
+
+/** One bill: a card and the competence it covers. */
+export interface BillRef {
+  cardId: string;
+  month: Month;
+}
+
+export interface AssignCardInput {
+  cardId: string;
+  month: Month;
 }
 
 export interface AllocateInput {
@@ -52,6 +71,17 @@ export interface WalletRepository {
   saveInstallment(plan: InstallmentPlan, upfront?: UpfrontLaunch): Promise<void>;
   /** Deletes the plan and the charges that had not happened yet. */
   deleteInstallment(id: string): Promise<void>;
+
+  saveCard(card: CreditCard): Promise<void>;
+  /** Deletes the card; its purchases stay, untied (they go back to the "sem cartão" rule). */
+  deleteCard(id: string): Promise<void>;
+  /** "Fatura paga": what takes this bill out of the debt. */
+  payBill(input: BillRef): Promise<void>;
+  /** Undoes it, when the button was tapped by mistake. */
+  unpayBill(input: BillRef): Promise<void>;
+  /** Ties every card purchase of `month` that has no card to `cardId`. */
+  assignMonthToCard(input: AssignCardInput): Promise<void>;
+  saveCardSettings(settings: CardSettings): Promise<void>;
 
   setTicker(ticker: string): Promise<void>;
   /** Buys (positive) or sells (negative) quotas of the reserve. */

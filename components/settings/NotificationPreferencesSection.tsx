@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/Switch';
 import { useToast } from '@/components/ui/Toast';
 import { NOTIFICATION_CATEGORY_LABELS, isNotificationCategoryOn, type NotificationCategory } from '@/lib/notifications';
 
-const TOGGLEABLE: NotificationCategory[] = ['reminder', 'gmail', 'feature'];
+const TOGGLEABLE: NotificationCategory[] = ['reminder', 'card', 'gmail', 'feature'];
 
 /**
  * Which kinds of notification push to the phone. A PWA has no way to create separate channels
