@@ -1,8 +1,14 @@
 'use client';
 
-import { Blocks, PanelBottom, Settings, ShieldCheck } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Blocks, LayoutGrid, List, PanelBottom, Settings, ShieldCheck } from 'lucide-react';
 import { HOME_NAV, moduleDefinition, moreItems, navEntry } from '@/lib/modules';
 import { useLastViewedMonth } from '@/lib/hooks/useLastViewedMonth';
+import {
+  getStoredMoreLayout,
+  setStoredMoreLayout,
+  type MoreLayout,
+} from '@/lib/storage/preferences';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { MoreMenu, type MoreMenuSection } from '@/components/layout/MoreMenu';
@@ -20,6 +26,20 @@ export function MaisScreen() {
   const { settings } = useSettings();
   // Mais has no month of its own; month screens open on the one last seen.
   const month = useLastViewedMonth();
+  // The list is what the server renders; the choice saved on this device (localStorage) is
+  // applied after mount, so hydration never sees a mismatch.
+  const [layout, setLayout] = useState<MoreLayout>('list');
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLayout(getStoredMoreLayout());
+  }, []);
+
+  function toggleLayout() {
+    const next: MoreLayout = layout === 'grid' ? 'list' : 'grid';
+    setLayout(next);
+    setStoredMoreLayout(next);
+  }
 
   const sections: MoreMenuSection[] = [
     {
@@ -87,8 +107,31 @@ export function MaisScreen() {
 
   return (
     <div className="flex flex-1 flex-col gap-4 pb-10">
-      <PageHeader title="Mais" action={<NotificationBell />} />
-      <MoreMenu user={{ name: user.name, email: user.email }} sections={sections} />
+      <PageHeader
+        title="Mais"
+        action={
+          <>
+            <LayoutToggle layout={layout} onToggle={toggleLayout} />
+            <NotificationBell />
+          </>
+        }
+      />
+      <MoreMenu user={{ name: user.name, email: user.email }} sections={sections} layout={layout} />
     </div>
+  );
+}
+
+/** Switches Mais between the settings list and the app-drawer grid; sits next to the bell. */
+function LayoutToggle({ layout, onToggle }: { layout: MoreLayout; onToggle: () => void }) {
+  const Icon = layout === 'grid' ? List : LayoutGrid;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={layout === 'grid' ? 'Ver em lista' : 'Ver em grade'}
+      className="text-muted hover:text-foreground hover:bg-card flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors"
+    >
+      <Icon aria-hidden className="h-5 w-5" />
+    </button>
   );
 }

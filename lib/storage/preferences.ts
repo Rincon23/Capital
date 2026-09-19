@@ -3,6 +3,7 @@
 const THEME_KEY = 'capital:theme';
 const LAST_MONTH_KEY = 'capital:lastMonth';
 const UNFORESEEN_ESTIMATE_KEY = 'capital:unforeseenEstimate';
+const MORE_LAYOUT_KEY = 'capital:moreLayout';
 
 export type Theme = 'light' | 'dark' | 'system';
 
@@ -42,4 +43,17 @@ export function getUnforeseenEstimate(): number | null {
 export function setUnforeseenEstimate(amount: number): void {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(UNFORESEEN_ESTIMATE_KEY, String(amount));
+}
+
+/** How the Mais tab shows its entries: a settings-style list, or an app-drawer grid of icons. */
+export type MoreLayout = 'list' | 'grid';
+
+export function getStoredMoreLayout(): MoreLayout {
+  if (typeof window === 'undefined') return 'list';
+  return window.localStorage.getItem(MORE_LAYOUT_KEY) === 'grid' ? 'grid' : 'list';
+}
+
+export function setStoredMoreLayout(layout: MoreLayout): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(MORE_LAYOUT_KEY, layout);
 }
