@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   DndContext,
   KeyboardSensor,
+  MeasuringStrategy,
   PointerSensor,
   closestCenter,
   useSensor,
@@ -22,6 +23,17 @@ import { useToast } from '@/components/ui/Toast';
 import { Card, RESIZABLE_HOME_CARDS, effectiveSize } from './HomeCards';
 
 const WALLET: ModuleKey[] = ['recurring', 'installments', 'investments', 'cash'];
+
+/** How long a card has to be held before it comes loose, the way a phone picks up a widget. */
+const HOLD_MS = 240;
+/** How much the finger may wander during that hold before it counts as a scroll, not a hold. */
+const HOLD_TOLERANCE = 8;
+
+/**
+ * Keeps the cards measured while they move around. With cards of two widths (half and full), a
+ * stale measurement is what makes one land in the wrong slot and snap into place afterwards.
+ */
+const MEASURING = { droppable: { strategy: MeasuringStrategy.Always } };
 
 const ANNOUNCEMENTS: Announcements = {
   onDragStart: ({ active }) => `Você pegou ${moduleDefinition(active.id as ModuleKey).name}.`,
@@ -60,8 +72,10 @@ export function EditableHomeCards({
     setOrder((current) => (current.join() === keys.join() ? current : keys));
   }, [keys]);
 
+  // Hold, then drag — never drag straight away: a card only comes loose after the finger has
+  // stayed on it, so brushing past one while reading never moves anything.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(PointerSensor, { activationConstraint: { delay: HOLD_MS, tolerance: HOLD_TOLERANCE } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -106,6 +120,7 @@ export function EditableHomeCards({
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
+        measuring={MEASURING}
         onDragEnd={handleDragEnd}
         accessibility={{ announcements: ANNOUNCEMENTS }}
       >
@@ -153,17 +168,24 @@ function SortableCard({
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      // `CSS.Translate`, not `CSS.Transform`: the sortable transform of a grid with cards of two
+      // widths also carries a scale, which is what stretched a card out of shape mid-move before
+      // it snapped back on landing. Only the movement is wanted; every card keeps its own size.
+      style={{ transform: CSS.Translate.toString(transform), transition }}
       className={`relative min-w-0 ${size === 'full' ? 'col-span-2' : 'col-span-1'} ${isDragging ? 'z-20' : ''}`}
     >
-      <div className={`pointer-events-none rounded-2xl ${isDragging ? 'opacity-60 shadow-xl' : ''}`}>
+      <div
+        className={`pointer-events-none rounded-2xl transition-[transform,box-shadow,opacity] duration-150 ${
+          isDragging ? 'scale-[1.03] opacity-90 shadow-2xl' : ''
+        }`}
+      >
         <Card moduleKey={cardKey} />
       </div>
       <button
         type="button"
         {...attributes}
         {...listeners}
-        aria-label={`Arrastar ${moduleDefinition(cardKey).name} para reorganizar`}
+        aria-label={`Segurar e arrastar ${moduleDefinition(cardKey).name} para reorganizar`}
         className="ring-primary/60 active:bg-primary/5 absolute inset-0 touch-none rounded-2xl ring-2 ring-dashed"
       />
       {resizable && (
