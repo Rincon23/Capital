@@ -1,13 +1,17 @@
 'use client';
 
-import type { CreditCard } from '@/lib/budget';
+import { UNASSIGNED_CARD_LABEL, type CreditCard } from '@/lib/budget';
 import { Chip } from './Chip';
 
 /**
  * Which card a purchase went on. It shows up wherever something is marked as a card purchase —
  * the expense form, the recurring templates, the instalment plans — so the bill of each card
- * knows what belongs to it. With no card registered it renders nothing at all, and the card
- * question stays the plain yes/no it has always been.
+ * knows what belongs to it.
+ *
+ * "Não informar" is always there, next to the cards: nothing in Capital is compulsory, and
+ * choosing it is a first-class answer, not a gap. Those purchases form the "Não informado" bill,
+ * which is paid like any other. With no card registered there is nothing to pick, so the whole
+ * question disappears and the card answer stays the plain yes/no it has always been.
  */
 export function CardPicker({
   cards,
@@ -23,9 +27,6 @@ export function CardPicker({
   tourAnchor?: string;
 }) {
   if (cards.length === 0) return null;
-  // Only an entry that already had no card keeps the escape hatch, so nothing is silently
-  // moved onto a card behind the person's back when they edit an old purchase.
-  const allowNone = value === undefined;
 
   return (
     <div data-tour={tourAnchor}>
@@ -39,11 +40,12 @@ export function CardPicker({
             onClick={() => onChange(card.id)}
           />
         ))}
-        {allowNone && <Chip label="Sem cartão" selected onClick={() => onChange(undefined)} />}
+        <Chip label="Não informar" selected={value === undefined} onClick={() => onChange(undefined)} />
       </div>
-      {allowNone && (
+      {value === undefined && (
         <p className="text-muted mt-2 text-xs">
-          Sem cartão, essa compra sai da dívida sozinha no dia 1º do mês seguinte.
+          Essa compra entra na fatura &ldquo;{UNASSIGNED_CARD_LABEL}&rdquo;, que só sai da dívida
+          quando você marcar como paga.
         </p>
       )}
     </div>

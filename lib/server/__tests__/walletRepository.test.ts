@@ -6,7 +6,6 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  addMonthsClamped,
   computeMonthSummary,
   currentMonthKey,
   nextMonth,
@@ -156,42 +155,49 @@ describe('PostgresWalletRepository', () => {
     expect((await budget.getMonth(third))?.expenses).toHaveLength(1);
   });
 
-  it('never charges a closed month, and never charges the same instalment twice', async () => {
+  it('never charges the same instalment twice, however many times the plan is saved', async () => {
     const { budget, wallet } = await newAccount();
     const month = currentMonthKey();
+    const later = nextMonth(month);
     await budget.ensureMonth(month);
-    await budget.closeMonth(month);
+    await budget.ensureMonth(later);
 
     const plan = planFor(month);
     await wallet.saveInstallment(plan);
-    expect((await budget.getMonth(month))?.expenses).toEqual([]);
-
-    // Saving the plan again (an edit) must not duplicate the charges of the open months.
-    const later = nextMonth(month);
-    await budget.ensureMonth(later);
     await wallet.saveInstallment(plan);
-    await wallet.saveInstallment(plan);
+    expect((await budget.getMonth(month))?.expenses).toHaveLength(1);
     expect((await budget.getMonth(later))?.expenses).toHaveLength(1);
   });
 
-  it('launches an "À vista" plan as a single card expense, and charges no instalment', async () => {
+  it('an "à vista" plan is one expense in the category, marked as instalment zero', async () => {
     const { budget, wallet } = await newAccount();
     const month = currentMonthKey();
-    const plan = planFor(month, { accounting: 'upfront', name: 'Faculdade', totalAmount: 872.36 });
+    const plan = planFor(month, {
+      accounting: 'upfront',
+      name: 'Faculdade',
+      totalAmount: 872.36,
+      purchaseDate: `${month}-05`,
+    });
 
-    await wallet.saveInstallment(plan, { month, date: `${month}-05` });
+    await wallet.saveInstallment(plan);
 
     const data = await budget.getMonth(month);
     expect(data?.expenses).toHaveLength(1);
     expect(data?.expenses[0]).toMatchObject({
       description: 'Faculdade',
       amount: 872.36,
+      date: `${month}-05`,
       singleInstallmentCard: true,
+      installmentId: plan.id,
+      installmentNumber: 0,
     });
-    expect(data?.expenses[0].installmentId).toBeUndefined();
+
+    // The whole purchase is budget; the bill of the month only gets the instalment (872,36 / 3).
+    const { bills } = await wallet.getSnapshot();
+    expect(bills.find((bill) => bill.month === month)?.total).toBe(290.79);
   });
 
-  it('deleting a plan drops the charges still ahead and keeps the ones already made', async () => {
+  it('deleting a plan takes every expense it created with it', async () => {
     const { budget, wallet } = await newAccount();
     const month = currentMonthKey();
     const previous = shiftMonth(month, -1);
@@ -199,7 +205,6 @@ describe('PostgresWalletRepository', () => {
     await budget.ensureMonth(month);
     await budget.ensureMonth(nextMonth(month));
 
-    // First charge last month (already paid), then this month and the next.
     const plan = planFor(previous, { firstDebitDate: `${previous}-10` });
     await wallet.saveInstallment(plan);
     expect((await budget.getMonth(nextMonth(month)))?.expenses).toHaveLength(1);
@@ -207,7 +212,7 @@ describe('PostgresWalletRepository', () => {
     await wallet.deleteInstallment(plan.id);
 
     expect((await wallet.getSnapshot()).installments).toEqual([]);
-    expect((await budget.getMonth(previous))?.expenses).toHaveLength(1);
+    expect((await budget.getMonth(previous))?.expenses).toEqual([]);
     expect((await budget.getMonth(nextMonth(month)))?.expenses).toEqual([]);
   });
 
@@ -323,21 +328,21 @@ describe('PostgresWalletRepository', () => {
     expect(cash.report.gap).toBe(2000 - 400 - 8400);
   });
 
-  it('stops counting an instalment as debt once it becomes an expense of the month', async () => {
+  it('counts the instalment of the current competence as bill, and only the later ones as debt', async () => {
     const { budget, wallet } = await newAccount();
     const month = currentMonthKey();
-    // First charge later this month, so it is both ahead of today and inside the open month.
-    const plan = planFor(month, { firstDebitDate: addMonthsClamped(todayISO(), 0), count: 2, totalAmount: 200 });
-    const dueLater = addMonthsClamped(todayISO(), 1);
+    const plan = planFor(month, { count: 2, totalAmount: 200 });
     await wallet.saveInstallment(plan);
 
-    // Nothing exists yet: both charges are owed (the one today is not "after today").
+    // The charge of this competence is already on the bill; only the next one is debt.
     const before = await wallet.getSnapshot();
     expect(before.cash.report.installmentDebt).toBe(-100);
+    expect(before.bills.find((bill) => bill.month === month)?.total).toBe(100);
 
-    // Creating the month turns the charges of that competence into expenses.
-    await budget.ensureMonth(dueLater.slice(0, 7));
+    // Creating the later month writes the expense, and it stays debt, never bill in the open.
+    await budget.ensureMonth(nextMonth(month));
     const after = await wallet.getSnapshot();
-    expect(after.cash.report.installmentDebt).toBe(0);
+    expect(after.cash.report.installmentDebt).toBe(-100);
+    expect(after.bills.find((bill) => bill.month === nextMonth(month))?.future).toBe(true);
   });
 });

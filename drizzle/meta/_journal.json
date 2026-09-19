@@ -85,6 +85,13 @@
       "when": 1789842059077,
       "tag": "0011_nostalgic_husk",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789852957406,
+      "tag": "0012_lyrical_jean_grey",
+      "breakpoints": true
     }
   ]
 }

@@ -31,13 +31,13 @@ const CardsContext = createContext<CardsContextValue>({
 /**
  * The registered cards, for every screen that asks which card a purchase went on — the expense
  * form above all, which is nowhere near the Carteira and its snapshot. Nothing is loaded while
- * the Cartões module is off, and a failure is silent: the card question simply stays the yes/no
+ * the Cartão module is off, and a failure is silent: the card question simply stays the yes/no
  * it has always been.
  */
 export function CardsProvider({ children }: { children: ReactNode }) {
   const { settings } = useSettings();
   const [cards, setCards] = useState<CreditCard[]>([]);
-  const enabled = isModuleOn(settings, 'cards');
+  const enabled = isModuleOn(settings, 'card');
 
   const refresh = useCallback(async () => {
     if (!enabled) {

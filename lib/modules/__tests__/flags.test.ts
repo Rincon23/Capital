@@ -19,7 +19,7 @@ import {
 const on = (...keys: ModuleKey[]) => Object.fromEntries(keys.map((key) => [key, true]));
 
 describe('catálogo de módulos', () => {
-  it('tem os 13 módulos, cada um depois dos que ele precisa', () => {
+  it('tem os 11 módulos, cada um depois dos que ele precisa', () => {
     expect(MODULE_KEYS).toEqual([
       'expenses',
       'budget',
@@ -27,8 +27,6 @@ describe('catálogo de módulos', () => {
       'reimbursable',
       'history',
       'recurring',
-      'cards',
-      'installments',
       'investments',
       'cash',
       'reminders',
@@ -42,9 +40,9 @@ describe('catálogo de módulos', () => {
 
   it('junta nomes de módulos em português', () => {
     expect(moduleNames(['expenses'])).toBe('Lançamentos');
-    expect(moduleNames(['expenses', 'card'])).toBe('Lançamentos e Cartão de crédito');
-    expect(moduleNames(['expenses', 'card', 'installments'])).toBe(
-      'Lançamentos, Cartão de crédito e Parcelados',
+    expect(moduleNames(['expenses', 'card'])).toBe('Lançamentos e Cartão');
+    expect(moduleNames(['expenses', 'card', 'reimbursable'])).toBe(
+      'Lançamentos, Cartão e A receber',
     );
   });
 
@@ -72,31 +70,37 @@ describe('módulos ligados', () => {
   });
 
   it('não conta como ligado um módulo cujo pai está desligado, mesmo que tenha sido gravado', () => {
-    const settings = { modules: on('history', 'installments', 'voice', 'budget') };
+    const settings = { modules: on('history', 'card', 'voice', 'budget') };
     expect(storedModules(settings).history).toBe(true);
     // Sem Lançamentos, nada que dependa dele funciona.
     expect(isModuleOn(settings, 'budget')).toBe(false);
     expect(isModuleOn(settings, 'history')).toBe(false);
-    expect(isModuleOn(settings, 'installments')).toBe(false);
+    expect(isModuleOn(settings, 'card')).toBe(false);
     expect(isModuleOn(settings, 'voice')).toBe(false);
+  });
+
+  it('ignora uma chave que não existe mais (um módulo que foi fundido em outro)', () => {
+    const settings = { modules: { expenses: true, cards: true } as Record<string, boolean> };
+    expect(storedModules(settings).expenses).toBe(true);
+    expect(Object.keys(storedModules(settings))).not.toContain('cards');
   });
 });
 
 describe('dependências', () => {
   it('diz o que falta ligar antes', () => {
-    expect(missingDependencies({}, 'installments')).toEqual(['expenses', 'card']);
-    expect(missingDependencies({ modules: on('expenses') }, 'installments')).toEqual(['card']);
-    expect(missingDependencies({ modules: on('expenses', 'card') }, 'installments')).toEqual([]);
+    expect(missingDependencies({}, 'reimbursable')).toEqual(['card']);
+    expect(missingDependencies({ modules: on('expenses') }, 'card')).toEqual([]);
+    expect(missingDependencies({}, 'card')).toEqual(['expenses']);
     expect(missingDependencies({}, 'history')).toEqual(['budget']);
     expect(missingDependencies({}, 'reminders')).toEqual([]);
   });
 
   it('mostra o bloqueio mais próximo e a ordem do que ligar antes', () => {
-    expect(nearestMissing({}, 'installments')).toEqual(['card']);
-    expect(modulesToTurnOnFirst({}, 'installments')).toEqual(['expenses', 'card']);
+    expect(nearestMissing({}, 'reimbursable')).toEqual(['card']);
+    expect(modulesToTurnOnFirst({}, 'reimbursable')).toEqual(['expenses', 'card']);
     expect(modulesToTurnOnFirst({}, 'history')).toEqual(['expenses', 'budget']);
     expect(modulesToTurnOnFirst({ modules: on('expenses') }, 'history')).toEqual(['budget']);
-    expect(nearestMissing({ modules: on('expenses', 'card') }, 'installments')).toEqual([]);
+    expect(nearestMissing({ modules: on('expenses', 'card') }, 'reimbursable')).toEqual([]);
   });
 
   it('não liga o filho com o pai desligado, e nunca liga o pai sozinho', () => {
@@ -118,28 +122,26 @@ describe('dependências', () => {
       'reimbursable',
       'history',
       'recurring',
-      'cards',
-      'installments',
       'investments',
       'voice',
     ]);
-    expect(dependentsOf('card')).toEqual(['reimbursable', 'cards', 'installments']);
+    expect(dependentsOf('card')).toEqual(['reimbursable']);
     expect(dependentsOf('budget')).toEqual(['history']);
     expect(dependentsOf('gmail')).toEqual([]);
   });
 
   it('desligar o pai desliga junto os filhos que estavam ligados, e só eles', () => {
-    const settings = { modules: on('expenses', 'card', 'installments', 'reminders') };
+    const settings = { modules: on('expenses', 'card', 'reimbursable', 'reminders') };
     const { modules, alsoOff } = turnModuleOff(settings, 'card');
-    expect(alsoOff).toEqual(['installments']);
+    expect(alsoOff).toEqual(['reimbursable']);
     expect(modules.card).toBe(false);
-    expect(modules.installments).toBe(false);
+    expect(modules.reimbursable).toBe(false);
     expect(modules.expenses).toBe(true);
     expect(modules.reminders).toBe(true);
   });
 
   it('monta a árvore com cada módulo embaixo de quem ele precisa', () => {
-    expect(parentOf('installments')).toBe('card');
+    expect(parentOf('reimbursable')).toBe('card');
     expect(parentOf('history')).toBe('budget');
     expect(parentOf('cash')).toBeNull();
 
@@ -154,6 +156,6 @@ describe('dependências', () => {
       'voice',
     ]);
     const card = expenses.children.find((node) => node.key === 'card');
-    expect(card?.children.map((node) => node.key)).toEqual(['reimbursable', 'cards', 'installments']);
+    expect(card?.children.map((node) => node.key)).toEqual(['reimbursable']);
   });
 });

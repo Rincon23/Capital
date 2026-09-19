@@ -11,9 +11,11 @@ import {
 } from '@/lib/budget';
 import { useMonthData } from '@/lib/hooks/useMonthData';
 import { isModuleOn } from '@/lib/modules';
+import { walletRepository } from '@/lib/storage';
 import { setLastViewedMonth } from '@/lib/storage/preferences';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { subscribeTourSheets } from '@/components/modules/tour/tourSheets';
+import { InstallmentEditor, type InstallmentEditRequest } from '@/components/card/InstallmentEditor';
 import { VoiceEntrySheet } from '@/components/voice/VoiceEntrySheet';
 import { MonthContext } from './MonthContext';
 import { ExpenseFormSheet } from './ExpenseFormSheet';
@@ -25,11 +27,17 @@ type ExpenseFormState =
       initial?: Expense;
       draft?: Partial<Expense>;
       defaultCategoryKind?: CategoryKind;
+      /** Editing one instalment on its own, which the form says out loud. */
+      singleInstallment?: boolean;
       /** Opened by a tour to show the form: no keyboard popping up over it. */
       forTour?: boolean;
     }
   | { open: false };
 type IncomeFormState = { open: true; initial?: Income } | { open: false };
+
+/** The line shown while a single instalment is being edited, so the scope stays clear. */
+const SINGLE_INSTALLMENT_NOTE =
+  'Você está editando só a parcela deste mês. Se depois editar a compra toda, este ajuste é desfeito.';
 
 export function MonthShell({ month, children }: { month: Month; children: ReactNode }) {
   const { settings } = useSettings();
@@ -38,6 +46,7 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
   const [expenseForm, setExpenseForm] = useState<ExpenseFormState>({ open: false });
   const [incomeForm, setIncomeForm] = useState<IncomeFormState>({ open: false });
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [installmentEdit, setInstallmentEdit] = useState<InstallmentEditRequest | null>(null);
 
   useEffect(() => {
     setLastViewedMonth(month);
@@ -65,7 +74,25 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
     [],
   );
 
+  /**
+   * Tapping an entry. An instalment is not an ordinary line — it belongs to a purchase that
+   * spans months — so it asks what the person means to change (see `InstallmentEditor`); the
+   * single expense of an "à vista" purchase *is* the purchase, and opens it straight away.
+   */
   const openExpenseForm = useCallback((initial?: Expense, defaultCategoryKind?: CategoryKind) => {
+    if (initial?.installmentId) {
+      setInstallmentEdit(
+        initial.installmentNumber === 0
+          ? { kind: 'plan', installmentId: initial.installmentId }
+          : {
+              kind: 'scope',
+              expense: initial,
+              installmentId: initial.installmentId,
+              number: initial.installmentNumber ?? 1,
+            },
+      );
+      return;
+    }
     setExpenseForm({ open: true, initial, defaultCategoryKind });
   }, []);
   const openIncomeForm = useCallback((initial?: Income) => {
@@ -108,6 +135,18 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
     >
       {children}
 
+      {installmentEdit && (
+        <InstallmentEditor
+          request={installmentEdit}
+          onClose={() => setInstallmentEdit(null)}
+          onChanged={() => monthData.refresh()}
+          onEditSingle={(expense) => {
+            setInstallmentEdit(null);
+            setExpenseForm({ open: true, initial: expense, singleInstallment: true });
+          }}
+        />
+      )}
+
       {expenseForm.open && settings && (
         <ExpenseFormSheet
           month={month}
@@ -127,9 +166,18 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
           draft={expenseForm.draft}
           defaultCategoryKind={expenseForm.defaultCategoryKind}
           autoFocusAmount={!expenseForm.forTour}
+          note={expenseForm.singleInstallment ? SINGLE_INSTALLMENT_NOTE : undefined}
           onClose={() => setExpenseForm({ open: false })}
           onSave={monthData.saveExpense}
           onDelete={monthData.deleteExpense}
+          onSaveInstallment={
+            isModuleOn(settings, 'card')
+              ? async (plan) => {
+                  await walletRepository.saveInstallment(plan);
+                  await monthData.refresh();
+                }
+              : undefined
+          }
           onVoice={voiceAvailable ? openVoiceEntry : undefined}
         />
       )}

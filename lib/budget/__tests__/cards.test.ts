@@ -3,14 +3,17 @@ import {
   billDueDate,
   billNoticeDays,
   cardBills,
+  cardLimitUse,
   DEFAULT_CARD_SETTINGS,
   dueLabel,
   lateBills,
   nextBankingDay,
   nextBillToPay,
+  nextChargeDate,
   nominalDueDate,
-  noCardClearDate,
+  openBills,
   openCardDebt,
+  UNASSIGNED_CARD_ID,
 } from '../cards';
 import type { CardBillPayment, CreditCard } from '../types';
 
@@ -74,25 +77,54 @@ describe('vencimento da fatura', () => {
   });
 });
 
-describe('fatura sem cartão cadastrado', () => {
-  it('sai sozinha no dia 1º do mês seguinte', () => {
-    expect(noCardClearDate('2026-09')).toBe('2026-10-01');
-    const open = cardBills([], [{ month: '2026-09', cardId: null, total: 300 }], [], '2026-09-30');
-    expect(open).toHaveLength(1);
-    expect(open[0].cardId).toBeNull();
-    expect(open[0].clearsOn).toBe('2026-10-01');
-    expect(openCardDebt(open)).toBe(-300);
+describe('fatura "Não informado"', () => {
+  const totals = [{ month: '2026-09', cardId: UNASSIGNED_CARD_ID, total: 300 }];
 
-    const cleared = cardBills([], [{ month: '2026-09', cardId: null, total: 300 }], [], '2026-10-01');
-    expect(cleared).toEqual([]);
-    expect(openCardDebt(cleared)).toBe(-0);
+  it('não sai sozinha na virada do mês: continua em aberto até ser marcada como paga', () => {
+    const before = cardBills([], totals, [], '2026-09-30');
+    expect(before).toHaveLength(1);
+    expect(before[0].cardId).toBe(UNASSIGNED_CARD_ID);
+    expect(before[0].cardName).toBe('Não informado');
+    expect(before[0].dueDate).toBeNull();
+    expect(dueLabel(before[0])).toBe('sem data de vencimento');
+    expect(openCardDebt(before)).toBe(-300);
+
+    // A virada do mês não muda nada: nenhuma fatura sai sozinha no Capital.
+    const after = cardBills([], totals, [], '2026-10-05');
+    expect(after[0].paid).toBe(false);
+    expect(openCardDebt(after)).toBe(-300);
+  });
+
+  it('duas competências sem marcar nada aparecem somadas, cada uma na sua linha', () => {
+    const bills = cardBills(
+      [],
+      [
+        { month: '2026-09', cardId: UNASSIGNED_CARD_ID, total: 300 },
+        { month: '2026-10', cardId: UNASSIGNED_CARD_ID, total: 120 },
+      ],
+      [],
+      '2026-10-20',
+    );
+    expect(bills.map((bill) => bill.month)).toEqual(['2026-09', '2026-10']);
+    expect(openCardDebt(bills)).toBe(-420);
+  });
+
+  it('sai da dívida quando é marcada como paga, e volta quando desfaz', () => {
+    const payments: CardBillPayment[] = [
+      { cardId: UNASSIGNED_CARD_ID, month: '2026-09', amount: 300, paidAt: '2026-10-02T12:00:00Z' },
+    ];
+    const paid = cardBills([], totals, payments, '2026-10-05');
+    expect(paid[0].paid).toBe(true);
+    expect(dueLabel(paid[0])).toBe('paga em 02/10');
+    expect(openCardDebt(paid)).toBe(-0);
+    expect(openCardDebt(cardBills([], totals, [], '2026-10-05'))).toBe(-300);
   });
 
   it('as compras de um cartão que não existe mais entram nela', () => {
     const bills = cardBills(
       [],
       [
-        { month: '2026-09', cardId: null, total: 100 },
+        { month: '2026-09', cardId: UNASSIGNED_CARD_ID, total: 100 },
         { month: '2026-09', cardId: 'apagado', total: 50 },
       ],
       [],
@@ -100,6 +132,51 @@ describe('fatura sem cartão cadastrado', () => {
     );
     expect(bills).toHaveLength(1);
     expect(bills[0].total).toBe(150);
+  });
+});
+
+describe('competência futura', () => {
+  it('não é fatura em aberto: é o que já está comprometido adiante', () => {
+    const bills = cardBills(
+      [card()],
+      [
+        { month: '2026-09', cardId: 'nubank', total: 200 },
+        { month: '2026-11', cardId: 'nubank', total: 80 },
+      ],
+      [],
+      '2026-09-15',
+    );
+    expect(bills.find((bill) => bill.month === '2026-11')?.future).toBe(true);
+    expect(openBills(bills).map((bill) => bill.month)).toEqual(['2026-09']);
+    expect(openCardDebt(bills)).toBe(-200);
+  });
+});
+
+describe('limite do cartão', () => {
+  it('desconta as faturas em aberto e as parcelas que ainda vão cair', () => {
+    const use = cardLimitUse(5000, 1200, 320);
+    expect(use.used).toBe(1520);
+    expect(use.available).toBe(3480);
+    expect(use.over).toBe(false);
+    expect(use.usedPct).toBeCloseTo(0.304, 6);
+  });
+
+  it('estourado, diz quanto passou e enche a barra', () => {
+    const use = cardLimitUse(1000, 900, 340);
+    expect(use.available).toBe(-240);
+    expect(use.over).toBe(true);
+    expect(use.usedPct).toBe(1);
+  });
+});
+
+describe('próxima cobrança do cartão', () => {
+  it('é o dia do cartão nesta competência enquanto ele não passou', () => {
+    // Vence dia 10 do mês seguinte: a cobrança de setembro é 10/10.
+    expect(nextChargeDate(card(), '2026-09-15')).toBe('2026-10-10');
+  });
+
+  it('pula para a competência seguinte quando o dia já passou', () => {
+    expect(nextChargeDate(card({ dueMonth: 'same' }), '2026-09-15')).toBe('2026-10-10');
   });
 });
 

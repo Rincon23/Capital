@@ -55,16 +55,29 @@ describe('tours dos módulos', () => {
   it('monta as rotas do mês e marca de qual módulo é cada passo', () => {
     const steps = tourSteps(['card', 'reimbursable'], '2026-09');
     expect(steps.map((step) => [step.module, step.href, step.anchor])).toEqual([
-      ['card', '/mes/2026-09', 'card-card'],
+      ['card', '/cartao', 'cartao-fatura'],
+      ['card', '/cartao', 'cartao-lancamentos'],
+      ['card', '/cartao', 'cartao-pagar'],
+      ['card', '/cartao?aba=parcelados', 'cartao-aba-parcelados'],
+      ['card', '/cartao?aba=cartoes', 'cartao-aba-cartoes'],
+      ['card', '/cartao', 'cartao-config'],
       ['card', '/mes/2026-09', 'cartao-pergunta'],
-      ['card', '/mes/2026-09', 'ajuda-card'],
+      ['card', '/cartao', 'ajuda-card'],
       ['reimbursable', '/mes/2026-09', 'categoria-a-receber'],
       ['reimbursable', '/mes/2026-09/lancamentos?aba=a-receber', 'aba-a-receber'],
       ['reimbursable', '/mes/2026-09', 'card-reimbursable'],
       ['reimbursable', '/mes/2026-09/lancamentos?aba=a-receber', 'ajuda-reimbursable'],
     ]);
-    expect(steps[1].sheet).toBe('expense-form');
-    // The card question is inside the form; the help button is not, so the form closes first.
-    expect(steps[2].sheet).toBeUndefined();
+    // The card question is inside the expense form; the help button is not, so it closes first.
+    expect(steps[6].sheet).toBe('expense-form');
+    expect(steps[7].sheet).toBeUndefined();
+  });
+
+  it('o tour do Cartão é um só, curto, e passa pelas três abas', () => {
+    const anchors = MODULE_TOURS.card.map((step) => step.anchor);
+    expect(anchors).toContain('cartao-fatura');
+    expect(anchors).toContain('cartao-aba-parcelados');
+    expect(anchors).toContain('cartao-aba-cartoes');
+    expect(anchors.length).toBeLessThanOrEqual(8);
   });
 });

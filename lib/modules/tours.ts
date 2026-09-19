@@ -19,6 +19,7 @@ export interface TourStepDefinition {
 const home = (month: Month) => `/mes/${month}`;
 const entries = (month: Month) => `/mes/${month}/lancamentos`;
 const categories = (month: Month) => `/mes/${month}/categorias`;
+const card = () => '/cartao';
 
 /**
  * The tour of every module (a `Record`, so a module without a tour does not compile). Steps point
@@ -123,10 +124,51 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
   ],
   card: [
     {
-      route: home,
-      anchor: 'card-card',
+      route: card,
+      anchor: 'cartao-fatura',
       title: 'A fatura do mês',
-      description: 'A soma de tudo que você marcou como compra no cartão neste mês.',
+      description:
+        'Quanto vem nesta competência e o dia em que ela vence. Use as setas para ver as faturas anteriores; vencimento em sábado ou domingo passa para a segunda, como no banco.',
+      side: 'bottom',
+    },
+    {
+      route: card,
+      anchor: 'cartao-lancamentos',
+      title: 'O que entrou nela',
+      description:
+        'As compras à vista e as parcelas que caem neste mês, por data. Toque em uma para editar — numa parcela, você escolhe se muda a compra toda ou só aquele mês.',
+      side: 'top',
+    },
+    {
+      route: card,
+      anchor: 'cartao-pagar',
+      title: 'Fatura paga',
+      description:
+        'Nenhuma fatura sai sozinha: ela continua na dívida da Reserva de emergência até você tocar aqui — inclusive a de "Não informado", que junta as compras sem cartão escolhido.',
+      side: 'bottom',
+    },
+    {
+      route: () => `${card()}?aba=parcelados`,
+      anchor: 'cartao-aba-parcelados',
+      title: 'O que já está comprometido',
+      description:
+        'Aqui ficam as compras parceladas: quanto falta, quantas parcelas restam e quanto cada um dos próximos meses já tem reservado.',
+      side: 'bottom',
+    },
+    {
+      route: () => `${card()}?aba=cartoes`,
+      anchor: 'cartao-aba-cartoes',
+      title: 'Seus cartões',
+      description:
+        'Cadastre o nome, o dia do vencimento, com quanta antecedência quer ser avisado e, se quiser acompanhar, o limite.',
+      side: 'bottom',
+    },
+    {
+      route: card,
+      anchor: 'cartao-config',
+      title: 'Avisos no celular',
+      description:
+        'Na engrenagem você escolhe o horário do aviso, se ele deve insistir até a fatura ser paga e ativa as notificações neste aparelho.',
       side: 'bottom',
     },
     {
@@ -134,7 +176,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       anchor: 'cartao-pergunta',
       title: 'Foi no cartão?',
       description:
-        'Ao lançar um gasto, marque aqui quando pagar no crédito. Ele continua contando na categoria e também entra na fatura.',
+        'Ao lançar um gasto, marque aqui quando pagar no crédito: você escolhe o cartão (ou "Não informar") e, se quiser, parcela a compra.',
       side: 'top',
       sheet: 'expense-form',
     },
@@ -202,72 +244,6 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       anchor: 'recorrentes-novo',
       title: 'Novo modelo',
       description: 'Crie um modelo com valor, categoria e se é pago no cartão.',
-      side: 'bottom',
-    },
-  ],
-  cards: [
-    {
-      route: () => '/carteira/cartoes',
-      anchor: 'cartoes-total',
-      title: 'O que ainda falta pagar',
-      description:
-        'A soma das faturas que você ainda não marcou como pagas, de todos os cartões, e quando vence a próxima.',
-      side: 'bottom',
-    },
-    {
-      route: () => '/carteira/cartoes',
-      anchor: 'cartoes-pagar',
-      title: 'Fatura paga',
-      description:
-        'A dívida de um cartão cadastrado só sai quando você toca aqui. Enquanto isso ela continua na Reserva de emergência, e o aviso insiste. As compras sem cartão saem sozinhas no dia 1º do mês seguinte.',
-      side: 'bottom',
-    },
-    {
-      route: () => '/carteira/cartoes',
-      anchor: 'cartoes-lista',
-      title: 'Seus cartões',
-      description:
-        'Cada cartão mostra a fatura da competência, o dia em que ela vence e se já foi paga. Vencimento em sábado ou domingo passa para a segunda, como no banco.',
-      side: 'bottom',
-    },
-    {
-      route: () => '/carteira/cartoes',
-      anchor: 'cartoes-novo',
-      title: 'Novo cartão',
-      description:
-        'Cadastre o nome, o dia do vencimento e com quantos dias de antecedência quer ser avisado. A partir daí, toda compra no cartão pergunta em qual deles foi.',
-      side: 'bottom',
-    },
-    {
-      route: () => '/carteira/cartoes',
-      anchor: 'cartoes-config',
-      title: 'Avisos no celular',
-      description:
-        'Na engrenagem você escolhe o horário do aviso, se ele deve insistir até a fatura ser paga e ativa as notificações neste aparelho.',
-      side: 'bottom',
-    },
-  ],
-  installments: [
-    {
-      route: () => '/carteira/parcelados',
-      anchor: 'parcelados-total',
-      title: 'Quanto falta pagar',
-      description: 'A soma das parcelas que ainda vão cair no cartão.',
-      side: 'bottom',
-    },
-    {
-      route: () => '/carteira/parcelados',
-      anchor: 'parcelados-lista',
-      title: 'Suas compras parceladas',
-      description:
-        'Cada compra mostra a parcela, quantas faltam e quando termina. A parcela de cada mês é lançada no cartão sozinha.',
-      side: 'bottom',
-    },
-    {
-      route: () => '/carteira/parcelados',
-      anchor: 'parcelados-novo',
-      title: 'Nova compra',
-      description: 'Informe o valor total, o número de parcelas e a data do primeiro débito.',
       side: 'bottom',
     },
   ],
@@ -426,12 +402,10 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
 export const MODULE_HELP: Record<ModuleKey, Pick<TourStepDefinition, 'route' | 'sheet'>> = {
   expenses: { route: entries },
   budget: { route: categories },
-  card: { route: home },
+  card: { route: card },
   reimbursable: { route: (month) => `${entries(month)}?aba=a-receber` },
   history: { route: () => '/historico' },
   recurring: { route: () => '/carteira/recorrentes' },
-  cards: { route: () => '/carteira/cartoes' },
-  installments: { route: () => '/carteira/parcelados' },
   investments: { route: () => '/carteira/reserva' },
   cash: { route: () => '/carteira/caixa' },
   reminders: { route: () => '/lembretes' },

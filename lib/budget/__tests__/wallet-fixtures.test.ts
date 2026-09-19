@@ -21,6 +21,7 @@ import type { InstallmentPlan, InvestmentBucket } from '../types';
  * spec asks for. Tolerance of R$ 0,01, as in the budget fixtures.
  */
 const TODAY = '2026-09-15';
+const MONTH = '2026-09';
 const TOLERANCE = 0.01;
 
 function expectMoney(actual: number, expected: number) {
@@ -108,13 +109,13 @@ describe('parcelados da planilha em 15/09/2026 (fixtures da spec §9)', () => {
   });
 
   it('fecha a dívida dos parcelados em −3.093,20', () => {
-    expectMoney(installmentDebt(PLANS, TODAY), -3093.2);
+    expectMoney(installmentDebt(PLANS, MONTH), -3093.2);
   });
 
-  it('não conta duas vezes a parcela que já virou gasto no mês', () => {
-    // A parcela de outubro do p2 (vencimento 09/10/2026) já lançada: sai da dívida.
-    const launched = new Set(['p2:8']);
-    expectMoney(installmentDebt(PLANS, TODAY, launched), -3093.2 + 87.236);
+  it('não conta a parcela da competência corrente: ela já está na fatura do mês', () => {
+    // Vence dia 20, ainda à frente de hoje, mas dentro de setembro: é fatura, não dívida futura.
+    const sofa = plan('x', 'Sofá', '2026-09-20', 2, 200);
+    expectMoney(installmentDebt([sofa], MONTH), -100);
   });
 });
 

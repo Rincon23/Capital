@@ -1,10 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Mic } from 'lucide-react';
 import {
   amountToInputValue,
   currentMonthKey,
+  monthsTouchedBy,
+  nextChargeDate,
   parseAmountInput,
   resolveSpecialCategoryLabels,
   specialCategoryLabel,
@@ -13,15 +15,20 @@ import {
   type CategoryKind,
   type Expense,
   type ExpenseSource,
+  type InstallmentAccounting,
+  type InstallmentPlan,
   type Month,
   type SpecialCategoryLabels,
   type TopicConfig,
 } from '@/lib/budget';
 import { useCards } from '@/components/cards/CardsProvider';
+import { ClosedMonthsNotice, closedMonthsOf } from '@/components/card/ClosedMonthsNotice';
+import { InstallmentOptions, MAX_INSTALLMENTS } from '@/components/card/InstallmentOptions';
 import { AmountInput } from '@/components/ui/AmountInput';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { CardPicker } from '@/components/ui/CardPicker';
 import { CategoryPicker } from '@/components/ui/CategoryPicker';
+import { Chip } from '@/components/ui/Chip';
 
 function defaultDateForMonth(month: Month): string {
   const today = new Date();
@@ -42,9 +49,18 @@ interface ExpenseFormSheetProps {
   draft?: Partial<Expense>;
   /** Overrides the sheet's title, e.g. when the form is confirming a recurring expense. */
   title?: string;
+  /** A line above the fields, e.g. the warning shown while editing a single instalment. */
+  note?: ReactNode;
   defaultCategoryKind?: CategoryKind;
   /** False when the form is opened only to be shown (a tour step): no keyboard over it. */
   autoFocusAmount?: boolean;
+  /**
+   * Saves a purchase split into instalments. Without it the form never offers to split one —
+   * that is how a recurring expense and the voice review stay a single expense.
+   */
+  onSaveInstallment?: (plan: InstallmentPlan) => Promise<void>;
+  /** Competences already closed: a purchase whose charges land in one is refused here too. */
+  closedMonths?: Month[];
   onClose: () => void;
   onSave: (expense: Expense) => Promise<void>;
   onDelete?: (expenseId: string) => Promise<void>;
@@ -61,8 +77,11 @@ export function ExpenseFormSheet({
   initial,
   draft,
   title,
+  note,
   defaultCategoryKind,
   autoFocusAmount = true,
+  onSaveInstallment,
+  closedMonths = [],
   onClose,
   onSave,
   onDelete,
@@ -94,44 +113,104 @@ export function ExpenseFormSheet({
   const [singleInstallmentCard, setSingleInstallmentCard] = useState(prefill?.singleInstallmentCard ?? false);
   const { cards, defaultCard } = useCards();
   // A new card purchase starts on the default card; one that already exists keeps its own
-  // (and keeps having none, when it was made before any card was registered).
+  // (and keeps having none, when the person chose not to say which card it was).
   const [cardId, setCardId] = useState<string | undefined>(
     prefill ? prefill.cardId : (defaultCard?.id ?? undefined),
   );
+  const [splitting, setSplitting] = useState(false);
+  const [installment, setInstallment] = useState({
+    count: '10',
+    firstDebitDate: defaultCard ? nextChargeDate(defaultCard) : todayISO(),
+    accounting: 'upfront' as InstallmentAccounting,
+  });
   const [errors, setErrors] = useState<string[]>([]);
+  const [closed, setClosed] = useState<Month[] | null>(null);
   const [saving, setSaving] = useState(false);
 
   const needsTopic = categoryKind === 'topic';
   // "A receber" is by definition something paid on the card for someone else.
   const forcedCard = categoryKind === 'reimbursable';
+  const onCard = cardEnabled && (forcedCard || singleInstallmentCard);
+  // Splitting is offered on a new card purchase only: an expense that already exists is one
+  // line of a month, and turning it into a series would rewrite months it never touched.
+  const canSplit = Boolean(onSaveInstallment) && onCard && !initial && !draft;
+  const parsedAmount = parseAmountInput(amount);
+  const categoryLabel =
+    categoryKind === 'topic'
+      ? (activeTopics.find((t) => t.id === topicId)?.name ?? 'a categoria')
+      : specialCategoryLabel(categoryKind, labels);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const parsedAmount = parseAmountInput(amount);
+    setClosed(null);
     const result = validateExpense({ categoryKind, topicId, amount: parsedAmount, date });
     if (!result.valid) {
       setErrors(result.errors);
       return;
     }
 
+    const count = Number.parseInt(installment.count, 10);
+    // "1 vez" is not a plan: it is an ordinary purchase on the card.
+    const asPlan = canSplit && splitting && count >= 2;
+    if (canSplit && splitting && !(count >= 2 && count <= MAX_INSTALLMENTS)) {
+      setErrors([`O número de parcelas vai de 2 a ${MAX_INSTALLMENTS}. Para uma vez só, escolha À vista.`]);
+      return;
+    }
+
+    const name = description.trim() || specialCategoryLabel(categoryKind, labels);
+    const plan: InstallmentPlan | null = asPlan
+      ? {
+          id: crypto.randomUUID(),
+          name,
+          categoryKind,
+          ...(needsTopic && topicId ? { topicId } : {}),
+          firstDebitDate: installment.firstDebitDate,
+          purchaseDate: date,
+          count,
+          totalAmount: parsedAmount,
+          accounting: installment.accounting,
+          ...(cardId ? { cardId } : {}),
+        }
+      : null;
+
+    if (plan) {
+      const blocked = monthsTouchedBy(plan).filter((m) => closedMonths.includes(m));
+      if (blocked.length > 0) {
+        setErrors([]);
+        setClosed(blocked);
+        return;
+      }
+    }
+
     setSaving(true);
     try {
-      await onSave({
-        id: initial?.id ?? crypto.randomUUID(),
-        categoryKind,
-        topicId: needsTopic ? topicId : undefined,
-        description: description.trim() || specialCategoryLabel(categoryKind, labels),
-        amount: parsedAmount,
-        date,
-        // With the card module off, an expense keeps whatever it already had (nothing is unmarked).
-        singleInstallmentCard:
-          forcedCard || (cardEnabled ? singleInstallmentCard : (prefill?.singleInstallmentCard ?? false)),
-        ...(cardId ? { cardId } : {}),
-        source,
-      });
+      if (plan && onSaveInstallment) {
+        await onSaveInstallment(plan);
+      } else {
+        await onSave({
+          id: initial?.id ?? crypto.randomUUID(),
+          categoryKind,
+          topicId: needsTopic ? topicId : undefined,
+          description: name,
+          amount: parsedAmount,
+          date,
+          // With the card module off, an expense keeps whatever it already had.
+          singleInstallmentCard:
+            forcedCard || (cardEnabled ? singleInstallmentCard : (prefill?.singleInstallmentCard ?? false)),
+          ...(cardId ? { cardId } : {}),
+          source,
+          // An instalment being edited on its own keeps its link to the plan.
+          ...(initial?.installmentId ? { installmentId: initial.installmentId } : {}),
+          ...(initial?.installmentNumber !== undefined
+            ? { installmentNumber: initial.installmentNumber }
+            : {}),
+        });
+      }
       onClose();
-    } catch {
-      setErrors(['Não foi possível salvar. Tente novamente.']);
+    } catch (err) {
+      const blocked = closedMonthsOf(err);
+      if (blocked) setClosed(blocked);
+      else setErrors([err instanceof Error ? err.message : 'Não foi possível salvar. Tente novamente.']);
     } finally {
       setSaving(false);
     }
@@ -167,6 +246,8 @@ export function ExpenseFormSheet({
       }
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        {note && <div className="bg-background text-muted rounded-xl px-3 py-2 text-xs">{note}</div>}
+
         <AmountInput value={amount} onChange={setAmount} autoFocus={autoFocusAmount && !prefill} />
 
         <CategoryPicker
@@ -219,9 +300,43 @@ export function ExpenseFormSheet({
           </label>
         )}
 
-        {cardEnabled && (forcedCard || singleInstallmentCard) && (
-          <CardPicker cards={cards} value={cardId} onChange={setCardId} tourAnchor="cartao-qual" />
+        {onCard && (
+          <CardPicker
+            cards={cards}
+            value={cardId}
+            onChange={(id) => {
+              setCardId(id);
+              const chosen = cards.find((card) => card.id === id);
+              setInstallment((current) => ({
+                ...current,
+                firstDebitDate: chosen ? nextChargeDate(chosen) : todayISO(),
+              }));
+            }}
+            tourAnchor="cartao-qual"
+          />
         )}
+
+        {canSplit && (
+          <div data-tour="cartao-parcelar">
+            <p className="text-muted mb-2 text-sm font-medium">Como você pagou?</p>
+            <div className="flex flex-wrap gap-2">
+              <Chip label="À vista" selected={!splitting} onClick={() => setSplitting(false)} />
+              <Chip label="Parcelado" selected={splitting} onClick={() => setSplitting(true)} />
+            </div>
+          </div>
+        )}
+
+        {canSplit && splitting && (
+          <InstallmentOptions
+            value={installment}
+            onChange={setInstallment}
+            totalAmount={parsedAmount}
+            categoryLabel={categoryLabel}
+            purchaseMonth={date.slice(0, 7)}
+          />
+        )}
+
+        {closed && <ClosedMonthsNotice months={closed} onNavigate={onClose} />}
 
         {errors.length > 0 && (
           <ul className="bg-danger-bg text-danger rounded-lg px-3 py-2 text-sm">

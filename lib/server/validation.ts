@@ -86,7 +86,8 @@ export const expenseSchema = z.object({
     .optional(),
   // Echoed back by the client when it edits an instalment's expense, so the link survives.
   installmentId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
-  installmentNumber: z.preprocess(absentAsUndefined, z.number().int().positive().optional()),
+  // 0 is the single expense of an "à vista" plan (see lib/budget/bill.ts).
+  installmentNumber: z.preprocess(absentAsUndefined, z.number().int().min(0).optional()),
 });
 
 export const monthDataSchema = z.object({
@@ -120,16 +121,12 @@ export const installmentPlanSchema = z.object({
   categoryKind: categoryKindSchema,
   topicId: z.preprocess(absentAsUndefined, z.string().optional()),
   firstDebitDate: isoDate,
+  /** The day of the purchase itself; absent in older data (see InstallmentPlan). */
+  purchaseDate: z.preprocess(absentAsUndefined, isoDate.optional()),
   count: z.number().int().min(1).max(120),
   totalAmount: money.positive(),
   accounting: z.enum(['installment', 'upfront']),
   cardId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
-});
-
-/** An "À vista" plan may also be launched as a single expense when it is created. */
-export const saveInstallmentSchema = z.object({
-  plan: installmentPlanSchema,
-  upfront: z.object({ month: monthKeySchema, date: isoDate }).optional(),
 });
 
 export const creditCardSchema = z.object({
@@ -140,12 +137,11 @@ export const creditCardSchema = z.object({
   notifyEnabled: z.boolean(),
   notifyBeforeDays: z.number().int().min(0).max(30),
   isDefault: z.boolean(),
+  /** Optional: a card with no limit simply shows nothing about one. */
+  limit: z.preprocess(absentAsUndefined, money.positive().max(10_000_000).optional()),
   color: z.preprocess(absentAsUndefined, z.string().max(20).optional()),
   order: z.number().int().min(0).max(1000),
 });
-
-/** Tying the card purchases of one competence to a card. */
-export const assignCardSchema = z.object({ month: monthKeySchema });
 
 export const cardSettingsSchema = z.object({
   notifyTime: timeOfDay,

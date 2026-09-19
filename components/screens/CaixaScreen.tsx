@@ -73,9 +73,9 @@ function Caixa() {
 
   const { report } = snapshot.cash;
   const { buckets } = snapshot.investments;
-  // With the Cartões module on, the debt is every bill still waiting for "Fatura paga" — which
-  // can be more than one competence. Without it, it is simply the bill of the open month.
-  const open = isModuleOn(settings, 'cards') ? openBills(snapshot.bills) : null;
+  // The debt is every bill still waiting for "Fatura paga" — which can be more than one
+  // competence, and includes the "Não informado" one, since no bill leaves on its own.
+  const open = isModuleOn(settings, 'card') ? openBills(snapshot.bills) : null;
   const cardDebtHint = open
     ? open.length === 0
       ? 'Todas as faturas pagas'

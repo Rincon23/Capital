@@ -1,7 +1,6 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { ParceladosScreen } from '@/components/screens/ParceladosScreen';
-
+/** "Parcelados" is a tab of the single Cartão module now; old links still work. */
 export default function Page() {
-  return <ParceladosScreen />;
+  redirect('/cartao?aba=parcelados');
 }

@@ -76,11 +76,17 @@ export const MODULES: ModuleDefinition[] = [
   },
   {
     key: 'card',
-    name: 'Cartão de crédito',
-    description: 'Marque as compras feitas no cartão e acompanhe quanto vai vir na fatura do mês.',
-    tagline: 'Compras no cartão e a fatura do mês',
+    name: 'Cartão',
+    description:
+      'Tudo do cartão num lugar só: marque a compra como feita no cartão, escolha o cartão (ou não informe), parcele quando quiser e acompanhe a fatura de cada mês, com o dia do vencimento, o botão de fatura paga e aviso no celular.',
+    tagline: 'Compras, parcelamento e a fatura de cada mês',
     group: 'month',
     dependsOn: ['expenses'],
+    screen: {
+      label: 'Cartão',
+      href: () => '/cartao',
+      isActive: (pathname) => pathname.startsWith('/cartao'),
+    },
     homeCard: true,
   },
   {
@@ -119,35 +125,6 @@ export const MODULES: ModuleDefinition[] = [
       label: 'Recorrentes',
       href: () => '/carteira/recorrentes',
       isActive: (pathname) => pathname.startsWith('/carteira/recorrentes'),
-    },
-    homeCard: true,
-  },
-  {
-    key: 'cards',
-    name: 'Cartões',
-    description:
-      'Seus cartões de crédito: o dia em que a fatura vence, quanto vai nela e o botão de fatura paga, com aviso no celular antes do vencimento.',
-    tagline: 'Vencimento da fatura e aviso de pagamento',
-    group: 'wallet',
-    dependsOn: ['card'],
-    screen: {
-      label: 'Cartões',
-      href: () => '/carteira/cartoes',
-      isActive: (pathname) => pathname.startsWith('/carteira/cartoes'),
-    },
-    homeCard: true,
-  },
-  {
-    key: 'installments',
-    name: 'Parcelados',
-    description: 'Compras parceladas no cartão, com a parcela do mês lançada automaticamente.',
-    tagline: 'Compras parceladas no cartão',
-    group: 'wallet',
-    dependsOn: ['expenses', 'card'],
-    screen: {
-      label: 'Parcelados',
-      href: () => '/carteira/parcelados',
-      isActive: (pathname) => pathname.startsWith('/carteira/parcelados'),
     },
     homeCard: true,
   },

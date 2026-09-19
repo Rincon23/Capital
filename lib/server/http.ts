@@ -122,15 +122,20 @@ function isAllowedOrigin(request: NextRequest): boolean {
   return originHost === host || allowedOriginHosts().includes(originHost);
 }
 
-function jsonError(status: number, code: string, message: string): Response {
+function jsonError(
+  status: number,
+  code: string,
+  message: string,
+  details?: Record<string, unknown>,
+): Response {
   return NextResponse.json(
-    { error: message, code },
+    { error: message, code, ...(details ? { details } : {}) },
     { status, headers: { 'Cache-Control': 'no-store' } },
   );
 }
 
 function errorResponse(err: unknown): Response {
-  if (err instanceof HttpError) return jsonError(err.status, err.code, err.message);
+  if (err instanceof HttpError) return jsonError(err.status, err.code, err.message, err.details);
   if (err instanceof ZodError) return jsonError(400, 'INVALID_INPUT', 'Dados inválidos.');
   if (err instanceof MonthClosedError) return jsonError(409, 'MONTH_CLOSED', err.message);
   if (err instanceof MonthNotFoundError) return jsonError(404, 'MONTH_NOT_FOUND', err.message);

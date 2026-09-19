@@ -7,12 +7,15 @@ export const UNAUTHENTICATED_EVENT = 'capital:unauthenticated';
 export class ApiRequestError extends Error {
   readonly status: number;
   readonly code?: string;
+  /** Extra facts the server sent with the error, when the screen can act on them. */
+  readonly details?: Record<string, unknown>;
 
-  constructor(message: string, status: number, code?: string) {
+  constructor(message: string, status: number, code?: string, details?: Record<string, unknown>) {
     super(message);
     this.name = 'ApiRequestError';
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -49,6 +52,10 @@ export async function apiRequest<T>(method: string, path: string, body?: unknown
     if (typeof window !== 'undefined') window.dispatchEvent(new Event(UNAUTHENTICATED_EVENT));
     throw new NotAuthenticatedError();
   }
-  const { error, code } = (payload ?? {}) as { error?: string; code?: string };
-  throw new ApiRequestError(error || 'Erro ao acessar os dados.', response.status, code);
+  const { error, code, details } = (payload ?? {}) as {
+    error?: string;
+    code?: string;
+    details?: Record<string, unknown>;
+  };
+  throw new ApiRequestError(error || 'Erro ao acessar os dados.', response.status, code, details);
 }

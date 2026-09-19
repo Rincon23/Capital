@@ -5,8 +5,8 @@ percentuais definidos pelo usuário), substituindo uma planilha. Renda, gastos, 
 fixos e imprevistos são lançados manualmente; o app calcula quanto ainda pode
 ser gasto em cada categoria, descontando o rateio dos custos fixos/imprevistos e
 carregando a sobra de um mês para o outro (rollover). Gastos marcados como "feitos no
-cartão" entram na fatura do cartão (`cardTotal`), além de contarem no orçamento normal
-da categoria em que foram lançados.
+cartão" entram na fatura do cartão, além de contarem no orçamento normal da categoria em que
+foram lançados — e **fatura e orçamento são coisas separadas** (veja o módulo Cartão).
 
 PWA instalável, com **login por e-mail e senha**. Os dados ficam num **PostgreSQL próprio no
 Orange Pi**, sem serviço de banco na nuvem: o navegador só fala com a API do próprio app, que
@@ -29,10 +29,8 @@ módulos como uma árvore, cada um embaixo do módulo de que depende:
 - Lançamentos
   - Gastos por categoria
     - Histórico e gráficos
-  - Cartão de crédito
+  - Cartão
     - A receber
-    - Cartões
-    - Parcelados
   - Gastos recorrentes
   - Reserva investida
   - Lançar por voz ou texto
@@ -53,8 +51,10 @@ junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no s
   `/mes/[mês]/categoria/[id]`. Desligado, o gasto continua sendo lançado numa categoria (que segue
   editável na engrenagem de Lançamentos, com nome, descrição e cor), mas somem as metas, o
   percentual e a regra dos 100%. As regras das categorias estão em "Categorias" logo abaixo.
-- **Cartão de crédito** — a pergunta "A compra foi no cartão?" e a fatura do mês. Desligado, a
-  pergunta some; gastos antigos marcados no cartão continuam marcados.
+- **Cartão** (`/cartao`) — tudo do cartão num módulo só: a pergunta "A compra foi no cartão?", os
+  cartões cadastrados, o parcelamento e a fatura de cada mês. Desligado, a pergunta some; gastos
+  antigos marcados no cartão continuam marcados. A tela tem três abas, no jeito de um app de
+  banco, e está detalhada em "O módulo Cartão" logo abaixo.
 - **A receber** — uma compra no cartão feita para outra pessoa, que vai devolver o valor. Entra na
   fatura (`cardTotal` e `reimbursableTotal`) e **não** entra em nenhuma categoria, no rateio dos
   custos fixos nem no gasto do mês. Tem uma aba em Lançamentos.
@@ -63,22 +63,6 @@ junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no s
 **Carteira** (cada um com tela própria; o antigo painel `/carteira` redireciona para o Início):
   - **Gastos recorrentes** — modelos dos gastos de todo mês; "Lançar" abre o formulário de gasto
     já preenchido, com a data de hoje, na competência que você estava vendo.
-  - **Cartões** (`/carteira/cartoes`) — os cartões cadastrados, com o dia do vencimento, a fatura
-    de cada competência e o botão **Fatura paga**. Toda compra no cartão passa a perguntar em qual
-    cartão foi (formulário de gasto, recorrentes e parcelados), já com o cartão padrão escolhido.
-    **A regra das duas faturas** (`lib/budget/cards.ts`): a fatura das compras **sem cartão**
-    cadastrado sai da dívida sozinha no dia 1º do mês seguinte, como sempre foi; a de um cartão
-    cadastrado **só sai quando a pessoa marca como paga**, então ela continua contando (e
-    avisando) depois do vencimento, e duas competências em aberto se somam. O vencimento é sempre
-    calculado: o dia do cartão, no mês seguinte à competência (ou no mesmo, se a pessoa escolher),
-    caindo para o último dia nos meses curtos e, **se cair em sábado ou domingo, passando para a
-    segunda**, como no banco — o adiamento pode atravessar o mês sem mudar a competência da fatura.
-    Feriados não entram: precisariam de um calendário que o app não tem. Excluir um cartão não
-    apaga nada: as compras só perdem o vínculo e voltam à regra do dia 1º.
-  - **Parcelados** — vencimentos, parcela, restantes e fim são sempre calculados
-    (`lib/budget/installments.ts`). "Parcelada": a parcela vira gasto no cartão quando o mês é
-    criado (e já aparece na prévia); "À vista": opcionalmente lança o total de uma vez. Os
-    encerrados vão para uma seção recolhida em vez de serem apagados.
   - **Reserva investida** — cotas de um ativo (AUPO11 por padrão) divididas em categorias da
     reserva, cada uma ligada a uma categoria do orçamento. Remanejar compra cotas para a categoria
     da reserva e lança o gasto na categoria do orçamento, na mesma
@@ -88,16 +72,70 @@ junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no s
     uma API documentada com garantia, por isso há duas e o app nunca depende de uma resposta ao
     vivo para abrir a tela.
   - **Reserva de emergência** — reserva em conta + reserva investida livre, dívida do cartão e dos
-    parcelados (sem contar duas vezes a parcela que já virou gasto), reserva prevista e gap. Com o
-    módulo Cartões ligado, a dívida do cartão é a soma das faturas **em aberto** (de todos os
-    cartões e competências); sem ele, continua sendo a fatura do mês aberto.
-**Avisos da fatura** (módulo Cartões, `lib/server/cardBills.ts`): um job por minuto, no mesmo
-motor dos lembretes, avisa no celular com a antecedência escolhida em cada cartão (só no dia, 1, 2,
-3, 5 ou 7 dias antes), de novo no dia do vencimento e, enquanto a fatura não for marcada como paga,
-uma vez por dia por até uma semana depois — tudo pela data já adiada do fim de semana. O horário e
-o "insistir até marcar como paga" ficam na engrenagem da tela Cartões. A notificação traz o botão
-**Fatura paga ✅**, que funciona sem abrir o app (token assinado, igual ao "Realizado" dos
-lembretes), e a categoria "Cartões" pode ser desligada na Central de notificações.
+    parcelados, reserva prevista e gap. A dívida do cartão é a soma das faturas **em aberto** (de
+    todos os cartões e competências, inclusive a "Não informado"); a dos parcelados é só o que cai
+    **depois** da competência corrente, então cada real é contado uma vez.
+
+### O módulo Cartão
+
+Tudo o que é cartão vive em `/cartao`, em três abas — a **Fatura** olha um mês por vez, os
+**Parcelados** olham os meses à frente e **Cartões** cuida dos cartões em si.
+
+**Fatura × orçamento.** São contas diferentes, e misturá-las era a origem dos erros:
+
+- **Fatura** é o que o banco cobra na competência. É **sempre a parcela** — uma compra em 1× é o
+  caso de uma parcela só. A conta está em `lib/budget/bill.ts`: os gastos no cartão daquela
+  competência que não vieram de um parcelamento, mais as parcelas com linha naquele mês
+  (respeitando um ajuste feito na mão), mais as parcelas cobradas ali que ainda não têm linha
+  (mês que ninguém abriu, ou parcelamento "à vista"), menos o gasto único de um "à vista".
+- **Orçamento** é o que consome categoria, e quem manda nisso é a forma de contabilizar a compra.
+
+**Parcelar ao lançar o gasto.** Marcando "A compra foi no cartão?" e escolhendo o cartão, o
+formulário pergunta como você pagou: `À vista` ou `Parcelado`. Parcelado pede em quantas vezes
+(2 a 120, com a prévia "10× de R$ 87,24") e a primeira cobrança (já preenchida com o próximo
+vencimento do cartão), usa **a categoria que você escolheu no formulário** e oferece as duas
+formas de entrar no orçamento:
+
+- **À vista (recomendado)** — o gasto inteiro conta na categoria no mês da compra; nos meses
+  seguintes só a parcela aparece na fatura.
+- **Em parcelas** — a parcela de cada mês conta na categoria daquele mês e aparece nos
+  lançamentos dela, inclusive nos meses que ainda não foram abertos.
+
+`1 vez` não cria parcelamento: vira um gasto comum.
+
+**"Não informado".** O seletor de cartão sempre oferece **Não informar** — nada no Capital é de
+preenchimento obrigatório. Essas compras formam a fatura **"Não informado"**, que funciona
+**exatamente como a de um cartão**: fica como dívida até você tocar em **Fatura paga**, e
+"Marcar como não paga" desfaz. **Nenhuma fatura sai sozinha no Capital**, nem essa: se você não
+marcar, a de setembro e a de outubro aparecem somadas, cada uma na sua linha. A única diferença é
+que ela não tem vencimento nem aviso no celular, porque não há data para avisar. No banco ela é a
+constante `UNASSIGNED_CARD_ID` em `card_bill_payments.card_id`.
+
+**Limite (opcional).** Preenchido no cartão, a aba Fatura mostra "R$ 3.480 de R$ 5.000
+disponíveis" e uma barra, com `disponível = limite − faturas em aberto do cartão − parcelas
+futuras dele`. Em branco, **nada** aparece.
+
+**Mês fechado trava a compra inteira.** Uma compra parcelada com qualquer parcela em mês fechado
+não pode ser criada, editada nem excluída: o app recusa a operação inteira, diz quais meses estão
+no caminho e leva até eles, onde o "Reabrir mês" já existe. A recusa vale nos dois lados — o
+formulário não deixa salvar e `saveInstallment`/`deleteInstallment` respondem 409. Editar **uma
+parcela sozinha** num mês aberto continua liberado; tocar numa parcela pergunta antes se você
+quer editar a compra toda ou só aquele mês.
+
+**Vencimento.** Sempre calculado (`lib/budget/cards.ts`): o dia do cartão, no mês seguinte à
+competência (ou no mesmo, se a pessoa escolher), caindo para o último dia nos meses curtos e, **se
+cair em sábado ou domingo, passando para a segunda**, como no banco — o adiamento pode atravessar
+o mês sem mudar a competência da fatura. Feriados não entram: precisariam de um calendário que o
+app não tem. Excluir um cartão não apaga nada: as compras só perdem o vínculo e passam para a
+fatura "Não informado".
+
+**Avisos da fatura** (`lib/server/cardBills.ts`): um job por minuto, no mesmo motor dos lembretes,
+avisa no celular com a antecedência escolhida em cada cartão (só no dia, 1, 2, 3, 5 ou 7 dias
+antes), de novo no dia do vencimento e, enquanto a fatura não for marcada como paga, uma vez por
+dia por até uma semana depois — tudo pela data já adiada do fim de semana. O horário e o "insistir
+até marcar como paga" ficam na engrenagem da tela. A notificação traz o botão **Fatura paga ✅**,
+que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes), e a categoria
+"Cartões" pode ser desligada na Central de notificações. A fatura "Não informado" não avisa.
 
 **Assistente**
 

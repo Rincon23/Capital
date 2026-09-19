@@ -1,11 +1,8 @@
 'use client';
 
 import { computeProgressState, formatBRL, type Expense, type Income } from '@/lib/budget';
-import { isModuleOn } from '@/lib/modules';
 import { useMonthContext } from '@/components/month/MonthContext';
-import { useSettings } from '@/components/providers/SettingsProvider';
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import { ModuleHelpButton } from '../ModuleHelpButton';
 import { CardNote, HomeCard, HomeTile, Skeleton, Stat } from './HomeCard';
 
 /** "05/09" */
@@ -120,23 +117,6 @@ export function BudgetHomeCard() {
         </>
       )}
     </HomeCard>
-  );
-}
-
-/** Cartão de crédito: the month's bill (R$ 0,00 when empty), and how much of it is "a receber". */
-export function CardHomeTile() {
-  const { summary } = useMonthContext();
-  const { settings } = useSettings();
-  const reimbursable = summary && isModuleOn(settings, 'reimbursable') ? summary.reimbursableTotal : 0;
-
-  return (
-    <HomeTile
-      module="card"
-      title="Fatura do cartão"
-      value={summary ? formatBRL(summary.cardTotal) : null}
-      caption={reimbursable > 0 ? `${formatBRL(reimbursable)} a receber` : 'compras no cartão'}
-      action={<ModuleHelpButton module="card" />}
-    />
   );
 }
 

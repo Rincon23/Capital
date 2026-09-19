@@ -179,6 +179,8 @@ export const cards = pgTable(
     notifyBeforeDays: integer('notify_before_days').notNull().default(1),
     /** Pre-selected wherever a purchase picks a card; at most one per user. */
     isDefault: boolean('is_default').notNull().default(false),
+    /** Credit limit, to show how much of it is still free; null means "not being tracked". */
+    limit: numeric('limit', { mode: 'number' }),
     color: text('color'),
     position: integer('position').notNull(),
     createdAt: createdAt(),
@@ -194,12 +196,19 @@ export const cards = pgTable(
 
 /**
  * "Fatura paga": one row per bill the person marked as paid. Its existence is what takes the
- * bill out of the debt - a card's bill never leaves on its own, however late it gets.
+ * bill out of the debt — no bill in Capital ever leaves on its own, however late it gets.
+ *
+ * `card_id` is a registered card's id **or** `UNASSIGNED_CARD_ID` ('nao-informado'), the bill of
+ * the purchases nobody said the card of, which is paid exactly like any other. That is why there
+ * is no foreign key to `cards` here: deleting a card removes its paid bills in the repository
+ * instead (`deleteCard`), alongside untying its purchases.
  */
 export const cardBillPayments = pgTable(
   'card_bill_payments',
   {
-    userId: uuid('user_id').notNull(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
     cardId: text('card_id').notNull(),
     month: text('month').notNull(),
     /** What the bill was worth when it was marked as paid. */
@@ -208,10 +217,6 @@ export const cardBillPayments = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.userId, t.cardId, t.month] }),
-    foreignKey({
-      columns: [t.userId, t.cardId],
-      foreignColumns: [cards.userId, cards.id],
-    }).onDelete('cascade'),
     check('card_bill_payments_month_format', sql`${t.month} ~ '^[0-9]{4}-[0-9]{2}$'`),
   ],
 );
@@ -390,6 +395,8 @@ export const installments = pgTable(
     categoryKind: text('category_kind').$type<CategoryKind>().notNull(),
     topicId: text('topic_id'),
     firstDebitDate: date('first_debit_date', { mode: 'string' }).notNull(),
+    /** The day of the purchase itself: where an "à vista" plan lands in the budget. */
+    purchaseDate: date('purchase_date', { mode: 'string' }),
     count: integer('count').notNull(),
     totalAmount: numeric('total_amount', { mode: 'number' }).notNull(),
     accounting: text('accounting').$type<InstallmentAccounting>().notNull(),

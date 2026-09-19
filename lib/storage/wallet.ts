@@ -25,6 +25,8 @@ export interface WalletSnapshot {
   cards: CreditCard[];
   /** Every bill worth showing, already computed (see `cardBills`). */
   bills: CardBill[];
+  /** The competences this user already closed: nothing can be written into them. */
+  closedMonths: Month[];
   cardSettings: CardSettings;
   investments: InvestmentSummary;
   cash: {
@@ -35,19 +37,8 @@ export interface WalletSnapshot {
   today: string;
 }
 
-/** Launching an "À vista" plan as a single expense, at creation time. */
-export interface UpfrontLaunch {
-  month: Month;
-  date: string;
-}
-
-/** One bill: a card and the competence it covers. */
+/** One bill: a card and the competence it covers (`UNASSIGNED_CARD_ID` for "Não informado"). */
 export interface BillRef {
-  cardId: string;
-  month: Month;
-}
-
-export interface AssignCardInput {
   cardId: string;
   month: Month;
 }
@@ -67,20 +58,18 @@ export interface WalletRepository {
   saveRecurring(item: RecurringExpense): Promise<void>;
   deleteRecurring(id: string): Promise<void>;
 
-  /** Creates or updates a plan; on creation it also charges the months that already exist. */
-  saveInstallment(plan: InstallmentPlan, upfront?: UpfrontLaunch): Promise<void>;
-  /** Deletes the plan and the charges that had not happened yet. */
+  /** Creates or updates a plan, rebuilding every expense line it owns (see the server's version). */
+  saveInstallment(plan: InstallmentPlan): Promise<void>;
+  /** Deletes the plan and every expense line it created. */
   deleteInstallment(id: string): Promise<void>;
 
   saveCard(card: CreditCard): Promise<void>;
-  /** Deletes the card; its purchases stay, untied (they go back to the "sem cartão" rule). */
+  /** Deletes the card; its purchases stay, untied (they join the "Não informado" bill). */
   deleteCard(id: string): Promise<void>;
-  /** "Fatura paga": what takes this bill out of the debt. */
+  /** "Fatura paga": the only thing that takes a bill out of the debt. */
   payBill(input: BillRef): Promise<void>;
   /** Undoes it, when the button was tapped by mistake. */
   unpayBill(input: BillRef): Promise<void>;
-  /** Ties every card purchase of `month` that has no card to `cardId`. */
-  assignMonthToCard(input: AssignCardInput): Promise<void>;
   saveCardSettings(settings: CardSettings): Promise<void>;
 
   setTicker(ticker: string): Promise<void>;

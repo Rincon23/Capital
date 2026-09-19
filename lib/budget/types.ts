@@ -66,18 +66,17 @@ export interface ModuleFlags {
   expenses: boolean;
   /** Envelope budgeting: targets, "posso gastar", leftovers and closing the month. */
   budget: boolean;
-  /** Marking card purchases and the monthly card bill. */
+  /**
+   * The whole credit card: the "foi no cartão?" question, the registered cards, splitting a
+   * purchase into instalments and the bill of each month, with its due date and "Fatura paga".
+   */
   card: boolean;
-  /** The registered credit cards: due date, bill paid and the reminder to pay it. */
-  cards: boolean;
   /** The "A receber" category (see CategoryKind). */
   reimbursable: boolean;
   /** History charts and the month-by-month table. */
   history: boolean;
   /** Recurring-expense templates. */
   recurring: boolean;
-  /** Installment plans. */
-  installments: boolean;
   /** Invested reserve (ETF split into buckets). */
   investments: boolean;
   /** Cash report (card/installment debt vs. reserve). */
@@ -181,6 +180,12 @@ export interface InstallmentPlan {
   topicId?: string;
   /** ISO date (YYYY-MM-DD) of the first charge. */
   firstDebitDate: string;
+  /**
+   * ISO date (YYYY-MM-DD) of the purchase itself — the day it was bought, which is the month
+   * the whole amount lands in the category when the plan is "à vista". Absent in older data;
+   * fall back to `firstDebitDate`.
+   */
+  purchaseDate?: string;
   count: number;
   totalAmount: number;
   accounting: InstallmentAccounting;
@@ -222,12 +227,18 @@ export interface CreditCard {
   notifyBeforeDays: number;
   /** Pre-selected wherever a purchase picks a card; at most one card per person has it. */
   isDefault: boolean;
+  /** Credit limit, to show how much of it is still free. Absent means "not being tracked". */
+  limit?: number;
   /** Hex color (e.g. "#2a78d6") that identifies the card in the lists. */
   color?: string;
   order: number;
 }
 
-/** "Fatura paga": one bill of one card, in one competence. */
+/**
+ * "Fatura paga": one bill of one card, in one competence. `cardId` is a registered card's id or
+ * `UNASSIGNED_CARD_ID` — the "Não informado" bill leaves the debt the same way, by being marked
+ * as paid, and no bill in Capital ever leaves on its own.
+ */
 export interface CardBillPayment {
   cardId: string;
   month: Month;

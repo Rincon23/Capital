@@ -1,5 +1,11 @@
 import { lt, sql } from 'drizzle-orm';
-import { billNoticeDays, daysBetween, formatDayMonth, type CardBill } from '../budget/cards';
+import {
+  billNoticeDays,
+  daysBetween,
+  formatDayMonth,
+  isUnassignedCard,
+  type CardBill,
+} from '../budget/cards';
 import { formatBRL } from '../budget/money';
 import type { CardSettings, CreditCard } from '../budget/types';
 import { zonedInstant, zonedMoment } from '../reminders';
@@ -13,9 +19,10 @@ import type { PushSender } from './push';
 import { PostgresWalletRepository } from './walletRepository';
 
 /**
- * The bill notices of the Cartões module: the notice before the due date, the one on the day
+ * The bill notices of the Cartão module: the notice before the due date, the one on the day
  * itself and, while the person does not tap "Fatura paga", one a day for a week afterwards —
- * which matters here, because a registered card's bill never leaves the debt on its own.
+ * which matters here, because no bill ever leaves the debt on its own. The "Não informado"
+ * bill has no due date, so there is nothing to warn about: it never notifies.
  *
  * Same shape as the reminders job (`lib/server/scheduler.ts`): a slot is recorded in
  * `card_bill_deliveries` before it is sent, and only whoever records it sends it, so running
@@ -48,7 +55,7 @@ export function plannedNotices(
   const notices: Notice[] = [];
 
   for (const bill of bills) {
-    if (bill.paid || bill.cardId === null) continue;
+    if (bill.paid || bill.future || isUnassignedCard(bill.cardId)) continue;
     const card = byId.get(bill.cardId);
     if (!card || !card.notifyEnabled) continue;
 
@@ -103,7 +110,7 @@ async function notifyUser(
 
   let sent = 0;
   for (const notice of latest.values()) {
-    const cardId = notice.bill.cardId as string;
+    const cardId = notice.bill.cardId;
     const recorded = await db
       .insert(cardBillDeliveries)
       .values({ userId, cardId, month: notice.bill.month, slotAt: notice.at })
@@ -120,7 +127,7 @@ async function notifyUser(
         message: {
           title: `💳 Fatura do ${notice.card.name}`,
           body: noticeBody(notice, zonedMoment(now).date),
-          url: '/carteira/cartoes',
+          url: '/cartao',
           tag: `card-bill:${cardId}:${notice.bill.month}`,
           ...(token
             ? {
@@ -143,7 +150,7 @@ async function notifyUser(
   return sent;
 }
 
-/** Sends every bill notice due since the last run, for each user with the Cartões module on. */
+/** Sends every bill notice due since the last run, for each user with the Cartão module on. */
 export async function runCardBillsJob(
   db: Database,
   now: Date = new Date(),
@@ -155,7 +162,7 @@ export async function runCardBillsJob(
   const users = await db
     .select({ userId: budgetSettings.userId })
     .from(budgetSettings)
-    .where(sql`coalesce((${budgetSettings.modules}->>'cards')::boolean, false)`);
+    .where(sql`coalesce((${budgetSettings.modules}->>'card')::boolean, false)`);
 
   let notifications = 0;
   for (const { userId } of users) {

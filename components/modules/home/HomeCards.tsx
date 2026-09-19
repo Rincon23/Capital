@@ -7,14 +7,8 @@ import { WalletProvider } from '@/components/wallet/WalletProvider';
 import { GmailHomeCard } from './GmailHomeCard';
 import { HistoryHomeCard } from './HistoryHomeCard';
 import { HomeCardBoundary } from './HomeCard';
-import { BudgetHomeCard, CardHomeTile, ExpensesHomeCard, ReimbursableHomeTile } from './MonthCards';
-import {
-  CardsHomeTile,
-  CashHomeCard,
-  InstallmentsHomeTile,
-  InvestmentsHomeTile,
-  RecurringHomeTile,
-} from './WalletCards';
+import { BudgetHomeCard, ExpensesHomeCard, ReimbursableHomeTile } from './MonthCards';
+import { CardHomeCard, CashHomeCard, InvestmentsHomeTile, RecurringHomeTile } from './WalletCards';
 
 interface CardSpec {
   /** A tile takes half the width and sits next to the tiles around it. */
@@ -26,19 +20,18 @@ interface CardSpec {
 const CARDS: Partial<Record<ModuleKey, CardSpec>> = {
   expenses: { size: 'full', Component: ExpensesHomeCard },
   budget: { size: 'full', Component: BudgetHomeCard },
-  card: { size: 'half', Component: CardHomeTile },
+  card: { size: 'full', Component: CardHomeCard },
   reimbursable: { size: 'half', Component: ReimbursableHomeTile },
   history: { size: 'full', Component: HistoryHomeCard },
   recurring: { size: 'half', Component: RecurringHomeTile },
-  cards: { size: 'half', Component: CardsHomeTile },
-  installments: { size: 'half', Component: InstallmentsHomeTile },
   investments: { size: 'half', Component: InvestmentsHomeTile },
   cash: { size: 'full', Component: CashHomeCard },
   reminders: { size: 'full', Component: TodayRemindersCard },
   gmail: { size: 'full', Component: GmailHomeCard },
 };
 
-const WALLET: ModuleKey[] = ['recurring', 'cards', 'installments', 'investments', 'cash'];
+/** The cards that read the wallet: they share one snapshot of it. */
+const WALLET: ModuleKey[] = ['card', 'recurring', 'investments', 'cash'];
 
 /** The Início cards a person can stretch to full width in "Organizar Início" — the tiles only: a
  * full card (Lançamentos, Histórico, ...) has its own layout that only makes sense at full width. */

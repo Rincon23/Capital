@@ -1,3 +1,4 @@
+import { formatMonthLabel } from './date';
 import { round2 } from './money';
 import type { Expense, InstallmentPlan, Month } from './types';
 
@@ -84,6 +85,37 @@ export function installmentExpenseId(planId: string, number: number): string {
   return `${planId}:${number}`;
 }
 
+/** The competences the charges of `plan` fall in, oldest first and without repeats. */
+export function installmentMonths(plan: Pick<InstallmentPlan, 'firstDebitDate' | 'count'>): Month[] {
+  const months = new Set(installmentDueDates(plan).map((date) => date.slice(0, 7)));
+  return [...months].sort();
+}
+
+/**
+ * Every competence a purchase touches: where its charges fall and, for an "à vista" plan, the
+ * month the whole amount lands in the budget. A closed month among them stops the whole
+ * operation (see `closedMonthsMessage`).
+ */
+export function monthsTouchedBy(
+  plan: Pick<InstallmentPlan, 'firstDebitDate' | 'count' | 'accounting' | 'purchaseDate'>,
+): Month[] {
+  const months = new Set(installmentMonths(plan));
+  if (plan.accounting === 'upfront') months.add(upfrontDate(plan).slice(0, 7));
+  return [...months].sort();
+}
+
+/**
+ * Why a purchase with a charge in a closed month cannot be created, edited or deleted. A closed
+ * month is the month's own record: the way through is to reopen it, not to leave the purchase
+ * half done, so the app refuses the whole operation and says which months are in the way.
+ */
+export function closedMonthsMessage(closed: Month[]): string {
+  const names = closed.map(formatMonthLabel);
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} e ${names.at(-1)}`;
+  const what = closed.length === 1 ? 'um mês fechado' : 'meses fechados';
+  return `Esta compra tem parcelas em ${what} (${list}). Reabra o mês para poder editar.`;
+}
+
 /** The instalments of `plan` charged during competence `month` (1-based), if any. */
 export function installmentsDueIn(
   plans: InstallmentPlan[],
@@ -119,40 +151,45 @@ export function installmentExpense(plan: InstallmentPlan, number: number, dueDat
 }
 
 /**
- * What the card still owes for the instalment plans, as a negative number:
- * `−Σ(instalment × charges after today that are not expenses yet)`.
+ * What the instalment plans still owe, as a negative number: every charge of a competence
+ * **later** than the current one, whether or not it already became an expense line.
  *
- * Charges that already became an expense are left out, otherwise an instalment launched in the
- * open month whose due date is still ahead would be counted twice — once in the card bill of the
- * month, once here.
+ * The cut is the competence, not today's date, because everything up to the current competence
+ * is already part of a card bill (`cardBills`), and the Reserva de emergência adds the two up —
+ * so each real is counted once: open bills + what the instalments will still bring.
  */
-export function installmentDebt(
-  plans: InstallmentPlan[],
-  todayIso: string,
-  launchedExpenseIds: ReadonlySet<string> = new Set(),
-): number {
+export function installmentDebt(plans: InstallmentPlan[], currentMonth: Month): number {
   let total = 0;
   for (const plan of plans) {
     const amount = installmentAmount(plan);
-    installmentDueDates(plan).forEach((dueDate, index) => {
-      if (dueDate <= todayIso) return;
-      if (launchedExpenseIds.has(installmentExpenseId(plan.id, index + 1))) return;
-      total += amount;
-    });
+    for (const dueDate of installmentDueDates(plan)) {
+      if (dueDate.slice(0, 7) > currentMonth) total += amount;
+    }
   }
   return -round2(total);
 }
 
-/** The single expense an "À vista" plan offers to launch: the whole purchase, on the card. */
-export function upfrontExpense(plan: InstallmentPlan, id: string, date: string): Expense {
+/** The day an "à vista" plan's single expense falls on: the purchase, or the first charge. */
+export function upfrontDate(plan: Pick<InstallmentPlan, 'purchaseDate' | 'firstDebitDate'>): string {
+  return plan.purchaseDate ?? plan.firstDebitDate;
+}
+
+/**
+ * The single expense an "à vista" plan creates: the whole purchase, in the category, in the
+ * month it was bought. It carries `installmentNumber: 0`, which is what tells the bill math to
+ * leave it out — it is budget, not a charge the bank makes (see `bill.ts`).
+ */
+export function upfrontExpense(plan: InstallmentPlan, date = upfrontDate(plan)): Expense {
   const expense: Expense = {
-    id,
+    id: installmentExpenseId(plan.id, 0),
     categoryKind: plan.categoryKind,
     description: plan.name,
     amount: round2(plan.totalAmount),
     date,
     singleInstallmentCard: true,
     source: 'installment',
+    installmentId: plan.id,
+    installmentNumber: 0,
   };
   if (plan.cardId) expense.cardId = plan.cardId;
   if (plan.topicId) expense.topicId = plan.topicId;

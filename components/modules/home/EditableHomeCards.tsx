@@ -22,7 +22,7 @@ import { useSettings } from '@/components/providers/SettingsProvider';
 import { useToast } from '@/components/ui/Toast';
 import { Card, RESIZABLE_HOME_CARDS, effectiveSize } from './HomeCards';
 
-const WALLET: ModuleKey[] = ['recurring', 'installments', 'investments', 'cash'];
+const WALLET: ModuleKey[] = ['card', 'recurring', 'investments', 'cash'];
 
 /** How long a card has to be held before it comes loose, the way a phone picks up a widget. */
 const HOLD_MS = 240;

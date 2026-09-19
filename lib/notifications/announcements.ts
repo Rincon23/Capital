@@ -34,4 +34,12 @@ export const FEATURE_ANNOUNCEMENTS: FeatureAnnouncement[] = [
     href: '/carteira/cartoes',
     publishedAt: '2026-09-19T12:00:00Z',
   },
+  {
+    key: 'card-single-module',
+    title: '💳 Cartão agora é um módulo só',
+    body:
+      'Fatura, cartões e parcelados ficam juntos em Cartão. E ao lançar um gasto no cartão dá para parcelar na hora, escolhendo se o gasto conta todo no mês da compra ou parcela a parcela.',
+    href: '/cartao',
+    publishedAt: '2026-09-19T21:00:00Z',
+  },
 ];

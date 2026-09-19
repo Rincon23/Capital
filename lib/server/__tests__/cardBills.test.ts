@@ -7,7 +7,7 @@ import { migrate } from 'drizzle-orm/pglite/migrator';
 import { eq } from 'drizzle-orm';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { zonedInstant } from '@/lib/reminders';
-import type { CreditCard, Expense } from '@/lib/budget';
+import { currentMonthKey, UNASSIGNED_CARD_ID, type CreditCard, type Expense } from '@/lib/budget';
 import { PostgresBudgetRepository } from '../budgetRepository';
 import { runCardBillsJob } from '../cardBills';
 import * as schema from '../db/schema';
@@ -49,7 +49,7 @@ async function newAccount({ module = true, device = true } = {}) {
     userId: id,
     topics: [],
     specialCategories: { fixedCost: 'Custo Fixo', unforeseen: 'Imprevistos' },
-    modules: { expenses: true, card: true, cards: module },
+    modules: { expenses: true, card: module },
   });
   if (device) {
     await new PostgresPushRepository(db, id).registerDevice(
@@ -95,54 +95,52 @@ function recordingSender(userId: string) {
 }
 
 describe('faturas dos cartões', () => {
-  it('a fatura sem cartão sai sozinha no dia 1º, a do cartão só quando é paga', async () => {
+  it('nenhuma fatura sai sozinha: a do cartão e a "Não informado" esperam ser marcadas como pagas', async () => {
+    const month = currentMonthKey();
     const { wallet, budget } = await newAccount();
-    await purchase(budget, '2026-09', 300);
+    await purchase(budget, month, 300);
 
     const before = await wallet.getSnapshot();
     expect(before.cash.report.cardDebt).toBe(-300);
 
     await wallet.saveCard(card());
-    await purchase(budget, '2026-09', 200, 'nubank');
+    await purchase(budget, month, 200, 'nubank');
 
     const both = await wallet.getSnapshot();
     expect(both.cash.report.cardDebt).toBe(-500);
     expect(both.bills.map((bill) => [bill.cardName, bill.total])).toEqual(
       expect.arrayContaining([
         ['Nubank', 200],
-        ['Sem cartão', 300],
+        ['Não informado', 300],
       ]),
     );
 
-    await wallet.payBill({ cardId: 'nubank', month: '2026-09' });
+    await wallet.payBill({ cardId: 'nubank', month });
     const paid = await wallet.getSnapshot();
-    // Only the "sem cartão" bill is left, and that one leaves on its own on 01/10.
+    // A "Não informado" continua lá: ela também só sai quando for marcada como paga.
     expect(paid.cash.report.cardDebt).toBe(-300);
     expect(paid.bills.find((bill) => bill.cardId === 'nubank')?.paid).toBe(true);
 
-    await wallet.unpayBill({ cardId: 'nubank', month: '2026-09' });
-    expect((await wallet.getSnapshot()).cash.report.cardDebt).toBe(-500);
+    await wallet.payBill({ cardId: UNASSIGNED_CARD_ID, month });
+    expect((await wallet.getSnapshot()).cash.report.cardDebt).toBe(0);
+
+    await wallet.unpayBill({ cardId: UNASSIGNED_CARD_ID, month });
+    expect((await wallet.getSnapshot()).cash.report.cardDebt).toBe(-300);
   });
 
-  it('excluir o cartão mantém as compras, sem cartão', async () => {
+  it('excluir o cartão mantém as compras, na fatura "Não informado", e apaga as faturas pagas dele', async () => {
+    const month = currentMonthKey();
     const { wallet, budget } = await newAccount();
     await wallet.saveCard(card());
-    await purchase(budget, '2026-09', 150, 'nubank');
+    await purchase(budget, month, 150, 'nubank');
+    await wallet.payBill({ cardId: 'nubank', month });
 
     await wallet.deleteCard('nubank');
     const snapshot = await wallet.getSnapshot();
     expect(snapshot.cards).toEqual([]);
-    expect(snapshot.bills.map((bill) => [bill.cardName, bill.total])).toEqual([['Sem cartão', 150]]);
-  });
-
-  it('atribui as compras sem cartão de um mês a um cartão', async () => {
-    const { wallet, budget } = await newAccount();
-    await purchase(budget, '2026-09', 80);
-    await wallet.saveCard(card());
-
-    await wallet.assignMonthToCard({ cardId: 'nubank', month: '2026-09' });
-    const snapshot = await wallet.getSnapshot();
-    expect(snapshot.bills.map((bill) => [bill.cardName, bill.total])).toEqual([['Nubank', 80]]);
+    expect(snapshot.bills.map((bill) => [bill.cardName, bill.total])).toEqual([['Não informado', 150]]);
+    // A fatura volta a contar como dívida: o pagamento era do cartão que deixou de existir.
+    expect(snapshot.bills[0].paid).toBe(false);
   });
 
   it('o primeiro cartão é sempre o padrão, e só um é', async () => {

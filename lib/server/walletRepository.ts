@@ -1,13 +1,23 @@
-import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
-import { computeMonthSummary } from '../budget/calculations';
-import { cardBills, DEFAULT_CARD_SETTINGS, openCardDebt, type CardBill, type CardBillTotal } from '../budget/cards';
+import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { billTotals as combineBillTotals, chargeKey, pendingCharges } from '../budget/bill';
+import {
+  cardBills,
+  DEFAULT_CARD_SETTINGS,
+  openCardDebt,
+  UNASSIGNED_CARD_ID,
+  type CardBill,
+  type CardBillTotal,
+} from '../budget/cards';
 import { computeCashReport, createDefaultCashSettings } from '../budget/cash';
 import { currentMonthKey, todayISO } from '../budget/date';
 import { createId } from '../budget/id';
 import {
+  closedMonthsMessage,
   installmentDebt,
   installmentExpense,
   installmentsDueIn,
+  monthsTouchedBy,
+  upfrontDate,
   upfrontExpense,
 } from '../budget/installments';
 import { isPriceStale, quotasForAmount, summarizeInvestments } from '../budget/investments';
@@ -25,18 +35,9 @@ import type {
   PriceQuote,
   RecurringExpense,
 } from '../budget/types';
-import { isModuleOn } from '../modules';
-import type {
-  AllocateInput,
-  AssignCardInput,
-  BillRef,
-  UpfrontLaunch,
-  WalletRepository,
-  WalletSnapshot,
-} from '../storage/wallet';
+import type { AllocateInput, BillRef, WalletRepository, WalletSnapshot } from '../storage/wallet';
 import type { PostgresBudgetRepository } from './budgetRepository';
 import {
-  budgetSettings,
   cardBillPayments,
   cards,
   cardSettings,
@@ -49,7 +50,7 @@ import {
   priceCache,
   recurringExpenses,
 } from './db/schema';
-import type { Database } from './db/types';
+import type { Database, Transaction } from './db/types';
 import { HttpError } from './httpError';
 import { fetchQuote } from './quotes';
 
@@ -79,7 +80,8 @@ export class PostgresWalletRepository implements WalletRepository {
 
   async getSnapshot(): Promise<WalletSnapshot> {
     const today = todayISO();
-    const [recurring, plans, reserve, buckets, settings, cardList, payments, noticeSettings] =
+    const month = currentMonthKey();
+    const [recurring, plans, reserve, buckets, settings, cardList, payments, noticeSettings, closed] =
       await Promise.all([
         this.listRecurring(),
         this.listInstallments(),
@@ -89,18 +91,19 @@ export class PostgresWalletRepository implements WalletRepository {
         this.listCards(),
         this.listBillPayments(),
         this.readCardSettings(),
+        this.closedMonths(),
       ]);
 
     const quote = await this.currentQuote(reserve, buckets);
     const investments = summarizeInvestments(reserve, buckets, quote);
-    const card = await this.openMonthCard();
-    const bills = cardBills(cardList, await this.billTotals(), payments, today);
+    const bills = cardBills(cardList, await this.billTotals(plans), payments, today);
 
     return {
       recurring,
       installments: plans,
       cards: cardList,
       bills,
+      closedMonths: closed,
       cardSettings: noticeSettings,
       investments,
       cash: {
@@ -108,51 +111,39 @@ export class PostgresWalletRepository implements WalletRepository {
         report: computeCashReport({
           settings,
           investedReserve: investments.freeValue,
-          // With the Cartões module on, a bill only leaves the debt when it is marked as paid
-          // (or, with no card, on the 1st of the next month). Without it, the debt is still
-          // simply the card bill of the open month.
-          cardDebt: (await this.cardsModuleOn()) ? openCardDebt(bills) : -card.cardTotal,
-          installmentDebt: installmentDebt(plans, today, await this.launchedInstallmentIds()),
-          cardMonth: card.month,
+          // A bill only leaves the debt when it is marked as paid — the "Não informado" one
+          // included. What comes after the current competence is not a bill yet: it is what the
+          // instalments will still bring, counted right below, so no real is counted twice.
+          cardDebt: openCardDebt(bills),
+          installmentDebt: installmentDebt(plans, month),
+          cardMonth: month,
         }),
       },
       today,
     };
   }
 
-  /** Whether this user turned the Cartões module on (it changes how the debt is counted). */
-  private async cardsModuleOn(): Promise<boolean> {
-    const [row] = await this.db
-      .select({ modules: budgetSettings.modules })
-      .from(budgetSettings)
-      .where(eq(budgetSettings.userId, this.userId));
-    return isModuleOn(row?.modules, 'cards');
-  }
-
-  /**
-   * The card bill of the open month: the most recent month that is not closed, or the current
-   * month when every month is closed (or none exists yet).
-   */
-  private async openMonthCard(): Promise<{ month: Month; cardTotal: number }> {
-    const [open] = await this.db
+  /** The competences this user already closed: nothing may be written into them. */
+  private async closedMonths(): Promise<Month[]> {
+    const rows = await this.db
       .select({ month: months.month })
       .from(months)
-      .where(and(eq(months.userId, this.userId), eq(months.closed, false)))
-      .orderBy(desc(months.month))
-      .limit(1);
-
-    const month = open?.month ?? currentMonthKey();
-    const data = await this.budget.peekMonth(month);
-    return { month, cardTotal: computeMonthSummary(data).cardTotal };
+      .where(and(eq(months.userId, this.userId), eq(months.closed, true)))
+      .orderBy(asc(months.month));
+    return rows.map((row) => row.month);
   }
 
-  /** Ids of the instalment charges that already are an expense, so they are not owed twice. */
-  private async launchedInstallmentIds(): Promise<Set<string>> {
+  /** The charges of the plans that already have an expense line, by `chargeKey`. */
+  private async launchedCharges(): Promise<Set<string>> {
     const rows = await this.db
-      .select({ id: expenses.id })
+      .select({ id: expenses.installmentId, number: expenses.installmentNumber })
       .from(expenses)
       .where(and(eq(expenses.userId, this.userId), isNotNull(expenses.installmentId)));
-    return new Set(rows.map((row) => row.id));
+    return new Set(
+      rows
+        .filter((row) => row.id !== null && row.number !== null)
+        .map((row) => chargeKey(row.id as string, row.number as number)),
+    );
   }
 
   private async listRecurring(): Promise<RecurringExpense[]> {
@@ -184,6 +175,7 @@ export class PostgresWalletRepository implements WalletRepository {
       categoryKind: row.categoryKind,
       ...(row.topicId ? { topicId: row.topicId } : {}),
       firstDebitDate: row.firstDebitDate,
+      ...(row.purchaseDate ? { purchaseDate: row.purchaseDate } : {}),
       count: row.count,
       totalAmount: row.totalAmount,
       accounting: row.accounting,
@@ -205,6 +197,7 @@ export class PostgresWalletRepository implements WalletRepository {
       notifyEnabled: row.notifyEnabled,
       notifyBeforeDays: row.notifyBeforeDays,
       isDefault: row.isDefault,
+      ...(row.limit === null ? {} : { limit: row.limit }),
       ...(row.color ? { color: row.color } : {}),
       order: row.position,
     }));
@@ -224,21 +217,38 @@ export class PostgresWalletRepository implements WalletRepository {
   }
 
   /**
-   * What each card owes in each competence: every purchase marked as a card purchase, grouped.
-   * The bill of a competence is exactly that sum — "A receber" included, since it is on the
-   * bill too even though it is not money the person spent.
+   * What every bill is worth, competence by competence (see `lib/budget/bill.ts`): the card
+   * expenses that are not the single expense of an "à vista" plan, plus the charges that have
+   * no expense line yet. An instalment line with no card of its own takes the plan's, which is
+   * what keeps old instalments out of the "Não informado" bill.
    */
-  private async billTotals(): Promise<CardBillTotal[]> {
+  private async billTotals(plans: InstallmentPlan[]): Promise<CardBillTotal[]> {
     const rows = await this.db
       .select({
         month: expenses.month,
-        cardId: expenses.cardId,
+        cardId: sql<string | null>`coalesce(${expenses.cardId}, ${installments.cardId})`,
         total: sql<string>`sum(${expenses.amount})`,
       })
       .from(expenses)
-      .where(and(eq(expenses.userId, this.userId), eq(expenses.card, true)))
-      .groupBy(expenses.month, expenses.cardId);
-    return rows.map((row) => ({ month: row.month, cardId: row.cardId, total: Number(row.total) }));
+      .leftJoin(
+        installments,
+        and(eq(installments.userId, expenses.userId), eq(installments.id, expenses.installmentId)),
+      )
+      .where(
+        and(
+          eq(expenses.userId, this.userId),
+          eq(expenses.card, true),
+          sql`(${expenses.installmentId} is null or ${expenses.installmentNumber} >= 1)`,
+        ),
+      )
+      .groupBy(expenses.month, sql`coalesce(${expenses.cardId}, ${installments.cardId})`);
+
+    const lineTotals: CardBillTotal[] = rows.map((row) => ({
+      month: row.month,
+      cardId: row.cardId ?? UNASSIGNED_CARD_ID,
+      total: Number(row.total),
+    }));
+    return combineBillTotals(lineTotals, pendingCharges(plans, await this.launchedCharges()));
   }
 
   async readCardSettings(): Promise<CardNoticeSettings> {
@@ -330,6 +340,7 @@ export class PostgresWalletRepository implements WalletRepository {
       dueMonth: card.dueMonth,
       notifyEnabled: card.notifyEnabled,
       notifyBeforeDays: card.notifyBeforeDays,
+      limit: card.limit ?? null,
       color: card.color ?? null,
     };
     const existing = await this.listCards();
@@ -354,12 +365,17 @@ export class PostgresWalletRepository implements WalletRepository {
 
   /**
    * Deletes the card. Nothing it paid for is deleted with it: the purchases, the templates and
-   * the plans only lose the link and go back to the "sem cartão" rule (out of the debt on the
-   * 1st of the next month).
+   * the plans only lose the link, so they join the "Não informado" bill — which, like every
+   * bill, only leaves the debt when it is marked as paid. Its own paid bills go with it: with no
+   * foreign key to cascade any more (`card_bill_payments` also holds the "Não informado" bill),
+   * this is where they are cleaned up.
    */
   async deleteCard(id: string): Promise<void> {
     await this.db.transaction(async (tx) => {
       const untie = { cardId: null };
+      await tx
+        .delete(cardBillPayments)
+        .where(and(eq(cardBillPayments.userId, this.userId), eq(cardBillPayments.cardId, id)));
       await tx
         .update(expenses)
         .set(untie)
@@ -410,22 +426,6 @@ export class PostgresWalletRepository implements WalletRepository {
       );
   }
 
-  /** Ties the card purchases of `month` that are on no card to `cardId`. */
-  async assignMonthToCard({ cardId, month }: AssignCardInput): Promise<void> {
-    await this.requireCard(cardId);
-    await this.db
-      .update(expenses)
-      .set({ cardId })
-      .where(
-        and(
-          eq(expenses.userId, this.userId),
-          eq(expenses.month, month),
-          eq(expenses.card, true),
-          sql`${expenses.cardId} is null`,
-        ),
-      );
-  }
-
   async saveCardSettings(settings: CardNoticeSettings): Promise<void> {
     const values = { notifyTime: settings.notifyTime, repeatUntilPaid: settings.repeatUntilPaid };
     await this.db
@@ -434,20 +434,24 @@ export class PostgresWalletRepository implements WalletRepository {
       .onConflictDoUpdate({ target: cardSettings.userId, set: values });
   }
 
-  private async requireCard(id: string): Promise<CreditCard> {
-    const card = (await this.listCards()).find((item) => item.id === id);
-    if (!card) throw new HttpError(404, 'CARD_NOT_FOUND', 'Esse cartão não existe mais.');
-    return card;
-  }
-
-  /** The bill as it stands right now, so "Fatura paga" records what was actually paid. */
+  /**
+   * The bill as it stands right now, so "Fatura paga" records what was actually paid. The
+   * "Não informado" bill is paid exactly like a card's, so it is looked up the same way.
+   */
   private async requireBill(cardId: string, month: Month): Promise<CardBill> {
-    const card = await this.requireCard(cardId);
-    const bill = cardBills([card], await this.billTotals(), [], todayISO()).find(
+    if (cardId !== UNASSIGNED_CARD_ID) await this.requireCard(cardId);
+    const plans = await this.listInstallments();
+    const bill = cardBills(await this.listCards(), await this.billTotals(plans), [], todayISO()).find(
       (item) => item.cardId === cardId && item.month === month,
     );
     if (!bill) throw new HttpError(404, 'BILL_NOT_FOUND', 'Essa fatura não tem nada para pagar.');
     return bill;
+  }
+
+  private async requireCard(id: string): Promise<CreditCard> {
+    const card = (await this.listCards()).find((item) => item.id === id);
+    if (!card) throw new HttpError(404, 'CARD_NOT_FOUND', 'Esse cartão não existe mais.');
+    return card;
   }
 
   // -------------------------------------------------------------------------
@@ -483,67 +487,117 @@ export class PostgresWalletRepository implements WalletRepository {
   // Instalment plans
   // -------------------------------------------------------------------------
 
-  async saveInstallment(plan: InstallmentPlan, upfront?: UpfrontLaunch): Promise<void> {
+  /**
+   * Creates or edits a plan, and rebuilds every expense line it owns so the purchase is always
+   * shown the way it is saved: "em parcelas" writes one expense per charge, into each month
+   * that already exists, and "à vista" writes the single expense of the whole purchase, in the
+   * month it was bought. Changing the mode (or the category, or the card) therefore moves the
+   * money, which is exactly what the person asked for — including undoing an adjustment made to
+   * one instalment by hand, which the form warns about.
+   *
+   * A purchase with any charge in a closed month is refused whole, here as well as in the form:
+   * a closed month is the month's own record, and reopening it is the only way through.
+   */
+  async saveInstallment(plan: InstallmentPlan): Promise<void> {
     const values = {
       name: plan.name,
       categoryKind: plan.categoryKind,
       topicId: plan.topicId ?? null,
       firstDebitDate: plan.firstDebitDate,
+      purchaseDate: plan.purchaseDate ?? null,
       count: plan.count,
       totalAmount: plan.totalAmount,
       accounting: plan.accounting,
       cardId: plan.cardId ?? null,
     };
 
-    await this.budget.writeWith(async ({ tx, addExpense, openMonths }) => {
+    await this.budget.writeWith(async ({ tx, addExpense, touch, openMonths }) => {
+      await this.requireOpenMonthsForPlan(tx, plan);
+
       await tx
         .insert(installments)
         .values({ userId: this.userId, id: plan.id, ...values })
         .onConflictDoUpdate({ target: [installments.userId, installments.id], set: values });
 
+      // Start from a clean slate: what this plan wrote before may belong to another month, to
+      // another category or to the other accounting mode altogether.
+      const removed = await tx
+        .delete(expenses)
+        .where(and(eq(expenses.userId, this.userId), eq(expenses.installmentId, plan.id)))
+        .returning({ month: expenses.month });
+      for (const row of removed) touch(row.month);
+
       if (plan.accounting === 'installment') {
-        // Charge the months that already exist and are still open; the unique key makes this
-        // safe to run again, and months created later get their charge when they are created.
+        // Charge the months that already exist and are still open; months created later get
+        // their charge when they are created (see `installmentExpensesFor`).
         for (const month of await openMonths()) {
           for (const { number, dueDate } of installmentsDueIn([plan], month)) {
             await addExpense(month, installmentExpense(plan, number, dueDate));
           }
         }
-      } else if (upfront) {
-        await addExpense(upfront.month, upfrontExpense(plan, createId(), upfront.date));
+      } else {
+        const date = upfrontDate(plan);
+        await addExpense(date.slice(0, 7), upfrontExpense(plan, date));
       }
     });
   }
 
-  /**
-   * Deletes the plan. The charges that already became an expense in a **past** date stay (they
-   * really were charged); the ones still ahead are removed from the open months.
-   */
+  /** Deletes the plan and every expense line it created, in every month. */
   async deleteInstallment(id: string): Promise<void> {
-    const today = todayISO();
-    await this.budget.writeWith(async ({ tx, touch, openMonths }) => {
-      const deleted = await tx
-        .delete(installments)
-        .where(and(eq(installments.userId, this.userId), eq(installments.id, id)))
-        .returning({ id: installments.id });
-      if (deleted.length === 0) return;
+    await this.budget.writeWith(async ({ tx, touch }) => {
+      const [plan] = await tx
+        .select()
+        .from(installments)
+        .where(and(eq(installments.userId, this.userId), eq(installments.id, id)));
+      if (!plan) return;
 
-      const open = await openMonths();
-      if (open.length === 0) return;
+      await this.requireOpenMonthsForPlan(tx, {
+        firstDebitDate: plan.firstDebitDate,
+        purchaseDate: plan.purchaseDate ?? undefined,
+        count: plan.count,
+        accounting: plan.accounting,
+        id,
+      });
 
+      await tx.delete(installments).where(and(eq(installments.userId, this.userId), eq(installments.id, id)));
       const removed = await tx
         .delete(expenses)
-        .where(
-          and(
-            eq(expenses.userId, this.userId),
-            eq(expenses.installmentId, id),
-            sql`${expenses.date} > ${today}`,
-            inArray(expenses.month, open),
-          ),
-        )
+        .where(and(eq(expenses.userId, this.userId), eq(expenses.installmentId, id)))
         .returning({ month: expenses.month });
       for (const row of removed) touch(row.month);
     });
+  }
+
+  /**
+   * Refuses the whole operation when any month the purchase touches is closed — the competences
+   * of its charges, where it lands in the budget, and wherever its current lines already are.
+   * The message names the months, so the screen can offer to reopen one of them.
+   */
+  private async requireOpenMonthsForPlan(
+    tx: Transaction,
+    plan: Pick<InstallmentPlan, 'id' | 'firstDebitDate' | 'count' | 'accounting' | 'purchaseDate'>,
+  ): Promise<void> {
+    const touched = new Set(monthsTouchedBy(plan));
+    const existing = await tx
+      .selectDistinct({ month: expenses.month })
+      .from(expenses)
+      .where(and(eq(expenses.userId, this.userId), eq(expenses.installmentId, plan.id)));
+    for (const row of existing) touched.add(row.month);
+
+    const closed = await tx
+      .select({ month: months.month })
+      .from(months)
+      .where(
+        and(
+          eq(months.userId, this.userId),
+          eq(months.closed, true),
+          inArray(months.month, [...touched]),
+        ),
+      )
+      .orderBy(asc(months.month));
+    if (closed.length === 0) return;
+    const list = closed.map((row) => row.month);
+    throw new HttpError(409, 'INSTALLMENT_MONTH_CLOSED', closedMonthsMessage(list), { months: list });
   }
 
   // -------------------------------------------------------------------------

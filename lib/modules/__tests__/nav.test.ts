@@ -22,7 +22,6 @@ const everything = on(
   'reimbursable',
   'history',
   'recurring',
-  'installments',
   'investments',
   'cash',
   'reminders',
@@ -40,13 +39,14 @@ describe('rodapé', () => {
     expect(resolveNav({ modules: on('expenses', 'card', 'reminders') })).toEqual([
       'inicio',
       'expenses',
+      'card',
       'reminders',
     ]);
-    expect(resolveNav({ modules: everything })).toEqual(['inicio', 'expenses', 'budget', 'history']);
+    expect(resolveNav({ modules: everything })).toEqual(['inicio', 'expenses', 'budget', 'card']);
   });
 
   it('respeita a escolha, tirando módulos desligados e repetidos e cortando em quatro', () => {
-    const nav: NavKey[] = ['reminders', 'gmail', 'reminders', 'installments', 'cash', 'inicio', 'expenses'];
+    const nav: NavKey[] = ['reminders', 'gmail', 'reminders', 'card', 'cash', 'inicio', 'expenses'];
     expect(resolveNav({ modules: on('reminders', 'gmail', 'cash', 'expenses'), nav })).toEqual([
       'reminders',
       'gmail',
@@ -61,7 +61,7 @@ describe('rodapé', () => {
   });
 
   it('não põe no rodapé módulo sem tela', () => {
-    const nav = resolveNav({ modules: on('expenses', 'card', 'reimbursable', 'voice') });
+    const nav = resolveNav({ modules: on('expenses', 'reimbursable', 'voice') });
     expect(nav).toEqual(['inicio', 'expenses']);
   });
 
@@ -77,18 +77,18 @@ describe('Mais', () => {
   it('lista todo módulo ligado com tela, agrupado, mesmo os que estão no rodapé', () => {
     const settings = { modules: everything, nav: ['expenses', 'reminders'] as NavKey[] };
     expect(moreItems(settings)).toEqual([
-      { group: 'month', label: 'Dinheiro do mês', keys: ['expenses', 'budget', 'history'] },
+      { group: 'month', label: 'Dinheiro do mês', keys: ['expenses', 'budget', 'card', 'history'] },
       {
         group: 'wallet',
         label: 'Carteira',
-        keys: ['recurring', 'installments', 'investments', 'cash'],
+        keys: ['recurring', 'investments', 'cash'],
       },
       { group: 'assistant', label: 'Assistente', keys: ['reminders', 'gmail'] },
     ]);
   });
 
   it('não lista módulo desligado nem módulo sem tela', () => {
-    expect(moreItems({ modules: on('expenses', 'card', 'voice') })).toEqual([
+    expect(moreItems({ modules: on('expenses', 'reimbursable', 'voice') })).toEqual([
       { group: 'month', label: 'Dinheiro do mês', keys: ['expenses'] },
     ]);
     expect(moreItems({ modules: {} })).toEqual([]);
@@ -106,7 +106,7 @@ describe('aba acesa', () => {
   });
 
   it('acende o Mais para telas abertas por ele', () => {
-    expect(activeNavKey(nav, '/carteira/parcelados')).toBe('mais');
+    expect(activeNavKey(nav, '/cartao')).toBe('mais');
     expect(activeNavKey(nav, '/configuracoes')).toBe('mais');
     expect(activeNavKey(nav, '/modulos')).toBe('mais');
     expect(activeNavKey(['expenses'], '/mes/2026-09')).toBe('mais');
@@ -126,12 +126,11 @@ describe('cards do Início', () => {
     expect(homeCards(settings)).toEqual([
       'reminders',
       'expenses',
+      'budget',
       'card',
       'reimbursable',
-      'budget',
       'history',
       'recurring',
-      'installments',
       'investments',
       'cash',
       'gmail',

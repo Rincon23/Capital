@@ -1,7 +1,6 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { CartoesScreen } from '@/components/screens/CartoesScreen';
-
+/** "Cartões" is part of the single Cartão module now; old links (and the bell's) still work. */
 export default function Page() {
-  return <CartoesScreen />;
+  redirect('/cartao');
 }

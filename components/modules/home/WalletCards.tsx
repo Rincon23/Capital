@@ -1,6 +1,12 @@
 'use client';
 
-import { dueLabel, formatBRL, isInstallmentFinished, openBills } from '@/lib/budget';
+import {
+  currentMonthKey,
+  formatBRL,
+  formatDayMonth,
+  formatMonthShort,
+  openBills,
+} from '@/lib/budget';
 import { useWallet } from '@/components/wallet/WalletProvider';
 import { CardNote, HomeCard, HomeTile, Skeleton, Stat } from './HomeCard';
 
@@ -31,57 +37,60 @@ export function RecurringHomeTile() {
   );
 }
 
-/** Cartões: what the open bills add up to, and when the next one is due. */
-export function CardsHomeTile() {
+/**
+ * Cartão: the bill of the current competence, when it is due, and how much of the months ahead
+ * is already committed to instalments.
+ */
+export function CardHomeCard() {
   const { snapshot, error } = useWallet();
+  const month = currentMonthKey();
+  const bills = snapshot ? snapshot.bills.filter((bill) => bill.month === month) : [];
+  const total = bills.reduce((sum, bill) => sum + bill.total, 0);
   const open = snapshot ? openBills(snapshot.bills) : [];
-  const next = open.find((bill) => bill.dueDate !== null);
   const late = open.filter((bill) => bill.daysUntilDue !== null && bill.daysUntilDue < 0).length;
+  const next = open.find((bill) => bill.dueDate !== null);
+  const ahead = snapshot ? Math.abs(snapshot.cash.report.installmentDebt) : 0;
+
+  if (error && !snapshot) {
+    return (
+      <HomeCard module="card" href="/cartao">
+        <CardNote tone="danger">{error}</CardNote>
+      </HomeCard>
+    );
+  }
 
   return (
-    <HomeTile
-      module="cards"
-      href="/carteira/cartoes"
-      value={
-        snapshot ? formatBRL(open.reduce((total, bill) => total + bill.total, 0)) : error ? '—' : null
-      }
-      valueTone={late > 0 ? 'danger' : undefined}
-      caption={
-        snapshot
-          ? late > 0
-            ? plural(late, 'fatura atrasada', 'faturas atrasadas')
-            : next
-              ? `${next.cardName} ${dueLabel(next)}`
-              : open.length > 0
-                ? 'sai na virada do mês'
-                : 'tudo pago'
-          : error
-            ? 'não foi possível carregar'
-            : 'carregando…'
-      }
-    />
-  );
-}
-
-/** Parcelados: what is still to be paid, and how many purchases are running. */
-export function InstallmentsHomeTile() {
-  const { snapshot, error } = useWallet();
-  const active = snapshot
-    ? snapshot.installments.filter((plan) => !isInstallmentFinished(plan, snapshot.today)).length
-    : 0;
-  return (
-    <HomeTile
-      module="installments"
-      href="/carteira/parcelados"
-      value={snapshot ? formatBRL(Math.abs(snapshot.cash.report.installmentDebt)) : error ? '—' : null}
-      caption={
-        snapshot
-          ? `a pagar · ${plural(active, 'compra', 'compras')}`
-          : error
-            ? 'não foi possível carregar'
-            : 'carregando…'
-      }
-    />
+    <HomeCard module="card" href="/cartao">
+      <div className="grid grid-cols-2 gap-2">
+        <Stat
+          label={`Fatura de ${formatMonthShort(month)}`}
+          value={snapshot ? formatBRL(total) : null}
+          tone={late > 0 ? 'danger' : undefined}
+        />
+        <Stat
+          label={late > 0 ? 'Atrasadas' : next ? 'Próximo vencimento' : 'Faturas em aberto'}
+          value={
+            snapshot
+              ? late > 0
+                ? plural(late, 'fatura', 'faturas')
+                : next
+                  ? formatDayMonth(next.dueDate as string)
+                  : open.length > 0
+                    ? formatBRL(open.reduce((sum, bill) => sum + bill.total, 0))
+                    : 'tudo pago'
+              : null
+          }
+          tone={late > 0 ? 'danger' : undefined}
+        />
+      </div>
+      {snapshot && (
+        <CardNote>
+          {ahead > 0
+            ? `${formatBRL(ahead)} já comprometidos nos próximos meses`
+            : 'Nenhuma parcela comprometida nos próximos meses'}
+        </CardNote>
+      )}
+    </HomeCard>
   );
 }
 
