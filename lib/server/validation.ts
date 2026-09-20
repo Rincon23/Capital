@@ -95,6 +95,8 @@ export const expenseSchema = z.object({
   installmentId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
   // 0 is the single expense of an "à vista" plan (see lib/budget/bill.ts).
   installmentNumber: z.preprocess(absentAsUndefined, z.number().int().min(0).optional()),
+  /** When an "A receber" purchase was paid back (ISO instant). */
+  reimbursedAt: z.preprocess(absentAsUndefined, z.iso.datetime().optional()),
 });
 
 export const monthDataSchema = z.object({
@@ -192,6 +194,22 @@ export const advanceInstallmentSchema = z.object({
   discount: money.min(0),
   date: isoDate,
   month: monthKeySchema,
+});
+
+export const reservePlanSchema = z.object({
+  targetAmount: money.positive(),
+  months: z.number().int().min(1).max(120),
+  startMonth: monthKeySchema,
+  reason: z.preprocess(absentAsUndefined, z.string().trim().max(200).optional()),
+});
+
+/** Body of "lançar a parcela do plano": quanto e em que categoria. */
+export const reserveContributionSchema = z.object({
+  amount: money.positive(),
+  month: monthKeySchema,
+  date: isoDate,
+  categoryKind: categoryKindSchema,
+  topicId: z.preprocess(absentAsUndefined, z.string().optional()),
 });
 
 export const cashSettingsSchema = z.object({

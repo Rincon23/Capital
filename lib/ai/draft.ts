@@ -48,8 +48,7 @@ export function buildDraftResult(
     description,
     amount,
     date: reading.date,
-    // "A receber" is always a card purchase (see the expense form).
-    card: category?.categoryKind === 'reimbursable' ? true : reading.card,
+    card: reading.card,
   };
 
   if (!category) warnings.push(DRAFT_WARNINGS.noCategory);

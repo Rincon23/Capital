@@ -359,6 +359,94 @@ describe('PostgresWalletRepository', () => {
     ).rejects.toThrow(/parcelas/i);
   });
 
+  it('plano da reserva: a parcela vira gasto do mês e anda com o plano', async () => {
+    const { budget, wallet } = await newAccount();
+    const month = currentMonthKey();
+    await wallet.saveCashSettings({
+      reserveAccountAmount: 1000,
+      emergencyCosts: [{ label: 'Aluguel', amount: 1500 }],
+      reserveMultiplier: 6,
+    });
+    await wallet.saveReservePlan({
+      targetAmount: 5000,
+      months: 10,
+      startMonth: month,
+      reason: 'Cirurgia',
+    });
+
+    await wallet.contributeToReserve({
+      amount: 500,
+      month,
+      date: todayISO(),
+      categoryKind: 'unforeseen',
+    });
+
+    const snapshot = await wallet.getSnapshot();
+    expect(snapshot.cash.plan).toMatchObject({
+      contributed: 500,
+      remaining: 4500,
+      monthly: 500,
+      contributedThisMonth: 500,
+      monthsLeft: 9,
+      done: false,
+    });
+    // O plano acompanha o compromisso, não o cofre: onde o dinheiro fica continua sendo a pessoa
+    // quem diz, na reserva em conta e nas cotas.
+    expect(snapshot.cash.settings.reserveAccountAmount).toBe(1000);
+    expect(snapshot.investments.totalQuotas).toBe(0);
+
+    const data = await budget.getMonth(month);
+    expect(data?.expenses[0]).toMatchObject({
+      description: 'Recompor a reserva',
+      amount: 500,
+      categoryKind: 'unforeseen',
+      source: 'reserve',
+      singleInstallmentCard: false,
+    });
+    // Imprevisto é rateado entre as categorias, então o plano aperta o mês de verdade.
+    expect(computeMonthSummary(data!).unforeseenTotal).toBe(500);
+  });
+
+  it('plano da reserva: duas parcelas no mesmo mês somam, e o plano fecha no fim', async () => {
+    const { wallet } = await newAccount();
+    const month = currentMonthKey();
+    await wallet.saveReservePlan({ targetAmount: 300, months: 3, startMonth: month });
+
+    for (const amount of [100, 200]) {
+      await wallet.contributeToReserve({ amount, month, date: todayISO(), categoryKind: 'unforeseen' });
+    }
+
+    const plan = (await wallet.getSnapshot()).cash.plan;
+    expect(plan).toMatchObject({ contributed: 300, contributedThisMonth: 300, remaining: 0, done: true });
+  });
+
+  it('plano da reserva: recusa lançar sem plano, e desistir não apaga os gastos', async () => {
+    const { budget, wallet } = await newAccount();
+    const month = currentMonthKey();
+
+    await expect(
+      wallet.contributeToReserve({
+        amount: 100,
+        month,
+        date: todayISO(),
+        categoryKind: 'unforeseen',
+      }),
+    ).rejects.toThrow(/plano/i);
+
+    await wallet.saveReservePlan({ targetAmount: 300, months: 3, startMonth: month });
+    await wallet.contributeToReserve({
+      amount: 100,
+      month,
+      date: todayISO(),
+      categoryKind: 'unforeseen',
+    });
+    await wallet.deleteReservePlan();
+
+    expect((await wallet.getSnapshot()).cash.plan).toBeNull();
+    // O gasto do mês fica onde está: ele aconteceu, o plano é que acabou.
+    expect((await budget.getMonth(month))?.expenses).toHaveLength(1);
+  });
+
   it('refreshes an old price by itself, for free, when the user holds quotas', async () => {
     const { wallet } = await newAccount();
     await wallet.setTicker('BOVA11');

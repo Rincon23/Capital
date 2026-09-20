@@ -333,6 +333,8 @@ export const expenses = pgTable(
     /** Set when this expense is one instalment of a plan. */
     installmentId: text('installment_id'),
     installmentNumber: integer('installment_number'),
+    /** When an "A receber" purchase was paid back; null means it still has not been. */
+    reimbursedAt: timestamp('reimbursed_at', { withTimezone: true }),
     position: integer('position').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -430,6 +432,40 @@ export const installments = pgTable(
       sql`${t.advancedCount} >= 0 and ${t.paidCount} + ${t.advancedCount} <= ${t.count}`,
     ),
   ],
+);
+
+/**
+ * O plano de recompor a reserva de emergência: um por conta. Guarda só o que a pessoa decidiu
+ * (quanto e em quantos meses); o progresso vem sempre da soma das parcelas lançadas.
+ */
+export const reservePlans = pgTable('reserve_plans', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  targetAmount: numeric('target_amount', { mode: 'number' }).notNull(),
+  months: integer('months').notNull(),
+  startMonth: text('start_month').notNull(),
+  reason: text('reason'),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+/** Cada parcela do plano que foi lançada, com o gasto que ela criou. */
+export const reserveContributions = pgTable(
+  'reserve_contributions',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    id: text('id').notNull(),
+    month: text('month').notNull(),
+    amount: numeric('amount', { mode: 'number' }).notNull(),
+    date: date('date', { mode: 'string' }).notNull(),
+    /** O gasto que este lançamento criou, para a tela poder abri-lo. */
+    expenseId: text('expense_id').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.id] })],
 );
 
 /** One row per user: the ticker used as an invested reserve and how many quotas are held. */

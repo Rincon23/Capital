@@ -70,6 +70,7 @@ function toExpense(row: ExpenseRow): Expense {
   if (row.source) expense.source = row.source;
   if (row.installmentId) expense.installmentId = row.installmentId;
   if (row.installmentNumber !== null) expense.installmentNumber = row.installmentNumber;
+  if (row.reimbursedAt) expense.reimbursedAt = row.reimbursedAt.toISOString();
   return expense;
 }
 
@@ -87,6 +88,11 @@ function expenseValues(month: Month, expense: Expense) {
     source: expense.source ?? null,
     installmentId: expense.installmentId ?? null,
     installmentNumber: expense.installmentNumber ?? null,
+    // Only an "A receber" purchase can be settled, so moving it to another category clears it.
+    reimbursedAt:
+      expense.categoryKind === 'reimbursable' && expense.reimbursedAt
+        ? new Date(expense.reimbursedAt)
+        : null,
   };
 }
 

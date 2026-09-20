@@ -24,6 +24,13 @@ import {
   upfrontExpense,
 } from '../budget/installments';
 import { isPriceStale, quotasForAmount, summarizeInvestments } from '../budget/investments';
+import {
+  RESERVE_CONTRIBUTION_LABEL,
+  summarizeReservePlan,
+  type ReserveContribution,
+  type ReservePlan,
+  type ReservePlanSummary,
+} from '../budget/reserve';
 import { round2 } from '../budget/money';
 import type {
   CardBillPayment,
@@ -42,6 +49,7 @@ import type {
   AdvanceInstallmentInput,
   AllocateInput,
   BillRef,
+  ReserveContributionInput,
   WalletRepository,
   WalletSnapshot,
 } from '../storage/wallet';
@@ -58,6 +66,8 @@ import {
   months,
   priceCache,
   recurringExpenses,
+  reserveContributions,
+  reservePlans,
 } from './db/schema';
 import type { Database, Transaction } from './db/types';
 import { HttpError } from './httpError';
@@ -102,6 +112,7 @@ export class PostgresWalletRepository implements WalletRepository {
         this.readCardSettings(),
         this.closedMonths(),
       ]);
+    const plan = await this.readReservePlan(month);
 
     const quote = await this.currentQuote(reserve, buckets);
     const investments = summarizeInvestments(reserve, buckets, quote);
@@ -127,6 +138,7 @@ export class PostgresWalletRepository implements WalletRepository {
           installmentDebt: installmentDebt(plans, month),
           cardMonth: month,
         }),
+        plan,
       },
       today,
     };
@@ -794,6 +806,103 @@ export class PostgresWalletRepository implements WalletRepository {
       .insert(cashSettings)
       .values({ userId: this.userId, ...values })
       .onConflictDoUpdate({ target: cashSettings.userId, set: values });
+  }
+
+  // -------------------------------------------------------------------------
+  // Plano da reserva
+  // -------------------------------------------------------------------------
+
+  /** O plano desta conta com o progresso já calculado, ou null quando não existe um. */
+  private async readReservePlan(month: Month): Promise<ReservePlanSummary | null> {
+    const [row] = await this.db
+      .select()
+      .from(reservePlans)
+      .where(eq(reservePlans.userId, this.userId));
+    if (!row) return null;
+
+    const plan: ReservePlan = {
+      targetAmount: row.targetAmount,
+      months: row.months,
+      startMonth: row.startMonth,
+      ...(row.reason ? { reason: row.reason } : {}),
+    };
+    return summarizeReservePlan(plan, await this.listReserveContributions(), month);
+  }
+
+  private async listReserveContributions(): Promise<ReserveContribution[]> {
+    const rows = await this.db
+      .select()
+      .from(reserveContributions)
+      .where(eq(reserveContributions.userId, this.userId))
+      .orderBy(asc(reserveContributions.createdAt));
+    return rows.map((row) => ({
+      id: row.id,
+      month: row.month,
+      amount: row.amount,
+      date: row.date,
+    }));
+  }
+
+  async saveReservePlan(plan: ReservePlan): Promise<void> {
+    const values = {
+      targetAmount: plan.targetAmount,
+      months: plan.months,
+      startMonth: plan.startMonth,
+      reason: plan.reason ?? null,
+    };
+    await this.db
+      .insert(reservePlans)
+      .values({ userId: this.userId, ...values })
+      .onConflictDoUpdate({ target: reservePlans.userId, set: values });
+  }
+
+  /**
+   * Desistir do plano. As parcelas já lançadas ficam onde estão: o dinheiro voltou mesmo para a
+   * reserva, e apagar os gastos dos meses passados seria reescrever meses que já aconteceram.
+   */
+  async deleteReservePlan(): Promise<void> {
+    await this.db.delete(reservePlans).where(eq(reservePlans.userId, this.userId));
+    await this.db.delete(reserveContributions).where(eq(reserveContributions.userId, this.userId));
+  }
+
+  /**
+   * Uma parcela do plano: o gasto entra no mês (imprevisto, por padrão) e passa a contar no que já
+   * foi devolvido. O saldo da reserva **não** é mexido aqui de propósito — onde o dinheiro fica,
+   * na conta ou em cotas, é decisão da pessoa e continua vindo de onde sempre veio; o plano
+   * acompanha o compromisso, não o cofre.
+   */
+  async contributeToReserve(input: ReserveContributionInput): Promise<void> {
+    const [plan] = await this.db
+      .select()
+      .from(reservePlans)
+      .where(eq(reservePlans.userId, this.userId));
+    if (!plan) {
+      throw new HttpError(409, 'NO_RESERVE_PLAN', 'Monte um plano antes de lançar uma parcela dele.');
+    }
+
+    const amount = round2(input.amount);
+    const expense: Expense = {
+      id: createId(),
+      categoryKind: input.categoryKind,
+      ...(input.categoryKind === 'topic' && input.topicId ? { topicId: input.topicId } : {}),
+      description: RESERVE_CONTRIBUTION_LABEL,
+      amount,
+      date: input.date,
+      singleInstallmentCard: false,
+      source: 'reserve',
+    };
+
+    await this.budget.writeWith(async ({ tx, addExpense }) => {
+      await addExpense(input.month, expense);
+      await tx.insert(reserveContributions).values({
+        userId: this.userId,
+        id: createId(),
+        month: input.month,
+        amount,
+        date: input.date,
+        expenseId: expense.id,
+      });
+    });
   }
 
   // -------------------------------------------------------------------------

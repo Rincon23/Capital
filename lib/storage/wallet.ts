@@ -1,5 +1,7 @@
 import type { CardBill } from '../budget/cards';
 import type { AdvanceInput } from '../budget/installments';
+import type { CategoryKind } from '../budget/types';
+import type { ReservePlan, ReservePlanSummary } from '../budget/reserve';
 import type { CashReport } from '../budget/cash';
 import type { InvestmentSummary } from '../budget/investments';
 import type {
@@ -33,6 +35,8 @@ export interface WalletSnapshot {
   cash: {
     settings: CashSettings;
     report: CashReport;
+    /** O plano de recompor a reserva, quando existe um (ver `lib/budget/reserve.ts`). */
+    plan: ReservePlanSummary | null;
   };
   /** The day the server used for "hoje" (America/Sao_Paulo), so both sides agree. */
   today: string;
@@ -53,6 +57,16 @@ export interface AllocateInput {
   /** Competence the resulting expense is written to. */
   month: Month;
   date: string;
+}
+
+/** Uma parcela do plano da reserva, como a tela a manda. */
+export interface ReserveContributionInput {
+  amount: number;
+  month: Month;
+  date: string;
+  /** A categoria que o gasto consome — Imprevistos por padrão, mas a escolha é da pessoa. */
+  categoryKind: CategoryKind;
+  topicId?: string;
 }
 
 /** "Adiantar parcelas": how many of the last charges were paid early, and what it cost. */
@@ -94,4 +108,11 @@ export interface WalletRepository {
   refreshPrice(): Promise<void>;
 
   saveCashSettings(settings: CashSettings): Promise<void>;
+
+  /** Cria ou ajusta o plano de recompor a reserva. */
+  saveReservePlan(plan: ReservePlan): Promise<void>;
+  /** Desiste do plano; as parcelas já lançadas continuam nos meses. */
+  deleteReservePlan(): Promise<void>;
+  /** Lança uma parcela do plano: o gasto do mês, que é o que o plano acompanha. */
+  contributeToReserve(input: ReserveContributionInput): Promise<void>;
 }

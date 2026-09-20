@@ -6,6 +6,7 @@ export function Chip({
   onClick,
   tourAnchor,
   badge,
+  badgeTone = 'warning',
 }: {
   label: string;
   selected: boolean;
@@ -14,6 +15,8 @@ export function Chip({
   tourAnchor?: string;
   /** A small tag inside the chip, e.g. "Não recomendado" on "Fora do orçamento". */
   badge?: string;
+  /** Whether the tag is a warning ("Não recomendado") or an endorsement ("Recomendado"). */
+  badgeTone?: 'warning' | 'success';
 }) {
   return (
     <button
@@ -31,7 +34,11 @@ export function Chip({
       {badge && (
         <span
           className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-            selected ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-warning-bg text-warning'
+            selected
+              ? 'bg-primary-foreground/20 text-primary-foreground'
+              : badgeTone === 'success'
+                ? 'bg-success-bg text-success'
+                : 'bg-warning-bg text-warning'
           }`}
         >
           {badge}

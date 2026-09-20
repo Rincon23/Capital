@@ -16,18 +16,25 @@ export async function register() {
     if (process.env.NODE_ENV === 'production') throw err;
   }
 
-  const [{ startScheduler }, { getDb }, { runCardModuleMigration }] = await Promise.all([
-    import('./lib/server/scheduler'),
-    import('./lib/server/db'),
-    import('./lib/server/cardModuleMigration'),
-  ]);
+  const [{ startScheduler }, { getDb }, { runCardModuleMigration }, { runFixedCostLabelMigration }] =
+    await Promise.all([
+      import('./lib/server/scheduler'),
+      import('./lib/server/db'),
+      import('./lib/server/cardModuleMigration'),
+      import('./lib/server/fixedCostLabelMigration'),
+    ]);
 
-  // One-off data migration for the single "Cartão" module; it records that it ran and does
-  // nothing on the next start.
+  // One-off data migrations; each records that it ran and does nothing on the next start.
   try {
     await runCardModuleMigration(getDb());
   } catch (err) {
     console.error('[cartão] falha na migração do módulo único:', err);
+  }
+
+  try {
+    await runFixedCostLabelMigration(getDb());
+  } catch (err) {
+    console.error('[categorias] falha ao renomear "Custo Fixo":', err);
   }
 
   startScheduler(getDb);

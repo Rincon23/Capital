@@ -46,6 +46,9 @@ junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no s
 
 - **Lançamentos** (`/mes/[mês]/lancamentos`) — gastos e rendas do mês com busca, abas por
   categoria, "Lançar gasto", "Renda" e "Apagar dados do mês". Sem ele não existe formulário de gasto.
+  **Custos Fixos e Imprevistos ficam na mesma aba**: são as duas categorias sem meta própria, as
+  duas rateadas entre as categorias, e separá-las só obrigava a adivinhar em qual das duas o gasto
+  tinha sido lançado; cada linha diz qual das duas é.
 - **Gastos por categoria** (`/mes/[mês]/categorias`) — metas em % da renda, "posso gastar", sobra
   por categoria, custos fixos e imprevistos com o rateio, e "Fechar mês". Detalhe da categoria em
   `/mes/[mês]/categoria/[id]`. Desligado, o gasto continua sendo lançado numa categoria (que segue
@@ -55,9 +58,15 @@ junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no s
   cartões cadastrados, o parcelamento e a fatura de cada mês. Desligado, a pergunta some; gastos
   antigos marcados no cartão continuam marcados. A tela tem três abas, no jeito de um app de
   banco, e está detalhada em "O módulo Cartão" logo abaixo.
-- **A receber** — uma compra no cartão feita para outra pessoa, que vai devolver o valor. Entra na
-  fatura (`cardTotal` e `reimbursableTotal`) e **não** entra em nenhuma categoria, no rateio dos
-  custos fixos nem no gasto do mês. Tem uma aba em Lançamentos.
+- **A receber** — dinheiro que saiu por outra pessoa, que vai devolver. **Não** entra em nenhuma
+  categoria, no rateio dos custos fixos nem no gasto do mês, e **não precisa ser no cartão**:
+  emprestar R$ 50 em dinheiro é a mesma coisa, então a pergunta "a compra foi no cartão?" fica
+  livre como em qualquer outro gasto — foi no cartão, entra na fatura (`cardTotal` e
+  `reimbursableTotal`); não foi, é só um valor que alguém te deve. Tem uma aba em Lançamentos,
+  dividida em **"Ainda devem"** e **"Já me pagaram"**, com o total de cada lado: um toque no
+  círculo de cada linha marca quem pagou (`expenses.reimbursed_at`). A marca não mexe em número
+  nenhum — o dinheiro saiu de qualquer jeito e nunca consumiu categoria —, ela só tira a linha do
+  que ainda é seu a receber, e é esse valor que o card do Início mostra.
 - **Histórico e gráficos** (`/historico`) — aderência à meta, gráficos e a tabela mês a mês.
 
 **Carteira** (cada um com tela própria; o antigo painel `/carteira` redireciona para o Início):
@@ -86,6 +95,20 @@ junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no s
     parcelados, reserva prevista e gap. A dívida do cartão é a soma das faturas **em aberto** (de
     todos os cartões e competências, inclusive a "Não informado"); a dos parcelados é só o que cai
     **depois** da competência corrente, então cada real é contado uma vez.
+    **O plano da reserva** (`lib/budget/reserve.ts`) mora nesta tela, que é onde aparece o quanto
+    falta: um imprevisto grande — R$ 5.000 de saúde para quem ganha R$ 3.000 — não cabe no mês em
+    que acontece, sai da reserva, e é a reserva que fica no vermelho. Com o gap negativo a tela
+    oferece **montar um plano**: quanto recompor e em quantos meses ("R$ 5.000 em 10 meses =
+    R$ 500 por mês"), com espaço para dizer o que abriu o buraco. Todo mês o card mostra o
+    progresso e um botão que lança a parcela: o valor vira um gasto **"Recompor a reserva"** na
+    competência, como **imprevisto** (é o que ele é — recompor não é investir, que é dinheiro com
+    objetivo de longo prazo; a categoria vem marcada como **Recomendado** e pode ser trocada). O
+    plano **não mexe no saldo da reserva**: onde o dinheiro recomposto fica — na conta ou em cotas
+    — não muda nada do que ele acompanha, e continua sendo a pessoa quem diz, na reserva em conta e
+    nas cotas. O plano guarda só o que ela decidiu: quanto já voltou, quanto falta e
+    quantos meses restam vêm sempre da soma das parcelas lançadas, então pular um mês adia o plano
+    em vez de quebrá-lo, e duas parcelas no mesmo mês somam. Desistir do plano não apaga os gastos
+    já lançados — o dinheiro voltou mesmo para a reserva.
 
 ### O módulo Cartão
 
@@ -279,9 +302,12 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
   render), **Metas** (casa, carro, casamento, aniversário, viagem) e **Conhecimentos** (tudo que
   agrega conhecimento). Toda categoria tem descrição, que a pessoa escreve ao criar e pode editar.
   Cada padrão guarda um `preset`, para ser reconhecida mesmo renomeada.
-- **Custo fixo**: um gasto que se repete todo mês e é maior do que a categoria recebe vai para custo
-  fixo (uma faculdade de R$ 1.000 por mês, por exemplo). A tela Categorias explica renda, custos
-  fixos, imprevistos e cada categoria.
+- **Custos Fixos**: um gasto que se repete todo mês e é maior do que a categoria recebe vai para
+  custos fixos (uma faculdade de R$ 1.000 por mês, por exemplo). A tela Categorias explica renda,
+  custos fixos, imprevistos e cada categoria. O nome padrão está no plural — é uma categoria que
+  guarda vários custos, e no singular parecia uma conta só; quem já tinha a conta criada foi
+  renomeado uma vez só (`lib/server/fixedCostLabelMigration.ts`), e só quem ainda estava no nome
+  padrão: um nome escolhido pela pessoa nunca é tocado.
 - **Criar é possível, mas desaconselhado**: ao lado de todo "Adicionar categoria" o app diz que a
   maioria das pessoas fica satisfeita com as quatro padrão, e pede confirmação antes de criar.
 - **Nunca se exclui, só se arquiva.** A categoria arquivada some da lista (não há lista de
@@ -581,6 +607,10 @@ Os demais testes:
   plano, remanejar (guardar e retirar, com o estorno na categoria e o limite de cotas), uma
   compra parcelada de antes da conta sem mexer nos meses passados, adiantar parcelas (a compra
   encurta e o pagamento entra no mês) e caixa.
+- **`lib/budget/__tests__/reserve.test.ts`:** o plano da reserva calculado a partir do que foi
+  lançado (duas parcelas no mesmo mês somam, um mês pulado só adia, centavos não deixam o plano
+  eternamente a R$ 0,004 do fim) e o "A receber" com quem já pagou, que não mexe em nenhum número
+  do orçamento nem da fatura.
 - **`lib/budget/__tests__/installments.test.ts`:** as parcelas que saem de um parcelamento sem
   nada de errado — as já pagas antes do cadastro e as adiantadas — sumindo ao mesmo tempo da
   fatura, do orçamento, da dívida e dos meses que a compra pode tocar; e a categoria "Fora do

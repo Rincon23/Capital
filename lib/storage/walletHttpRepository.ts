@@ -7,10 +7,12 @@ import type {
   RecurringExpense,
 } from '../budget/types';
 import { apiRequest, seg } from './apiClient';
+import type { ReservePlan } from '../budget/reserve';
 import type {
   AdvanceInstallmentInput,
   AllocateInput,
   BillRef,
+  ReserveContributionInput,
   WalletRepository,
   WalletSnapshot,
 } from './wallet';
@@ -87,5 +89,17 @@ export class HttpWalletRepository implements WalletRepository {
 
   saveCashSettings(settings: CashSettings): Promise<void> {
     return apiRequest('PUT', '/wallet/cash', settings);
+  }
+
+  saveReservePlan(plan: ReservePlan): Promise<void> {
+    return apiRequest('PUT', '/wallet/reserve/plan', plan);
+  }
+
+  deleteReservePlan(): Promise<void> {
+    return apiRequest('DELETE', '/wallet/reserve/plan');
+  }
+
+  contributeToReserve(input: ReserveContributionInput): Promise<void> {
+    return apiRequest('POST', '/wallet/reserve/contribute', input);
   }
 }

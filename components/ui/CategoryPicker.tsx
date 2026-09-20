@@ -29,6 +29,7 @@ export function CategoryPicker({
   onChange,
   showReimbursable = false,
   showUncounted = true,
+  recommended,
 }: {
   topics: TopicConfig[];
   specialCategories: SpecialCategoryLabels;
@@ -40,6 +41,11 @@ export function CategoryPicker({
    * category. It is offered wherever an expense is filed, and always marked "Não recomendado".
    */
   showUncounted?: boolean;
+  /**
+   * A categoria que este formulário recomenda, marcada com "Recomendado". Só faz sentido onde
+   * existe uma resposta certa — recompor a reserva é imprevisto —, nunca no gasto do dia a dia.
+   */
+  recommended?: CategoryKind;
 }) {
   const activeTopics = useMemo(
     () => topics.filter((t) => !t.archived).sort((a, b) => a.order - b.order),
@@ -55,17 +61,20 @@ export function CategoryPicker({
           <Chip
             key={topic.id}
             label={topic.name}
+            {...(recommended === 'topic' ? { badge: 'Recomendado', badgeTone: 'success' as const } : {})}
             selected={value.categoryKind === 'topic' && value.topicId === topic.id}
             onClick={() => onChange({ categoryKind: 'topic', topicId: topic.id })}
           />
         ))}
         <Chip
           label={labels.fixedCost}
+          {...(recommended === 'fixedCost' ? { badge: 'Recomendado', badgeTone: 'success' as const } : {})}
           selected={value.categoryKind === 'fixedCost'}
           onClick={() => onChange({ categoryKind: 'fixedCost', topicId: value.topicId })}
         />
         <Chip
           label={labels.unforeseen}
+          {...(recommended === 'unforeseen' ? { badge: 'Recomendado', badgeTone: 'success' as const } : {})}
           selected={value.categoryKind === 'unforeseen'}
           onClick={() => onChange({ categoryKind: 'unforeseen', topicId: value.topicId })}
         />

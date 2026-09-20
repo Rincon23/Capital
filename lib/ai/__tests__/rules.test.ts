@@ -114,10 +114,15 @@ describe('what the small model got wrong in the Orange Pi test', () => {
     });
   });
 
-  it('files "ele vai me devolver" under "A receber", always on the card', () => {
+  it('files "ele vai me devolver" under "A receber", com ou sem cartão', () => {
+    // Emprestar em dinheiro é "A receber" igual: o cartão sai do que a frase disser, não da categoria.
     expect(draftFor('Almoço de 45 reais pro João, ele vai me devolver').draft).toMatchObject({
       categoryKind: 'reimbursable',
       amount: 45,
+      card: false,
+    });
+    expect(draftFor('Almoço de 45 reais pro João no cartão, ele vai me devolver').draft).toMatchObject({
+      categoryKind: 'reimbursable',
       card: true,
     });
   });

@@ -10,7 +10,7 @@ import type {
  * name of what the old Telegram bot called "Ressarcido" — that name never shows in the app.
  */
 export const DEFAULT_SPECIAL_CATEGORY_LABELS: ResolvedSpecialCategoryLabels = {
-  fixedCost: 'Custo Fixo',
+  fixedCost: 'Custos Fixos',
   unforeseen: 'Imprevistos',
   reimbursable: 'A receber',
   uncounted: 'Fora do orçamento',
@@ -18,7 +18,7 @@ export const DEFAULT_SPECIAL_CATEGORY_LABELS: ResolvedSpecialCategoryLabels = {
 
 /** Shown wherever the "A receber" category appears, so its behaviour is never a surprise. */
 export const REIMBURSABLE_EXPLANATION =
-  'Você pagou no cartão, mas alguém vai te devolver. Entra na fatura do cartão e não gasta nenhuma categoria.';
+  'Você pagou, mas alguém vai te devolver. Não gasta nenhuma categoria — e, se foi no cartão, entra na fatura do mesmo jeito.';
 
 /**
  * Shown wherever "Fora do orçamento" appears. The category exists because sometimes there is no

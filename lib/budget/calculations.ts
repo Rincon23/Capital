@@ -40,6 +40,8 @@ export interface MonthSummary {
   cardTotal: number;
   /** Card purchases made for someone else ("A receber"): part of cardTotal, never of expenseTotal. */
   reimbursableTotal: number;
+  /** The part of `reimbursableTotal` nobody has paid back yet. */
+  reimbursablePendingTotal: number;
   /** Money the person chose to leave out of the budget ("Fora do orçamento"): never of expenseTotal. */
   uncountedTotal: number;
   /** Total money spent across all topics plus fixed costs and unforeseen. */
@@ -70,6 +72,13 @@ export function computeUnforeseenTotal(expenses: Expense[]): number {
  */
 export function computeReimbursableTotal(expenses: Expense[]): number {
   return sum(expenses.filter((e) => e.categoryKind === 'reimbursable').map((e) => e.amount));
+}
+
+/** What is still owed back: the "A receber" purchases nobody has settled yet. */
+export function computeReimbursablePendingTotal(expenses: Expense[]): number {
+  return sum(
+    expenses.filter((e) => e.categoryKind === 'reimbursable' && !e.reimbursedAt).map((e) => e.amount),
+  );
 }
 
 /**
@@ -183,6 +192,7 @@ export function computeMonthSummary(
   const unforeseenTotal = computeUnforeseenTotal(monthData.expenses);
   const cardTotal = computeCardTotal(monthData.expenses);
   const reimbursableTotal = computeReimbursableTotal(monthData.expenses);
+  const reimbursablePendingTotal = computeReimbursablePendingTotal(monthData.expenses);
   const uncountedTotal = computeUncountedTotal(monthData.expenses);
 
   const topics = activeTopics
@@ -211,6 +221,7 @@ export function computeMonthSummary(
     unforeseenTotal,
     cardTotal,
     reimbursableTotal,
+    reimbursablePendingTotal,
     uncountedTotal,
     expenseTotal,
     availableTotal,

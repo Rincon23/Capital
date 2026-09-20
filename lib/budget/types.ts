@@ -10,8 +10,9 @@ import type { NotificationCategory } from '../notifications/types';
 export type Month = string;
 
 /**
- * Kind of expense category. 'reimbursable' ("A receber") is a card purchase made for
- * someone else who will pay it back: it lands on the card bill but consumes no envelope.
+ * Kind of expense category. 'reimbursable' ("A receber") is money paid for someone else who will
+ * pay it back: it consumes no envelope, and it lands on the card bill when it was a card
+ * purchase — but it does not have to be one, because lending someone cash is the same thing.
  * 'uncounted' ("Fora do orçamento") is the escape hatch: the expense is recorded and, when it
  * is a card purchase, lands on the bill, but it consumes no envelope either — which is why the
  * app marks it as "Não recomendado" wherever it is offered.
@@ -146,6 +147,7 @@ export type ExpenseSource =
   | 'recurring'
   | 'investment'
   | 'installment'
+  | 'reserve'
   | 'import';
 
 export interface Expense {
@@ -167,6 +169,12 @@ export interface Expense {
   installmentId?: string;
   /** 1-based position of this instalment in its plan. */
   installmentNumber?: number;
+  /**
+   * When the person got this money back, for an "A receber" purchase (ISO instant). Absent means
+   * they still owe it. It changes nothing in the budget — the category was never charged — it is
+   * only how the person keeps track of who already paid them.
+   */
+  reimbursedAt?: string;
 }
 
 /** How an instalment plan is accounted for (bot spec §4.8 and correction 9). */

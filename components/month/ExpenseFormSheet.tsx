@@ -147,9 +147,7 @@ export function ExpenseFormSheet({
   const [saving, setSaving] = useState(false);
 
   const needsTopic = categoryKind === 'topic';
-  // "A receber" is by definition something paid on the card for someone else.
-  const forcedCard = categoryKind === 'reimbursable';
-  const onCard = cardEnabled && (forcedCard || singleInstallmentCard);
+  const onCard = cardEnabled && singleInstallmentCard;
   // Splitting is offered on a new card purchase only: an expense that already exists is one
   // line of a month, and turning it into a series would rewrite months it never touched.
   const canSplit = Boolean(onSaveInstallment) && onCard && (allowSplit ?? (!initial && !draft));
@@ -214,8 +212,9 @@ export function ExpenseFormSheet({
           amount: parsedAmount,
           date,
           // With the card module off, an expense keeps whatever it already had.
-          singleInstallmentCard:
-            forcedCard || (cardEnabled ? singleInstallmentCard : (prefill?.singleInstallmentCard ?? false)),
+          singleInstallmentCard: cardEnabled
+            ? singleInstallmentCard
+            : (prefill?.singleInstallmentCard ?? false),
           ...(cardId ? { cardId } : {}),
           source,
           // An instalment being edited on its own keeps its link to the plan.
@@ -310,12 +309,11 @@ export function ExpenseFormSheet({
           <label className="text-foreground flex min-h-[44px] items-center gap-2 text-sm" data-tour="cartao-pergunta">
             <input
               type="checkbox"
-              checked={forcedCard || singleInstallmentCard}
-              disabled={forcedCard}
+              checked={singleInstallmentCard}
               onChange={(e) => setSingleInstallmentCard(e.target.checked)}
-              className="border-border h-5 w-5 rounded disabled:opacity-60"
+              className="border-border h-5 w-5 rounded"
             />
-            {forcedCard ? `${labels.reimbursable} é sempre no cartão` : 'A compra foi no cartão?'}
+            A compra foi no cartão?
           </label>
         )}
 

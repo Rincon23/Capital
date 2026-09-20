@@ -128,8 +128,8 @@ export function ReimbursableHomeTile() {
     <HomeTile
       module="reimbursable"
       href={`/mes/${month}/lancamentos?aba=a-receber`}
-      value={summary ? formatBRL(summary.reimbursableTotal) : null}
-      caption="de outras pessoas"
+      value={summary ? formatBRL(summary.reimbursablePendingTotal) : null}
+      caption="ainda devem"
     />
   );
 }
