@@ -11,6 +11,7 @@ import {
   specialCategoryLabel,
   todayISO,
   type Expense,
+  type InstallmentAccounting,
   type RecurringExpense,
   type TopicConfig,
 } from '@/lib/budget';
@@ -22,7 +23,9 @@ import { ExpenseFormSheet } from '@/components/month/ExpenseFormSheet';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { AmountInput } from '@/components/ui/AmountInput';
 import { BottomSheet } from '@/components/ui/BottomSheet';
+import { InstallmentOptions, MAX_INSTALLMENTS } from '@/components/card/InstallmentOptions';
 import { CardPicker } from '@/components/ui/CardPicker';
+import { Chip } from '@/components/ui/Chip';
 import { CategoryPicker, type CategoryValue } from '@/components/ui/CategoryPicker';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { useToast } from '@/components/ui/Toast';
@@ -57,7 +60,11 @@ function Recorrentes() {
   const [editing, setEditing] = useState<RecurringExpense | null>(null);
   const [creating, setCreating] = useState(false);
   /** The expense a "Lançar no mês" is about to create, shown in the normal expense form. */
-  const [launching, setLaunching] = useState<Partial<Expense> | null>(null);
+  const [launching, setLaunching] = useState<{
+    draft: Partial<Expense>;
+    /** The split the template already decided, when it is a parcelled one. */
+    installment?: { count: number; accounting: InstallmentAccounting };
+  } | null>(null);
   useModuleIntro('recurring', { ready: !!snapshot });
 
   if (loading && !snapshot) {
@@ -102,15 +109,28 @@ function Recorrentes() {
    * as everywhere else — including "À vista / Parcelado" when the template is paid on the card.
    */
   function startLaunch(item: RecurringExpense) {
+    const onCard = item.card && isModuleOn(settings, 'card');
     setLaunching({
-      categoryKind: item.categoryKind,
-      ...(item.topicId ? { topicId: item.topicId } : {}),
-      description: item.description,
-      amount: item.amount,
-      date: todayISO(),
-      singleInstallmentCard: item.card && isModuleOn(settings, 'card'),
-      ...(item.card && item.cardId ? { cardId: item.cardId } : {}),
-      source: 'recurring',
+      draft: {
+        categoryKind: item.categoryKind,
+        ...(item.topicId ? { topicId: item.topicId } : {}),
+        description: item.description,
+        amount: item.amount,
+        date: todayISO(),
+        singleInstallmentCard: onCard,
+        ...(onCard && item.cardId ? { cardId: item.cardId } : {}),
+        source: 'recurring',
+      },
+      // Um modelo parcelado abre o formulário já em "Parcelado", com o número de vezes e a
+      // forma de contabilizar que ele guarda: lançar é confirmar, não preencher de novo.
+      ...(onCard && item.installmentCount
+        ? {
+            installment: {
+              count: item.installmentCount,
+              accounting: item.installmentAccounting ?? 'upfront',
+            },
+          }
+        : {}),
     });
   }
 
@@ -150,6 +170,9 @@ function Recorrentes() {
                 <span className="text-muted block text-xs">
                   {categoryLabel(item, topics, labels)}
                   {item.card && isModuleOn(settings, 'card') ? ' · cartão' : ''}
+                  {item.card && isModuleOn(settings, 'card') && item.installmentCount
+                    ? ` · ${item.installmentCount}× de ${formatBRL(item.amount / item.installmentCount)}`
+                    : ''}
                 </span>
               </button>
               <span className="text-foreground shrink-0 font-semibold">{formatBRL(item.amount)}</span>
@@ -195,8 +218,9 @@ function Recorrentes() {
           specialCategories={settings.specialCategories}
           reimbursableEnabled={isModuleOn(settings, 'reimbursable')}
           cardEnabled={isModuleOn(settings, 'card')}
-          draft={launching}
+          draft={launching.draft}
           allowSplit
+          installmentDraft={launching.installment}
           closedMonths={snapshot?.closedMonths ?? []}
           title="Lançar recorrente"
           onClose={() => setLaunching(null)}
@@ -254,16 +278,35 @@ function RecurringFormSheet({
   const [cardId, setCardId] = useState<string | undefined>(
     initial ? initial.cardId : (defaultCard?.id ?? undefined),
   );
+  const [splitting, setSplitting] = useState(Boolean(initial?.installmentCount));
+  const [installment, setInstallment] = useState({
+    count: String(initial?.installmentCount ?? 10),
+    // The template has no date: the first charge is only known when it is launched.
+    firstDebitDate: todayISO(),
+    accounting: (initial?.installmentAccounting ?? 'upfront') as InstallmentAccounting,
+  });
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
+  const parsedAmount = parseAmountInput(amount);
+  const count = Number.parseInt(installment.count, 10);
+  // Parcelar é coisa de cartão: sem ele, o modelo é um gasto comum.
+  const canSplit = cardEnabled && card;
+  const splitCount = canSplit && splitting ? count : undefined;
+  const categoryName =
+    category.categoryKind === 'topic'
+      ? (activeTopics.find((t) => t.id === category.topicId)?.name ?? 'a categoria')
+      : labels[category.categoryKind];
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const parsed = parseAmountInput(amount);
     const problems: string[] = [];
-    if (!(parsed > 0)) problems.push('O valor deve ser maior que zero.');
+    if (!(parsedAmount > 0)) problems.push('O valor deve ser maior que zero.');
     if (!description.trim()) problems.push('Escreva uma descrição.');
     if (category.categoryKind === 'topic' && !category.topicId) problems.push('Selecione uma categoria.');
+    if (splitCount !== undefined && !(splitCount >= 2 && splitCount <= MAX_INSTALLMENTS)) {
+      problems.push(`O número de parcelas vai de 2 a ${MAX_INSTALLMENTS}. Para uma vez só, escolha À vista.`);
+    }
     if (problems.length > 0) {
       setErrors(problems);
       return;
@@ -276,9 +319,12 @@ function RecurringFormSheet({
         categoryKind: category.categoryKind,
         ...(category.categoryKind === 'topic' ? { topicId: category.topicId } : {}),
         description: description.trim(),
-        amount: parsed,
+        amount: parsedAmount,
         card,
         ...(card && cardId ? { cardId } : {}),
+        ...(splitCount !== undefined
+          ? { installmentCount: splitCount, installmentAccounting: installment.accounting }
+          : {}),
       });
     } finally {
       setSaving(false);
@@ -322,6 +368,31 @@ function RecurringFormSheet({
         )}
 
         {cardEnabled && card && <CardPicker cards={cards} value={cardId} onChange={setCardId} />}
+
+        {canSplit && (
+          <div>
+            <p className="text-muted mb-2 text-sm font-medium">Como você paga?</p>
+            <div className="flex flex-wrap gap-2">
+              <Chip label="À vista" selected={!splitting} onClick={() => setSplitting(false)} />
+              <Chip label="Parcelado" selected={splitting} onClick={() => setSplitting(true)} />
+            </div>
+            <p className="text-muted mt-2 text-xs">
+              Um modelo parcelado já abre em &ldquo;Parcelado&rdquo; na hora de lançar, com o número
+              de vezes preenchido. A data da primeira cobrança vem do cartão, no dia do lançamento.
+            </p>
+          </div>
+        )}
+
+        {canSplit && splitting && (
+          <InstallmentOptions
+            value={installment}
+            onChange={setInstallment}
+            totalAmount={parsedAmount}
+            categoryLabel={categoryName}
+            purchaseMonth={todayISO().slice(0, 7)}
+            withoutFirstDebit
+          />
+        )}
 
         {errors.length > 0 && (
           <ul className="bg-danger-bg text-danger rounded-lg px-3 py-2 text-sm">

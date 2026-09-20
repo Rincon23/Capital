@@ -120,6 +120,12 @@ export const recurringExpenseSchema = z.object({
   amount: money.positive(),
   card: z.boolean(),
   cardId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
+  /** A template launched as a parcelamento (see RecurringExpense). */
+  installmentCount: z.preprocess(absentAsUndefined, z.number().int().min(2).max(120).optional()),
+  installmentAccounting: z.preprocess(
+    absentAsUndefined,
+    z.enum(['installment', 'upfront']).optional(),
+  ),
 });
 
 export const installmentPlanSchema = z.object({

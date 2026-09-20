@@ -223,6 +223,14 @@ export interface RecurringExpense {
   card: boolean;
   /** The card it is paid with, when it is a card purchase (module "Cartões"). */
   cardId?: string;
+  /**
+   * In how many times this purchase is split on the card (2..120). Absent means à vista — an
+   * ordinary expense. The template keeps only the number: the day of the first charge is only
+   * known when it is launched, and comes from the card itself.
+   */
+  installmentCount?: number;
+  /** How a split launch enters the budget; only meaningful with `installmentCount`. */
+  installmentAccounting?: InstallmentAccounting;
 }
 
 /** Whether a card's bill for a competence falls due in that same month or in the next one. */

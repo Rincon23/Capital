@@ -66,6 +66,12 @@ interface ExpenseFormSheetProps {
    * so explicitly and gets the choice like any other.
    */
   allowSplit?: boolean;
+  /**
+   * A split already decided elsewhere, which the form opens with instead of "À vista": a
+   * recurring template that says it is paid in N times brings its own number and mode, so
+   * launching it is a confirmation, not a form to fill again.
+   */
+  installmentDraft?: { count: number; accounting: InstallmentAccounting };
   /** Competences already closed: a purchase whose charges land in one is refused here too. */
   closedMonths?: Month[];
   onClose: () => void;
@@ -89,6 +95,7 @@ export function ExpenseFormSheet({
   autoFocusAmount = true,
   onSaveInstallment,
   allowSplit,
+  installmentDraft,
   closedMonths = [],
   onClose,
   onSave,
@@ -125,14 +132,14 @@ export function ExpenseFormSheet({
   const [cardId, setCardId] = useState<string | undefined>(
     prefill ? prefill.cardId : (defaultCard?.id ?? undefined),
   );
-  const [splitting, setSplitting] = useState(false);
+  const [splitting, setSplitting] = useState(Boolean(installmentDraft));
   const [installment, setInstallment] = useState(() => {
     // The first charge follows the card the form opened on, which is not always the default one.
     const chosen = cards.find((card) => card.id === cardId) ?? defaultCard;
     return {
-      count: '10',
+      count: String(installmentDraft?.count ?? 10),
       firstDebitDate: chosen ? nextChargeDate(chosen) : todayISO(),
-      accounting: 'upfront' as InstallmentAccounting,
+      accounting: (installmentDraft?.accounting ?? 'upfront') as InstallmentAccounting,
     };
   });
   const [errors, setErrors] = useState<string[]>([]);

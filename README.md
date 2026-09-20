@@ -64,7 +64,13 @@ junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no s
   - **Gastos recorrentes** — modelos dos gastos de todo mês; "Lançar" abre o **mesmo formulário de
     gasto de sempre**, já preenchido e com a data de hoje, na competência que você estava vendo —
     inclusive com "À vista / Parcelado" quando o modelo é pago no cartão, porque lançar um
-    recorrente é lançar uma compra nova como qualquer outra.
+    recorrente é lançar uma compra nova como qualquer outra. **O próprio modelo pode ser
+    parcelado**: marcando "Esse gasto é pago no cartão?", o formulário do recorrente pergunta
+    "Como você paga?" e guarda em quantas vezes e como entra no orçamento
+    (`recurring_expenses.installment_count` e `installment_accounting`). Não guarda data: a
+    primeira cobrança vem do cartão no dia do lançamento. Aí "Lançar" já abre em "Parcelado", com
+    o número de vezes preenchido, e salvar cria a compra parcelada. Tirar o cartão do modelo
+    apaga o parcelamento dele, porque parcelar só existe no cartão.
   - **Reserva investida** — cotas de um ativo (AUPO11 por padrão) divididas em categorias da
     reserva, cada uma ligada a uma categoria do orçamento. **Remanejar vai nos dois sentidos**:
     *Guardar* compra cotas para a categoria da reserva e lança o gasto na categoria do orçamento;

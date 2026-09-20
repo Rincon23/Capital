@@ -370,6 +370,9 @@ export const recurringExpenses = pgTable(
     amount: numeric('amount', { mode: 'number' }).notNull(),
     card: boolean('card').notNull().default(false),
     cardId: text('card_id'),
+    /** In how many times a launch of this template is split; null means à vista. */
+    installmentCount: integer('installment_count'),
+    installmentAccounting: text('installment_accounting').$type<InstallmentAccounting>(),
     position: integer('position').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -377,6 +380,14 @@ export const recurringExpenses = pgTable(
   (t) => [
     primaryKey({ columns: [t.userId, t.id] }),
     check('recurring_expenses_category_kind', sql`${t.categoryKind} ${CATEGORY_KINDS}`),
+    check(
+      'recurring_expenses_installment_accounting',
+      sql`${t.installmentAccounting} is null or ${t.installmentAccounting} in ('installment', 'upfront')`,
+    ),
+    check(
+      'recurring_expenses_installment_count',
+      sql`${t.installmentCount} is null or (${t.installmentCount} >= 2 and ${t.installmentCount} <= 120)`,
+    ),
   ],
 );
 

@@ -169,6 +169,8 @@ export class PostgresWalletRepository implements WalletRepository {
       amount: row.amount,
       card: row.card,
       ...(row.cardId ? { cardId: row.cardId } : {}),
+      ...(row.installmentCount ? { installmentCount: row.installmentCount } : {}),
+      ...(row.installmentAccounting ? { installmentAccounting: row.installmentAccounting } : {}),
     }));
   }
 
@@ -477,6 +479,9 @@ export class PostgresWalletRepository implements WalletRepository {
       amount: item.amount,
       card: item.card,
       cardId: item.card ? (item.cardId ?? null) : null,
+      // Parcelar só existe no cartão: sem ele, o modelo volta a ser um gasto comum.
+      installmentCount: item.card ? (item.installmentCount ?? null) : null,
+      installmentAccounting: item.card && item.installmentCount ? (item.installmentAccounting ?? 'upfront') : null,
     };
     const [last] = await this.db
       .select({ position: sql<number | null>`max(${recurringExpenses.position})` })

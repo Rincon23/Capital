@@ -39,6 +39,7 @@ export function InstallmentOptions({
   lockedReason,
   lockedTo,
   paidCount,
+  withoutFirstDebit = false,
 }: {
   value: InstallmentOptionsValue;
   onChange: (value: InstallmentOptionsValue) => void;
@@ -58,6 +59,12 @@ export function InstallmentOptions({
   lockedTo?: InstallmentAccounting;
   /** Charges already paid before the purchase was registered: they are not on any bill. */
   paidCount?: number;
+  /**
+   * Hides "Primeira cobrança" and everything that depends on it. A recurring template is not a
+   * purchase yet — the first charge is only known on the day it is launched — so it says in how
+   * many times and how it enters the budget, and nothing about dates.
+   */
+  withoutFirstDebit?: boolean;
 }) {
   const count = Number.parseInt(value.count, 10);
   const valid = count >= 2 && count <= MAX_INSTALLMENTS && totalAmount > 0;
@@ -88,15 +95,17 @@ export function InstallmentOptions({
             className={INPUT}
           />
         </label>
-        <label className="text-muted flex flex-1 flex-col gap-1.5 text-sm font-medium">
-          Primeira cobrança
-          <input
-            type="date"
-            value={value.firstDebitDate}
-            onChange={(event) => onChange({ ...value, firstDebitDate: event.target.value })}
-            className={INPUT}
-          />
-        </label>
+        {!withoutFirstDebit && (
+          <label className="text-muted flex flex-1 flex-col gap-1.5 text-sm font-medium">
+            Primeira cobrança
+            <input
+              type="date"
+              value={value.firstDebitDate}
+              onChange={(event) => onChange({ ...value, firstDebitDate: event.target.value })}
+              className={INPUT}
+            />
+          </label>
+        )}
       </div>
 
       {valid && (
@@ -128,9 +137,13 @@ export function InstallmentOptions({
         )}
         {valid && (
           <p className="text-muted mt-2 text-xs">
-            {accounting === 'upfront'
-              ? `${formatBRL(totalAmount)} contam em ${categoryLabel} em ${formatMonthLabel(purchaseMonth)}, e a fatura recebe ${formatBRL(each)} por mês, de ${firstMonth} até ${lastMonth}.`
-              : `${formatBRL(each)} contam em ${categoryLabel} todo mês, de ${firstMonth} até ${lastMonth}.`}
+            {withoutFirstDebit
+              ? accounting === 'upfront'
+                ? `Ao lançar, ${formatBRL(totalAmount)} contam em ${categoryLabel} no mês da compra, e a fatura recebe ${formatBRL(each)} por ${count} meses.`
+                : `Ao lançar, ${formatBRL(each)} contam em ${categoryLabel} por ${count} meses seguidos.`
+              : accounting === 'upfront'
+                ? `${formatBRL(totalAmount)} contam em ${categoryLabel} em ${formatMonthLabel(purchaseMonth)}, e a fatura recebe ${formatBRL(each)} por mês, de ${firstMonth} até ${lastMonth}.`
+                : `${formatBRL(each)} contam em ${categoryLabel} todo mês, de ${firstMonth} até ${lastMonth}.`}
           </p>
         )}
       </div>

@@ -118,6 +118,29 @@ describe('PostgresWalletRepository', () => {
     expect((await alice.wallet.getSnapshot()).recurring).toHaveLength(1);
   });
 
+  it('keeps a recurring template that is paid in instalments, and drops it when the card goes', async () => {
+    const { wallet } = await newAccount();
+    await wallet.saveRecurring({
+      id: 'r1',
+      categoryKind: 'fixedCost',
+      description: 'Faculdade',
+      amount: 872.36,
+      card: true,
+      installmentCount: 10,
+      installmentAccounting: 'upfront',
+    });
+
+    const [saved] = (await wallet.getSnapshot()).recurring;
+    expect(saved.installmentCount).toBe(10);
+    expect(saved.installmentAccounting).toBe('upfront');
+
+    // Parcelar só existe no cartão: tirando o cartão, o modelo volta a ser um gasto comum.
+    await wallet.saveRecurring({ ...saved, card: false });
+    const [plain] = (await wallet.getSnapshot()).recurring;
+    expect(plain.installmentCount).toBeUndefined();
+    expect(plain.installmentAccounting).toBeUndefined();
+  });
+
   it('charges the instalment of a plan into the months that already exist and are open', async () => {
     const { budget, wallet } = await newAccount();
     const month = currentMonthKey();

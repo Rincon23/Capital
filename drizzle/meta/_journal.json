@@ -99,6 +99,13 @@
       "when": 1789873720023,
       "tag": "0013_perpetual_wild_child",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789912907359,
+      "tag": "0014_parallel_bromley",
+      "breakpoints": true
     }
   ]
 }
