@@ -56,9 +56,16 @@ interface ExpenseFormSheetProps {
   autoFocusAmount?: boolean;
   /**
    * Saves a purchase split into instalments. Without it the form never offers to split one —
-   * that is how a recurring expense and the voice review stay a single expense.
+   * that is how the voice review stays a single expense.
    */
   onSaveInstallment?: (plan: InstallmentPlan) => Promise<void>;
+  /**
+   * Whether "À vista / Parcelado" may be offered at all. The default is "only a purchase that
+   * does not exist yet": editing a line of a month must not turn it into a series that rewrites
+   * months it never touched. A recurring expense being launched *is* a new purchase, so it says
+   * so explicitly and gets the choice like any other.
+   */
+  allowSplit?: boolean;
   /** Competences already closed: a purchase whose charges land in one is refused here too. */
   closedMonths?: Month[];
   onClose: () => void;
@@ -81,6 +88,7 @@ export function ExpenseFormSheet({
   defaultCategoryKind,
   autoFocusAmount = true,
   onSaveInstallment,
+  allowSplit,
   closedMonths = [],
   onClose,
   onSave,
@@ -118,10 +126,14 @@ export function ExpenseFormSheet({
     prefill ? prefill.cardId : (defaultCard?.id ?? undefined),
   );
   const [splitting, setSplitting] = useState(false);
-  const [installment, setInstallment] = useState({
-    count: '10',
-    firstDebitDate: defaultCard ? nextChargeDate(defaultCard) : todayISO(),
-    accounting: 'upfront' as InstallmentAccounting,
+  const [installment, setInstallment] = useState(() => {
+    // The first charge follows the card the form opened on, which is not always the default one.
+    const chosen = cards.find((card) => card.id === cardId) ?? defaultCard;
+    return {
+      count: '10',
+      firstDebitDate: chosen ? nextChargeDate(chosen) : todayISO(),
+      accounting: 'upfront' as InstallmentAccounting,
+    };
   });
   const [errors, setErrors] = useState<string[]>([]);
   const [closed, setClosed] = useState<Month[] | null>(null);
@@ -133,7 +145,7 @@ export function ExpenseFormSheet({
   const onCard = cardEnabled && (forcedCard || singleInstallmentCard);
   // Splitting is offered on a new card purchase only: an expense that already exists is one
   // line of a month, and turning it into a series would rewrite months it never touched.
-  const canSplit = Boolean(onSaveInstallment) && onCard && !initial && !draft;
+  const canSplit = Boolean(onSaveInstallment) && onCard && (allowSplit ?? (!initial && !draft));
   const parsedAmount = parseAmountInput(amount);
   const categoryLabel =
     categoryKind === 'topic'

@@ -43,6 +43,7 @@ const inputClass =
  */
 export function ReminderFormSheet({
   initial,
+  initialDate,
   today,
   repeatEnabled,
   onClose,
@@ -50,6 +51,8 @@ export function ReminderFormSheet({
   onDelete,
 }: {
   initial?: Reminder;
+  /** The day a new reminder starts on — a day tapped in the calendar. Defaults to today. */
+  initialDate?: ISODate;
   today: ISODate;
   /** The user's master switch for reminding again (Configurações). */
   repeatEnabled: boolean;
@@ -59,7 +62,9 @@ export function ReminderFormSheet({
 }) {
   const [kind, setKind] = useState<ReminderKind>(initial?.kind ?? 'once');
   const [message, setMessage] = useState(initial?.message ?? '');
-  const [date, setDate] = useState<ISODate>(initial?.kind === 'once' ? initial.date : today);
+  const [date, setDate] = useState<ISODate>(
+    initial?.kind === 'once' ? initial.date : (initialDate ?? today),
+  );
   const [time, setTime] = useState<TimeOfDay>(
     initial && initial.kind !== 'daily' ? initial.time : DEFAULT_TIME,
   );
@@ -67,10 +72,12 @@ export function ReminderFormSheet({
     initial?.kind === 'daily' ? initial.times : [DEFAULT_TIME],
   );
   const [weekdays, setWeekdays] = useState<number[]>(
-    initial?.kind === 'weekly' ? initial.weekdays : [weekdayOf(today)],
+    initial?.kind === 'weekly' ? initial.weekdays : [weekdayOf(initialDate ?? today)],
   );
   const [dayOfMonth, setDayOfMonth] = useState(
-    String(initial?.kind === 'monthly' ? initial.dayOfMonth : Number(today.slice(8, 10))),
+    String(
+      initial?.kind === 'monthly' ? initial.dayOfMonth : Number((initialDate ?? today).slice(8, 10)),
+    ),
   );
   const [notifyBefore, setNotifyBefore] = useState<number | null>(
     initial?.kind === 'once' ? initial.notifyBeforeMinutes : null,

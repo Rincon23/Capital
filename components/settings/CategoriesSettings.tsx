@@ -6,6 +6,7 @@ import {
   DEFAULT_TOPIC_COLORS,
   KEEP_DEFAULT_TOPICS_ADVICE,
   REIMBURSABLE_EXPLANATION,
+  UNCOUNTED_EXPLANATION,
   activeTopics,
   createId,
   formatPct,
@@ -91,13 +92,15 @@ function CategoriesForm({
   const savedIds = new Set(settings.topics.map((t) => t.id));
   const namesFilled = shown.every((t) => t.name.trim().length > 0);
   const canSave = namesFilled && (!withTargets || validation.valid);
-  // The "A receber" label and colour only make sense while its module is on.
-  const specialFields = modules.reimbursable
-    ? [
-        ...SPECIAL_CATEGORY_FIELDS,
-        { key: 'reimbursable' as const, label: 'A receber', explanation: REIMBURSABLE_EXPLANATION },
-      ]
-    : SPECIAL_CATEGORY_FIELDS;
+  // The "A receber" label and colour only make sense while its module is on; "Fora do orçamento"
+  // is not a module, so it is always here to be renamed.
+  const specialFields = [
+    ...SPECIAL_CATEGORY_FIELDS,
+    ...(modules.reimbursable
+      ? [{ key: 'reimbursable' as const, label: 'A receber', explanation: REIMBURSABLE_EXPLANATION }]
+      : []),
+    { key: 'uncounted' as const, label: 'Fora do orçamento', explanation: UNCOUNTED_EXPLANATION },
+  ];
 
   function updateTopic(id: string, patch: Partial<TopicConfig>) {
     setTopics((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));

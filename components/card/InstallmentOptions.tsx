@@ -1,9 +1,9 @@
 'use client';
 
 import {
+  activeDueDates,
   formatBRL,
   formatMonthLabel,
-  installmentEndDate,
   type InstallmentAccounting,
   type Month,
 } from '@/lib/budget';
@@ -36,6 +36,9 @@ export function InstallmentOptions({
   totalAmount,
   categoryLabel,
   purchaseMonth,
+  lockedReason,
+  lockedTo,
+  paidCount,
 }: {
   value: InstallmentOptionsValue;
   onChange: (value: InstallmentOptionsValue) => void;
@@ -45,14 +48,30 @@ export function InstallmentOptions({
   categoryLabel: string;
   /** The competence of the purchase date, where an "à vista" plan lands. */
   purchaseMonth: Month;
+  /**
+   * Why the choice is not being offered, when it is not. A purchase that started before it was
+   * registered here can only be "em parcelas": "à vista" would have to write the whole amount
+   * into the month it was bought, which is a month the person asked not to touch.
+   */
+  lockedReason?: string;
+  /** The mode that applies while the choice is locked, so the summary tells the same story. */
+  lockedTo?: InstallmentAccounting;
+  /** Charges already paid before the purchase was registered: they are not on any bill. */
+  paidCount?: number;
 }) {
   const count = Number.parseInt(value.count, 10);
   const valid = count >= 2 && count <= MAX_INSTALLMENTS && totalAmount > 0;
   const each = valid ? totalAmount / count : 0;
-  const lastMonth = formatMonthLabel(
-    installmentEndDate({ firstDebitDate: value.firstDebitDate, count: Math.max(count || 0, 1) }).slice(0, 7),
-  );
-  const firstMonth = formatMonthLabel(value.firstDebitDate.slice(0, 7));
+  const accounting = lockedTo ?? value.accounting;
+  // The months the bill really sees: the charges already paid before the cadastro are not among
+  // them, so "de … até …" never promises a charge that will not arrive.
+  const due = activeDueDates({
+    firstDebitDate: value.firstDebitDate,
+    count: Math.max(count || 0, 1),
+    paidCount,
+  });
+  const firstMonth = formatMonthLabel((due[0] ?? value.firstDebitDate).slice(0, 7));
+  const lastMonth = formatMonthLabel((due.at(-1) ?? value.firstDebitDate).slice(0, 7));
 
   return (
     <div className="border-border flex flex-col gap-5 rounded-xl border border-dashed p-3">
@@ -88,24 +107,28 @@ export function InstallmentOptions({
 
       <div>
         <p className="text-muted mb-2 text-sm font-medium">Como entra no orçamento</p>
-        <div className="flex flex-col gap-2">
-          <ModeOption
-            selected={value.accounting === 'upfront'}
-            onClick={() => onChange({ ...value, accounting: 'upfront' })}
-            title="À vista"
-            recommended
-            description="O gasto inteiro conta na categoria no mês da compra; nos meses seguintes só a parcela aparece na fatura."
-          />
-          <ModeOption
-            selected={value.accounting === 'installment'}
-            onClick={() => onChange({ ...value, accounting: 'installment' })}
-            title="Em parcelas"
-            description="A parcela de cada mês conta na categoria daquele mês e aparece nos lançamentos dela."
-          />
-        </div>
+        {lockedReason ? (
+          <p className="bg-background text-muted rounded-lg px-3 py-2 text-xs">{lockedReason}</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <ModeOption
+              selected={value.accounting === 'upfront'}
+              onClick={() => onChange({ ...value, accounting: 'upfront' })}
+              title="À vista"
+              recommended
+              description="O gasto inteiro conta na categoria no mês da compra; nos meses seguintes só a parcela aparece na fatura."
+            />
+            <ModeOption
+              selected={value.accounting === 'installment'}
+              onClick={() => onChange({ ...value, accounting: 'installment' })}
+              title="Em parcelas"
+              description="A parcela de cada mês conta na categoria daquele mês e aparece nos lançamentos dela."
+            />
+          </div>
+        )}
         {valid && (
           <p className="text-muted mt-2 text-xs">
-            {value.accounting === 'upfront'
+            {accounting === 'upfront'
               ? `${formatBRL(totalAmount)} contam em ${categoryLabel} em ${formatMonthLabel(purchaseMonth)}, e a fatura recebe ${formatBRL(each)} por mês, de ${firstMonth} até ${lastMonth}.`
               : `${formatBRL(each)} contam em ${categoryLabel} todo mês, de ${firstMonth} até ${lastMonth}.`}
           </p>

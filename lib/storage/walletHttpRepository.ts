@@ -7,7 +7,13 @@ import type {
   RecurringExpense,
 } from '../budget/types';
 import { apiRequest, seg } from './apiClient';
-import type { AllocateInput, BillRef, WalletRepository, WalletSnapshot } from './wallet';
+import type {
+  AdvanceInstallmentInput,
+  AllocateInput,
+  BillRef,
+  WalletRepository,
+  WalletSnapshot,
+} from './wallet';
 
 /** Browser-side WalletRepository: the Carteira screens against the app's own API. */
 export class HttpWalletRepository implements WalletRepository {
@@ -29,6 +35,10 @@ export class HttpWalletRepository implements WalletRepository {
 
   deleteInstallment(id: string): Promise<void> {
     return apiRequest('DELETE', `/wallet/installments/${seg(id)}`);
+  }
+
+  advanceInstallment(id: string, input: AdvanceInstallmentInput): Promise<void> {
+    return apiRequest('POST', `/wallet/installments/${seg(id)}/advance`, input);
   }
 
   saveCard(card: CreditCard): Promise<void> {

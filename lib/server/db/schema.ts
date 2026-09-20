@@ -40,7 +40,7 @@ import type { NotificationCategory } from '../../notifications/types';
 import type { ReminderKind, TimeOfDay } from '../../reminders/types';
 
 /** Every category an expense (or a template, or a plan) can have. */
-const CATEGORY_KINDS = sql`in ('topic', 'fixedCost', 'unforeseen', 'reimbursable')`;
+const CATEGORY_KINDS = sql`in ('topic', 'fixedCost', 'unforeseen', 'reimbursable', 'uncounted')`;
 
 const createdAt = () => timestamp('created_at', { withTimezone: true }).notNull().defaultNow();
 const updatedAt = () =>
@@ -401,6 +401,10 @@ export const installments = pgTable(
     totalAmount: numeric('total_amount', { mode: 'number' }).notNull(),
     accounting: text('accounting').$type<InstallmentAccounting>().notNull(),
     cardId: text('card_id'),
+    /** Charges already paid before the purchase was registered here; they touch no month. */
+    paidCount: integer('paid_count').notNull().default(0),
+    /** Charges paid ahead of time ("adiantar parcelas"); they leave the bill the same way. */
+    advancedCount: integer('advanced_count').notNull().default(0),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -409,6 +413,11 @@ export const installments = pgTable(
     check('installments_category_kind', sql`${t.categoryKind} ${CATEGORY_KINDS}`),
     check('installments_accounting', sql`${t.accounting} in ('installment', 'upfront')`),
     check('installments_count', sql`${t.count} > 0`),
+    check('installments_paid_count', sql`${t.paidCount} >= 0 and ${t.paidCount} <= ${t.count}`),
+    check(
+      'installments_advanced_count',
+      sql`${t.advancedCount} >= 0 and ${t.paidCount} + ${t.advancedCount} <= ${t.count}`,
+    ),
   ],
 );
 

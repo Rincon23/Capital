@@ -40,6 +40,8 @@ export interface MonthSummary {
   cardTotal: number;
   /** Card purchases made for someone else ("A receber"): part of cardTotal, never of expenseTotal. */
   reimbursableTotal: number;
+  /** Money the person chose to leave out of the budget ("Fora do orçamento"): never of expenseTotal. */
+  uncountedTotal: number;
   /** Total money spent across all topics plus fixed costs and unforeseen. */
   expenseTotal: number;
   /** Sum of available(t) across all topics. */
@@ -68,6 +70,15 @@ export function computeUnforeseenTotal(expenses: Expense[]): number {
  */
 export function computeReimbursableTotal(expenses: Expense[]): number {
   return sum(expenses.filter((e) => e.categoryKind === 'reimbursable').map((e) => e.amount));
+}
+
+/**
+ * Money the person deliberately left out of the budget ("Fora do orçamento"). Like "A receber",
+ * it stays out of every envelope, out of the fixed-cost apportionment and out of expenseTotal —
+ * the difference is that this one really was spent, which is why the app discourages it.
+ */
+export function computeUncountedTotal(expenses: Expense[]): number {
+  return sum(expenses.filter((e) => e.categoryKind === 'uncounted').map((e) => e.amount));
 }
 
 /** Everything that will show up on the credit-card bill: any expense flagged as a card purchase. */
@@ -172,6 +183,7 @@ export function computeMonthSummary(
   const unforeseenTotal = computeUnforeseenTotal(monthData.expenses);
   const cardTotal = computeCardTotal(monthData.expenses);
   const reimbursableTotal = computeReimbursableTotal(monthData.expenses);
+  const uncountedTotal = computeUncountedTotal(monthData.expenses);
 
   const topics = activeTopics
     .slice()
@@ -199,6 +211,7 @@ export function computeMonthSummary(
     unforeseenTotal,
     cardTotal,
     reimbursableTotal,
+    uncountedTotal,
     expenseTotal,
     availableTotal,
     balance,

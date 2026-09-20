@@ -14,7 +14,12 @@ describe('rótulos das categorias especiais', () => {
 
   it('completa o rótulo que falta em dados antigos', () => {
     const labels = resolveSpecialCategoryLabels({ fixedCost: 'Fixos', unforeseen: 'Imprevistos' });
-    expect(labels).toEqual({ fixedCost: 'Fixos', unforeseen: 'Imprevistos', reimbursable: 'A receber' });
+    expect(labels).toEqual({
+      fixedCost: 'Fixos',
+      unforeseen: 'Imprevistos',
+      reimbursable: 'A receber',
+      uncounted: 'Fora do orçamento',
+    });
   });
 
   it('respeita o rótulo renomeado pelo usuário', () => {

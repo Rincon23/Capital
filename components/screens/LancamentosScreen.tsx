@@ -19,6 +19,8 @@ import {
   formatBRL,
   formatMonthLabel,
   REIMBURSABLE_EXPLANATION,
+  UNCOUNTED_ADVICE,
+  UNCOUNTED_EXPLANATION,
   resolveSpecialCategoryLabels,
   type CategoryKind,
   type Expense,
@@ -26,7 +28,7 @@ import {
 } from '@/lib/budget';
 import { isModuleOn } from '@/lib/modules';
 
-export type LancamentosTab = 'topic' | 'income' | 'fixedCost' | 'unforeseen' | 'reimbursable';
+export type LancamentosTab = 'topic' | 'income' | 'fixedCost' | 'unforeseen' | 'reimbursable' | 'uncounted';
 type TabKey = LancamentosTab;
 
 function topicName(topics: { id: string; name: string }[], topicId?: string): string {
@@ -70,6 +72,8 @@ function Lancamentos({ initialTab }: { initialTab?: LancamentosTab }) {
   const showReimbursable =
     isModuleOn(settings, 'reimbursable') ||
     (monthData?.expenses.some((e) => e.categoryKind === 'reimbursable') ?? false);
+  // "Fora do orçamento" is never advertised: the tab only shows up once the month has one.
+  const showUncounted = monthData?.expenses.some((e) => e.categoryKind === 'uncounted') ?? false;
 
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'topic', label: 'Gastos' },
@@ -77,6 +81,7 @@ function Lancamentos({ initialTab }: { initialTab?: LancamentosTab }) {
     { key: 'fixedCost', label: labels.fixedCost },
     { key: 'unforeseen', label: labels.unforeseen },
     ...(showReimbursable ? [{ key: 'reimbursable' as const, label: labels.reimbursable }] : []),
+    ...(showUncounted ? [{ key: 'uncounted' as const, label: labels.uncounted }] : []),
   ];
 
   const filteredExpenses = useMemo(() => {
@@ -175,6 +180,13 @@ function Lancamentos({ initialTab }: { initialTab?: LancamentosTab }) {
           <div>
             <ModuleHelpButton module="reimbursable" variant="link" label="Como funciona A receber?" />
           </div>
+        </div>
+      )}
+
+      {tab === 'uncounted' && (
+        <div className="bg-warning-bg mx-4 flex flex-col gap-1 rounded-xl px-4 py-3">
+          <p className="text-warning text-sm font-semibold">{UNCOUNTED_ADVICE}</p>
+          <p className="text-muted text-sm">{UNCOUNTED_EXPLANATION}</p>
         </div>
       )}
 

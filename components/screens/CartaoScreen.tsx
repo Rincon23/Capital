@@ -27,6 +27,7 @@ import {
   UNASSIGNED_CARD_ID,
   UNASSIGNED_CARD_LABEL,
   type BillLine,
+  type BudgetSettings,
   type CardBill,
   type CardSettings,
   type CreditCard,
@@ -39,8 +40,10 @@ import {
 } from '@/lib/budget';
 import { isModuleOn } from '@/lib/modules';
 import { budgetRepository, walletRepository } from '@/lib/storage';
+import { AdvanceInstallmentSheet } from '@/components/card/AdvanceInstallmentSheet';
 import { CardFormSheet, notifyBeforeLabel } from '@/components/card/CardFormSheet';
 import { InstallmentEditor, type InstallmentEditRequest } from '@/components/card/InstallmentEditor';
+import { InstallmentFormSheet } from '@/components/card/InstallmentFormSheet';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ExpenseFormSheet } from '@/components/month/ExpenseFormSheet';
 import { ModuleGate } from '@/components/modules/ModuleGate';
@@ -170,7 +173,9 @@ function Cartao({ initialTab }: { initialTab?: CardTab }) {
         />
       )}
 
-      {tab === 'parcelados' && <InstallmentsTab snapshot={snapshot} topics={settings.topics} onChanged={reload} />}
+      {tab === 'parcelados' && (
+        <InstallmentsTab snapshot={snapshot} settings={settings} onChanged={reload} />
+      )}
 
       {tab === 'cartoes' && <CardsTab snapshot={snapshot} onChanged={reload} />}
 
@@ -516,15 +521,20 @@ function LimitBar({ card, snapshot }: { card: CreditCard; snapshot: Snapshot }) 
 
 function InstallmentsTab({
   snapshot,
-  topics,
+  settings,
   onChanged,
 }: {
   snapshot: Snapshot;
-  topics: TopicConfig[];
+  settings: BudgetSettings;
   onChanged: () => Promise<void>;
 }) {
+  const { showToast } = useToast();
   const [showFinished, setShowFinished] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  /** The purchase whose remaining charges are being paid ahead of time. */
+  const [advancing, setAdvancing] = useState<InstallmentPlan | null>(null);
+  const topics = settings.topics;
   const today = snapshot.today;
   const month = currentMonthKey();
   const plans = [...snapshot.installments].sort(
@@ -549,12 +559,14 @@ function InstallmentsTab({
   function planRow(plan: InstallmentPlan) {
     const left = remainingInstallments(plan, today);
     const topic = plan.topicId ? topics.find((item) => item.id === plan.topicId)?.name : undefined;
+    const paid = plan.paidCount ?? 0;
+    const advanced = plan.advancedCount ?? 0;
     return (
-      <li key={plan.id}>
+      <li key={plan.id} className="border-border bg-card rounded-xl border shadow-sm">
         <button
           type="button"
           onClick={() => setEditing(plan.id)}
-          className="border-border bg-card flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left shadow-sm"
+          className="flex w-full items-center gap-3 px-4 py-3 text-left"
         >
           <div className="min-w-0 flex-1">
             <p className="text-foreground truncate font-medium">{plan.name}</p>
@@ -568,11 +580,34 @@ function InstallmentsTab({
                 ? `à vista · o gasto já entrou em ${formatMonthShort((plan.purchaseDate ?? plan.firstDebitDate).slice(0, 7))}`
                 : `em parcelas · ${formatBRL(installmentAmount(plan))} por mês${topic ? ` em ${topic}` : ''}`}
             </p>
+            {(paid > 0 || advanced > 0) && (
+              <p className="text-muted text-xs">
+                {[
+                  paid > 0 ? `${paid} ${paid === 1 ? 'parcela paga' : 'parcelas pagas'} antes do cadastro` : null,
+                  advanced > 0
+                    ? `${advanced} ${advanced === 1 ? 'parcela adiantada' : 'parcelas adiantadas'}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </p>
+            )}
           </div>
           <p className="text-foreground shrink-0 font-semibold tabular-nums">
             {formatBRL(installmentAmount(plan))}
           </p>
         </button>
+        {left > 0 && (
+          <div className="border-border flex border-t">
+            <button
+              type="button"
+              onClick={() => setAdvancing(plan)}
+              className="text-primary min-h-[44px] flex-1 text-sm font-semibold"
+            >
+              Adiantar parcelas
+            </button>
+          </div>
+        )}
       </li>
     );
   }
@@ -594,12 +629,33 @@ function InstallmentsTab({
       </section>
 
       <section className="flex flex-col gap-2 px-4">
-        <h2 className="text-muted text-sm font-semibold">Compras parceladas</h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-muted text-sm font-semibold">Compras parceladas</h2>
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            aria-label="Cadastrar compra parcelada"
+            data-tour="cartao-parcelado-novo"
+            className="bg-primary text-primary-foreground flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+          >
+            +
+          </button>
+        </div>
         {active.length === 0 ? (
-          <p className="border-border text-muted rounded-xl border border-dashed px-4 py-6 text-center text-sm">
-            Nenhuma compra parcelada em andamento. Ao lançar um gasto no cartão, escolha
-            &ldquo;Parcelado&rdquo; para criar uma.
-          </p>
+          <div className="border-border text-muted flex flex-col gap-3 rounded-xl border border-dashed px-4 py-6 text-center text-sm">
+            <p>
+              Nenhuma compra parcelada em andamento. Ao lançar um gasto no cartão, escolha
+              &ldquo;Parcelado&rdquo; para criar uma — ou cadastre aqui uma compra que você já vinha
+              pagando antes de usar o Capital.
+            </p>
+            <button
+              type="button"
+              onClick={() => setCreating(true)}
+              className="bg-primary text-primary-foreground mx-auto min-h-[44px] rounded-lg px-4 text-sm font-semibold"
+            >
+              Cadastrar compra parcelada
+            </button>
+          </div>
         ) : (
           <ul className="flex flex-col gap-2">{active.map(planRow)}</ul>
         )}
@@ -642,10 +698,41 @@ function InstallmentsTab({
             plans: snapshot.installments,
             cards: snapshot.cards,
             closedMonths: snapshot.closedMonths,
+            today: snapshot.today,
           }}
           onClose={() => setEditing(null)}
           onChanged={onChanged}
           onEditSingle={() => setEditing(null)}
+        />
+      )}
+
+      {creating && (
+        <InstallmentFormSheet
+          topics={topics}
+          specialCategories={settings.specialCategories}
+          showReimbursable={isModuleOn(settings, 'reimbursable')}
+          cards={snapshot.cards}
+          closedMonths={snapshot.closedMonths}
+          today={today}
+          onClose={() => setCreating(false)}
+          onSave={async (plan) => {
+            await walletRepository.saveInstallment(plan);
+            await onChanged();
+            showToast('Compra parcelada cadastrada.');
+          }}
+        />
+      )}
+
+      {advancing && (
+        <AdvanceInstallmentSheet
+          plan={advancing}
+          today={today}
+          onClose={() => setAdvancing(null)}
+          onConfirm={async (input) => {
+            await walletRepository.advanceInstallment(advancing.id, input);
+            await onChanged();
+            showToast('Parcelas adiantadas.');
+          }}
         />
       )}
     </div>

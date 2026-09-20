@@ -71,6 +71,8 @@ function Lembretes() {
   const [tab, setTab] = useState<Tab>('hoje');
   const [editing, setEditing] = useState<Reminder | null>(null);
   const [creating, setCreating] = useState(false);
+  /** The day a new reminder starts on, when it came from tapping a free day in the calendar. */
+  const [creatingDate, setCreatingDate] = useState<ISODate | undefined>(undefined);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState(false);
   useModuleIntro('reminders', { ready: !!snapshot });
@@ -171,7 +173,16 @@ function Lembretes() {
 
       {tab === 'hoje' && <TodayView snapshot={snapshot} actions={actions} onCreate={() => setCreating(true)} />}
       {tab === 'todos' && <AllView snapshot={snapshot} onOpen={actions.open} onCreate={() => setCreating(true)} />}
-      {tab === 'calendario' && <CalendarView snapshot={snapshot} onOpen={actions.open} />}
+      {tab === 'calendario' && (
+        <CalendarView
+          snapshot={snapshot}
+          onOpen={actions.open}
+          onCreate={(date) => {
+            setCreatingDate(date);
+            setCreating(true);
+          }}
+        />
+      )}
 
       {configuring && (
         <ModuleSettingsSheet
@@ -190,10 +201,12 @@ function Lembretes() {
       {(creating || editing) && (
         <ReminderFormSheet
           initial={editing ?? undefined}
+          initialDate={creatingDate}
           today={snapshot.today}
           repeatEnabled={snapshot.settings.repeatEnabled}
           onClose={() => {
             setCreating(false);
+            setCreatingDate(undefined);
             setEditing(null);
           }}
           onSave={async (reminder) => {
@@ -201,6 +214,7 @@ function Lembretes() {
               await run(() => remindersRepository.saveReminder(reminder));
               showToast(editing ? 'Lembrete atualizado.' : 'Lembrete criado.');
               setCreating(false);
+              setCreatingDate(undefined);
               setEditing(null);
             } catch (err) {
               showToast(toStorageErrorMessage(err, 'Não foi possível salvar. Tente de novo.'), 'error');
@@ -426,7 +440,16 @@ function AllView({
  * The one-off appointments of this month and the next: first both month grids, compact enough to
  * fit on a phone screen together (what matters is spotting what is coming), then the list.
  */
-function CalendarView({ snapshot, onOpen }: { snapshot: RemindersSnapshot; onOpen: (reminder: Reminder) => void }) {
+function CalendarView({
+  snapshot,
+  onOpen,
+  onCreate,
+}: {
+  snapshot: RemindersSnapshot;
+  onOpen: (reminder: Reminder) => void;
+  /** A free day was tapped: the new reminder starts on it. */
+  onCreate: (date: ISODate) => void;
+}) {
   const current = snapshot.today.slice(0, 7);
   const months = [current, nextMonth(current)];
   const appointments = snapshot.reminders
@@ -451,8 +474,13 @@ function CalendarView({ snapshot, onOpen }: { snapshot: RemindersSnapshot; onOpe
           today={snapshot.today}
           busyDays={busyDays}
           onSelect={setSelectedDay}
+          onCreate={onCreate}
         />
       ))}
+
+      <p className="text-muted px-4 text-xs">
+        Toque num dia livre para criar um lembrete já naquela data.
+      </p>
 
       <section className="flex flex-col gap-2 px-4">
         <h2 className="text-muted text-sm font-semibold">📌 Compromissos</h2>
@@ -550,12 +578,15 @@ function MonthGrid({
   today,
   busyDays,
   onSelect,
+  onCreate,
 }: {
   month: string;
   today: ISODate;
   busyDays: Set<ISODate>;
   /** Called when a day with appointments is tapped. */
   onSelect: (date: ISODate) => void;
+  /** Called when a day with nothing on it is tapped: a new reminder, already on that day. */
+  onCreate: (date: ISODate) => void;
 }) {
   const [year, monthNumber] = month.split('-').map(Number);
   const firstWeekday = weekdayOf(`${month}-01`);
@@ -581,7 +612,10 @@ function MonthGrid({
           if (!date) return <span key={`vazio-${index}`} />;
           const isToday = date === today;
           const busy = busyDays.has(date);
-          const Day = busy ? 'button' : 'span';
+          // A free day still takes a tap: it opens a new reminder already on that day. Only a
+          // day that has already passed does nothing — there is nothing to be reminded of.
+          const free = !busy && date >= today;
+          const Day = busy || free ? 'button' : 'span';
           return (
             <span key={date} className="flex justify-center">
               <Day
@@ -591,7 +625,13 @@ function MonthGrid({
                       onClick: () => onSelect(date),
                       'aria-label': `Ver os compromissos de ${formatDayMonth(date)}`,
                     }
-                  : {})}
+                  : free
+                    ? {
+                        type: 'button' as const,
+                        onClick: () => onCreate(date),
+                        'aria-label': `Criar um lembrete em ${formatDayMonth(date)}`,
+                      }
+                    : {})}
                 className={`relative flex h-8 w-8 items-center justify-center rounded-full text-sm ${
                   isToday && busy
                     ? 'bg-primary text-primary-foreground font-semibold'

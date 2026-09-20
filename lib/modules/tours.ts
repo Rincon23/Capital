@@ -152,7 +152,15 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       anchor: 'cartao-aba-parcelados',
       title: 'O que já está comprometido',
       description:
-        'Aqui ficam as compras parceladas: quanto falta, quantas parcelas restam e quanto cada um dos próximos meses já tem reservado.',
+        'Aqui ficam as compras parceladas: quanto falta, quantas parcelas restam e quanto cada um dos próximos meses já tem reservado. Pagou parcelas antes da hora? Use "Adiantar parcelas" — o app pergunta se teve desconto e encurta a compra.',
+      side: 'bottom',
+    },
+    {
+      route: () => `${card()}?aba=parcelados`,
+      anchor: 'cartao-parcelado-novo',
+      title: 'Uma compra que já vinha pagando',
+      description:
+        'Aqui você cadastra um parcelamento de antes do Capital: diga quantas parcelas já foram pagas e os meses que já passaram ficam como estão — só o que falta entra na fatura e na dívida.',
       side: 'bottom',
     },
     {

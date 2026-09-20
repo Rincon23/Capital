@@ -12,6 +12,9 @@ import { computeCashReport, createDefaultCashSettings } from '../budget/cash';
 import { currentMonthKey, todayISO } from '../budget/date';
 import { createId } from '../budget/id';
 import {
+  advanceExpense,
+  advanceProblem,
+  advancedPlanOf,
   closedMonthsMessage,
   installmentDebt,
   installmentExpense,
@@ -35,8 +38,14 @@ import type {
   PriceQuote,
   RecurringExpense,
 } from '../budget/types';
-import type { AllocateInput, BillRef, WalletRepository, WalletSnapshot } from '../storage/wallet';
-import type { PostgresBudgetRepository } from './budgetRepository';
+import type {
+  AdvanceInstallmentInput,
+  AllocateInput,
+  BillRef,
+  WalletRepository,
+  WalletSnapshot,
+} from '../storage/wallet';
+import type { MonthWriteContext, PostgresBudgetRepository } from './budgetRepository';
 import {
   cardBillPayments,
   cards,
@@ -180,6 +189,8 @@ export class PostgresWalletRepository implements WalletRepository {
       totalAmount: row.totalAmount,
       accounting: row.accounting,
       ...(row.cardId ? { cardId: row.cardId } : {}),
+      ...(row.paidCount ? { paidCount: row.paidCount } : {}),
+      ...(row.advancedCount ? { advancedCount: row.advancedCount } : {}),
     }));
   }
 
@@ -499,6 +510,33 @@ export class PostgresWalletRepository implements WalletRepository {
    * a closed month is the month's own record, and reopening it is the only way through.
    */
   async saveInstallment(plan: InstallmentPlan): Promise<void> {
+    await this.budget.writeWith((ctx) => this.writePlan(ctx, plan));
+  }
+
+  /**
+   * "Adiantar parcelas": the last `count` charges leave the plan, and what was really paid —
+   * those charges minus the discount — becomes one expense of its own in `month`. Both halves go
+   * in the same transaction, so the purchase never ends up shortened with nothing paid for it.
+   */
+  async advanceInstallment(id: string, input: AdvanceInstallmentInput): Promise<void> {
+    const plan = (await this.listInstallments()).find((item) => item.id === id);
+    if (!plan) throw new HttpError(404, 'NOT_FOUND', 'Esta compra parcelada não existe mais.');
+
+    const problem = advanceProblem(plan, input, todayISO());
+    if (problem) throw new HttpError(400, 'INVALID_INPUT', problem);
+
+    const expense = advanceExpense(plan, input, createId());
+    await this.budget.writeWith(async (ctx) => {
+      await this.writePlan(ctx, advancedPlanOf(plan, input.count));
+      await ctx.addExpense(input.month, expense);
+    });
+  }
+
+  /** The half of `saveInstallment` that runs inside a write, shared with `advanceInstallment`. */
+  private async writePlan(
+    { tx, addExpense, touch, openMonths }: MonthWriteContext,
+    plan: InstallmentPlan,
+  ): Promise<void> {
     const values = {
       name: plan.name,
       categoryKind: plan.categoryKind,
@@ -509,37 +547,37 @@ export class PostgresWalletRepository implements WalletRepository {
       totalAmount: plan.totalAmount,
       accounting: plan.accounting,
       cardId: plan.cardId ?? null,
+      paidCount: plan.paidCount ?? 0,
+      advancedCount: plan.advancedCount ?? 0,
     };
 
-    await this.budget.writeWith(async ({ tx, addExpense, touch, openMonths }) => {
-      await this.requireOpenMonthsForPlan(tx, plan);
+    await this.requireOpenMonthsForPlan(tx, plan);
 
-      await tx
-        .insert(installments)
-        .values({ userId: this.userId, id: plan.id, ...values })
-        .onConflictDoUpdate({ target: [installments.userId, installments.id], set: values });
+    await tx
+      .insert(installments)
+      .values({ userId: this.userId, id: plan.id, ...values })
+      .onConflictDoUpdate({ target: [installments.userId, installments.id], set: values });
 
-      // Start from a clean slate: what this plan wrote before may belong to another month, to
-      // another category or to the other accounting mode altogether.
-      const removed = await tx
-        .delete(expenses)
-        .where(and(eq(expenses.userId, this.userId), eq(expenses.installmentId, plan.id)))
-        .returning({ month: expenses.month });
-      for (const row of removed) touch(row.month);
+    // Start from a clean slate: what this plan wrote before may belong to another month, to
+    // another category or to the other accounting mode altogether.
+    const removed = await tx
+      .delete(expenses)
+      .where(and(eq(expenses.userId, this.userId), eq(expenses.installmentId, plan.id)))
+      .returning({ month: expenses.month });
+    for (const row of removed) touch(row.month);
 
-      if (plan.accounting === 'installment') {
-        // Charge the months that already exist and are still open; months created later get
-        // their charge when they are created (see `installmentExpensesFor`).
-        for (const month of await openMonths()) {
-          for (const { number, dueDate } of installmentsDueIn([plan], month)) {
-            await addExpense(month, installmentExpense(plan, number, dueDate));
-          }
+    if (plan.accounting === 'installment') {
+      // Charge the months that already exist and are still open; months created later get
+      // their charge when they are created (see `installmentExpensesFor`).
+      for (const month of await openMonths()) {
+        for (const { number, dueDate } of installmentsDueIn([plan], month)) {
+          await addExpense(month, installmentExpense(plan, number, dueDate));
         }
-      } else {
-        const date = upfrontDate(plan);
-        await addExpense(date.slice(0, 7), upfrontExpense(plan, date));
       }
-    });
+    } else {
+      const date = upfrontDate(plan);
+      await addExpense(date.slice(0, 7), upfrontExpense(plan, date));
+    }
   }
 
   /** Deletes the plan and every expense line it created, in every month. */
@@ -555,6 +593,8 @@ export class PostgresWalletRepository implements WalletRepository {
         firstDebitDate: plan.firstDebitDate,
         purchaseDate: plan.purchaseDate ?? undefined,
         count: plan.count,
+        paidCount: plan.paidCount,
+        advancedCount: plan.advancedCount,
         accounting: plan.accounting,
         id,
       });
@@ -575,7 +615,8 @@ export class PostgresWalletRepository implements WalletRepository {
    */
   private async requireOpenMonthsForPlan(
     tx: Transaction,
-    plan: Pick<InstallmentPlan, 'id' | 'firstDebitDate' | 'count' | 'accounting' | 'purchaseDate'>,
+    plan: Pick<InstallmentPlan, 'id' | 'firstDebitDate' | 'count' | 'accounting' | 'purchaseDate'> &
+      Pick<Partial<InstallmentPlan>, 'paidCount' | 'advancedCount'>,
   ): Promise<void> {
     const touched = new Set(monthsTouchedBy(plan));
     const existing = await tx
@@ -646,8 +687,11 @@ export class PostgresWalletRepository implements WalletRepository {
   }
 
   /**
-   * Moves `amount` into a bucket: the money buys quotas for it (taken from the free reserve) and
-   * the bucket's envelope is charged, exactly as the bot did. Both happen in one transaction.
+   * Moves `amount` between the free reserve and a bucket. Putting money in buys quotas for the
+   * bucket and charges its envelope, exactly as the bot did; taking money out is the same
+   * operation backwards — the quotas go back to the free reserve and the envelope is credited,
+   * as a negative expense, so the month stops showing money the person did not spend after all.
+   * Both halves happen in one transaction.
    */
   async allocate(input: AllocateInput): Promise<void> {
     const reserve = await this.readReserve();
@@ -673,13 +717,22 @@ export class PostgresWalletRepository implements WalletRepository {
       );
     }
 
+    const out = input.direction === 'out';
     const quotas = quotasForAmount(input.amount, quote.price);
+    if (out && quotas > bucket.quotas) {
+      throw new HttpError(
+        400,
+        'NOT_ENOUGH_QUOTAS',
+        `A categoria "${bucket.name}" tem ${round2(bucket.quotas * quote.price)} em ${reserve.ticker}; não dá para retirar ${round2(input.amount)}.`,
+      );
+    }
+
     const expense: Expense = {
       id: createId(),
       categoryKind: 'topic',
       topicId: bucket.topicId,
-      description: reserve.ticker,
-      amount: round2(input.amount),
+      description: out ? `${reserve.ticker} (retirada)` : reserve.ticker,
+      amount: out ? -round2(input.amount) : round2(input.amount),
       date: input.date,
       singleInstallmentCard: false,
       source: 'investment',
@@ -688,7 +741,7 @@ export class PostgresWalletRepository implements WalletRepository {
     await this.budget.writeWith(async ({ tx, addExpense }) => {
       await tx
         .update(investmentBuckets)
-        .set({ quotas: bucket.quotas + quotas })
+        .set({ quotas: out ? bucket.quotas - quotas : bucket.quotas + quotas })
         .where(and(eq(investmentBuckets.userId, this.userId), eq(investmentBuckets.id, bucket.id)));
       await addExpense(input.month, expense);
     });

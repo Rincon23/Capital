@@ -49,9 +49,16 @@ export const settingsSchema = z.object({
     unforeseen: z.string(),
     // Older data (and backups from before the module existed) has no "A receber" label.
     reimbursable: z.string().optional(),
+    // Likewise for "Fora do orçamento", which came later.
+    uncounted: z.string().optional(),
   }),
   specialCategoryColors: z
-    .object({ fixedCost: z.string(), unforeseen: z.string(), reimbursable: z.string() })
+    .object({
+      fixedCost: z.string(),
+      unforeseen: z.string(),
+      reimbursable: z.string(),
+      uncounted: z.string(),
+    })
     .partial()
     .optional(),
   onboardingCompleted: z.boolean().optional(),
@@ -70,7 +77,7 @@ export const incomeSchema = z.object({
   date: z.preprocess(absentAsUndefined, isoDate.optional()),
 });
 
-const categoryKindSchema = z.enum(['topic', 'fixedCost', 'unforeseen', 'reimbursable']);
+const categoryKindSchema = z.enum(['topic', 'fixedCost', 'unforeseen', 'reimbursable', 'uncounted']);
 
 export const expenseSchema = z.object({
   id: z.string().min(1).max(100),
@@ -127,6 +134,10 @@ export const installmentPlanSchema = z.object({
   totalAmount: money.positive(),
   accounting: z.enum(['installment', 'upfront']),
   cardId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
+  /** Charges already paid before the purchase was registered here (see InstallmentPlan). */
+  paidCount: z.preprocess(absentAsUndefined, z.number().int().min(0).max(120).optional()),
+  /** Charges paid ahead of time ("adiantar parcelas"). */
+  advancedCount: z.preprocess(absentAsUndefined, z.number().int().min(0).max(120).optional()),
 });
 
 export const creditCardSchema = z.object({
@@ -163,8 +174,18 @@ export const tradeQuotasSchema = z.object({ delta: z.number().finite() });
 export const allocateSchema = z.object({
   bucketId: z.string().min(1).max(100),
   amount: money.positive(),
+  /** 'in' puts money into the bucket, 'out' takes it back out; absent in older clients. */
+  direction: z.enum(['in', 'out']).optional(),
   month: monthKeySchema,
   date: isoDate,
+});
+
+/** Body of "adiantar parcelas": how many of the last charges were paid early, and the discount. */
+export const advanceInstallmentSchema = z.object({
+  count: z.number().int().min(1).max(120),
+  discount: money.min(0),
+  date: isoDate,
+  month: monthKeySchema,
 });
 
 export const cashSettingsSchema = z.object({

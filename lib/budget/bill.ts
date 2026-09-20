@@ -1,5 +1,5 @@
 import { UNASSIGNED_CARD_ID, type CardBillTotal } from './cards';
-import { installmentAmount, installmentDueDates } from './installments';
+import { installmentAmount, installmentDueDates, isActiveCharge } from './installments';
 import { round2, sum } from './money';
 import type { Expense, InstallmentPlan, Month } from './types';
 
@@ -86,12 +86,17 @@ export interface PlannedCharge {
   amount: number;
 }
 
-/** Every charge of every plan, oldest first. */
+/**
+ * Every charge of every plan that the bank will still ask for, oldest first. Charges paid before
+ * the purchase was registered here, and charges brought forward by "adiantar parcelas", are not
+ * among them: they are not on any bill (see `activeChargeRange`).
+ */
 export function plannedCharges(plans: InstallmentPlan[]): PlannedCharge[] {
   const charges: PlannedCharge[] = [];
   for (const plan of plans) {
     const amount = installmentAmount(plan);
     installmentDueDates(plan).forEach((dueDate, index) => {
+      if (!isActiveCharge(plan, index + 1)) return;
       charges.push({
         plan,
         number: index + 1,

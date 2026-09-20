@@ -59,6 +59,7 @@ describe('tours dos módulos', () => {
       ['card', '/cartao', 'cartao-lancamentos'],
       ['card', '/cartao', 'cartao-pagar'],
       ['card', '/cartao?aba=parcelados', 'cartao-aba-parcelados'],
+      ['card', '/cartao?aba=parcelados', 'cartao-parcelado-novo'],
       ['card', '/cartao?aba=cartoes', 'cartao-aba-cartoes'],
       ['card', '/cartao', 'cartao-config'],
       ['card', '/mes/2026-09', 'cartao-pergunta'],
@@ -69,8 +70,8 @@ describe('tours dos módulos', () => {
       ['reimbursable', '/mes/2026-09/lancamentos?aba=a-receber', 'ajuda-reimbursable'],
     ]);
     // The card question is inside the expense form; the help button is not, so it closes first.
-    expect(steps[6].sheet).toBe('expense-form');
-    expect(steps[7].sheet).toBeUndefined();
+    expect(steps[7].sheet).toBe('expense-form');
+    expect(steps[8].sheet).toBeUndefined();
   });
 
   it('o tour do Cartão é um só, curto, e passa pelas três abas', () => {

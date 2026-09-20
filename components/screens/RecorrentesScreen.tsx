@@ -57,7 +57,7 @@ function Recorrentes() {
   const [editing, setEditing] = useState<RecurringExpense | null>(null);
   const [creating, setCreating] = useState(false);
   /** The expense a "Lançar no mês" is about to create, shown in the normal expense form. */
-  const [launching, setLaunching] = useState<Expense | null>(null);
+  const [launching, setLaunching] = useState<Partial<Expense> | null>(null);
   useModuleIntro('recurring', { ready: !!snapshot });
 
   if (loading && !snapshot) {
@@ -96,10 +96,13 @@ function Recorrentes() {
     showToast('Recorrente excluído.');
   }
 
-  /** Opens the normal expense form, filled from the template and with today's date (correction 2). */
+  /**
+   * Opens the ordinary expense form, filled from the template and with today's date (correction
+   * 2). It goes in as a draft, not as an expense that already exists, so the form is the same one
+   * as everywhere else — including "À vista / Parcelado" when the template is paid on the card.
+   */
   function startLaunch(item: RecurringExpense) {
     setLaunching({
-      id: createId(),
       categoryKind: item.categoryKind,
       ...(item.topicId ? { topicId: item.topicId } : {}),
       description: item.description,
@@ -192,7 +195,9 @@ function Recorrentes() {
           specialCategories={settings.specialCategories}
           reimbursableEnabled={isModuleOn(settings, 'reimbursable')}
           cardEnabled={isModuleOn(settings, 'card')}
-          initial={launching}
+          draft={launching}
+          allowSplit
+          closedMonths={snapshot?.closedMonths ?? []}
           title="Lançar recorrente"
           onClose={() => setLaunching(null)}
           onSave={async (expense) => {
@@ -201,6 +206,15 @@ function Recorrentes() {
             setLaunching(null);
             showToast('Gasto adicionado com sucesso!');
           }}
+          onSaveInstallment={
+            isModuleOn(settings, 'card')
+              ? async (plan) => {
+                  await run(() => walletRepository.saveInstallment(plan));
+                  setLaunching(null);
+                  showToast('Compra parcelada criada a partir do recorrente.');
+                }
+              : undefined
+          }
         />
       )}
     </div>

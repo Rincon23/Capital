@@ -382,7 +382,11 @@ export class PostgresBudgetRepository implements BudgetRepository {
       .onConflictDoUpdate({ target: [expenses.userId, expenses.id], set: values });
   }
 
-  /** This user's instalment plans, for the charges that belong to a month. */
+  /**
+   * This user's instalment plans, for the charges that belong to a month. `paidCount` and
+   * `advancedCount` come along on purpose: opening a month must not resurrect a charge that was
+   * paid before the purchase was registered, or one that was brought forward.
+   */
   private async loadInstallmentPlans(ex: Executor): Promise<InstallmentPlan[]> {
     const rows = await ex
       .select()
@@ -398,6 +402,9 @@ export class PostgresBudgetRepository implements BudgetRepository {
       count: row.count,
       totalAmount: row.totalAmount,
       accounting: row.accounting,
+      ...(row.cardId ? { cardId: row.cardId } : {}),
+      ...(row.paidCount ? { paidCount: row.paidCount } : {}),
+      ...(row.advancedCount ? { advancedCount: row.advancedCount } : {}),
     }));
   }
 

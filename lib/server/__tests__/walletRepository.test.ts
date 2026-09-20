@@ -242,6 +242,100 @@ describe('PostgresWalletRepository', () => {
     expect(computeMonthSummary(data!).topics.find((t) => t.topicId === metas)?.spent).toBe(250);
   });
 
+  it('takes money back out of a bucket: quotas to the free reserve, estorno in the month', async () => {
+    const { budget, wallet } = await newAccount();
+    const metas = await topicId(budget, 'Metas');
+    const month = currentMonthKey();
+    await setPrice('AUPO11', 100);
+    await wallet.tradeQuotas(50);
+    await wallet.saveBucket({ id: 'b1', name: 'Metas', topicId: metas, quotas: 0 });
+    await wallet.allocate({ bucketId: 'b1', amount: 250, month, date: todayISO() });
+
+    await wallet.allocate({ bucketId: 'b1', amount: 100, direction: 'out', month, date: todayISO() });
+
+    const snapshot = await wallet.getSnapshot();
+    expect(snapshot.investments.buckets[0].quotas).toBeCloseTo(1.5, 8);
+    expect(snapshot.investments.freeQuotas).toBeCloseTo(48.5, 8);
+
+    const data = await budget.getMonth(month);
+    const estorno = data?.expenses.find((e) => e.amount < 0);
+    expect(estorno).toMatchObject({ description: 'AUPO11 (retirada)', amount: -100, topicId: metas });
+    // O que ficou guardado é o que a categoria do orçamento mostra como gasto.
+    expect(computeMonthSummary(data!).topics.find((t) => t.topicId === metas)?.spent).toBe(150);
+  });
+
+  it('refuses to take out of a bucket more than it holds', async () => {
+    const { budget, wallet } = await newAccount();
+    const month = currentMonthKey();
+    await setPrice('AUPO11', 100);
+    await wallet.tradeQuotas(50);
+    await wallet.saveBucket({ id: 'b1', name: 'Metas', topicId: await topicId(budget), quotas: 1 });
+
+    await expect(
+      wallet.allocate({ bucketId: 'b1', amount: 500, direction: 'out', month, date: todayISO() }),
+    ).rejects.toThrow(/não dá para retirar/i);
+  });
+
+  it('registers a purchase that started before the account: the past is left alone', async () => {
+    const { budget, wallet } = await newAccount();
+    const month = currentMonthKey();
+    const old = shiftMonth(month, -3);
+    await budget.ensureMonth(old);
+    await budget.ensureMonth(month);
+
+    // Seis parcelas, começando três meses atrás, com as três primeiras já pagas por fora.
+    const plan = planFor(old, { count: 6, totalAmount: 600, paidCount: 3 });
+    await wallet.saveInstallment(plan);
+
+    expect((await budget.getMonth(old))?.expenses).toEqual([]);
+    expect((await budget.getMonth(month))?.expenses.map((e) => e.description)).toEqual([
+      'Notebook 4/6',
+    ]);
+    const snapshot = await wallet.getSnapshot();
+    expect(snapshot.installments[0].paidCount).toBe(3);
+    expect(snapshot.cash.report.installmentDebt).toBe(-200);
+  });
+
+  it('advances the last charges: the plan gets shorter and what was paid lands in the month', async () => {
+    const { budget, wallet } = await newAccount();
+    const month = currentMonthKey();
+    await budget.ensureMonth(month);
+    await budget.ensureMonth(nextMonth(month));
+
+    const plan = planFor(month, { count: 3, totalAmount: 300 });
+    await wallet.saveInstallment(plan);
+    expect((await budget.getMonth(nextMonth(month)))?.expenses).toHaveLength(1);
+
+    await wallet.advanceInstallment(plan.id, { count: 2, discount: 30, date: todayISO(), month });
+
+    const snapshot = await wallet.getSnapshot();
+    expect(snapshot.installments[0].advancedCount).toBe(2);
+    // As parcelas adiantadas saem dos meses em que iam cair.
+    expect((await budget.getMonth(nextMonth(month)))?.expenses).toEqual([]);
+
+    const data = await budget.getMonth(month);
+    const advance = data?.expenses.find((e) => e.description.startsWith('Adiantamento'));
+    expect(advance).toMatchObject({
+      description: 'Adiantamento · Notebook',
+      amount: 170,
+      categoryKind: 'fixedCost',
+      singleInstallmentCard: true,
+    });
+    // Nada de dívida sobrando: a compra ficou só com a parcela deste mês.
+    expect(snapshot.cash.report.installmentDebt).toBe(0);
+  });
+
+  it('refuses to advance more charges than the purchase still has to pay', async () => {
+    const { wallet } = await newAccount();
+    const month = currentMonthKey();
+    const plan = planFor(month, { count: 3, totalAmount: 300 });
+    await wallet.saveInstallment(plan);
+
+    await expect(
+      wallet.advanceInstallment(plan.id, { count: 9, discount: 0, date: todayISO(), month }),
+    ).rejects.toThrow(/parcelas/i);
+  });
+
   it('refreshes an old price by itself, for free, when the user holds quotas', async () => {
     const { wallet } = await newAccount();
     await wallet.setTicker('BOVA11');

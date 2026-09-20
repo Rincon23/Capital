@@ -5,7 +5,8 @@ import {
   DndContext,
   KeyboardSensor,
   MeasuringStrategy,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -74,8 +75,15 @@ export function EditableHomeCards({
 
   // Hold, then drag — never drag straight away: a card only comes loose after the finger has
   // stayed on it, so brushing past one while reading never moves anything.
+  //
+  // The touch half is deliberately the `TouchSensor` and not the `PointerSensor`: the pointer one
+  // can only stop the page from scrolling under the finger with `touch-action: none`, and with the
+  // cards covering the whole screen that left "Organizar Início" impossible to scroll at all. The
+  // touch sensor blocks the scroll from inside, once the card is really loose, so até lá o dedo
+  // rola a tela como em qualquer outra página — que é como a tela inicial do celular se comporta.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { delay: HOLD_MS, tolerance: HOLD_TOLERANCE } }),
+    useSensor(MouseSensor, { activationConstraint: { delay: HOLD_MS, tolerance: HOLD_TOLERANCE } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: HOLD_MS, tolerance: HOLD_TOLERANCE } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -186,7 +194,7 @@ function SortableCard({
         {...attributes}
         {...listeners}
         aria-label={`Segurar e arrastar ${moduleDefinition(cardKey).name} para reorganizar`}
-        className="ring-primary/60 active:bg-primary/5 absolute inset-0 touch-none rounded-2xl ring-2 ring-dashed"
+        className="ring-primary/60 active:bg-primary/5 absolute inset-0 touch-manipulation rounded-2xl ring-2 ring-dashed"
       />
       {resizable && (
         <button

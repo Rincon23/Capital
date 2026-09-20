@@ -1,4 +1,5 @@
 import type { CardBill } from '../budget/cards';
+import type { AdvanceInput } from '../budget/installments';
 import type { CashReport } from '../budget/cash';
 import type { InvestmentSummary } from '../budget/investments';
 import type {
@@ -45,11 +46,19 @@ export interface BillRef {
 
 export interface AllocateInput {
   bucketId: string;
-  /** How much money to move into the bucket, in BRL. */
+  /** How much money to move, in BRL. Always positive; `direction` says which way. */
   amount: number;
+  /** 'in' guarda dinheiro na categoria, 'out' retira. Absent means 'in' (older clients). */
+  direction?: 'in' | 'out';
   /** Competence the resulting expense is written to. */
   month: Month;
   date: string;
+}
+
+/** "Adiantar parcelas": how many of the last charges were paid early, and what it cost. */
+export interface AdvanceInstallmentInput extends AdvanceInput {
+  /** Competence the payment is written to. */
+  month: Month;
 }
 
 export interface WalletRepository {
@@ -62,6 +71,8 @@ export interface WalletRepository {
   saveInstallment(plan: InstallmentPlan): Promise<void>;
   /** Deletes the plan and every expense line it created. */
   deleteInstallment(id: string): Promise<void>;
+  /** "Adiantar parcelas": shortens the plan and records what was actually paid. */
+  advanceInstallment(id: string, input: AdvanceInstallmentInput): Promise<void>;
 
   saveCard(card: CreditCard): Promise<void>;
   /** Deletes the card; its purchases stay, untied (they join the "Não informado" bill). */
@@ -77,7 +88,7 @@ export interface WalletRepository {
   tradeQuotas(delta: number): Promise<void>;
   saveBucket(bucket: InvestmentBucket): Promise<void>;
   deleteBucket(id: string): Promise<void>;
-  /** Moves money into a bucket: adds the quotas and charges the bucket's envelope. */
+  /** Moves money in or out of a bucket: the quotas follow, and so does the bucket's envelope. */
   allocate(input: AllocateInput): Promise<void>;
   /** Asks the server for a fresh quote. */
   refreshPrice(): Promise<void>;

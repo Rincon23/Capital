@@ -13,11 +13,24 @@ export const DEFAULT_SPECIAL_CATEGORY_LABELS: ResolvedSpecialCategoryLabels = {
   fixedCost: 'Custo Fixo',
   unforeseen: 'Imprevistos',
   reimbursable: 'A receber',
+  uncounted: 'Fora do orçamento',
 };
 
 /** Shown wherever the "A receber" category appears, so its behaviour is never a surprise. */
 export const REIMBURSABLE_EXPLANATION =
   'Você pagou no cartão, mas alguém vai te devolver. Entra na fatura do cartão e não gasta nenhuma categoria.';
+
+/**
+ * Shown wherever "Fora do orçamento" appears. The category exists because sometimes there is no
+ * honest category for a gasto, but it is the one choice the app argues against: o dinheiro sai
+ * do mesmo jeito e o orçamento do mês fica parecendo melhor do que é.
+ */
+export const UNCOUNTED_EXPLANATION =
+  'O gasto fica registrado (e entra na fatura, se foi no cartão), mas não consome nenhuma categoria e não aparece no total gasto do mês.';
+
+/** Why the app marks "Fora do orçamento" as "Não recomendado" wherever it is offered. */
+export const UNCOUNTED_ADVICE =
+  'Não recomendado: o dinheiro saiu do mesmo jeito, e nenhuma categoria vai mostrar isso.';
 
 /** Special-category labels with any missing entry (older data) filled from the defaults. */
 export function resolveSpecialCategoryLabels(

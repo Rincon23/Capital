@@ -3,6 +3,8 @@
 import { useMemo } from 'react';
 import {
   REIMBURSABLE_EXPLANATION,
+  UNCOUNTED_ADVICE,
+  UNCOUNTED_EXPLANATION,
   resolveSpecialCategoryLabels,
   type CategoryKind,
   type SpecialCategoryLabels,
@@ -26,12 +28,18 @@ export function CategoryPicker({
   value,
   onChange,
   showReimbursable = false,
+  showUncounted = true,
 }: {
   topics: TopicConfig[];
   specialCategories: SpecialCategoryLabels;
   value: CategoryValue;
   onChange: (value: CategoryValue) => void;
   showReimbursable?: boolean;
+  /**
+   * Whether to offer "Fora do orçamento" — the escape hatch for a gasto that should consume no
+   * category. It is offered wherever an expense is filed, and always marked "Não recomendado".
+   */
+  showUncounted?: boolean;
 }) {
   const activeTopics = useMemo(
     () => topics.filter((t) => !t.archived).sort((a, b) => a.order - b.order),
@@ -69,9 +77,24 @@ export function CategoryPicker({
             onClick={() => onChange({ categoryKind: 'reimbursable', topicId: value.topicId })}
           />
         )}
+        {showUncounted && (
+          <Chip
+            label={labels.uncounted}
+            badge="Não recomendado"
+            tourAnchor="categoria-fora-do-orcamento"
+            selected={value.categoryKind === 'uncounted'}
+            onClick={() => onChange({ categoryKind: 'uncounted', topicId: value.topicId })}
+          />
+        )}
       </div>
       {value.categoryKind === 'reimbursable' && (
         <p className="text-muted mt-2 text-xs">{REIMBURSABLE_EXPLANATION}</p>
+      )}
+      {value.categoryKind === 'uncounted' && (
+        <div className="bg-warning-bg mt-2 flex flex-col gap-1 rounded-lg px-3 py-2">
+          <p className="text-warning text-xs font-semibold">{UNCOUNTED_ADVICE}</p>
+          <p className="text-muted text-xs">{UNCOUNTED_EXPLANATION}</p>
+        </div>
       )}
     </div>
   );

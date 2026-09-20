@@ -34,6 +34,40 @@ export function installmentDueDates(plan: Pick<InstallmentPlan, 'firstDebitDate'
 }
 
 /**
+ * The charges of a plan that still belong to it, as a 1-based inclusive range. A purchase that
+ * started before it was registered here leaves its first `paidCount` charges out, and "adiantar
+ * parcelas" leaves the last `advancedCount` out. Everything else in this file — the bill, the
+ * budget, the debt, the months a purchase touches — works on this range, so a charge that is not
+ * in it simply does not exist for the app.
+ */
+export function activeChargeRange(plan: PlanShape): { first: number; last: number } {
+  const first = Math.min(Math.max(0, plan.paidCount ?? 0) + 1, plan.count + 1);
+  const last = Math.max(plan.count - Math.max(0, plan.advancedCount ?? 0), first - 1);
+  return { first, last };
+}
+
+/** Whether charge `number` (1-based) is still the plan's to pay. */
+export function isActiveCharge(plan: PlanShape, number: number): boolean {
+  const { first, last } = activeChargeRange(plan);
+  return number >= first && number <= last;
+}
+
+/** How many charges the plan still owns (the ones neither already paid nor brought forward). */
+export function activeInstallmentCount(plan: PlanShape): number {
+  const { first, last } = activeChargeRange(plan);
+  return Math.max(0, last - first + 1);
+}
+
+/** The due dates of the charges that still belong to the plan, oldest first. */
+export function activeDueDates(plan: PlanShape): string[] {
+  return installmentDueDates(plan).filter((_, index) => isActiveCharge(plan, index + 1));
+}
+
+/** Everything the charge maths needs: the schedule plus what was taken out of it. */
+type PlanShape = Pick<InstallmentPlan, 'firstDebitDate' | 'count'> &
+  Partial<Pick<InstallmentPlan, 'paidCount' | 'advancedCount'>>;
+
+/**
  * The value of one instalment, `totalAmount / count`, deliberately **not** rounded: the card debt
  * is the sum of many of them (872,36 in 10× is 87,236 each), and rounding here would drift by
  * cents on every plan. Round only when the instalment becomes an expense or is displayed.
@@ -43,32 +77,23 @@ export function installmentAmount(plan: Pick<InstallmentPlan, 'totalAmount' | 'c
   return plan.totalAmount / plan.count;
 }
 
-/** The last charge date of the plan ("fim"). */
-export function installmentEndDate(plan: Pick<InstallmentPlan, 'firstDebitDate' | 'count'>): string {
-  const dates = installmentDueDates(plan);
-  return dates[dates.length - 1] ?? plan.firstDebitDate;
+/** The last charge date the plan still owns ("fim"). */
+export function installmentEndDate(plan: PlanShape): string {
+  const dates = activeDueDates(plan);
+  return dates[dates.length - 1] ?? installmentDueDates(plan).at(-1) ?? plan.firstDebitDate;
 }
 
-/** The charges still to come: every due date **after** today (correction 8). */
-export function remainingDueDates(
-  plan: Pick<InstallmentPlan, 'firstDebitDate' | 'count'>,
-  todayIso: string,
-): string[] {
-  return installmentDueDates(plan).filter((due) => due > todayIso);
+/** The charges still to come: every due date the plan still owns **after** today (correction 8). */
+export function remainingDueDates(plan: PlanShape, todayIso: string): string[] {
+  return activeDueDates(plan).filter((due) => due > todayIso);
 }
 
-export function remainingInstallments(
-  plan: Pick<InstallmentPlan, 'firstDebitDate' | 'count'>,
-  todayIso: string,
-): number {
+export function remainingInstallments(plan: PlanShape, todayIso: string): number {
   return remainingDueDates(plan, todayIso).length;
 }
 
 /** A plan with no charges left. It is not deleted — it moves to the "Encerrados" section. */
-export function isInstallmentFinished(
-  plan: Pick<InstallmentPlan, 'firstDebitDate' | 'count'>,
-  todayIso: string,
-): boolean {
+export function isInstallmentFinished(plan: PlanShape, todayIso: string): boolean {
   return remainingInstallments(plan, todayIso) === 0;
 }
 
@@ -86,8 +111,8 @@ export function installmentExpenseId(planId: string, number: number): string {
 }
 
 /** The competences the charges of `plan` fall in, oldest first and without repeats. */
-export function installmentMonths(plan: Pick<InstallmentPlan, 'firstDebitDate' | 'count'>): Month[] {
-  const months = new Set(installmentDueDates(plan).map((date) => date.slice(0, 7)));
+export function installmentMonths(plan: PlanShape): Month[] {
+  const months = new Set(activeDueDates(plan).map((date) => date.slice(0, 7)));
   return [...months].sort();
 }
 
@@ -97,7 +122,7 @@ export function installmentMonths(plan: Pick<InstallmentPlan, 'firstDebitDate' |
  * operation (see `closedMonthsMessage`).
  */
 export function monthsTouchedBy(
-  plan: Pick<InstallmentPlan, 'firstDebitDate' | 'count' | 'accounting' | 'purchaseDate'>,
+  plan: PlanShape & Pick<InstallmentPlan, 'accounting' | 'purchaseDate'>,
 ): Month[] {
   const months = new Set(installmentMonths(plan));
   if (plan.accounting === 'upfront') months.add(upfrontDate(plan).slice(0, 7));
@@ -126,6 +151,7 @@ export function installmentsDueIn(
     // Only "Parcelada" plans become expenses; an "À vista" plan was already paid in full.
     if (plan.accounting !== 'installment') continue;
     installmentDueDates(plan).forEach((dueDate, index) => {
+      if (!isActiveCharge(plan, index + 1)) return;
       if (dueDate.startsWith(month)) due.push({ plan, number: index + 1, dueDate });
     });
   }
@@ -162,7 +188,7 @@ export function installmentDebt(plans: InstallmentPlan[], currentMonth: Month): 
   let total = 0;
   for (const plan of plans) {
     const amount = installmentAmount(plan);
-    for (const dueDate of installmentDueDates(plan)) {
+    for (const dueDate of activeDueDates(plan)) {
       if (dueDate.slice(0, 7) > currentMonth) total += amount;
     }
   }
@@ -194,4 +220,88 @@ export function upfrontExpense(plan: InstallmentPlan, date = upfrontDate(plan)):
   if (plan.cardId) expense.cardId = plan.cardId;
   if (plan.topicId) expense.topicId = plan.topicId;
   return expense;
+}
+
+// ---------------------------------------------------------------------------
+// Adiantar parcelas
+// ---------------------------------------------------------------------------
+
+/** What the person tells the app when they pay some of the remaining charges ahead of time. */
+export interface AdvanceInput {
+  /** How many of the last charges were brought forward (1 .. `remainingInstallments`). */
+  count: number;
+  /** What was knocked off for paying early; 0 when there was none. */
+  discount: number;
+  /** The day it was paid, which decides the competence the payment lands in. */
+  date: string;
+}
+
+/** What the advanced charges were worth before any discount. */
+export function advanceTotal(plan: InstallmentPlan, count: number): number {
+  return round2(installmentAmount(plan) * Math.max(0, count));
+}
+
+/** What was actually paid: the advanced charges minus the discount, never below zero. */
+export function advancePaid(plan: InstallmentPlan, input: Pick<AdvanceInput, 'count' | 'discount'>): number {
+  return round2(Math.max(0, advanceTotal(plan, input.count) - Math.max(0, input.discount)));
+}
+
+/**
+ * The plan after the advance: `count` and `totalAmount` are left alone — the purchase cost what
+ * it cost, and rewriting them would change the instalment of every charge — and the charges that
+ * were brought forward leave through `advancedCount`.
+ */
+export function advancedPlanOf(plan: InstallmentPlan, count: number): InstallmentPlan {
+  const room = activeInstallmentCount(plan);
+  return { ...plan, advancedCount: (plan.advancedCount ?? 0) + Math.min(Math.max(0, count), room) };
+}
+
+/**
+ * The single expense an advance creates: what was paid, on the plan's card, in the competence of
+ * the day it was paid.
+ *
+ * Which category it consumes follows the plan's accounting, and that is the whole point of the
+ * distinction: **em parcelas** charged each instalment to the month it fell in, so the charges
+ * brought forward have to be charged now instead; **à vista** already counted the whole purchase
+ * in the month it was bought, so paying earlier moves no money in the budget — the payment is
+ * bill only, which is exactly what "Fora do orçamento" means.
+ */
+export function advanceExpense(plan: InstallmentPlan, input: AdvanceInput, id: string): Expense {
+  const upfront = plan.accounting === 'upfront';
+  const expense: Expense = {
+    id,
+    categoryKind: upfront ? 'uncounted' : plan.categoryKind,
+    description: `Adiantamento · ${plan.name}`,
+    amount: advancePaid(plan, input),
+    date: input.date,
+    singleInstallmentCard: true,
+    source: 'installment',
+  };
+  if (plan.cardId) expense.cardId = plan.cardId;
+  if (!upfront && plan.topicId) expense.topicId = plan.topicId;
+  return expense;
+}
+
+/**
+ * Why an advance cannot be made, or null when it can. Only charges that have not fallen due yet
+ * can be brought forward — the ones already on a bill were charged, discount or not.
+ */
+export function advanceProblem(
+  plan: InstallmentPlan,
+  input: Pick<AdvanceInput, 'count' | 'discount'>,
+  todayIso: string,
+): string | null {
+  const available = remainingInstallments(plan, todayIso);
+  if (available === 0) return 'Esta compra não tem parcelas a vencer para adiantar.';
+  if (!Number.isInteger(input.count) || input.count < 1) return 'Escolha quantas parcelas você adiantou.';
+  if (input.count > available) {
+    return available === 1
+      ? 'Só falta uma parcela a vencer nesta compra.'
+      : `Faltam ${available} parcelas a vencer nesta compra.`;
+  }
+  if (input.discount < 0) return 'O desconto não pode ser negativo.';
+  if (input.discount > advanceTotal(plan, input.count)) {
+    return 'O desconto não pode ser maior do que as parcelas adiantadas.';
+  }
+  return null;
 }

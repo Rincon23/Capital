@@ -12,8 +12,11 @@ export type Month = string;
 /**
  * Kind of expense category. 'reimbursable' ("A receber") is a card purchase made for
  * someone else who will pay it back: it lands on the card bill but consumes no envelope.
+ * 'uncounted' ("Fora do orçamento") is the escape hatch: the expense is recorded and, when it
+ * is a card purchase, lands on the bill, but it consumes no envelope either — which is why the
+ * app marks it as "Não recomendado" wherever it is offered.
  */
-export type CategoryKind = 'topic' | 'fixedCost' | 'unforeseen' | 'reimbursable';
+export type CategoryKind = 'topic' | 'fixedCost' | 'unforeseen' | 'reimbursable' | 'uncounted';
 
 /** The categories every account starts with (see DEFAULT_TOPICS). */
 export type TopicPreset = 'diversos' | 'investimentos' | 'metas' | 'conhecimentos';
@@ -38,13 +41,14 @@ export interface TopicConfig {
 }
 
 /**
- * User-configurable labels for the special (non-envelope) categories. 'reimbursable' may be
- * absent in older data; resolve with `resolveSpecialCategoryLabels`.
+ * User-configurable labels for the special (non-envelope) categories. 'reimbursable' and
+ * 'uncounted' may be absent in older data; resolve with `resolveSpecialCategoryLabels`.
  */
 export interface SpecialCategoryLabels {
   fixedCost: string;
   unforeseen: string;
   reimbursable?: string;
+  uncounted?: string;
 }
 
 /** Every special-category label filled in (what the UI renders). */
@@ -55,6 +59,7 @@ export interface SpecialCategoryColors {
   fixedCost: string;
   unforeseen: string;
   reimbursable: string;
+  uncounted: string;
 }
 
 /**
@@ -191,6 +196,19 @@ export interface InstallmentPlan {
   accounting: InstallmentAccounting;
   /** The card every charge of this plan lands on (module "Cartões"). */
   cardId?: string;
+  /**
+   * How many of the first charges were already paid **before** the purchase was registered here
+   * — what makes it possible to enter a purchase that started months ago. Those charges are not
+   * part of any bill, of any budget and of the debt: the months that already happened stay
+   * exactly as they were. Absent means zero (the purchase starts with the app).
+   */
+  paidCount?: number;
+  /**
+   * How many of the **last** charges were paid ahead of time ("adiantar parcelas"). They leave
+   * the plan the same way: no bill, no budget, no debt — what was actually paid becomes one
+   * expense of its own, in the competence the person paid it.
+   */
+  advancedCount?: number;
 }
 
 /** A template for an expense that repeats every month (the bot's "custos fixos"). */

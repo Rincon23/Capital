@@ -260,13 +260,17 @@ function Reserva() {
           price={investments.price}
           month={month}
           onClose={() => setAllocating(false)}
-          onSave={async (bucketId, amount) => {
+          onSave={async (bucketId, amount, direction) => {
             try {
               await run(() =>
-                walletRepository.allocate({ bucketId, amount, month, date: todayISO() }),
+                walletRepository.allocate({ bucketId, amount, direction, month, date: todayISO() }),
               );
               setAllocating(false);
-              showToast('Operação realizada! Um gasto com esse valor entrou no seu controle.');
+              showToast(
+                direction === 'out'
+                  ? 'Retirada feita! O valor voltou para a reserva livre e saiu da categoria do mês.'
+                  : 'Operação realizada! Um gasto com esse valor entrou no seu controle.',
+              );
             } catch (err) {
               showToast(err instanceof Error ? err.message : 'Não foi possível remanejar.', 'error');
             }
@@ -422,6 +426,12 @@ function TradeSheet({
   );
 }
 
+/**
+ * Moving money between the free reserve and a categoria, in both directions. "Guardar" buys
+ * quotas for the categoria and charges the envelope it feeds; "Retirar" is the same thing
+ * backwards — the quotas go back to the free reserve and the month receives an estorno, so it
+ * stops showing an expense the person undid.
+ */
 function AllocateSheet({
   buckets,
   price,
@@ -429,32 +439,59 @@ function AllocateSheet({
   onClose,
   onSave,
 }: {
-  buckets: { id: string; name: string }[];
+  buckets: { id: string; name: string; quotas: number; value: number }[];
   price: number;
   month: string;
   onClose: () => void;
-  onSave: (bucketId: string, amount: number) => Promise<void>;
+  onSave: (bucketId: string, amount: number, direction: 'in' | 'out') => Promise<void>;
 }) {
+  const [direction, setDirection] = useState<'in' | 'out'>('in');
   const [bucketId, setBucketId] = useState(buckets[0]?.id ?? '');
   const [amount, setAmount] = useState('');
   const [saving, setSaving] = useState(false);
   const parsed = parseAmountInput(amount);
+  const bucket = buckets.find((item) => item.id === bucketId);
+  const out = direction === 'out';
+  // A categoria só entrega o que tem, e o que ela tem são cotas.
+  const tooMuch = out && !!bucket && quotasForAmount(parsed, price) > bucket.quotas;
 
   return (
-    <BottomSheet open title="Remanejar para uma categoria" onClose={onClose}>
+    <BottomSheet open title="Remanejar" onClose={onClose}>
       <form
         className="flex flex-col gap-5"
         onSubmit={async (event) => {
           event.preventDefault();
-          if (!bucketId || !(parsed > 0)) return;
+          if (!bucketId || !(parsed > 0) || tooMuch) return;
           setSaving(true);
           try {
-            await onSave(bucketId, parsed);
+            await onSave(bucketId, parsed, direction);
           } finally {
             setSaving(false);
           }
         }}
       >
+        <div className="flex gap-2">
+          {(
+            [
+              ['in', 'Guardar'],
+              ['out', 'Retirar'],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setDirection(value)}
+              className={`min-h-[44px] flex-1 rounded-lg border px-3 text-sm font-medium ${
+                direction === value
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border text-foreground'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <AmountInput value={amount} onChange={setAmount} autoFocus />
 
         <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
@@ -464,25 +501,37 @@ function AllocateSheet({
             onChange={(e) => setBucketId(e.target.value)}
             className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] rounded-lg border px-3 py-2 text-base outline-none focus:ring-2"
           >
-            {buckets.map((bucket) => (
-              <option key={bucket.id} value={bucket.id}>
-                {bucket.name}
+            {buckets.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
               </option>
             ))}
           </select>
+          {bucket && (
+            <span className="text-muted text-xs">
+              Tem {formatBRL(bucket.value)} guardados ({formatQuotas(bucket.quotas)} cotas).
+            </span>
+          )}
         </label>
 
         <p className="text-muted text-sm">
           {parsed > 0
             ? `São ${formatQuotas(quotasForAmount(parsed, price))} cotas a ${formatBRL(price)}. `
             : ''}
-          O valor também vira um gasto na categoria do orçamento ligada a ela, na competência de{' '}
-          {formatMonthLabel(month)}.
+          {out
+            ? `As cotas voltam para a reserva livre, e a categoria do orçamento ligada a ela recebe um estorno desse valor na competência de ${formatMonthLabel(month)}.`
+            : `O valor também vira um gasto na categoria do orçamento ligada a ela, na competência de ${formatMonthLabel(month)}.`}
         </p>
+
+        {tooMuch && bucket && (
+          <p className="bg-danger-bg text-danger rounded-lg px-3 py-2 text-sm">
+            {bucket.name} só tem {formatBRL(bucket.value)} guardados.
+          </p>
+        )}
 
         <button
           type="submit"
-          disabled={saving || !(parsed > 0)}
+          disabled={saving || !(parsed > 0) || tooMuch}
           className="bg-primary text-primary-foreground min-h-[44px] rounded-lg px-4 py-2 font-semibold disabled:opacity-50"
         >
           {saving ? 'Salvando…' : 'Confirmar'}

@@ -22,6 +22,7 @@ export const DEFAULT_SPECIAL_CATEGORY_COLORS: SpecialCategoryColors = {
   fixedCost: '#6b7280',
   unforeseen: '#d97706',
   reimbursable: '#0d9488',
+  uncounted: '#94a3b8',
 };
 
 /** Color to use for a topic: its own `color`, else a palette slot by position. */

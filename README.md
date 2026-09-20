@@ -61,12 +61,17 @@ junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no s
 - **Histórico e gráficos** (`/historico`) — aderência à meta, gráficos e a tabela mês a mês.
 
 **Carteira** (cada um com tela própria; o antigo painel `/carteira` redireciona para o Início):
-  - **Gastos recorrentes** — modelos dos gastos de todo mês; "Lançar" abre o formulário de gasto
-    já preenchido, com a data de hoje, na competência que você estava vendo.
+  - **Gastos recorrentes** — modelos dos gastos de todo mês; "Lançar" abre o **mesmo formulário de
+    gasto de sempre**, já preenchido e com a data de hoje, na competência que você estava vendo —
+    inclusive com "À vista / Parcelado" quando o modelo é pago no cartão, porque lançar um
+    recorrente é lançar uma compra nova como qualquer outra.
   - **Reserva investida** — cotas de um ativo (AUPO11 por padrão) divididas em categorias da
-    reserva, cada uma ligada a uma categoria do orçamento. Remanejar compra cotas para a categoria
-    da reserva e lança o gasto na categoria do orçamento, na mesma
-    transação. A cotação é grátis e sem token (`lib/server/quotes.ts`): vem da própria B3
+    reserva, cada uma ligada a uma categoria do orçamento. **Remanejar vai nos dois sentidos**:
+    *Guardar* compra cotas para a categoria da reserva e lança o gasto na categoria do orçamento;
+    *Retirar* faz o caminho de volta — as cotas voltam para a reserva livre e a categoria do
+    orçamento recebe um **estorno** (um lançamento negativo, "AUPO11 (retirada)"), para o mês não
+    continuar mostrando um gasto que a pessoa desfez. Nenhuma categoria entrega mais cotas do que
+    tem. Tudo na mesma transação. A cotação é grátis e sem token (`lib/server/quotes.ts`): vem da própria B3
     (`cotacao.b3.com.br`, com uns 15 min de atraso) e, se ela falhar, do Yahoo Finance; fica em
     cache e se atualiza sozinha ao abrir a Carteira quando tem mais de 15 min. Nenhuma das duas é
     uma API documentada com garantia, por isso há duas e o app nunca depende de uma resposta ao
@@ -102,6 +107,42 @@ formas de entrar no orçamento:
   lançamentos dela, inclusive nos meses que ainda não foram abertos.
 
 `1 vez` não cria parcelamento: vira um gasto comum.
+
+**Uma compra parcelada que já vinha sendo paga.** O **+** da aba Parcelados abre o mesmo
+formulário da compra, vazio, e aceita uma primeira cobrança **no passado** — é assim que entra um
+parcelamento de antes do Capital. Quando alguma parcela já caiu, o formulário para e pergunta o
+que fazer com ela:
+
+- **Começar a contar de agora (recomendado)** — as parcelas já pagas ficam **fora de tudo**:
+  nenhum gasto, nenhuma fatura e nenhuma dívida nos meses que já passaram, que continuam com os
+  números que têm. Só o que falta aparece. Como parte da compra já foi paga, a forma de
+  contabilizar fica travada em **em parcelas**: "à vista" teria de lançar a compra inteira no mês
+  em que ela foi feita, que é justamente o passado que a pessoa pediu para não mexer.
+- **Lançar tudo retroativo** — todas as parcelas entram nos meses em que caíram, **nos meses que
+  já existem no app**; um mês fechado impede o cadastro, como em qualquer outra edição.
+
+No banco isso é `installments.paid_count`: as `paid_count` primeiras cobranças simplesmente não
+existem para o app (`activeChargeRange` em `lib/budget/installments.ts`), nem na fatura, nem no
+orçamento, nem na dívida, nem na conta de quais meses a compra toca.
+
+**Adiantar parcelas.** Cada compra em andamento tem **"Adiantar parcelas"**, para quando a pessoa
+paga antes da hora — e, porque quase sempre há abatimento, o app **pergunta se teve desconto** em
+vez de deixar a compra parecer mais cara do que foi. Escolhendo quantas parcelas foram adiantadas
+(saem do **fim**, então a compra termina antes) e o desconto, o app mostra a conta pronta
+("3× de R$ 87,24 = R$ 261,71 − R$ 50,00 de desconto · você pagou R$ 211,71") e, ao confirmar, faz
+as duas metades numa transação só:
+
+- as parcelas adiantadas saem do parcelamento (`installments.advanced_count`), então somem das
+  faturas em que iam cair, da dívida e dos próximos meses; adiantando todas, a compra vai para os
+  encerrados;
+- o que foi realmente pago vira **um lançamento** na competência do pagamento, "Adiantamento ·
+  *nome da compra*", na fatura do mesmo cartão. Em **em parcelas** ele conta na categoria da
+  compra, no lugar das parcelas que iam cair; em **à vista** ele entra como **Fora do orçamento**,
+  porque a compra inteira já contou no mês em que foi feita e contar de novo seria cobrar duas
+  vezes da mesma categoria.
+
+O valor e o número de parcelas da compra **não** são reescritos: o que ela custou, custou, e mexer
+neles mudaria o valor de cada cobrança.
 
 **"Não informado".** O seletor de cartão sempre oferece **Não informar** — nada no Capital é de
 preenchimento obrigatório. Essas compras formam a fatura **"Não informado"**, que funciona
@@ -151,7 +192,10 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
   - **Notificação:** o botão "Realizado ✅" funciona sem abrir o app (token assinado, 36 h), e as
     tarefas do mesmo horário vão numa notificação só. As regras são puras em `lib/reminders`.
   - **Telas:** Hoje (atrasados, hoje, tarefas e amanhã), Todos (por tipo, com histórico) e
-    Calendário dos compromissos; card "Lembretes de hoje" no Início.
+    Calendário dos compromissos; card "Lembretes de hoje" no Início. No calendário, tocar num dia
+    **com** compromisso abre o que tem nele; tocar num dia **livre** (de hoje em diante) abre o
+    formulário de lembrete já naquela data — um dia que já passou não faz nada, porque não há o
+    que lembrar.
 - **Lançar por voz ou texto** (usa a IA local do servidor, Whisper e Ollama): microfone no Início
   e no formulário de gasto. Grava até 60 s ou recebe o texto
   ("Descreva o gasto") e mostra **"Confira o gasto"**, com um lápis que abre o formulário
@@ -244,6 +288,14 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
 - **"Me ajude com as %"** (botão na tela Categorias, e na primeira visita): perguntas de renda,
   custos fixos e imprevistos, para que serve cada categoria e as porcentagens, com a prévia de
   quanto cada % deixa para gastar. Dá para criar uma categoria ali também, com o mesmo aviso.
+- **"Fora do orçamento"** (`categoryKind: 'uncounted'`): ao lado das categorias, no formulário de
+  gasto, fica a saída de emergência — marcada **"Não recomendado"** ali mesmo, e explicada em duas
+  linhas sempre que é escolhida. O gasto fica registrado e, se foi no cartão, entra na fatura, mas
+  **não consome nenhuma categoria** e fica fora do total gasto do mês e do rateio dos custos fixos
+  (é o mesmo mecanismo do "A receber", mas sem ninguém para devolver o dinheiro — por isso o
+  aviso). Não é um módulo: está sempre ali, como Custo Fixo e Imprevistos, e o nome e a cor dela
+  podem ser mudados na engrenagem, junto com as outras. Em Lançamentos ela só ganha uma aba
+  **depois** que o mês tem algum gasto assim, para não ficar convidando.
 
 ## Como rodar (desenvolvimento)
 
@@ -520,7 +572,13 @@ Os demais testes:
   da mesma planilha (dívida dos parcelados −3.093,20, gap da reserva 3.195,80).
 - **`lib/server/__tests__/walletRepository.test.ts`:** a Carteira contra o banco (PGlite):
   parcelas nos meses abertos e na prévia, nunca em mês fechado nem duplicadas, exclusão de
-  plano, remanejar, caixa.
+  plano, remanejar (guardar e retirar, com o estorno na categoria e o limite de cotas), uma
+  compra parcelada de antes da conta sem mexer nos meses passados, adiantar parcelas (a compra
+  encurta e o pagamento entra no mês) e caixa.
+- **`lib/budget/__tests__/installments.test.ts`:** as parcelas que saem de um parcelamento sem
+  nada de errado — as já pagas antes do cadastro e as adiantadas — sumindo ao mesmo tempo da
+  fatura, do orçamento, da dívida e dos meses que a compra pode tocar; e a categoria "Fora do
+  orçamento", que entra na fatura e em nenhuma categoria.
 - **`lib/budget/__tests__/fixtures.test.ts`:** as fixtures reais da planilha em 15/09/2026
   (§9 da spec do assistente), com tolerância de R$ 0,01 — a planilha não arredonda entre as
   etapas e o Capital arredonda cada uma. Inclui as regras da categoria "A receber".

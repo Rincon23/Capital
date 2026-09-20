@@ -32,6 +32,8 @@ export interface InstallmentEditorData {
   plans: InstallmentPlan[];
   cards: CreditCard[];
   closedMonths: Month[];
+  /** The day the server calls "hoje"; absent falls back to the device's own date. */
+  today?: string;
 }
 
 /**
@@ -72,6 +74,7 @@ export function InstallmentEditor({
           plans: snapshot.installments,
           cards: snapshot.cards,
           closedMonths: snapshot.closedMonths,
+          today: snapshot.today,
         });
       })
       .catch(() => alive && setFailed(true));
@@ -141,6 +144,7 @@ export function InstallmentEditor({
       showReimbursable={isModuleOn(settings, 'reimbursable')}
       cards={loaded.cards}
       closedMonths={loaded.closedMonths}
+      today={loaded.today}
       onClose={onClose}
       onSave={async (next) => {
         await walletRepository.saveInstallment(next);
