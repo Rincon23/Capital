@@ -11,6 +11,12 @@ export interface PushMessage {
   tag?: string;
   /** Buttons under the notification (Android). iOS ignores them; the screen has the same action. */
   actions?: PushAction[];
+  /**
+   * Other notifications due at the same moment, shown by the service worker from this same push.
+   * Two pushes a second apart can reach the phone as one (Android kept only the first), so
+   * whatever is due together travels together; each one is still its own notification.
+   */
+  more?: PushMessage[];
 }
 
 export interface PushAction {

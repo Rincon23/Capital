@@ -11,6 +11,9 @@ export interface NotifyInput {
   sourceKey?: string;
 }
 
+/** Web Push payloads top out near 4 KB; a batch bigger than this goes in more than one push. */
+const PUSH_PAYLOAD_BUDGET = 3000;
+
 /**
  * Every notification the app generates goes through here: it is always logged to the in-app
  * bell (Central de notificações), and also pushed to the phone unless this account turned that
@@ -25,26 +28,67 @@ export async function sendUserNotification(
   input: NotifyInput,
   pushOptions?: SendOptions & { sender?: PushSender },
 ): Promise<boolean> {
-  const recorded = await db
-    .insert(notifications)
-    .values({
-      userId,
-      category: input.category,
-      title: input.message.title,
-      body: input.message.body,
-      href: input.message.url,
-      sourceKey: input.sourceKey ?? null,
-    })
-    .onConflictDoNothing({ target: [notifications.userId, notifications.sourceKey] })
-    .returning({ id: notifications.id });
-  if (recorded.length === 0) return false;
+  const [recorded] = await sendUserNotifications(db, userId, [input], pushOptions);
+  return recorded;
+}
+
+/**
+ * Several notifications due at the same moment: each is recorded on its own, but they reach the
+ * phone in as few pushes as possible (the service worker shows each one separately). Pushes a
+ * second apart can get lost on the phone. Returns, per input, whether it was newly recorded.
+ */
+export async function sendUserNotifications(
+  db: Database,
+  userId: string,
+  inputs: NotifyInput[],
+  pushOptions?: SendOptions & { sender?: PushSender },
+): Promise<boolean[]> {
+  const results: boolean[] = [];
+  const toPush: NotifyInput[] = [];
+  for (const input of inputs) {
+    const recorded = await db
+      .insert(notifications)
+      .values({
+        userId,
+        category: input.category,
+        title: input.message.title,
+        body: input.message.body,
+        href: input.message.url,
+        sourceKey: input.sourceKey ?? null,
+      })
+      .onConflictDoNothing({ target: [notifications.userId, notifications.sourceKey] })
+      .returning({ id: notifications.id });
+    results.push(recorded.length > 0);
+    if (recorded.length > 0) toPush.push(input);
+  }
+  if (toPush.length === 0) return results;
 
   const [settings] = await db
     .select({ notificationPrefs: budgetSettings.notificationPrefs })
     .from(budgetSettings)
     .where(eq(budgetSettings.userId, userId));
-  if (isNotificationCategoryOn(settings?.notificationPrefs, input.category)) {
-    await sendPushToUser(db, userId, input.message, pushOptions);
+  const messages = toPush
+    .filter((input) => isNotificationCategoryOn(settings?.notificationPrefs, input.category))
+    .map((input) => input.message);
+  for (const message of bundle(messages)) {
+    await sendPushToUser(db, userId, message, pushOptions);
   }
-  return true;
+  return results;
+}
+
+/** Packs messages into pushes: the first on top (what an older service worker shows), the rest in `more`. */
+export function bundle(messages: PushMessage[]): PushMessage[] {
+  const pushes: PushMessage[] = [];
+  for (const message of messages) {
+    const last = pushes[pushes.length - 1];
+    if (last) {
+      const more = [...(last.more ?? []), message];
+      if (JSON.stringify({ ...last, more }).length <= PUSH_PAYLOAD_BUDGET) {
+        last.more = more;
+        continue;
+      }
+    }
+    pushes.push({ ...message });
+  }
+  return pushes;
 }

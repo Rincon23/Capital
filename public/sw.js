@@ -121,8 +121,13 @@ async function showNotification(data) {
     message = { body: data.text() };
   }
   message = message || {};
-  const actions = Array.isArray(message.actions) ? message.actions : [];
+  // Notifications due at the same moment come in one push (`more`), each shown on its own.
+  const more = Array.isArray(message.more) ? message.more : [];
+  for (const one of [message, ...more]) await showOne(one);
+}
 
+async function showOne(message) {
+  const actions = Array.isArray(message.actions) ? message.actions : [];
   await self.registration.showNotification(message.title || 'Capital', {
     body: message.body || '',
     icon: '/icon-192.png',

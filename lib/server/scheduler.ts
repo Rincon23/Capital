@@ -13,7 +13,7 @@ import {
 import type { Database } from './db/types';
 import { catchUpFrom, lastRun, markRun } from './jobRuns';
 import { runGmailJob } from './gmail/job';
-import { sendUserNotification } from './notify';
+import { sendUserNotifications, type NotifyInput } from './notify';
 import type { PushSender } from './push';
 import { fetchQuotes } from './quotes';
 import { signReminderAction } from './reminderActionToken';
@@ -78,7 +78,7 @@ async function notifyUser(
   const slots = notificationSlots(schedule, from, now);
   if (slots.length === 0) return 0;
 
-  let sent = 0;
+  const due: NotifyInput[] = [];
   for (const note of planNotifications(slots, schedule.reminders)) {
     const recorded = await db
       .insert(reminderDeliveries)
@@ -88,35 +88,38 @@ async function notifyUser(
     if (recorded.length === 0) continue;
 
     const token = note.done ? signReminderAction({ userId, ...note.done }, now) : null;
-    await sendUserNotification(
-      db,
-      userId,
-      {
-        category: 'reminder',
-        message: {
-          title: note.title,
-          body: note.body,
-          url: note.url,
-          tag: note.tag,
-          ...(token
-            ? {
-                actions: [
-                  {
-                    action: 'done',
-                    title: 'Realizado ✅',
-                    endpoint: '/api/v1/reminders/actions/done',
-                    body: { token },
-                  },
-                ],
-              }
-            : {}),
-        },
+    due.push({
+      category: 'reminder',
+      message: {
+        title: note.title,
+        body: note.body,
+        url: note.url,
+        tag: note.tag,
+        ...(token
+          ? {
+              actions: [
+                {
+                  action: 'done',
+                  title: 'Realizado ✅',
+                  endpoint: '/api/v1/reminders/actions/done',
+                  body: { token },
+                },
+              ],
+            }
+          : {}),
       },
-      { sender, ttlSeconds: REMINDER_TTL_SECONDS, urgency: 'high' },
-    );
-    sent += 1;
+    });
   }
-  return sent;
+  if (due.length === 0) return 0;
+
+  // Everything due in this minute goes out together: the phone showed only one of two pushes
+  // sent a second apart (a weekly reminder and the daily tasks, both at 08:00).
+  await sendUserNotifications(db, userId, due, {
+    sender,
+    ttlSeconds: REMINDER_TTL_SECONDS,
+    urgency: 'high',
+  });
+  return due.length;
 }
 
 /** B3's session, with a margin: weekdays from 10:00 to 18:30 in São Paulo. */

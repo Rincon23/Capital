@@ -213,6 +213,35 @@ describe('agendador', () => {
     expect(mine[0].message).toMatchObject({ title: '📋 3 tarefas para hoje', tag: 'tarefas' });
     expect(mine[0].message.actions).toBeUndefined();
   });
+
+  it('manda num push só tudo o que vence no mesmo minuto, e registra cada um', async () => {
+    const { id, reminders } = await newAccount();
+    await create(reminders, id, {
+      id: randomUUID(),
+      kind: 'weekly',
+      message: 'Ver o óleo do carro',
+      weekdays: [3],
+      time: '08:00',
+      repeat: false,
+    });
+    for (const message of ['Relatório', 'Comprar pão']) {
+      await create(reminders, id, { id: randomUUID(), kind: 'daily', message, times: ['08:00'], repeat: true });
+    }
+    const { sender, payloads } = recordingSender();
+
+    await runRemindersJob(db, at('2026-09-16', '07:59'), sender);
+    await runRemindersJob(db, at('2026-09-16', '08:00'), sender);
+
+    const mine = payloads.filter((p) => p.endpoint.endsWith(id));
+    expect(mine).toHaveLength(1);
+    expect(mine[0].message).toMatchObject({ title: '🔔 Ver o óleo do carro' });
+    expect(mine[0].message.more).toMatchObject([{ title: '📋 2 tarefas para hoje', tag: 'tarefas' }]);
+    const logged = await db
+      .select({ title: schema.notifications.title })
+      .from(schema.notifications)
+      .where(eq(schema.notifications.userId, id));
+    expect(logged).toHaveLength(2);
+  });
 });
 
 describe('token do botão Realizado', () => {
