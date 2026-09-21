@@ -383,7 +383,7 @@ No Pi, tudo do Capital fica em `~/capitalapp`:
    # SMTP_* (Gmail com senha de app)
    # VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY e VAPID_SUBJECT (notificações) e ACTION_TOKEN_SECRET
    #   — um par/segredo próprio do Pi; os comandos para gerar estão no .env.example
-   # WHISPER_URL e OLLAMA_URL (lançar por voz ou texto), ex.: http://100.81.141.54:8090 e :11434
+   # WHISPER_URL e OLLAMA_URL (lançar por voz ou texto), ex.: http://100.x.y.z:8090 e :11434
    # GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET e ENCRYPTION_KEY (monitor de Gmail; passo a passo no .env.example)
    docker compose --env-file .env.local up -d --build
    ```
@@ -403,6 +403,19 @@ Placas com 1–2 GB de RAM: crie swap antes do primeiro build —
 da instalação do PWA. Ele é publicado em `https://capital.rincon.dev.br` por um túnel Cloudflare
 (container `cloudflared` no Pi) apontando para a porta 3000; `tailscale funnel`/`serve` também
 serve. Mantenha a mesma URL: trocar de domínio perde a instalação do PWA no celular.
+
+**Porta só para o túnel:** o container publica a porta 3000 apenas em `127.0.0.1` (só o próprio
+Pi), para ninguém na rede falar direto com o app, pular a Cloudflare e forjar o IP que os limites
+de acesso usam (`cf-connecting-ip`). Funciona sem mudar nada quando o `cloudflared` roda com
+`network_mode: host` e aponta para `http://localhost:3000`. Se ele alcança o app por outro
+caminho, ponha esse endereço em `CAPITAL_BIND` no `.env.local` (ex.: `172.17.0.1`, o gateway da
+rede Docker, com o túnel apontando para `http://172.17.0.1:3000`).
+
+**Proteção contra sobrecarga:** o app conta as requisições por segundo e lê a temperatura da placa
+(`lib/server/loadGuard.ts`). Um IP que exagera é bloqueado sozinho por um minuto; se o total passar
+do ponto crítico, ou a placa esquentar demais, o servidor responde "volte em instantes" por um
+tempo em vez de cair. O dono (`OWNER_EMAIL`) recebe um aviso no celular, e tudo aparece em
+**Mais → Administração**. Os limites ficam no `.env.local` (veja o `.env.example`).
 
 ### Instalar no Android
 

@@ -6,7 +6,7 @@ import { OllamaExtractor, type Transcriber } from '../ai/providers';
 
 /**
  * Against the real Ollama on the Orange Pi. Off by default (it takes a minute and needs the
- * Pi); run with:  OLLAMA_TEST_URL=http://100.81.141.54:11434 npx vitest run aiOllama
+ * Pi); run with:  OLLAMA_TEST_URL=http://100.x.y.z:11434 npx vitest run aiOllama
  */
 const url = process.env.OLLAMA_TEST_URL;
 const TODAY = '2026-09-16';

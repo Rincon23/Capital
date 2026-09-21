@@ -1,7 +1,8 @@
 import { z } from 'zod';
 import type { ModuleKey, NavKey } from '@/lib/budget';
 import { MAX_NAV_ITEMS, MODULE_KEYS } from '@/lib/modules';
-import type { NotificationCategory } from '@/lib/notifications';
+import { isAllowedPushEndpoint, type NotificationCategory } from '@/lib/notifications';
+import { QUOTAS } from './quotas';
 
 const NOTIFICATION_CATEGORIES: NotificationCategory[] = ['reminder', 'card', 'gmail', 'feature', 'system'];
 
@@ -11,22 +12,30 @@ function partialMap<K extends string, V extends z.ZodType>(keys: K[], value: V) 
   return z.object(Object.fromEntries(keys.map((key) => [key, value.optional()])) as Record<K, z.ZodOptional<V>>);
 }
 
-/** Validates everything the API receives. Unknown keys are dropped. */
+/**
+ * Validates everything the API receives. Unknown keys are dropped. Every list and every text has
+ * a ceiling: far above real use, low enough that nobody can fill the server's disk (or its memory)
+ * with one request. The counts per account are capped too, in the repositories (lib/server/quotas.ts).
+ */
 
-export const monthKeySchema = z.string().regex(/^\d{4}-\d{2}$/, 'Mês inválido.');
+const MAX_TOPICS = QUOTAS.topics;
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida.');
+/** A real month ("2024-01" to "2024-12"), between 1970 and 2100. */
+export const monthKeySchema = z.string().regex(/^(19[7-9]\d|20\d\d|2100)-(0[1-9]|1[0-2])$/, 'Mês inválido.');
+
+/** A real calendar day ("2024-02-30" is refused). */
+const isoDate = z.iso.date('Data inválida.');
 const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Horário inválido.');
 /** Older data may carry null or '' where a field is simply absent. */
 const absentAsUndefined = (value: unknown) => (value === null || value === '' ? undefined : value);
 
 const topicSchema = z.object({
-  id: z.string().min(1),
-  name: z.string(),
-  targetPct: z.number(),
-  order: z.number(),
+  id: z.string().min(1).max(100),
+  name: z.string().max(60),
+  targetPct: z.number().min(-1000).max(1000),
+  order: z.number().min(-10_000).max(10_000),
   archived: z.boolean().optional(),
-  color: z.string().optional(),
+  color: z.string().max(20).optional(),
   description: z.string().max(300, 'A descrição da categoria pode ter até 300 caracteres.').optional(),
   preset: z.enum(['diversos', 'investimentos', 'metas', 'conhecimentos']).optional(),
 });
@@ -42,22 +51,27 @@ const modulesSchema = z.object(
 /** The bottom bar: Início or a module, at most four (resolveNav drops what no longer applies). */
 const navSchema = z.array(z.enum(['inicio', ...MODULE_KEYS] as [NavKey, ...NavKey[]])).max(MAX_NAV_ITEMS);
 
+const label = z.string().max(60);
+const color = z.string().max(20);
+
 export const settingsSchema = z.object({
-  topics: z.array(topicSchema),
+  topics: z
+    .array(topicSchema)
+    .max(MAX_TOPICS, `Dá para ter até ${MAX_TOPICS} categorias, contando as arquivadas.`),
   specialCategories: z.object({
-    fixedCost: z.string(),
-    unforeseen: z.string(),
+    fixedCost: label,
+    unforeseen: label,
     // Older data (and backups from before the module existed) has no "A receber" label.
-    reimbursable: z.string().optional(),
+    reimbursable: label.optional(),
     // Likewise for "Fora do orçamento", which came later.
-    uncounted: z.string().optional(),
+    uncounted: label.optional(),
   }),
   specialCategoryColors: z
     .object({
-      fixedCost: z.string(),
-      unforeseen: z.string(),
-      reimbursable: z.string(),
-      uncounted: z.string(),
+      fixedCost: color,
+      unforeseen: color,
+      reimbursable: color,
+      uncounted: color,
     })
     .partial()
     .optional(),
@@ -82,7 +96,7 @@ const categoryKindSchema = z.enum(['topic', 'fixedCost', 'unforeseen', 'reimburs
 export const expenseSchema = z.object({
   id: z.string().min(1).max(100),
   categoryKind: categoryKindSchema,
-  topicId: z.preprocess(absentAsUndefined, z.string().optional()),
+  topicId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
   description: z.string().max(500),
   amount: z.number(),
   date: isoDate,
@@ -101,10 +115,12 @@ export const expenseSchema = z.object({
 
 export const monthDataSchema = z.object({
   month: monthKeySchema,
-  incomes: z.array(incomeSchema),
-  expenses: z.array(expenseSchema),
-  carryIn: z.record(z.string(), z.number()),
-  topicsSnapshot: z.array(topicSchema),
+  incomes: z.array(incomeSchema).max(1000),
+  expenses: z.array(expenseSchema).max(5000),
+  carryIn: z
+    .record(z.string().max(100), z.number())
+    .refine((value) => Object.keys(value).length <= MAX_TOPICS, 'Dados inválidos.'),
+  topicsSnapshot: z.array(topicSchema).max(MAX_TOPICS),
   closed: z.boolean().optional(),
 });
 
@@ -117,7 +133,7 @@ const money = z.number().finite();
 export const recurringExpenseSchema = z.object({
   id: z.string().min(1).max(100),
   categoryKind: categoryKindSchema,
-  topicId: z.preprocess(absentAsUndefined, z.string().optional()),
+  topicId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
   description: z.string().min(1).max(500),
   amount: money.positive(),
   card: z.boolean(),
@@ -134,7 +150,7 @@ export const installmentPlanSchema = z.object({
   id: z.string().min(1).max(100),
   name: z.string().min(1).max(200),
   categoryKind: categoryKindSchema,
-  topicId: z.preprocess(absentAsUndefined, z.string().optional()),
+  topicId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
   firstDebitDate: isoDate,
   /** The day of the purchase itself; absent in older data (see InstallmentPlan). */
   purchaseDate: z.preprocess(absentAsUndefined, isoDate.optional()),
@@ -170,7 +186,7 @@ export const cardSettingsSchema = z.object({
 export const investmentBucketSchema = z.object({
   id: z.string().min(1).max(100),
   name: z.string().min(1).max(200),
-  topicId: z.preprocess(absentAsUndefined, z.string().optional()),
+  topicId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
   quotas: z.number().finite().min(0),
 });
 
@@ -209,7 +225,7 @@ export const reserveContributionSchema = z.object({
   month: monthKeySchema,
   date: isoDate,
   categoryKind: categoryKindSchema,
-  topicId: z.preprocess(absentAsUndefined, z.string().optional()),
+  topicId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
 });
 
 export const cashSettingsSchema = z.object({
@@ -220,9 +236,15 @@ export const cashSettingsSchema = z.object({
   reserveMultiplier: z.number().int().min(1).max(60),
 });
 
-/** A browser's `PushSubscription.toJSON()`. Push services only hand out https endpoints. */
+/**
+ * A browser's `PushSubscription.toJSON()`. Only the real push services are accepted: the server
+ * sends requests to this address, so anything else would make it a relay (lib/notifications/endpoints.ts).
+ */
 export const pushSubscriptionSchema = z.object({
-  endpoint: z.url({ protocol: /^https$/ }).max(2000),
+  endpoint: z
+    .url({ protocol: /^https$/ })
+    .max(2000)
+    .refine(isAllowedPushEndpoint, 'Serviço de notificação não reconhecido.'),
   keys: z.object({
     p256dh: z.string().min(1).max(500),
     auth: z.string().min(1).max(500),
@@ -290,7 +312,7 @@ export const gmailKeywordSchema = z.object({ keyword: z.string().trim().min(1).m
 /** A failed analysis as the app saw it, for the server log. */
 export const aiProblemReportSchema = z.object({
   kind: z.enum(['audio', 'text']),
-  detail: z.string().max(1000),
+  detail: z.string().max(500),
 });
 
 /** Body of "fechar mês": whether to open the next month in the same transaction. */
@@ -301,5 +323,8 @@ export const backupSchema = z.object({
   version: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   exportedAt: z.string(),
   settings: settingsSchema,
-  months: z.array(monthDataSchema),
+  months: z.array(monthDataSchema).max(1200),
 });
+
+/** Administração: make an account VIP or take it back. */
+export const vipSchema = z.object({ vip: z.boolean() });

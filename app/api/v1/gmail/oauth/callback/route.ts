@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import type { GmailConnectError } from '@/lib/gmail';
 import { getAuth } from '@/lib/server/auth';
 import { PostgresBudgetRepository } from '@/lib/server/budgetRepository';
 import { getDb } from '@/lib/server/db';
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     response.headers.set('Cache-Control', 'no-store');
     return response;
   };
-  const fail = (message: string) => finish(`erro=${encodeURIComponent(message)}`);
+  const fail = (error: GmailConnectError) => finish(`erro=${error}`);
 
   try {
     const session = await getAuth().api.getSession({ headers: request.headers });
@@ -39,22 +40,16 @@ export async function GET(request: NextRequest): Promise<Response> {
     const params = request.nextUrl.searchParams;
     const cookie = request.cookies.get(OAUTH_STATE_COOKIE)?.value;
     if (!verifyOAuthState(cookie, params.get('state'), session.user.id)) {
-      return fail('A conexão expirou ou veio de outro lugar. Toque em "Conectar Gmail" de novo.');
+      return fail('expirou');
     }
-    if (params.get('error')) {
-      return fail(
-        params.get('error') === 'access_denied'
-          ? 'Você não deu a permissão no Google. Nada foi conectado.'
-          : `O Google não concluiu a conexão (${params.get('error')}).`,
-      );
-    }
+    if (params.get('error')) return fail(params.get('error') === 'access_denied' ? 'negado' : 'google');
     const code = params.get('code');
     const config = googleConfig();
-    if (!code || !config) return fail('O Google não devolveu a autorização.');
+    if (!code || !config) return fail('sem-autorizacao');
 
     const tokens = await exchangeCode(config, code);
     if (!tokens.scope.split(' ').includes(GMAIL_SCOPE)) {
-      return fail('A permissão de ler os e-mails ficou desmarcada no Google. Conecte de novo e marque-a.');
+      return fail('sem-permissao');
     }
     const profile = await googleGmailApi(config).profile(tokens.accessToken);
     await new PostgresGmailRepository(db, session.user.id).saveAccount(
@@ -65,8 +60,8 @@ export async function GET(request: NextRequest): Promise<Response> {
     forgetGmailToken(session.user.id);
     return finish('conectado=1');
   } catch (err) {
-    if (err instanceof HttpError) return fail(err.message);
+    if (err instanceof HttpError) return fail('modulo-desligado');
     console.error('[gmail] falha ao concluir a conexão:', err);
-    return fail('Não foi possível concluir a conexão com o Google. Tente de novo.');
+    return fail('falhou');
   }
 }

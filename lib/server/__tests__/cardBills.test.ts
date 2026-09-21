@@ -53,7 +53,7 @@ async function newAccount({ module = true, device = true } = {}) {
   });
   if (device) {
     await new PostgresPushRepository(db, id).registerDevice(
-      { endpoint: `https://push.teste/${id}`, keys: { p256dh: 'k', auth: 'a' } },
+      { endpoint: `https://fcm.googleapis.com/fcm/send/${id}`, keys: { p256dh: 'k', auth: 'a' } },
       null,
     );
   }

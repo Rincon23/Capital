@@ -45,7 +45,7 @@ async function newAccount({ module = true, device = true } = {}) {
   });
   if (device) {
     await new PostgresPushRepository(db, id).registerDevice(
-      { endpoint: `https://push.teste/${id}`, keys: { p256dh: 'k', auth: 'a' } },
+      { endpoint: `https://fcm.googleapis.com/fcm/send/${id}`, keys: { p256dh: 'k', auth: 'a' } },
       null,
     );
   }
@@ -191,7 +191,7 @@ describe('agendador', () => {
 
     await runRemindersJob(db, at('2026-09-10', '08:59'), sender);
     await runRemindersJob(db, at('2026-09-10', '09:00'), sender);
-    expect(payloads.map((p) => p.endpoint)).toEqual([`https://push.teste/${on.id}`]);
+    expect(payloads.map((p) => p.endpoint)).toEqual([`https://fcm.googleapis.com/fcm/send/${on.id}`]);
 
     await on.reminders.setDone('conta-' + on.id, '2026-09-10', true);
     await runRemindersJob(db, at('2026-09-10', '12:00'), sender);

@@ -24,6 +24,7 @@ import {
 } from '../storage/repository';
 import { budgetSettings, expenses, incomes, installments, months } from './db/schema';
 import type { Database, Transaction } from './db/types';
+import { checkQuota, QUOTAS } from './quotas';
 
 /**
  * What a sibling repository gets while writing inside the budget's transaction. The wallet uses
@@ -141,6 +142,11 @@ export class PostgresBudgetRepository implements BudgetRepository {
       // A category is never deleted, only archived (past months keep what it had).
       const previous = await this.readSettings(tx);
       const topics = keepEveryTopic(previous?.topics ?? [], settings.topics);
+      checkQuota(
+        topics.length - 1,
+        QUOTAS.topics,
+        `Dá para ter até ${QUOTAS.topics} categorias, contando as arquivadas.`,
+      );
       await this.upsertSettings(tx, { ...settings, topics }, false);
     });
   }
@@ -193,9 +199,17 @@ export class PostgresBudgetRepository implements BudgetRepository {
         date: income.date || null,
       };
       const [last] = await tx
-        .select({ position: max(incomes.position) })
+        .select({
+          position: max(incomes.position),
+          others: sql<number>`count(*) filter (where ${incomes.id} <> ${income.id})`.mapWith(Number),
+        })
         .from(incomes)
         .where(and(eq(incomes.userId, this.userId), eq(incomes.month, month)));
+      checkQuota(
+        last?.others ?? 0,
+        QUOTAS.incomesPerMonth,
+        `Dá para ter até ${QUOTAS.incomesPerMonth} rendas em um mês.`,
+      );
       await tx
         .insert(incomes)
         .values({ userId: this.userId, id: income.id, position: (last?.position ?? -1) + 1, ...values })
@@ -379,9 +393,17 @@ export class PostgresBudgetRepository implements BudgetRepository {
   private async insertExpenseIn(tx: Transaction, month: Month, expense: Expense): Promise<void> {
     const values = expenseValues(month, expense);
     const [last] = await tx
-      .select({ position: max(expenses.position) })
+      .select({
+        position: max(expenses.position),
+        others: sql<number>`count(*) filter (where ${expenses.id} <> ${expense.id})`.mapWith(Number),
+      })
       .from(expenses)
       .where(and(eq(expenses.userId, this.userId), eq(expenses.month, month)));
+    checkQuota(
+      last?.others ?? 0,
+      QUOTAS.expensesPerMonth,
+      `Dá para ter até ${QUOTAS.expensesPerMonth} gastos em um mês.`,
+    );
     await tx
       .insert(expenses)
       .values({ userId: this.userId, id: expense.id, position: (last?.position ?? -1) + 1, ...values })
@@ -447,6 +469,12 @@ export class PostgresBudgetRepository implements BudgetRepository {
   private async ensureMonthIn(tx: Transaction, month: Month): Promise<MonthData> {
     const [existing] = await this.loadMonths(tx, eq(months.month, month));
     if (existing) return existing;
+
+    const [{ total }] = await tx
+      .select({ total: sql<number>`count(*)`.mapWith(Number) })
+      .from(months)
+      .where(eq(months.userId, this.userId));
+    checkQuota(total, QUOTAS.months, `Dá para ter até ${QUOTAS.months} meses na conta.`);
 
     const created = await this.buildMonth(tx, month);
     await tx

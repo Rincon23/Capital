@@ -1,16 +1,17 @@
 // Capital reads and writes budget data through its own API (/api/*, same origin). This
-// service worker keeps the app shell (HTML/JS/CSS) available offline, and lets every
-// /api/* request go straight to the network (see the check below), so no stale data is
-// ever served. With no connection the app shell still loads but stays on "Carregando…"
-// until the network returns.
+// service worker caches only the build's static files (JS/CSS/fonts, content-hashed) and lets
+// pages and every /api/* request go straight to the network, so no stale data is ever served.
+// Pages are never cached: they carry the signed-in account (its e-mail), which must not stay on
+// a shared device after signing out. With no connection, the offline page is shown.
 //
 // It also shows the push notifications (reminders, Gmail alerts) and runs their buttons.
-const CACHE_VERSION = 'capital-v5';
+const CACHE_VERSION = 'capital-v6';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const OFFLINE_URL = '/offline.html';
+const CACHEABLE_DESTINATIONS = new Set(['image', 'font', 'style', 'script', 'manifest']);
 
-const PRECACHE_URLS = ['/', '/manifest.json', OFFLINE_URL, '/icon-192.png', '/icon-512.png'];
+const PRECACHE_URLS = ['/manifest.json', OFFLINE_URL, '/icon-192.png', '/icon-512.png'];
 
 // `next dev` registers this file as /sw.js?dev=1, only to test notifications: no caching there,
 // because dev assets change on every save.
@@ -55,7 +56,7 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/api/')) return;
 
   if (request.mode === 'navigate') {
-    event.respondWith(networkFirst(request));
+    event.respondWith(networkOrOffline(request));
     return;
   }
 
@@ -65,7 +66,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  event.respondWith(staleWhileRevalidate(request));
+  // Icons, the manifest and other plain files. Anything else (a page's server data, fetched by
+  // the router) goes to the network like the pages themselves.
+  if (CACHEABLE_DESTINATIONS.has(request.destination)) event.respondWith(staleWhileRevalidate(request));
 });
 
 async function cacheFirst(request) {
@@ -79,17 +82,11 @@ async function cacheFirst(request) {
   return response;
 }
 
-async function networkFirst(request) {
+async function networkOrOffline(request) {
   try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(RUNTIME_CACHE);
-      cache.put(request, response.clone());
-    }
-    return response;
+    return await fetch(request);
   } catch {
-    const cached = await caches.match(request);
-    return cached ?? (await caches.match(OFFLINE_URL));
+    return (await caches.match(OFFLINE_URL)) ?? Response.error();
   }
 }
 

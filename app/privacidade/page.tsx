@@ -26,7 +26,7 @@ export default function PrivacyPage() {
       <header className="flex flex-col gap-1">
         <p className="text-primary text-sm font-semibold">Capital</p>
         <h1 className="text-foreground text-2xl font-bold">Política de privacidade</h1>
-        <p className="text-muted text-sm">Última atualização: 17 de setembro de 2026.</p>
+        <p className="text-muted text-sm">Última atualização: 21 de setembro de 2026.</p>
       </header>
 
       <Section title="O que é o Capital">
@@ -46,12 +46,16 @@ export default function PrivacyPage() {
           </li>
           <li>Um cookie de sessão, só para manter você conectado.</li>
         </ul>
+        <p>
+          Quem administra o servidor vê a lista de contas (e-mail, data de criação e último acesso) para
+          liberar recursos e proteger o servidor. Os seus lançamentos não aparecem nessa lista.
+        </p>
       </Section>
 
       <Section title="Lançar por voz ou texto">
         <p>
-          O áudio ou o texto é analisado por uma IA que roda no próprio servidor do Capital. O áudio não é
-          guardado: só o gasto que você conferir e salvar fica registrado.
+          Só para contas VIP. O áudio ou o texto é analisado por uma IA que roda no próprio servidor do
+          Capital. O áudio não é guardado: só o gasto que você conferir e salvar fica registrado.
         </p>
       </Section>
 
@@ -109,9 +113,10 @@ export default function PrivacyPage() {
 
       <Section title="Apagar os seus dados">
         <p>
-          Em Mais → Configurações você pode apagar os dados do orçamento, e em Mais → Módulos, desligar
-          qualquer módulo. Para apagar a conta inteira, fale com quem administra o Capital (o contato aparece
-          na tela de autorização do Google).
+          Em Mais → Configurações, &quot;Apagar todos os dados&quot; apaga tudo o que você lançou em todos os
+          módulos (inclusive a conexão com o Gmail) e mantém a conta. &quot;Excluir minha conta&quot;, no
+          mesmo lugar, apaga a conta e todos os dados dela de uma vez, depois de você confirmar a senha. Em
+          Mais → Módulos você também pode desligar qualquer módulo.
         </p>
       </Section>
 

@@ -14,7 +14,7 @@ import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
 import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { NotificationsSection } from '@/components/settings/NotificationsSection';
 import { useBackHref } from '@/components/modules/useBackHref';
-import { senderName, type GmailAlert, type GmailOverview } from '@/lib/gmail';
+import { gmailConnectErrorMessage, senderName, type GmailAlert, type GmailOverview } from '@/lib/gmail';
 import { GMAIL_CONNECT_URL, gmailRepository } from '@/lib/storage';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
 
@@ -85,8 +85,9 @@ function Gmail() {
     // Back from Google: show how it went, then clean the address.
     const params = new URLSearchParams(window.location.search);
     if (params.get('conectado')) showToast('Gmail conectado! As palavras-chave já estão sendo monitoradas.');
+    const error = params.get('erro');
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (params.get('erro')) setConnectError(params.get('erro'));
+    if (error) setConnectError(gmailConnectErrorMessage(error));
     if (params.size > 0) router.replace('/gmail');
     void load();
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);

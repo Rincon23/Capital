@@ -50,12 +50,12 @@ O script gera um `.env` com senhas aleatórias (se ainda não existir), cria
 - **App em produção:** o container do app entra na rede externa `capital-db` e usa
   `DATABASE_URL=postgres://capital:<CAPITAL_DB_PASSWORD>@capital-postgres:5432/capital`.
 - **Desenvolvimento no PC (Tailscale):**
-  `DATABASE_URL=postgres://capital_dev:<CAPITAL_DEV_DB_PASSWORD>@100.81.141.54:5432/capital_dev`.
+  `DATABASE_URL=postgres://capital_dev:<CAPITAL_DEV_DB_PASSWORD>@100.x.y.z:5432/capital_dev`.
   Quando não precisar mais, apague `COMPOSE_PROFILES=dev` do `.env`, rode
   `docker stop capital-db-dev-access && docker rm capital-db-dev-access`, e o banco volta a ser
   acessível só no Pi.
 - **Produção a partir do PC** (ex.: migração de dados): por túnel SSH, sem expor nada.
-  Rode `ssh -N -L 15432:127.0.0.1:5432 orangepi@100.81.141.54` e use `127.0.0.1:15432`.
+  Rode `ssh -N -L 15432:127.0.0.1:5432 orangepi@100.x.y.z` e use `127.0.0.1:15432`.
 - **Administração:** `docker exec -it capital-postgres psql -U postgres -d capital`.
 
 ## Backup e restauração

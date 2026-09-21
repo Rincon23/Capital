@@ -14,6 +14,8 @@ import {
   storedModules,
   turnModuleOff,
   turnModuleOn,
+  VIP_ONLY_MODULES,
+  withAccessRules,
 } from '../flags';
 
 const on = (...keys: ModuleKey[]) => Object.fromEntries(keys.map((key) => [key, true]));
@@ -157,5 +159,25 @@ describe('dependências', () => {
     ]);
     const card = expenses.children.find((node) => node.key === 'card');
     expect(card?.children.map((node) => node.key)).toEqual(['reimbursable']);
+  });
+});
+
+describe('withAccessRules', () => {
+  it('keeps Lançar por voz off for accounts that are not VIP, whatever was saved', () => {
+    expect(VIP_ONLY_MODULES).toEqual(['voice']);
+    const saved = { modules: on('expenses', 'voice') };
+    expect(withAccessRules(saved, false).modules).toEqual({ expenses: true, voice: false });
+    expect(isModuleOn(withAccessRules(saved, false), 'voice')).toBe(false);
+  });
+
+  it('leaves a VIP account as it is', () => {
+    const saved = { modules: on('expenses', 'voice') };
+    expect(withAccessRules(saved, true)).toBe(saved);
+    expect(isModuleOn(withAccessRules(saved, true), 'voice')).toBe(true);
+  });
+
+  it('does not add a modules map to a payload that had none', () => {
+    const saved = { modules: undefined };
+    expect(withAccessRules(saved, false)).toBe(saved);
   });
 });

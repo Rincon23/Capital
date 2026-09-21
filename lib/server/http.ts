@@ -2,6 +2,7 @@ import 'server-only';
 import { NextResponse, type NextRequest } from 'next/server';
 import { ZodError, type ZodType } from 'zod';
 import { MonthClosedError, MonthNotFoundError } from '@/lib/storage/repository';
+import { userAccess, type UserAccess } from './access';
 import { getAuth } from './auth';
 import { PostgresBudgetRepository } from './budgetRepository';
 import { getDb } from './db';
@@ -11,10 +12,21 @@ import { PostgresGmailRepository } from './gmail/repository';
 import { PostgresNotificationsRepository } from './notificationsRepository';
 import { PostgresPushRepository } from './push';
 import { QuoteUnavailableError } from './quotes';
+import { allowAttempt } from './rateLimit';
 import { PostgresRemindersRepository } from './remindersRepository';
 import { PostgresWalletRepository } from './walletRepository';
 
 export { HttpError };
+
+/**
+ * Requests one account may make per minute, all kinds together and writes alone. Far above what
+ * a person tapping around does (a screen loads a handful of things), far below a script: one
+ * account alone can't wear the server out or fill its disk.
+ */
+const REQUESTS_PER_MINUTE = 300;
+const WRITES_PER_MINUTE = 90;
+/** Largest JSON body a route reads unless it asks for more (a backup does). */
+const DEFAULT_MAX_BODY_BYTES = 256 * 1024;
 
 interface RouteArgs<P> {
   request: NextRequest;
@@ -34,6 +46,8 @@ interface RouteArgs<P> {
   userId: string;
   /** The signed-in user's e-mail, for the owner-only routes. */
   email: string | null;
+  /** Whether this account runs the server and whether it is VIP (read once, when first asked). */
+  access: () => Promise<UserAccess>;
 }
 
 /**
@@ -58,9 +72,19 @@ export function apiRoute<P = Record<string, never>>(
         throw new HttpError(401, 'UNAUTHENTICATED', 'Sessão expirada. Entre novamente para continuar.');
       }
 
+      const userId = session.user.id;
+      const writing = request.method !== 'GET' && request.method !== 'HEAD';
+      if (
+        !allowAttempt(`api:${userId}`, REQUESTS_PER_MINUTE, 60_000) ||
+        (writing && !allowAttempt(`api-write:${userId}`, WRITES_PER_MINUTE, 60_000))
+      ) {
+        throw new HttpError(429, 'RATE_LIMITED', 'Muitas ações seguidas. Espere um minuto e tente de novo.');
+      }
+
       const db = getDb();
       const repo = new PostgresBudgetRepository(db, session.user.id);
       const wallet = new PostgresWalletRepository(db, session.user.id, repo);
+      let access: Promise<UserAccess> | undefined;
       const result = await handler({
         request,
         params: await context.params,
@@ -72,6 +96,7 @@ export function apiRoute<P = Record<string, never>>(
         notifications: new PostgresNotificationsRepository(db, session.user.id),
         userId: session.user.id,
         email: session.user.email ?? null,
+        access: () => (access ??= userAccess(db, session.user.id, session.user.email ?? null)),
       });
 
       // A handler may build its own Response (e.g. a stream of progress events).
@@ -91,11 +116,41 @@ export function apiRoute<P = Record<string, never>>(
   };
 }
 
-/** Parses the JSON body with `schema`; malformed or invalid input becomes a 400. */
-export async function readJson<T>(request: NextRequest, schema: ZodType<T>): Promise<T> {
+/**
+ * Reads the body as text, refusing it (413) past `maxBytes` — by its Content-Length when it
+ * declares one, and while reading when it doesn't (a chunked upload can't sneak past).
+ */
+export async function readBodyText(request: Request, maxBytes: number): Promise<string> {
+  const tooLarge = () => new HttpError(413, 'TOO_LARGE', 'Os dados enviados são grandes demais.');
+  if (Number(request.headers.get('content-length') ?? 0) > maxBytes) throw tooLarge();
+  if (!request.body) return '';
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw tooLarge();
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+/** Parses the JSON body with `schema`; malformed or invalid input becomes a 400, a huge one a 413. */
+export async function readJson<T>(
+  request: NextRequest,
+  schema: ZodType<T>,
+  { maxBytes = DEFAULT_MAX_BODY_BYTES }: { maxBytes?: number } = {},
+): Promise<T> {
+  const text = await readBodyText(request, maxBytes);
   let body: unknown;
   try {
-    body = await request.json();
+    body = JSON.parse(text);
   } catch {
     throw new HttpError(400, 'INVALID_INPUT', 'Corpo da requisição inválido.');
   }

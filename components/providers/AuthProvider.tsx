@@ -10,6 +10,10 @@ export interface AuthUser {
   email: string | null;
   /** Used for the greeting on the home screen. */
   name: string | null;
+  /** May turn on the VIP-only modules (granted by the owner in Administração). */
+  vip: boolean;
+  /** Runs the server (OWNER_EMAIL): sees Administração. */
+  owner: boolean;
 }
 
 interface AuthContextValue {

@@ -6,7 +6,13 @@
  * its logs) instead of serving requests against an outdated schema.
  */
 export async function register() {
-  if (process.env.NEXT_RUNTIME !== 'nodejs' || !process.env.DATABASE_URL) return;
+  if (process.env.NEXT_RUNTIME !== 'nodejs') return;
+
+  // The board's temperature is watched from the start, even before anyone opens the app.
+  const { startLoadGuardMonitor } = await import('./lib/server/loadGuard');
+  startLoadGuardMonitor();
+
+  if (!process.env.DATABASE_URL) return;
 
   const { runMigrations } = await import('./lib/server/db/migrate');
   try {
@@ -38,4 +44,8 @@ export async function register() {
   }
 
   startScheduler(getDb);
+
+  // Traffic spikes, pauses and heat become notifications to the owner (OWNER_EMAIL).
+  const { wireLoadGuardAlerts } = await import('./lib/server/alerts');
+  wireLoadGuardAlerts(getDb);
 }

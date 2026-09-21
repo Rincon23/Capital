@@ -53,7 +53,7 @@ async function newOwner({ module = true, keywords = ['boleto', 'Cobrança'] } = 
     modules: { gmail: module },
   });
   await new PostgresPushRepository(db, id).registerDevice(
-    { endpoint: `https://push.teste/${id}`, keys: { p256dh: 'k', auth: 'a' } },
+    { endpoint: `https://fcm.googleapis.com/fcm/send/${id}`, keys: { p256dh: 'k', auth: 'a' } },
     null,
   );
   const gmail = new PostgresGmailRepository(db, id);

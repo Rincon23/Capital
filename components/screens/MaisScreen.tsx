@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Blocks, LayoutGrid, List, PanelBottom, Settings, ShieldCheck } from 'lucide-react';
+import { Blocks, LayoutGrid, List, PanelBottom, Server, Settings, ShieldCheck } from 'lucide-react';
 import { HOME_NAV, moduleDefinition, moreItems, navEntry } from '@/lib/modules';
 import { useLastViewedMonth } from '@/lib/hooks/useLastViewedMonth';
 import {
@@ -101,6 +101,19 @@ export function MaisScreen() {
           tone: 'neutral',
           href: '/configuracoes',
         },
+        // Only whoever runs the server (OWNER_EMAIL) sees it; for anyone else the page is a 404.
+        ...(user.owner
+          ? [
+              {
+                key: 'admin',
+                label: 'Administração',
+                description: 'Saúde do servidor, contas e VIPs',
+                icon: Server,
+                tone: 'amber' as const,
+                href: '/admin',
+              },
+            ]
+          : []),
       ],
     },
   ];

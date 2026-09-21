@@ -1,4 +1,4 @@
-import { requireVoiceAccess, progressStream } from '@/lib/server/ai/access';
+import { acquireAnalysisSlot, progressStream, requireVoiceAccess } from '@/lib/server/ai/access';
 import { analyzeExpense } from '@/lib/server/ai/engine';
 import { apiRoute, HttpError } from '@/lib/server/http';
 
@@ -13,9 +13,11 @@ const EXTENSIONS: Record<string, string> = {
 };
 
 /** A recording (multipart: `audio`, `seconds`) → a draft for review, streaming the progress. */
-export const POST = apiRoute(async ({ request, repo, email }) => {
-  const access = await requireVoiceAccess(repo, email, { countAttempt: true });
-  if (Number(request.headers.get('content-length') ?? 0) > MAX_AUDIO_BYTES + 64_000) {
+export const POST = apiRoute(async ({ request, repo, email, access }) => {
+  const voice = await requireVoiceAccess(repo, email, await access(), { countAttempt: true });
+  // The upload must say how big it is (one of unknown size is refused) and be small.
+  const declaredSize = Number(request.headers.get('content-length') ?? NaN);
+  if (!Number.isFinite(declaredSize) || declaredSize > MAX_AUDIO_BYTES + 64_000) {
     throw new HttpError(413, 'AUDIO_TOO_LARGE', 'O áudio passou de 5 MB. Grave um trecho mais curto.');
   }
 
@@ -32,17 +34,26 @@ export const POST = apiRoute(async ({ request, repo, email }) => {
   if (audio.size > MAX_AUDIO_BYTES) {
     throw new HttpError(413, 'AUDIO_TOO_LARGE', 'O áudio passou de 5 MB. Grave um trecho mais curto.');
   }
+  // Only the formats the app's recorder produces go on to whisper (and its ffmpeg).
+  const extension = EXTENSIONS[audio.type.split(';')[0]];
+  if (!extension) {
+    throw new HttpError(415, 'AUDIO_FORMAT', 'Formato de áudio não suportado. Grave pelo app.');
+  }
   const declared = Number(form.get('seconds'));
   const seconds = Number.isFinite(declared) && declared > 0 ? Math.min(declared, 120) : audio.size / 4000;
-  const extension = EXTENSIONS[audio.type.split(';')[0]] ?? 'webm';
 
-  const label = `áudio (${seconds.toFixed(1)} s, ${Math.round(audio.size / 1024)} KB, ${audio.type || 'sem tipo'})`;
-  return progressStream(request, label, (emit, signal) =>
-    analyzeExpense(
-      { kind: 'audio', audio, filename: `gasto.${extension}`, seconds },
-      { options: access.options, today: access.today, signal },
-      access,
-      emit,
-    ),
+  const release = acquireAnalysisSlot();
+  const label = `áudio (${seconds.toFixed(1)} s, ${Math.round(audio.size / 1024)} KB, ${audio.type})`;
+  return progressStream(
+    request,
+    label,
+    (emit, signal) =>
+      analyzeExpense(
+        { kind: 'audio', audio, filename: `gasto.${extension}`, seconds },
+        { options: voice.options, today: voice.today, signal },
+        voice,
+        emit,
+      ),
+    release,
   );
 });

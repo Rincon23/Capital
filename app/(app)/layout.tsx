@@ -6,7 +6,9 @@ import { SwipeNavigation } from '@/components/layout/SwipeNavigation';
 import { PushSubscriptionSync } from '@/components/pwa/PushSubscriptionSync';
 import { AppProviders } from '@/components/providers/AppProviders';
 import { LocalDataImportBanner } from '@/components/storage/LocalDataImportBanner';
+import { userAccess } from '@/lib/server/access';
 import { getAuth } from '@/lib/server/auth';
+import { getDb } from '@/lib/server/db';
 
 /**
  * Layout for every authenticated route. `proxy.ts` only checks that a session cookie exists;
@@ -22,6 +24,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const requestHeaders = await headers();
   const session = await getAuth().api.getSession({ headers: requestHeaders });
   if (!session) redirect('/login');
+  const { vip, owner } = await userAccess(getDb(), session.user.id, session.user.email);
 
   return (
     <AppProviders
@@ -29,6 +32,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         id: session.user.id,
         email: session.user.email,
         name: session.user.name || null,
+        vip,
+        owner,
       }}
     >
       <SwipeNavigation>

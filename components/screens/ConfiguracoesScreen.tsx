@@ -1,13 +1,14 @@
 'use client';
 
-import { useEffect, useState, type ChangeEvent } from 'react';
+import { useActionState, useEffect, useState, type ChangeEvent } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { useTheme } from '@/components/providers/ThemeProvider';
+import { BottomSheet } from '@/components/ui/BottomSheet';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { useToast } from '@/components/ui/Toast';
-import { signOut } from '@/lib/auth/actions';
+import { deleteAccount, signOut, type DeleteAccountState } from '@/lib/auth/actions';
 import { budgetRepository, downloadBackup, readBackupFile } from '@/lib/storage';
 import { hasLocalData, importLocalDataToCloud } from '@/lib/storage/localMigration';
 
@@ -49,7 +50,7 @@ export function ConfiguracoesScreen() {
     const confirmed = await confirm({
       title: 'Apagar todos os dados',
       message:
-        'Isso apaga todos os dados da sua conta no Capital: categorias, meses, rendas e gastos. Essa ação não pode ser desfeita.',
+        'Isso apaga tudo o que você guardou no Capital, em todos os módulos: categorias, meses, rendas, gastos, cartões, parcelados, reservas, lembretes, a conexão com o Gmail e as notificações. A conta continua existindo. Essa ação não pode ser desfeita.',
       confirmLabel: 'Apagar tudo',
       cancelLabel: 'Manter',
       destructive: true,
@@ -130,6 +131,7 @@ export function ConfiguracoesScreen() {
 
 function AccountSection() {
   const { user } = useAuth();
+  const [deleting, setDeleting] = useState(false);
 
   return (
     <section className="flex flex-col gap-3 px-4">
@@ -144,8 +146,64 @@ function AccountSection() {
             Sair
           </button>
         </form>
+        <button
+          type="button"
+          onClick={() => setDeleting(true)}
+          className="text-danger min-h-[44px] w-full rounded-lg px-4 text-sm font-medium"
+        >
+          Excluir minha conta
+        </button>
       </div>
+      {deleting && <DeleteAccountSheet onClose={() => setDeleting(false)} />}
     </section>
+  );
+}
+
+const NO_ERROR: DeleteAccountState = {};
+
+/** Deletes the account and everything in it, once the password is typed again. */
+function DeleteAccountSheet({ onClose }: { onClose: () => void }) {
+  const [state, action, pending] = useActionState(deleteAccount, NO_ERROR);
+
+  return (
+    <BottomSheet open onClose={onClose} title="Excluir minha conta">
+      <form action={action} className="flex flex-col gap-4">
+        <p className="text-muted text-sm">
+          A conta e tudo o que ela guarda somem de vez: lançamentos de todos os módulos, lembretes, a conexão
+          com o Gmail e os aparelhos que recebem notificações. Não dá para desfazer. Se quiser guardar uma
+          cópia, use &quot;Exportar dados&quot; antes.
+        </p>
+        {state.error && (
+          <p className="bg-danger-bg text-danger rounded-lg px-3 py-2 text-sm" role="alert">
+            {state.error}
+          </p>
+        )}
+        <label className="text-muted flex flex-col gap-1 text-sm">
+          Sua senha, para confirmar
+          <input
+            type="password"
+            name="password"
+            required
+            autoComplete="current-password"
+            className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] rounded-md border px-3 outline-none focus:ring-2"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={pending}
+          className="bg-danger min-h-[44px] w-full rounded-lg px-4 font-semibold text-white disabled:opacity-50"
+        >
+          {pending ? 'Excluindo…' : 'Excluir conta e todos os dados'}
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="border-border text-foreground min-h-[44px] w-full rounded-lg border px-4 text-sm font-medium"
+        >
+          Manter minha conta
+        </button>
+      </form>
+    </BottomSheet>
   );
 }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Lock } from 'lucide-react';
+import { Crown, Lock } from 'lucide-react';
 import type { ModuleFlags, ModuleKey } from '@/lib/budget';
 import {
   dependentsOf,
@@ -16,6 +16,7 @@ import {
 import { PageHeader } from '@/components/layout/PageHeader';
 import { MODULE_VISUALS } from '@/components/modules/visuals';
 import { useModuleSwitch } from '@/components/modules/useModuleSwitch';
+import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { IconTile } from '@/components/ui/IconTile';
 import { Switch } from '@/components/ui/Switch';
@@ -30,6 +31,7 @@ const ATTENTION_MS = 1800;
  */
 export function ModulosScreen() {
   const { settings } = useSettings();
+  const { user } = useAuth();
   const { turnOn, turnOff, busy } = useModuleSwitch();
   const { showToast } = useToast();
   const [shaking, setShaking] = useState<ModuleKey | null>(null);
@@ -75,6 +77,7 @@ export function ModulosScreen() {
   }
 
   async function handleToggle(key: ModuleKey, next: boolean) {
+    if (next && moduleDefinition(key).vipOnly && !user.vip) return;
     if (!next) {
       await turnOff(key);
       return;
@@ -93,6 +96,7 @@ export function ModulosScreen() {
 
   const nodeProps = {
     modules,
+    vip: user.vip,
     busy,
     shaking,
     attention,
@@ -148,6 +152,8 @@ export function ModulosScreen() {
 interface NodeProps {
   node: ModuleTreeNode;
   modules: ModuleFlags;
+  /** Whether this account may turn on the VIP-only modules. */
+  vip: boolean;
   busy: boolean;
   shaking: ModuleKey | null;
   attention: ModuleKey[];
@@ -184,13 +190,26 @@ function ModuleNode({ parentOn, ...props }: NodeProps & { parentOn?: boolean }) 
   );
 }
 
-function ModuleRow({ node, modules, busy, shaking, attention, registerRow, onToggle, onPointAt }: NodeProps) {
+function ModuleRow({
+  node,
+  modules,
+  vip,
+  busy,
+  shaking,
+  attention,
+  registerRow,
+  onToggle,
+  onPointAt,
+}: NodeProps) {
   const { key } = node;
   const info = moduleDefinition(key);
   const visual = MODULE_VISUALS[key];
   const on = modules[key];
-  const blockers = on ? [] : nearestMissing({ modules }, key);
+  // Reserved for VIP accounts: everyone else sees it marked "VIP", but can't turn it on.
+  const vipLocked = info.vipOnly === true && !vip;
+  const blockers = on || vipLocked ? [] : nearestMissing({ modules }, key);
   const locked = blockers.length > 0;
+  const dimmed = locked || vipLocked;
 
   return (
     <div
@@ -199,7 +218,7 @@ function ModuleRow({ node, modules, busy, shaking, attention, registerRow, onTog
         shaking === key ? 'motion-safe:animate-shake' : ''
       } ${attention.includes(key) ? 'bg-primary/5 animate-attention' : ''}`}
     >
-      <div className={`relative h-10 shrink-0 ${locked ? 'opacity-45 grayscale' : ''}`}>
+      <div className={`relative h-10 shrink-0 ${dimmed ? 'opacity-45 grayscale' : ''}`}>
         <IconTile icon={visual.icon} tone={visual.tone} />
         {locked && (
           <span
@@ -214,11 +233,22 @@ function ModuleRow({ node, modules, busy, shaking, attention, registerRow, onTog
       <div className="min-w-0 flex-1">
         <div className="flex min-h-10 items-center justify-between gap-2">
           <p
-            className={`min-w-0 text-sm leading-tight font-semibold ${locked ? 'text-muted' : 'text-foreground'}`}
+            className={`min-w-0 text-sm leading-tight font-semibold ${dimmed ? 'text-muted' : 'text-foreground'}`}
           >
             {info.name}
+            {info.vipOnly && vip && (
+              <span className="bg-primary/10 text-primary ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 align-middle text-[11px] font-semibold">
+                <Crown aria-hidden className="h-3 w-3" />
+                VIP
+              </span>
+            )}
           </p>
-          {locked ? (
+          {vipLocked ? (
+            <span className="bg-primary/10 text-primary inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold">
+              <Crown aria-hidden className="h-3.5 w-3.5" />
+              VIP
+            </span>
+          ) : locked ? (
             <button
               type="button"
               role="switch"
@@ -240,6 +270,7 @@ function ModuleRow({ node, modules, busy, shaking, attention, registerRow, onTog
           )}
         </div>
         <p className="text-muted text-xs">{info.description}</p>
+        {vipLocked && <p className="text-muted mt-1.5 text-xs">Disponível só para contas VIP.</p>}
         {locked && (
           <button
             type="button"

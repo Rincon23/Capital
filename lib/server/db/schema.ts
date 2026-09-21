@@ -117,6 +117,18 @@ export const verification = pgTable(
   (t) => [index('verifications_identifier_idx').on(t.identifier)],
 );
 
+/**
+ * The accounts the server's owner (OWNER_EMAIL) made VIP in Administração: they can turn on the
+ * modules marked `vipOnly` (lib/modules/catalog.ts). A row is the grant; no row, no VIP. Kept out
+ * of `users` on purpose, so nothing Better Auth lets a user update can ever touch it.
+ */
+export const vipUsers = pgTable('vip_users', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  grantedAt: timestamp('granted_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ---------------------------------------------------------------------------
 // Budget
 // ---------------------------------------------------------------------------

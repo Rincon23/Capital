@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import type { GmailConnectError } from '@/lib/gmail';
 import { getAuth } from '@/lib/server/auth';
 import { PostgresBudgetRepository } from '@/lib/server/budgetRepository';
 import { getDb } from '@/lib/server/db';
@@ -17,15 +18,15 @@ import { HttpError } from '@/lib/server/httpError';
  * cookie remembers who started it, so the callback only accepts this user's answer.
  */
 export async function GET(request: NextRequest): Promise<Response> {
-  const back = (error: string) =>
-    NextResponse.redirect(`${appBaseUrl()}/gmail?erro=${encodeURIComponent(error)}`, 303);
+  const back = (error: GmailConnectError) =>
+    NextResponse.redirect(`${appBaseUrl()}/gmail?erro=${error}`, 303);
   try {
     const session = await getAuth().api.getSession({ headers: request.headers });
     if (!session) return NextResponse.redirect(`${appBaseUrl()}/login`, 303);
     await requireGmailAccess(new PostgresBudgetRepository(getDb(), session.user.id));
 
     const config = googleConfig();
-    if (!config) return back('O Google ainda não está configurado neste servidor.');
+    if (!config) return back('nao-configurado');
 
     const { state, cookie } = createOAuthState(session.user.id);
     const response = NextResponse.redirect(authorizationUrl(config, state), 303);
@@ -39,8 +40,8 @@ export async function GET(request: NextRequest): Promise<Response> {
     response.headers.set('Cache-Control', 'no-store');
     return response;
   } catch (err) {
-    if (err instanceof HttpError) return back(err.message);
+    if (err instanceof HttpError) return back('modulo-desligado');
     console.error('[gmail] falha ao iniciar a conexão:', err);
-    return back('Não foi possível iniciar a conexão com o Google.');
+    return back('inicio-falhou');
   }
 }

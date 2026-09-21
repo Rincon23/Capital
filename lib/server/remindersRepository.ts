@@ -1,4 +1,4 @@
-import { and, eq, gte } from 'drizzle-orm';
+import { and, eq, gte, sql } from 'drizzle-orm';
 import {
   DEFAULT_REMINDER_SETTINGS,
   REMINDER_LOOKBACK_DAYS,
@@ -17,6 +17,7 @@ import type { RemindersRepository, RemindersSnapshot } from '../storage/reminder
 import { reminderCompletions, reminderSettings, reminders } from './db/schema';
 import type { Database } from './db/types';
 import { HttpError } from './httpError';
+import { checkQuota, QUOTAS } from './quotas';
 
 type ReminderRow = typeof reminders.$inferSelect;
 
@@ -143,6 +144,11 @@ export class PostgresRemindersRepository implements RemindersRepository {
 
   async saveReminder(input: ReminderInput): Promise<void> {
     const values = columnsFor(input);
+    const [{ others }] = await this.db
+      .select({ others: sql<number>`count(*) filter (where ${reminders.id} <> ${input.id})`.mapWith(Number) })
+      .from(reminders)
+      .where(eq(reminders.userId, this.userId));
+    checkQuota(others, QUOTAS.reminders, `Dá para ter até ${QUOTAS.reminders} lembretes.`);
     await this.db
       .insert(reminders)
       .values({ userId: this.userId, id: input.id, ...values })

@@ -36,6 +36,22 @@ export function isModuleOn(source: FlagsSource, key: ModuleKey): boolean {
   return resolveModules(source)[key];
 }
 
+/** The modules only VIP accounts can turn on (see `ModuleDefinition.vipOnly`). */
+export const VIP_ONLY_MODULES: ModuleKey[] = MODULES.filter((definition) => definition.vipOnly).map(
+  (definition) => definition.key,
+);
+
+/**
+ * The settings as this account may have them: for anyone who is not VIP, the VIP-only modules
+ * are off, whatever was saved (an old backup, a direct API call, a VIP status taken back).
+ */
+export function withAccessRules<T extends Pick<BudgetSettings, 'modules'>>(settings: T, vip: boolean): T {
+  if (vip || !settings.modules) return settings;
+  const modules = { ...settings.modules };
+  for (const key of VIP_ONLY_MODULES) if (modules[key]) modules[key] = false;
+  return { ...settings, modules };
+}
+
 /** The direct dependencies of `key` that are off, which is what blocks turning it on. */
 export function missingDependencies(source: FlagsSource, key: ModuleKey): ModuleKey[] {
   const resolved = resolveModules(source);

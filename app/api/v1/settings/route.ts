@@ -1,8 +1,13 @@
+import { withAccessRules } from '@/lib/modules';
 import { apiRoute, readJson } from '@/lib/server/http';
 import { settingsSchema } from '@/lib/server/validation';
 
-export const GET = apiRoute(({ repo }) => repo.getSettings());
+/** The VIP-only modules read as off for everyone else, whatever is saved (see `withAccessRules`). */
+export const GET = apiRoute(async ({ repo, access }) =>
+  withAccessRules(await repo.getSettings(), (await access()).vip),
+);
 
-export const PUT = apiRoute(async ({ request, repo }) => {
-  await repo.saveSettings(await readJson(request, settingsSchema));
+export const PUT = apiRoute(async ({ request, repo, access }) => {
+  const settings = await readJson(request, settingsSchema);
+  await repo.saveSettings(withAccessRules(settings, (await access()).vip));
 });

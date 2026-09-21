@@ -166,3 +166,34 @@ describe('envio', () => {
     expect(pushPublicKey()).toBe('publica');
   });
 });
+
+describe('proteção contra abuso das notificações', () => {
+  it('guarda no máximo 10 aparelhos por conta, descartando o que está parado há mais tempo', async () => {
+    const { push } = await newAccount();
+    const first = await push.registerDevice(subscription(), ANDROID);
+    for (let i = 0; i < 11; i++) await push.registerDevice(subscription(), ANDROID);
+
+    const devices = await push.listDevices();
+    expect(devices).toHaveLength(10);
+    expect(devices.some((d) => d.id === first.id)).toBe(false);
+  });
+
+  it('nunca manda nada para um endereço fora dos serviços de push conhecidos, e o apaga', async () => {
+    const { id, push } = await newAccount();
+    await push.registerDevice(subscription(), ANDROID);
+    // Gravado direto no banco, como se tivesse entrado antes da verificação existir.
+    await db.insert(schema.pushSubscriptions).values({
+      userId: id,
+      endpoint: 'https://vitima.example/ataque',
+      p256dh: 'k',
+      auth: 'a',
+    });
+    const { sender, calls } = fakeSender();
+
+    const report = await sendPushToUser(db, id, { title: 'Oi', body: 'teste', url: '/' }, { sender });
+
+    expect(calls.map((c) => c.endpoint)).not.toContain('https://vitima.example/ataque');
+    expect(report).toMatchObject({ sent: 1, removed: 1 });
+    expect(await push.listDevices()).toHaveLength(1);
+  });
+});

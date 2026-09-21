@@ -71,6 +71,7 @@ import {
 } from './db/schema';
 import type { Database, Transaction } from './db/types';
 import { HttpError } from './httpError';
+import { checkQuota, QUOTAS } from './quotas';
 import { fetchQuote } from './quotes';
 
 /** The ticker the app starts from; every user can change it in the Reserva screen. */
@@ -370,6 +371,9 @@ export class PostgresWalletRepository implements WalletRepository {
     };
     const existing = await this.listCards();
     const known = existing.find((item) => item.id === card.id);
+    if (!known) {
+      checkQuota(existing.length, QUOTAS.cards, `Dá para cadastrar até ${QUOTAS.cards} cartões.`);
+    }
     // The first card is always the default one; after that, only what the person asked for.
     const isDefault = card.isDefault || existing.length === 0 || (known?.isDefault === true && existing.length === 1);
     const position = known?.order ?? existing.length;
@@ -496,9 +500,17 @@ export class PostgresWalletRepository implements WalletRepository {
       installmentAccounting: item.card && item.installmentCount ? (item.installmentAccounting ?? 'upfront') : null,
     };
     const [last] = await this.db
-      .select({ position: sql<number | null>`max(${recurringExpenses.position})` })
+      .select({
+        position: sql<number | null>`max(${recurringExpenses.position})`,
+        others: sql<number>`count(*) filter (where ${recurringExpenses.id} <> ${item.id})`.mapWith(Number),
+      })
       .from(recurringExpenses)
       .where(eq(recurringExpenses.userId, this.userId));
+    checkQuota(
+      last?.others ?? 0,
+      QUOTAS.recurring,
+      `Dá para ter até ${QUOTAS.recurring} gastos recorrentes.`,
+    );
     await this.db
       .insert(recurringExpenses)
       .values({ userId: this.userId, id: item.id, position: (last?.position ?? -1) + 1, ...values })
@@ -569,6 +581,14 @@ export class PostgresWalletRepository implements WalletRepository {
     };
 
     await this.requireOpenMonthsForPlan(tx, plan);
+
+    const [{ others }] = await tx
+      .select({
+        others: sql<number>`count(*) filter (where ${installments.id} <> ${plan.id})`.mapWith(Number),
+      })
+      .from(installments)
+      .where(eq(installments.userId, this.userId));
+    checkQuota(others, QUOTAS.installments, `Dá para ter até ${QUOTAS.installments} compras parceladas.`);
 
     await tx
       .insert(installments)
@@ -688,9 +708,13 @@ export class PostgresWalletRepository implements WalletRepository {
       quotas: bucket.quotas,
     };
     const [last] = await this.db
-      .select({ position: sql<number | null>`max(${investmentBuckets.position})` })
+      .select({
+        position: sql<number | null>`max(${investmentBuckets.position})`,
+        others: sql<number>`count(*) filter (where ${investmentBuckets.id} <> ${bucket.id})`.mapWith(Number),
+      })
       .from(investmentBuckets)
       .where(eq(investmentBuckets.userId, this.userId));
+    checkQuota(last?.others ?? 0, QUOTAS.buckets, `Dá para ter até ${QUOTAS.buckets} categorias na reserva.`);
     await this.db
       .insert(investmentBuckets)
       .values({ userId: this.userId, id: bucket.id, position: (last?.position ?? -1) + 1, ...values })

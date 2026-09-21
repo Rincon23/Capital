@@ -4,6 +4,9 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { APIError } from 'better-auth/api';
 import { getAuth } from '@/lib/server/auth';
+import { clientIp } from '@/lib/server/clientIp';
+import { forgetGmailToken } from '@/lib/server/gmail/job';
+import { isPasswordPwned } from '@/lib/server/pwnedPasswords';
 import { allowAttempt } from '@/lib/server/rateLimit';
 
 export interface AuthActionState {
@@ -15,26 +18,24 @@ export interface AuthActionState {
 }
 
 const MIN_PASSWORD = 8;
-const FIVE_MINUTES = 5 * 60 * 1000;
+const MAX_PASSWORD = 128;
+const MINUTE = 60 * 1000;
+const FIVE_MINUTES = 5 * MINUTE;
+const FIFTEEN_MINUTES = 15 * MINUTE;
+const HOUR = 60 * MINUTE;
 const TOO_MANY_ATTEMPTS = 'Muitas tentativas. Aguarde alguns minutos e tente de novo.';
+const PWNED_PASSWORD =
+  'Essa senha já apareceu em vazamentos de dados na internet, então é das primeiras que um invasor tenta. Escolha outra.';
 /** Where the confirmation link lands once Better Auth has checked it (see app/auth/confirmado). */
 const EMAIL_CONFIRMED_PATH = '/auth/confirmado';
 
 function readCredentials(formData: FormData): { email: string; password: string } {
   return {
-    email: String(formData.get('email') ?? '').trim(),
-    password: String(formData.get('password') ?? ''),
+    email: String(formData.get('email') ?? '')
+      .trim()
+      .slice(0, 254),
+    password: String(formData.get('password') ?? '').slice(0, MAX_PASSWORD + 1),
   };
-}
-
-/** The visitor's IP behind Cloudflare / a reverse proxy, for rate limiting. */
-function clientIp(requestHeaders: Headers): string {
-  return (
-    requestHeaders.get('cf-connecting-ip') ??
-    requestHeaders.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    requestHeaders.get('x-real-ip') ??
-    'local'
-  );
 }
 
 function errorCode(err: unknown): string | undefined {
@@ -42,16 +43,39 @@ function errorCode(err: unknown): string | undefined {
   return (err.body as { code?: string } | undefined)?.code;
 }
 
-export async function signIn(
-  _prev: AuthActionState,
-  formData: FormData,
-): Promise<AuthActionState> {
+/** Every limit must allow the attempt (all are counted, so none can be dodged by varying another). */
+function allowAll(...checks: [key: string, limit: number, windowMs: number][]): boolean {
+  let allowed = true;
+  for (const [key, limit, windowMs] of checks) {
+    if (!allowAttempt(key, limit, windowMs)) allowed = false;
+  }
+  return allowed;
+}
+
+function passwordLengthError(password: string): string | null {
+  if (password.length < MIN_PASSWORD) return `A senha precisa de pelo menos ${MIN_PASSWORD} caracteres.`;
+  if (password.length > MAX_PASSWORD) return `A senha pode ter no máximo ${MAX_PASSWORD} caracteres.`;
+  return null;
+}
+
+export async function signIn(_prev: AuthActionState, formData: FormData): Promise<AuthActionState> {
   const { email, password } = readCredentials(formData);
   if (!email || !password) return { error: 'Informe e-mail e senha.', email };
 
   const requestHeaders = await headers();
-  const key = `sign-in:${clientIp(requestHeaders)}:${email.toLowerCase()}`;
-  if (!allowAttempt(key, 5, FIVE_MINUTES)) return { error: TOO_MANY_ATTEMPTS, email };
+  const ip = clientIp(requestHeaders);
+  const account = email.toLowerCase();
+  // Per address and IP (someone mistyping), per address from anywhere (a botnet guessing one
+  // person's password) and per IP across addresses (one machine trying a leaked list).
+  if (
+    !allowAll(
+      [`sign-in:${ip}:${account}`, 5, FIVE_MINUTES],
+      [`sign-in:account:${account}`, 10, FIFTEEN_MINUTES],
+      [`sign-in:ip:${ip}`, 30, FIFTEEN_MINUTES],
+    )
+  ) {
+    return { error: TOO_MANY_ATTEMPTS, email };
+  }
 
   try {
     await getAuth().api.signInEmail({
@@ -73,18 +97,16 @@ export async function signIn(
   redirect('/');
 }
 
-export async function signUp(
-  _prev: AuthActionState,
-  formData: FormData,
-): Promise<AuthActionState> {
+export async function signUp(_prev: AuthActionState, formData: FormData): Promise<AuthActionState> {
   const { email, password } = readCredentials(formData);
   if (!email) return { error: 'Informe um e-mail.', email };
-  if (password.length < MIN_PASSWORD) {
-    return { error: `A senha precisa de pelo menos ${MIN_PASSWORD} caracteres.`, email };
-  }
-  if (!allowAttempt(`sign-up:${clientIp(await headers())}`, 5, FIVE_MINUTES)) {
+  const lengthError = passwordLengthError(password);
+  if (lengthError) return { error: lengthError, email };
+  // Every sign-up sends an e-mail: few per IP, so nobody can script accounts for other addresses.
+  if (!allowAttempt(`sign-up:${clientIp(await headers())}`, 5, HOUR)) {
     return { error: TOO_MANY_ATTEMPTS, email };
   }
+  if (await isPasswordPwned(password)) return { error: PWNED_PASSWORD, email };
 
   try {
     await getAuth().api.signUpEmail({
@@ -111,9 +133,16 @@ export async function resendConfirmation(
   _prev: AuthActionState,
   formData: FormData,
 ): Promise<AuthActionState> {
-  const email = String(formData.get('email') ?? '').trim();
+  const email = String(formData.get('email') ?? '')
+    .trim()
+    .slice(0, 254);
   if (!email) return { error: 'Informe um e-mail.' };
-  if (!allowAttempt(`resend:${email.toLowerCase()}`, 3, FIVE_MINUTES)) {
+  if (
+    !allowAll(
+      [`resend:${email.toLowerCase()}`, 3, FIVE_MINUTES],
+      [`resend:ip:${clientIp(await headers())}`, 10, HOUR],
+    )
+  ) {
     return { error: TOO_MANY_ATTEMPTS, email };
   }
 
@@ -132,10 +161,17 @@ export async function requestPasswordReset(
   _prev: AuthActionState,
   formData: FormData,
 ): Promise<AuthActionState> {
-  const email = String(formData.get('email') ?? '').trim();
+  const email = String(formData.get('email') ?? '')
+    .trim()
+    .slice(0, 254);
   if (!email) return { error: 'Informe seu e-mail.' };
 
-  if (allowAttempt(`reset:${email.toLowerCase()}`, 3, FIVE_MINUTES)) {
+  if (
+    allowAll(
+      [`reset:${email.toLowerCase()}`, 3, FIVE_MINUTES],
+      [`reset:ip:${clientIp(await headers())}`, 10, HOUR],
+    )
+  ) {
     try {
       await getAuth().api.requestPasswordReset({ body: { email, redirectTo: '/redefinir-senha' } });
     } catch (err) {
@@ -148,16 +184,16 @@ export async function requestPasswordReset(
 }
 
 /** Sets the new password from the reset link (the token comes from /redefinir-senha?token=…). */
-export async function resetPassword(
-  _prev: AuthActionState,
-  formData: FormData,
-): Promise<AuthActionState> {
-  const token = String(formData.get('token') ?? '');
-  const password = String(formData.get('password') ?? '');
-  if (password.length < MIN_PASSWORD) {
-    return { error: `A senha precisa de pelo menos ${MIN_PASSWORD} caracteres.` };
-  }
+export async function resetPassword(_prev: AuthActionState, formData: FormData): Promise<AuthActionState> {
+  const token = String(formData.get('token') ?? '').slice(0, 500);
+  const password = String(formData.get('password') ?? '').slice(0, MAX_PASSWORD + 1);
+  const lengthError = passwordLengthError(password);
+  if (lengthError) return { error: lengthError };
   if (!token) return { error: 'Link inválido ou expirado. Peça um novo na tela de acesso.' };
+  if (!allowAttempt(`reset-password:ip:${clientIp(await headers())}`, 10, FIFTEEN_MINUTES)) {
+    return { error: TOO_MANY_ATTEMPTS };
+  }
+  if (await isPasswordPwned(password)) return { error: PWNED_PASSWORD };
 
   try {
     await getAuth().api.resetPassword({ body: { newPassword: password, token } });
@@ -176,4 +212,39 @@ export async function signOut(): Promise<void> {
     console.error('[auth] falha ao sair:', err);
   }
   redirect('/login');
+}
+
+export interface DeleteAccountState {
+  error?: string;
+}
+
+/**
+ * "Excluir minha conta": asks for the password again, then deletes the user. Every table hangs
+ * from `users` with ON DELETE CASCADE, so all the account's data (and its Gmail token) goes too.
+ */
+export async function deleteAccount(
+  _prev: DeleteAccountState,
+  formData: FormData,
+): Promise<DeleteAccountState> {
+  const password = String(formData.get('password') ?? '').slice(0, MAX_PASSWORD + 1);
+  if (!password) return { error: 'Digite a sua senha para confirmar.' };
+
+  const requestHeaders = await headers();
+  const auth = getAuth();
+  const session = await auth.api.getSession({ headers: requestHeaders });
+  if (!session) redirect('/login');
+  if (!allowAttempt(`delete-account:${session.user.id}`, 5, FIFTEEN_MINUTES)) {
+    return { error: TOO_MANY_ATTEMPTS };
+  }
+
+  try {
+    await auth.api.deleteUser({ body: { password }, headers: requestHeaders });
+  } catch (err) {
+    if (err instanceof APIError) return { error: 'Senha incorreta. A conta não foi excluída.' };
+    console.error('[auth] falha ao excluir a conta:', err);
+    return { error: 'Não foi possível excluir a conta agora. Tente novamente em instantes.' };
+  }
+
+  forgetGmailToken(session.user.id);
+  redirect('/login?conta=excluida');
 }

@@ -37,6 +37,11 @@ export interface ModuleDefinition {
   screen?: ModuleScreen;
   /** Whether the home dashboard shows a card for it. */
   homeCard: boolean;
+  /**
+   * Only for the accounts the server's owner made VIP (Administração). Everyone else sees it marked
+   * "VIP" and cannot turn it on; the server keeps it off for them whatever is saved.
+   */
+  vipOnly?: boolean;
 }
 
 /**
@@ -181,6 +186,8 @@ export const MODULES: ModuleDefinition[] = [
     group: 'assistant',
     dependsOn: ['expenses'],
     homeCard: false,
+    // The AI runs on the server's own board: kept to a few accounts so it doesn't overheat.
+    vipOnly: true,
   },
   {
     key: 'gmail',

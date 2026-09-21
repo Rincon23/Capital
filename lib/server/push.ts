@@ -1,7 +1,8 @@
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq, ne, sql } from 'drizzle-orm';
 import webpush from 'web-push';
 import {
   deviceLabel,
+  isAllowedPushEndpoint,
   type PushDevice,
   type PushMessage,
   type PushSendReport,
@@ -10,6 +11,7 @@ import {
 import { pushSubscriptions } from './db/schema';
 import type { Database } from './db/types';
 import { HttpError } from './httpError';
+import { QUOTAS } from './quotas';
 
 /**
  * Web Push with VAPID keys (the `web-push` library). No third-party account: the browser's own
@@ -101,6 +103,12 @@ export async function sendPushToUser(
 
   await Promise.all(
     devices.map(async (device) => {
+      // Saved before the push services were checked on the way in: never sent to, just dropped.
+      if (!isAllowedPushEndpoint(device.endpoint)) {
+        report.removed += 1;
+        await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, device.id));
+        return;
+      }
       try {
         await sender(
           { endpoint: device.endpoint, keys: { p256dh: device.p256dh, auth: device.auth } },
@@ -170,7 +178,30 @@ export class PostgresPushRepository {
       .values({ endpoint: input.endpoint, ...values })
       .onConflictDoUpdate({ target: pushSubscriptions.endpoint, set: values })
       .returning();
+    await this.keepNewestDevices(row.id);
     return toDevice(row);
+  }
+
+  /**
+   * At most QUOTAS.pushDevices per account: past it, the devices that went the longest without
+   * receiving anything are dropped (a phone that was reset, a browser that was reinstalled). A
+   * real person never notices; a script registering thousands never gets a fan-out.
+   */
+  private async keepNewestDevices(keepId: string): Promise<void> {
+    const others = await this.db
+      .select({ id: pushSubscriptions.id })
+      .from(pushSubscriptions)
+      .where(and(eq(pushSubscriptions.userId, this.userId), ne(pushSubscriptions.id, keepId)))
+      .orderBy(
+        asc(sql`coalesce(${pushSubscriptions.lastSuccessAt}, ${pushSubscriptions.createdAt})`),
+        asc(pushSubscriptions.createdAt),
+      );
+    const excess = others.length - (QUOTAS.pushDevices - 1);
+    for (const device of others.slice(0, Math.max(0, excess))) {
+      await this.db
+        .delete(pushSubscriptions)
+        .where(and(eq(pushSubscriptions.userId, this.userId), eq(pushSubscriptions.id, device.id)));
+    }
   }
 
   async removeDevice(id: string): Promise<void> {

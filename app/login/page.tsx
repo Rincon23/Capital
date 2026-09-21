@@ -22,6 +22,6 @@ export default async function LoginPage({
   const session = await getAuth().api.getSession({ headers: requestHeaders });
   if (session) redirect('/');
 
-  const { senha } = await searchParams;
-  return <LoginScreen passwordReset={senha === 'redefinida'} />;
+  const { senha, conta } = await searchParams;
+  return <LoginScreen passwordReset={senha === 'redefinida'} accountDeleted={conta === 'excluida'} />;
 }

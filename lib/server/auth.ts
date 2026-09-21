@@ -24,12 +24,22 @@ function createAuth() {
       provider: 'pg',
       schema: { user, session, account, verification },
     }),
-    advanced: { database: { generateId: 'uuid' } },
+    advanced: {
+      database: { generateId: 'uuid' },
+      // Behind the Cloudflare tunnel this header is set by Cloudflare and can't be forged
+      // (X-Forwarded-For can). See lib/server/clientIp.ts.
+      ipAddress: { ipAddressHeaders: [process.env.TRUSTED_IP_HEADER?.trim() || 'cf-connecting-ip'] },
+    },
     session: { expiresIn: 30 * DAY_IN_SECONDS, updateAge: DAY_IN_SECONDS },
+    // "Excluir minha conta" (Configurações), always with the password. Every table hangs from
+    // `users` with ON DELETE CASCADE, so the account's data goes with it.
+    user: { deleteUser: { enabled: true } },
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
       minPasswordLength: 8,
+      // Whoever had a session (a stolen phone, a shared computer) is signed out by a reset.
+      revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user: target, url }) => {
         await sendMail(resetPasswordMessage(target.email, url));
       },

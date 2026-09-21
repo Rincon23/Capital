@@ -18,7 +18,13 @@ const PRIMARY_BTN =
 
 type Mode = 'sign-in' | 'sign-up' | 'forgot';
 
-export function LoginScreen({ passwordReset = false }: { passwordReset?: boolean }) {
+export function LoginScreen({
+  passwordReset = false,
+  accountDeleted = false,
+}: {
+  passwordReset?: boolean;
+  accountDeleted?: boolean;
+}) {
   const [mode, setMode] = useState<Mode>('sign-in');
 
   return (
@@ -28,7 +34,9 @@ export function LoginScreen({ passwordReset = false }: { passwordReset?: boolean
         <p className="text-muted text-sm">Orçamento doméstico por envelopes</p>
       </header>
 
-      {mode === 'sign-in' && <SignInForm onModeChange={setMode} passwordReset={passwordReset} />}
+      {mode === 'sign-in' && (
+        <SignInForm onModeChange={setMode} passwordReset={passwordReset} accountDeleted={accountDeleted} />
+      )}
       {mode === 'sign-up' && <SignUpForm onModeChange={setMode} />}
       {mode === 'forgot' && <ForgotForm onModeChange={setMode} />}
     </main>
@@ -55,9 +63,11 @@ function SwitchLink({ children, onClick }: { children: ReactNode; onClick: () =>
 function SignInForm({
   onModeChange,
   passwordReset,
+  accountDeleted,
 }: {
   onModeChange: (mode: Mode) => void;
   passwordReset: boolean;
+  accountDeleted: boolean;
 }) {
   const [state, action, pending] = useActionState(signIn, EMPTY);
 
@@ -67,6 +77,11 @@ function SignInForm({
       {passwordReset && !state.error && (
         <p className="text-success text-center text-sm" role="status">
           Senha redefinida. Entre com a nova senha.
+        </p>
+      )}
+      {accountDeleted && !state.error && (
+        <p className="text-success text-center text-sm" role="status">
+          Conta excluída, com todos os dados dela. Obrigado por ter usado o Capital.
         </p>
       )}
       <label className="text-muted flex flex-col gap-1 text-sm">
