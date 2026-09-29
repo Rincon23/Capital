@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
+  INCOME_ONE_TOPIC_ADVICE,
+  INCOME_ONE_TOPIC_EXPLANATION,
   amountToInputValue,
   currentMonthKey,
   parseAmountInput,
@@ -9,9 +11,11 @@ import {
   validatePositiveAmount,
   type Income,
   type Month,
+  type TopicConfig,
 } from '@/lib/budget';
 import { AmountInput } from '@/components/ui/AmountInput';
 import { BottomSheet } from '@/components/ui/BottomSheet';
+import { Chip } from '@/components/ui/Chip';
 
 function defaultDateForMonth(month: Month): string {
   const today = new Date();
@@ -22,15 +26,34 @@ function defaultDateForMonth(month: Month): string {
 interface IncomeFormSheetProps {
   month: Month;
   initial?: Income;
+  /**
+   * The month's categories, when the budget is on: then the income can go to one category only
+   * ("Não recomendado") instead of being split by %. Absent hides the choice.
+   */
+  topics?: TopicConfig[];
   onClose: () => void;
   onSave: (income: Income) => Promise<void>;
   onDelete?: (incomeId: string) => Promise<void>;
 }
 
-export function IncomeFormSheet({ month, initial, onClose, onSave, onDelete }: IncomeFormSheetProps) {
+export function IncomeFormSheet({
+  month,
+  initial,
+  topics,
+  onClose,
+  onSave,
+  onDelete,
+}: IncomeFormSheetProps) {
   const [amount, setAmount] = useState(initial ? amountToInputValue(initial.amount) : '');
   const [source, setSource] = useState(initial?.source ?? '');
   const [date, setDate] = useState(initial?.date ?? defaultDateForMonth(month));
+  const [oneTopic, setOneTopic] = useState(Boolean(initial?.topicId));
+  const [topicId, setTopicId] = useState(initial?.topicId);
+  const activeTopics = useMemo(
+    () => (topics ?? []).filter((t) => !t.archived).sort((a, b) => a.order - b.order),
+    [topics],
+  );
+  const offerTopics = activeTopics.length > 0;
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -45,6 +68,12 @@ export function IncomeFormSheet({ month, initial, onClose, onSave, onDelete }: I
       setError('Informe a fonte da renda.');
       return;
     }
+    // Without the choice on screen, an income keeps the category it had.
+    const target = offerTopics ? (oneTopic ? topicId : undefined) : initial?.topicId;
+    if (offerTopics && oneTopic && !activeTopics.some((t) => t.id === topicId)) {
+      setError('Escolha a categoria que recebe esta renda.');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -53,6 +82,7 @@ export function IncomeFormSheet({ month, initial, onClose, onSave, onDelete }: I
         source: source.trim(),
         amount: parsedAmount,
         date,
+        ...(target ? { topicId: target } : {}),
       });
       onClose();
     } catch {
@@ -88,6 +118,45 @@ export function IncomeFormSheet({ month, initial, onClose, onSave, onDelete }: I
             className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] rounded-lg border px-3 py-2 text-base outline-none focus:ring-2"
           />
         </label>
+
+        {offerTopics && (
+          <div>
+            <p className="text-muted mb-2 text-sm font-medium">Para quais categorias</p>
+            <div className="flex flex-wrap gap-2">
+              <Chip
+                label="Todas, pelas %"
+                badge="Recomendado"
+                badgeTone="success"
+                selected={!oneTopic}
+                onClick={() => setOneTopic(false)}
+              />
+              <Chip
+                label="Uma categoria só"
+                badge="Não recomendado"
+                selected={oneTopic}
+                onClick={() => setOneTopic(true)}
+              />
+            </div>
+            {oneTopic && (
+              <>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {activeTopics.map((topic) => (
+                    <Chip
+                      key={topic.id}
+                      label={topic.name}
+                      selected={topicId === topic.id}
+                      onClick={() => setTopicId(topic.id)}
+                    />
+                  ))}
+                </div>
+                <div className="bg-warning-bg mt-2 flex flex-col gap-1 rounded-lg px-3 py-2">
+                  <p className="text-warning text-xs font-semibold">{INCOME_ONE_TOPIC_ADVICE}</p>
+                  <p className="text-muted text-xs">{INCOME_ONE_TOPIC_EXPLANATION}</p>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
           Data

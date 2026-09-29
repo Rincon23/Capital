@@ -241,8 +241,15 @@ function Lancamentos({ initialTab }: { initialTab?: LancamentosTab }) {
                   >
                     <span className="min-w-0">
                       <span className="text-foreground block truncate font-medium">{income.source}</span>
-                      {income.date && (
-                        <span className="text-muted block text-xs">{formatDate(income.date)}</span>
+                      {(income.date || income.topicId) && (
+                        <span className="text-muted block text-xs">
+                          {[
+                            income.date && formatDate(income.date),
+                            income.topicId && `Só ${topicName(settings.topics, income.topicId)}`,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </span>
                       )}
                     </span>
                     <span className="text-success font-semibold">{formatBRL(income.amount)}</span>

@@ -2,7 +2,7 @@ import { resolveTopicColor, withCurrentTopicDisplay } from './colors';
 import { currentMonthKey } from './date';
 import { round2, sum } from './money';
 import { topicDescription } from './topics';
-import type { Expense, MonthData, TopicConfig } from './types';
+import type { Expense, Income, MonthData, TopicConfig } from './types';
 
 export interface TopicResult {
   topicId: string;
@@ -15,6 +15,10 @@ export interface TopicResult {
    */
   archived: boolean;
   targetPct: number;
+  /** This topic's share of the incomes split by % ("Renda total × %"). */
+  incomeShare: number;
+  /** Incomes sent to this topic alone ("Uma categoria só"), which skip the %. */
+  directIncome: number;
   /** Hex color for this envelope (from config, or a palette default). */
   color: string;
   /** Money spent in this topic this month ("Valor Gasto"). */
@@ -55,6 +59,25 @@ export interface MonthSummary {
 
 export function computeIncomeTotal(monthData: Pick<MonthData, 'incomes'>): number {
   return sum(monthData.incomes.map((income) => income.amount));
+}
+
+/**
+ * The part of the income that is split across the categories by %: every income except the ones
+ * sent to a single category. An income sent to a category that is not in the month (archived
+ * before it had anything in it) is split too, so no money ever vanishes from the budget.
+ */
+export function computeSplitIncomeTotal(
+  incomes: Income[],
+  topicIds: ReadonlySet<string>,
+): number {
+  return sum(
+    incomes.filter((i) => !i.topicId || !topicIds.has(i.topicId)).map((income) => income.amount),
+  );
+}
+
+/** Incomes sent to one category alone ("Uma categoria só"). */
+export function computeDirectIncome(incomes: Income[], topicId: string): number {
+  return sum(incomes.filter((i) => i.topicId === topicId).map((income) => income.amount));
 }
 
 export function computeFixedTotal(expenses: Expense[]): number {
@@ -115,8 +138,9 @@ export function computeAvailable(
   targetPct: number,
   proportionalFixed: number,
   carryIn: number,
+  directIncome = 0,
 ): number {
-  return round2(incomeTotal * targetPct - proportionalFixed + carryIn);
+  return round2(incomeTotal * targetPct - proportionalFixed + carryIn + directIncome);
 }
 
 export function computeRemaining(available: number, spent: number): number {
@@ -129,6 +153,10 @@ export function computeUsedPct(spent: number, available: number): number | null 
   return spent / available;
 }
 
+/**
+ * `incomeTotal` is the income split by % (see `computeSplitIncomeTotal`); `directIncome` is what
+ * was sent to this topic alone.
+ */
 export function computeTopicResult(
   topic: TopicConfig,
   expenses: Expense[],
@@ -137,10 +165,17 @@ export function computeTopicResult(
   unforeseenTotal: number,
   carryIn: number,
   color: string,
+  directIncome = 0,
 ): TopicResult {
   const spent = computeTopicSpent(expenses, topic.id);
   const proportionalFixed = computeProportionalFixed(fixedTotal, unforeseenTotal, topic.targetPct);
-  const available = computeAvailable(incomeTotal, topic.targetPct, proportionalFixed, carryIn);
+  const available = computeAvailable(
+    incomeTotal,
+    topic.targetPct,
+    proportionalFixed,
+    carryIn,
+    directIncome,
+  );
   const remaining = computeRemaining(available, spent);
   const usedPct = computeUsedPct(spent, available);
 
@@ -150,6 +185,8 @@ export function computeTopicResult(
     description: topicDescription(topic),
     archived: topic.archived === true,
     targetPct: topic.targetPct,
+    incomeShare: round2(incomeTotal * topic.targetPct),
+    directIncome,
     color,
     spent,
     carryIn,
@@ -173,8 +210,8 @@ export function computeTopicResult(
  * snapshot name/color/targetPct either way.
  *
  * Archiving a category also applies to the current and future months, with one
- * exception: a month that already has expenses in it keeps it, with a 0% target,
- * so nothing already spent vanishes from the totals.
+ * exception: a month that already has expenses (or an income sent to it alone) keeps
+ * it, with a 0% target, so nothing already spent or received vanishes from the totals.
  */
 export function computeMonthSummary(
   monthData: MonthData,
@@ -182,12 +219,17 @@ export function computeMonthSummary(
 ): MonthSummary {
   const isPastMonth = monthData.month < currentMonthKey();
   const displayTopics = withCurrentTopicDisplay(monthData.topicsSnapshot, currentTopics, !isPastMonth);
-  const hasExpenses = (topicId: string) =>
-    monthData.expenses.some((e) => e.categoryKind === 'topic' && e.topicId === topicId);
+  const hasEntries = (topicId: string) =>
+    monthData.expenses.some((e) => e.categoryKind === 'topic' && e.topicId === topicId) ||
+    monthData.incomes.some((i) => i.topicId === topicId);
   const activeTopics = displayTopics
-    .filter((t) => !t.archived || (!isPastMonth && hasExpenses(t.id)))
+    .filter((t) => !t.archived || (!isPastMonth && hasEntries(t.id)))
     .map((t) => (t.archived ? { ...t, targetPct: 0 } : t));
   const incomeTotal = computeIncomeTotal(monthData);
+  const splitIncomeTotal = computeSplitIncomeTotal(
+    monthData.incomes,
+    new Set(activeTopics.map((t) => t.id)),
+  );
   const fixedTotal = computeFixedTotal(monthData.expenses);
   const unforeseenTotal = computeUnforeseenTotal(monthData.expenses);
   const cardTotal = computeCardTotal(monthData.expenses);
@@ -202,11 +244,12 @@ export function computeMonthSummary(
       computeTopicResult(
         topic,
         monthData.expenses,
-        incomeTotal,
+        splitIncomeTotal,
         fixedTotal,
         unforeseenTotal,
         monthData.carryIn[topic.id] ?? 0,
         resolveTopicColor(topic, index),
+        computeDirectIncome(monthData.incomes, topic.id),
       ),
     );
 

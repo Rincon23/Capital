@@ -54,6 +54,7 @@ const INSERT_CHUNK = 500;
 function toIncome(row: IncomeRow): Income {
   const income: Income = { id: row.id, source: row.source, amount: row.amount };
   if (row.date) income.date = row.date;
+  if (row.topicId) income.topicId = row.topicId;
   return income;
 }
 
@@ -197,6 +198,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
         source: income.source,
         amount: income.amount,
         date: income.date || null,
+        topicId: income.topicId || null,
       };
       const [last] = await tx
         .select({
@@ -665,6 +667,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
         source: income.source,
         amount: income.amount,
         date: income.date || null,
+        topicId: income.topicId || null,
         position,
       })),
     );

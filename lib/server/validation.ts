@@ -89,6 +89,7 @@ export const incomeSchema = z.object({
   source: z.string().max(500),
   amount: z.number(),
   date: z.preprocess(absentAsUndefined, isoDate.optional()),
+  topicId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
 });
 
 const categoryKindSchema = z.enum(['topic', 'fixedCost', 'unforeseen', 'reimbursable', 'uncounted']);

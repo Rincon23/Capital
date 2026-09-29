@@ -36,7 +36,6 @@ function CategoryDetail({ topicId }: { topicId: string }) {
     .sort((a, b) => b.date.localeCompare(a.date));
 
   const state = computeProgressState(topic.usedPct);
-  const incomeShare = summary.incomeTotal * topic.targetPct;
 
   return (
     <div className="flex flex-1 flex-col gap-4 pb-10">
@@ -71,8 +70,14 @@ function CategoryDetail({ topicId }: { topicId: string }) {
           <dl className="space-y-1.5">
             <div className="flex justify-between">
               <dt className="text-muted">Renda total × {formatPct(topic.targetPct, 0)}</dt>
-              <dd className="text-foreground">{formatBRL(incomeShare)}</dd>
+              <dd className="text-foreground">{formatBRL(topic.incomeShare)}</dd>
             </div>
+            {topic.directIncome > 0 && (
+              <div className="flex justify-between">
+                <dt className="text-muted">+ Renda só desta categoria</dt>
+                <dd className="text-foreground">{formatBRL(topic.directIncome)}</dd>
+              </div>
+            )}
             <div className="flex justify-between">
               <dt className="text-muted">− Rateio (fixos + imprevistos)</dt>
               <dd className="text-foreground">{formatBRL(topic.proportionalFixed)}</dd>

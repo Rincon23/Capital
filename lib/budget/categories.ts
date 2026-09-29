@@ -32,6 +32,17 @@ export const UNCOUNTED_EXPLANATION =
 export const UNCOUNTED_ADVICE =
   'Não recomendado: o dinheiro saiu do mesmo jeito, e nenhuma categoria vai mostrar isso.';
 
+/**
+ * Shown when an income goes to one category only. It is allowed — a gift meant for a trip, a
+ * refund of something bought in one category — but the % stop describing the month.
+ */
+export const INCOME_ONE_TOPIC_EXPLANATION =
+  'A renda inteira vai para a categoria escolhida, sem passar pelas %. Ela entra no total de renda do mês, mas as outras categorias não recebem nada dela.';
+
+/** Why the app marks "Uma categoria só" as "Não recomendado" in the income form. */
+export const INCOME_ONE_TOPIC_ADVICE =
+  'Não recomendado: dividida pelas %, a renda mantém o equilíbrio que você escolheu entre as categorias.';
+
 /** Special-category labels with any missing entry (older data) filled from the defaults. */
 export function resolveSpecialCategoryLabels(
   source: Pick<BudgetSettings, 'specialCategories'> | SpecialCategoryLabels | undefined,

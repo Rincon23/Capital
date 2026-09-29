@@ -137,6 +137,12 @@ export interface Income {
   source: string;
   amount: number;
   date?: string;
+  /**
+   * The one envelope that gets this whole income. Absent means the income is split across every
+   * category by its % — the recommended way; sending it all to one category is allowed, but the
+   * app marks it as "Não recomendado" wherever it is offered.
+   */
+  topicId?: string;
 }
 
 /** Where an expense came from. Absent means the expense form (the default). */

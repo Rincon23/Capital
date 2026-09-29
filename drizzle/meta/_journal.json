@@ -120,6 +120,13 @@
       "when": 1789997317820,
       "tag": "0016_vip_users",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790646888161,
+      "tag": "0017_income_topic",
+      "breakpoints": true
     }
   ]
 }

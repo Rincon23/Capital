@@ -203,3 +203,45 @@ describe('Progress state thresholds', () => {
     expect(computeProgressState(1.01)).toBe('danger');
   });
 });
+
+describe('Renda para uma categoria só', () => {
+  const month = buildMonth({
+    expenses: [],
+    incomes: [
+      { id: 'i1', source: 'Salário', amount: 5000 },
+      { id: 'i2', source: 'Presente para a viagem', amount: 1000, topicId: 'metas' },
+    ],
+  });
+  const summary = computeMonthSummary(month);
+
+  it('entra no total de renda do mês', () => {
+    expect(summary.incomeTotal).toBe(6000);
+  });
+
+  it('vai inteira para a categoria escolhida, sem passar pelas %', () => {
+    const metas = findTopic(summary, 'metas');
+    expect(metas.incomeShare).toBe(1250);
+    expect(metas.directIncome).toBe(1000);
+    expect(metas.available).toBe(2250);
+  });
+
+  it('as outras categorias recebem só a renda dividida', () => {
+    expect(findTopic(summary, 'diversos').available).toBe(1000);
+    expect(findTopic(summary, 'diversos').directIncome).toBe(0);
+  });
+
+  it('a soma do que dá para gastar continua igual à renda', () => {
+    expect(summary.availableTotal).toBe(6000);
+  });
+
+  it('a categoria que já não está no mês faz a renda voltar a ser dividida', () => {
+    const orphan = computeMonthSummary(
+      buildMonth({
+        expenses: [],
+        incomes: [{ id: 'i1', source: 'Salário', amount: 5000, topicId: 'sumiu' }],
+      }),
+    );
+    expect(findTopic(orphan, 'diversos').available).toBe(1000);
+    expect(orphan.availableTotal).toBe(5000);
+  });
+});

@@ -118,6 +118,21 @@ describe('PostgresBudgetRepository', () => {
     expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(400);
   });
 
+  it('keeps an income sent to one category and carries it into that category only', async () => {
+    const { repo } = await newAccount();
+    const diversos = await diversosId(repo);
+
+    await repo.ensureMonth('2026-01');
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Presente', amount: 500, topicId: diversos });
+    expect((await repo.getMonth('2026-01'))?.incomes).toEqual([
+      { id: 'i1', source: 'Presente', amount: 500, topicId: diversos },
+    ]);
+
+    const february = await repo.ensureMonth('2026-02');
+    expect(february.carryIn[diversos]).toBe(500);
+    expect(Object.values(february.carryIn).reduce((a, b) => a + b, 0)).toBe(500);
+  });
+
   it("keeps an existing category's carryIn when Settings only reorders categories", async () => {
     const { repo } = await newAccount();
     const settings = await repo.getSettings();

@@ -307,6 +307,8 @@ export const incomes = pgTable(
     source: text('source').notNull(),
     amount: numeric('amount', { mode: 'number' }).notNull(),
     date: date('date', { mode: 'string' }),
+    /** The one category that gets this whole income; null means split by % (see Income). */
+    topicId: text('topic_id'),
     position: integer('position').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),

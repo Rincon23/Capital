@@ -329,6 +329,14 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
   podem ser mudados na engrenagem, junto com as outras. Em Lançamentos ela só ganha uma aba
   **depois** que o mês tem algum gasto assim, para não ficar convidando.
 
+- **Renda para uma categoria só** (`Income.topicId`): no formulário de renda (com o orçamento
+  ligado), "Para quais categorias" oferece **"Todas, pelas %"** — marcada **"Recomendado"** e o
+  padrão — e **"Uma categoria só"**, marcada **"Não recomendado"** e explicada sempre que é
+  escolhida. A renda direcionada entra no total de renda do mês, mas não passa pelas %: vai
+  inteira para o "posso gastar" da categoria escolhida ("+ Renda só desta categoria" no detalhe
+  dela). Se a categoria não estiver mais no mês, a renda volta a ser dividida pelas %, para
+  nenhum dinheiro sumir do orçamento.
+
 ## Como rodar (desenvolvimento)
 
 Requer Node.js 22+ e acesso a um Postgres: o de desenvolvimento no Orange Pi, pela Tailscale

@@ -199,6 +199,17 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
         <IncomeFormSheet
           month={month}
           initial={incomeForm.initial}
+          topics={
+            settings && isModuleOn(settings, 'budget')
+              ? monthData.monthData
+                ? withCurrentTopicDisplay(
+                    monthData.monthData.topicsSnapshot,
+                    settings.topics,
+                    month >= currentMonthKey(),
+                  )
+                : settings.topics
+              : undefined
+          }
           onClose={() => setIncomeForm({ open: false })}
           onSave={monthData.saveIncome}
           onDelete={monthData.deleteIncome}
