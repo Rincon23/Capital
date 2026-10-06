@@ -19,9 +19,10 @@ export interface PlannedNotification {
 const REMINDERS_URL = '/lembretes';
 const TASKS_SHOWN = 5;
 
-function greeting(slot: NotificationSlot): string {
+/** "Bom dia, Enzo ☀️" — the person's first name when the account has one, "Bom dia ☀️" otherwise. */
+function greeting(slot: NotificationSlot, name: string | null): string {
   const { text, emoji } = greetingAtHour(Math.floor(timeToMinutes(slot.time) / 60));
-  return `${text} ${emoji}`;
+  return `${text}${name ? `, ${name}` : ''} ${emoji}`;
 }
 
 function advanceText(minutes: number, reminder: Reminder & { kind: 'once' }): string {
@@ -31,13 +32,22 @@ function advanceText(minutes: number, reminder: Reminder & { kind: 'once' }): st
   return `${formatFullDate(reminder.date)} às ${reminder.time}.`;
 }
 
-function reminderBody(reminder: Exclude<Reminder, { kind: 'daily' }>, slot: NotificationSlot): string {
-  const hello = greeting(slot);
+/** "Enzo, amanhã às 09:00." */
+function addressed(text: string, name: string | null): string {
+  return name ? `${name}, ${text.charAt(0).toLowerCase()}${text.slice(1)}` : text;
+}
+
+function reminderBody(
+  reminder: Exclude<Reminder, { kind: 'daily' }>,
+  slot: NotificationSlot,
+  name: string | null,
+): string {
+  const hello = greeting(slot, name);
   const late = slot.overdueSince ? ` Atrasado desde ${formatDayMonth(slot.overdueSince)}.` : '';
   switch (slot.kind) {
     case 'advance':
       return reminder.kind === 'once' && reminder.notifyBeforeMinutes
-        ? advanceText(reminder.notifyBeforeMinutes, reminder)
+        ? addressed(advanceText(reminder.notifyBeforeMinutes, reminder), name)
         : `${hello}! É às ${reminder.time}.`;
     case 'due':
       return `${hello}! É para hoje, às ${reminder.time}.${late}`;
@@ -51,11 +61,13 @@ function reminderBody(reminder: Exclude<Reminder, { kind: 'daily' }>, slot: Noti
 /**
  * Turns the slots of one user into notifications: one per reminder (the latest slot, when a
  * catch-up found several) and one for all the daily tasks together — a notification per task
- * would be spam.
+ * would be spam. `name` is the person's first name, when the account has one: the reminders
+ * call them by it.
  */
 export function planNotifications(
   slots: NotificationSlot[],
   reminders: Reminder[],
+  name: string | null = null,
 ): PlannedNotification[] {
   const byId = new Map(reminders.map((reminder) => [reminder.id, reminder]));
   const perReminder = new Map<string, NotificationSlot[]>();
@@ -78,7 +90,7 @@ export function planNotifications(
     const latest = covered[covered.length - 1];
     planned.push({
       title: `${latest.kind === 'advance' ? '📌' : '🔔'} ${reminder.message}`,
-      body: reminderBody(reminder, latest),
+      body: reminderBody(reminder, latest, name),
       url: REMINDERS_URL,
       tag: `lembrete-${reminderId}`,
       done: { reminderId, dueDate: latest.dueDate },
@@ -94,7 +106,7 @@ export function planNotifications(
     if (tasks.length === 1) {
       planned.push({
         title: `📋 ${tasks[0].message}`,
-        body: `${greeting(latest)}! Tarefa de hoje.`,
+        body: `${greeting(latest, name)}! Tarefa de hoje.`,
         url: REMINDERS_URL,
         tag: 'tarefas',
         done: { reminderId: tasks[0].id, dueDate: latest.date },
@@ -104,7 +116,7 @@ export function planNotifications(
       const lines = tasks.slice(0, TASKS_SHOWN).map((task) => `• ${task.message}`);
       if (tasks.length > TASKS_SHOWN) lines.push(`+ ${tasks.length - TASKS_SHOWN} tarefas`);
       planned.push({
-        title: `📋 ${tasks.length} tarefas para hoje`,
+        title: `📋 ${name ? `${name}, ` : ''}${tasks.length} tarefas para hoje`,
         body: lines.join('\n'),
         url: REMINDERS_URL,
         tag: 'tarefas',

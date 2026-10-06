@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { ChevronRight, Clock } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { NotificationsHint } from '@/components/pwa/NotificationsHint';
@@ -36,7 +36,8 @@ import {
 import { remindersRepository, type RemindersSnapshot } from '@/lib/storage';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
 
-type Tab = 'hoje' | 'todos' | 'calendario';
+export type LembretesTab = 'hoje' | 'todos' | 'calendario';
+type Tab = LembretesTab;
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'hoje', label: 'Hoje' },
@@ -44,10 +45,16 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'calendario', label: 'Calendário' },
 ];
 
-export function LembretesScreen() {
+export function LembretesScreen({
+  initialTab,
+  initialDay,
+}: {
+  initialTab?: LembretesTab;
+  initialDay?: ISODate;
+}) {
   return (
     <ModuleGate module="reminders">
-      <Lembretes />
+      <Lembretes initialTab={initialTab} initialDay={initialDay} />
     </ModuleGate>
   );
 }
@@ -63,12 +70,18 @@ function longDate(date: ISODate): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function Lembretes() {
+function Lembretes({ initialTab, initialDay }: { initialTab?: LembretesTab; initialDay?: ISODate }) {
   const backHref = useBackHref('reminders');
   const { snapshot, loading, error, run, refresh } = useReminders();
   const confirm = useConfirm();
   const { showToast } = useToast();
-  const [tab, setTab] = useState<Tab>('hoje');
+  const [tab, setTab] = useState<Tab>(initialTab ?? 'hoje');
+
+  // A link to "?aba=…" while the screen is already open (the Calendário widget) switches the tab.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (initialTab) setTab(initialTab);
+  }, [initialTab, initialDay]);
   const [editing, setEditing] = useState<Reminder | null>(null);
   const [creating, setCreating] = useState(false);
   /** The day a new reminder starts on, when it came from tapping a free day in the calendar. */
@@ -171,11 +184,17 @@ function Lembretes() {
 
       {error && <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{error}</p>}
 
-      {tab === 'hoje' && <TodayView snapshot={snapshot} actions={actions} onCreate={() => setCreating(true)} />}
-      {tab === 'todos' && <AllView snapshot={snapshot} onOpen={actions.open} onCreate={() => setCreating(true)} />}
+      {tab === 'hoje' && (
+        <TodayView snapshot={snapshot} actions={actions} onCreate={() => setCreating(true)} />
+      )}
+      {tab === 'todos' && (
+        <AllView snapshot={snapshot} onOpen={actions.open} onCreate={() => setCreating(true)} />
+      )}
       {tab === 'calendario' && (
         <CalendarView
+          key={initialDay}
           snapshot={snapshot}
+          initialDay={initialDay}
           onOpen={actions.open}
           onCreate={(date) => {
             setCreatingDate(date);
@@ -442,10 +461,13 @@ function AllView({
  */
 function CalendarView({
   snapshot,
+  initialDay,
   onOpen,
   onCreate,
 }: {
   snapshot: RemindersSnapshot;
+  /** A day to open already showing (a marked day tapped on the Início widget). */
+  initialDay?: ISODate;
   onOpen: (reminder: Reminder) => void;
   /** A free day was tapped: the new reminder starts on it. */
   onCreate: (date: ISODate) => void;
@@ -462,7 +484,7 @@ function CalendarView({
   const done = new Set(
     snapshot.completions.map((completion) => `${completion.reminderId}:${completion.dueDate}`),
   );
-  const [selectedDay, setSelectedDay] = useState<ISODate | null>(null);
+  const [selectedDay, setSelectedDay] = useState<ISODate | null>(initialDay ?? null);
   const dayAppointments = appointments.filter((reminder) => reminder.date === selectedDay);
 
   return (
@@ -478,9 +500,7 @@ function CalendarView({
         />
       ))}
 
-      <p className="text-muted px-4 text-xs">
-        Toque num dia livre para criar um lembrete já naquela data.
-      </p>
+      <p className="text-muted px-4 text-xs">Toque num dia livre para criar um lembrete já naquela data.</p>
 
       <section className="flex flex-col gap-2 px-4">
         <h2 className="text-muted text-sm font-semibold">📌 Compromissos</h2>
@@ -503,7 +523,9 @@ function CalendarView({
                     }`}
                   >
                     <span className="bg-background flex w-14 shrink-0 flex-col items-center rounded-lg py-1">
-                      <span className="text-foreground text-sm font-semibold">{formatDayMonth(reminder.date)}</span>
+                      <span className="text-foreground text-sm font-semibold">
+                        {formatDayMonth(reminder.date)}
+                      </span>
                       <span className="text-muted text-xs tabular-nums">{reminder.time}</span>
                     </span>
                     <span className="min-w-0 flex-1">
@@ -538,7 +560,7 @@ function CalendarView({
                     </span>
                     <div className="min-w-0 flex-1">
                       <p
-                        className={`break-words font-medium ${finished ? 'text-muted line-through' : 'text-foreground'}`}
+                        className={`font-medium break-words ${finished ? 'text-muted line-through' : 'text-foreground'}`}
                       >
                         {reminder.message}
                       </p>

@@ -50,12 +50,7 @@ describe('PostgresBudgetRepository', () => {
   it('seeds the default envelopes once, with no demo month', async () => {
     const { repo } = await newAccount();
     const first = await repo.getSettings();
-    expect(first.topics.map((t) => t.name)).toEqual([
-      'Diversos',
-      'Investimentos',
-      'Metas',
-      'Conhecimentos',
-    ]);
+    expect(first.topics.map((t) => t.name)).toEqual(['Diversos', 'Investimentos', 'Metas', 'Conhecimentos']);
 
     const second = await repo.getSettings();
     expect(second.topics).toEqual(first.topics);
@@ -337,7 +332,12 @@ describe('PostgresBudgetRepository', () => {
   it('never deletes a category: one left out of a save comes back archived, and descriptions persist', async () => {
     const { repo } = await newAccount();
     const settings = await repo.getSettings();
-    expect(settings.topics.map((t) => t.preset)).toEqual(['diversos', 'investimentos', 'metas', 'conhecimentos']);
+    expect(settings.topics.map((t) => t.preset)).toEqual([
+      'diversos',
+      'investimentos',
+      'metas',
+      'conhecimentos',
+    ]);
     expect(settings.topics.every((t) => (t.description ?? '').length > 0)).toBe(true);
 
     const [diversos, ...rest] = settings.topics;
@@ -417,6 +417,46 @@ describe('PostgresBudgetRepository', () => {
     expect(restored.nav).toEqual(['reminders', 'gmail', 'inicio']);
     expect(restored.dismissedNotices).toEqual(['modular-intro']);
     expect(resolveModules(restored).gmail).toBe(true);
+  });
+
+  it('carries an unpaid "A receber" into the next months until someone pays it back', async () => {
+    const { repo } = await newAccount();
+    const owed = (id: string, date: string): Expense => ({
+      id,
+      categoryKind: 'reimbursable',
+      description: id,
+      amount: 50,
+      date,
+    });
+    await repo.saveExpense('2026-01', owed('jan', '2026-01-10'));
+    await repo.saveExpense('2026-02', owed('fev', '2026-02-03'));
+    await repo.saveExpense('2026-03', owed('mar', '2026-03-01'));
+    await repo.saveExpense('2026-02', fixedCost({ date: '2026-02-01' }));
+    await repo.closeMonth('2026-01');
+
+    // February sees January's still owed, but nothing from March yet.
+    const pending = await repo.pendingReimbursables('2026-02');
+    expect(pending.map((p) => [p.month, p.expense.id])).toEqual([
+      ['2026-02', 'fev'],
+      ['2026-01', 'jan'],
+    ]);
+
+    // "Já me pagou" works in a closed month too: it changes no number of the budget.
+    await repo.setReimbursed('2026-01', 'jan', '2026-02-15T12:00:00.000Z');
+    expect((await repo.pendingReimbursables('2026-02')).map((p) => p.expense.id)).toEqual(['fev']);
+    const january = (await repo.getMonth('2026-01'))!;
+    expect(january.expenses[0].reimbursedAt).toBe('2026-02-15T12:00:00.000Z');
+
+    await repo.setReimbursed('2026-01', 'jan', null);
+    expect((await repo.pendingReimbursables('2026-03')).map((p) => p.expense.id)).toEqual([
+      'mar',
+      'fev',
+      'jan',
+    ]);
+
+    // Only an "A receber" can be marked: anything else is not found.
+    const other = (await repo.getMonth('2026-02'))!.expenses.find((e) => e.categoryKind === 'fixedCost')!;
+    await expect(repo.setReimbursed('2026-02', other.id, null)).rejects.toThrow();
   });
 
   it('keeps an "A receber" expense on the card bill and out of every envelope', async () => {

@@ -1,9 +1,12 @@
 'use client';
 
 import type { ComponentType, ReactNode } from 'react';
-import type { ModuleKey } from '@/lib/budget';
+import type { HomeWidgetKey } from '@/lib/budget';
+import { widgetModule } from '@/lib/modules';
 import { TodayRemindersCard } from '@/components/month/TodayRemindersCard';
+import { RemindersProvider } from '@/components/reminders/RemindersProvider';
 import { WalletProvider } from '@/components/wallet/WalletProvider';
+import { CalendarHomeCard } from './CalendarHomeCard';
 import { GmailHomeCard } from './GmailHomeCard';
 import { HistoryHomeCard } from './HistoryHomeCard';
 import { HomeCardBoundary } from './HomeCard';
@@ -16,8 +19,8 @@ interface CardSpec {
   Component: ComponentType;
 }
 
-/** The home card of each module that has one (see `homeCard` in the catalog). */
-const CARDS: Partial<Record<ModuleKey, CardSpec>> = {
+/** The widget of each module that has one (see `homeCard` in the catalog), plus the extra ones. */
+const CARDS: Partial<Record<HomeWidgetKey, CardSpec>> = {
   expenses: { size: 'full', Component: ExpensesHomeCard },
   budget: { size: 'full', Component: BudgetHomeCard },
   card: { size: 'full', Component: CardHomeCard },
@@ -27,22 +30,33 @@ const CARDS: Partial<Record<ModuleKey, CardSpec>> = {
   investments: { size: 'half', Component: InvestmentsHomeTile },
   cash: { size: 'full', Component: CashHomeCard },
   reminders: { size: 'full', Component: TodayRemindersCard },
+  calendar: { size: 'full', Component: CalendarHomeCard },
   gmail: { size: 'full', Component: GmailHomeCard },
 };
 
 /** The cards that read the wallet: they share one snapshot of it. */
-const WALLET: ModuleKey[] = ['card', 'recurring', 'investments', 'cash'];
+const WALLET: HomeWidgetKey[] = ['card', 'recurring', 'investments', 'cash'];
+/** The cards that read the reminders: they share one snapshot of them too. */
+const REMINDERS: HomeWidgetKey[] = ['reminders', 'calendar'];
+
+/** One read of the wallet and one of the reminders, shared by every card that needs them. */
+export function HomeCardsData({ keys, children }: { keys: HomeWidgetKey[]; children: ReactNode }) {
+  let content = children;
+  if (keys.some((key) => REMINDERS.includes(key))) content = <RemindersProvider>{content}</RemindersProvider>;
+  if (keys.some((key) => WALLET.includes(key))) content = <WalletProvider>{content}</WalletProvider>;
+  return content;
+}
 
 /** The Início cards a person can stretch to full width in "Organizar Início" — the tiles only: a
  * full card (Lançamentos, Histórico, ...) has its own layout that only makes sense at full width. */
-export const RESIZABLE_HOME_CARDS: ModuleKey[] = (Object.keys(CARDS) as ModuleKey[]).filter(
+export const RESIZABLE_HOME_CARDS: HomeWidgetKey[] = (Object.keys(CARDS) as HomeWidgetKey[]).filter(
   (key) => CARDS[key]?.size === 'half',
 );
 
 /** `CARDS[key]`'s size, unless it is resizable and the user stretched it to full width. */
 export function effectiveSize(
-  key: ModuleKey,
-  sizes: Partial<Record<ModuleKey, 'half' | 'full'>>,
+  key: HomeWidgetKey,
+  sizes: Partial<Record<HomeWidgetKey, 'half' | 'full'>>,
 ): 'full' | 'half' | undefined {
   const spec = CARDS[key];
   if (!spec) return undefined;
@@ -57,15 +71,16 @@ export function HomeCards({
   keys,
   sizes = {},
 }: {
-  keys: ModuleKey[];
+  keys: HomeWidgetKey[];
   /** Full width for a resizable tile the user stretched; see `RESIZABLE_HOME_CARDS`. */
-  sizes?: Partial<Record<ModuleKey, 'half' | 'full'>>;
+  sizes?: Partial<Record<HomeWidgetKey, 'half' | 'full'>>;
 }) {
-  const blocks: ModuleKey[][] = [];
+  const blocks: HomeWidgetKey[][] = [];
   for (const key of keys) {
     if (!CARDS[key]) continue;
     const last = blocks.at(-1);
-    if (effectiveSize(key, sizes) === 'half' && last && effectiveSize(last[0], sizes) === 'half') last.push(key);
+    if (effectiveSize(key, sizes) === 'half' && last && effectiveSize(last[0], sizes) === 'half')
+      last.push(key);
     else blocks.push([key]);
   }
 
@@ -90,16 +105,15 @@ export function HomeCards({
     </div>
   );
 
-  // The four Carteira cards share one read of the wallet.
-  return keys.some((key) => WALLET.includes(key)) ? <WalletProvider>{content}</WalletProvider> : content;
+  return <HomeCardsData keys={keys}>{content}</HomeCardsData>;
 }
 
-export function Card({ moduleKey }: { moduleKey: ModuleKey }): ReactNode {
+export function Card({ moduleKey }: { moduleKey: HomeWidgetKey }): ReactNode {
   const spec = CARDS[moduleKey];
   if (!spec) return null;
   const { Component } = spec;
   return (
-    <HomeCardBoundary module={moduleKey}>
+    <HomeCardBoundary module={widgetModule(moduleKey)}>
       <Component />
     </HomeCardBoundary>
   );

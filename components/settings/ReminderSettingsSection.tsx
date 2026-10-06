@@ -55,7 +55,8 @@ export function ReminderSettingsSection() {
   }
 
   return (
-    <section className="flex flex-col gap-3 px-4">
+    // An editor with its own "Salvar": leaving with changes asks first (BottomSheet).
+    <section className="flex flex-col gap-3 px-4" data-edit-scope data-edit-dirty={Boolean(dirty)}>
       <h2 className="text-muted text-sm font-semibold">Lembretes</h2>
       <div className="border-border bg-card flex flex-col gap-4 rounded-xl border p-4 shadow-sm">
         {error ? (
@@ -68,8 +69,8 @@ export function ReminderSettingsSection() {
               <div className="min-w-0 flex-1">
                 <p className="text-foreground text-sm font-medium">Lembrar de novo até marcar feito</p>
                 <p className="text-muted mt-0.5 text-xs">
-                  Sem “Realizado”, o lembrete avisa de novo nos horários abaixo — no dia e nos dias
-                  seguintes, como atrasado. Cada lembrete também pode desligar isso.
+                  Sem “Realizado”, o lembrete avisa de novo nos horários abaixo — no dia e nos dias seguintes,
+                  como atrasado. Cada lembrete também pode desligar isso.
                 </p>
               </div>
               <Switch
@@ -134,6 +135,7 @@ export function ReminderSettingsSection() {
               type="button"
               onClick={() => void save()}
               disabled={!dirty || saving}
+              data-edit-save
               className="bg-primary text-primary-foreground min-h-[44px] rounded-lg px-4 text-sm font-semibold disabled:opacity-50"
             >
               {saving ? 'Salvando…' : 'Salvar horários'}

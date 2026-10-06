@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { ChevronRight, Clock } from 'lucide-react';
 import { DueRow, TaskRow } from '@/components/reminders/ReminderRows';
-import { RemindersProvider, useReminders } from '@/components/reminders/RemindersProvider';
+import { useReminders } from '@/components/reminders/RemindersProvider';
 import { IconTile } from '@/components/ui/IconTile';
 import { useToast } from '@/components/ui/Toast';
 import { reminderDay, type ISODate, type Reminder } from '@/lib/reminders';
@@ -13,16 +13,11 @@ import { toStorageErrorMessage } from '@/lib/storage/errors';
 
 const MAX_ITEMS = 4;
 
-/** Home screen card: what is still to do today, with the done buttons, for the Lembretes module. */
+/**
+ * Home screen card: what is still to do today, with the done buttons, for the Lembretes module.
+ * It reads the reminders the Início already loaded for it and the calendar (`HomeCardsData`).
+ */
 export function TodayRemindersCard() {
-  return (
-    <RemindersProvider>
-      <TodayReminders />
-    </RemindersProvider>
-  );
-}
-
-function TodayReminders() {
   const { snapshot, error, run } = useReminders();
   const { showToast } = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);

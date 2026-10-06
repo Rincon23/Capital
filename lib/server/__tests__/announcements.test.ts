@@ -7,7 +7,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { FeatureAnnouncement } from '../../notifications/announcements';
-import { runAnnouncementsJob } from '../announcements';
+import { runAnnouncementsJob, runMissingNameJob } from '../announcements';
 import * as schema from '../db/schema';
 import type { Database } from '../db/types';
 import { PostgresNotificationsRepository } from '../notificationsRepository';
@@ -79,6 +79,38 @@ describe('novidades do app', () => {
     expect((await feed.list()).unread).toBe(0);
   });
 
+  it('"Limpar" tira tudo do sino de uma vez, sem deixar a novidade voltar', async () => {
+    const { id, feed } = await oldAccount();
+    await runAnnouncementsJob(db, [NOVIDADE], round(6));
+    await sendUserNotification(db, id, {
+      category: 'reminder',
+      message: { title: 'Pagar o aluguel', body: 'Hoje às 9h', url: '/lembretes' },
+    });
+    expect((await feed.list()).notifications).toHaveLength(2);
+
+    await feed.removeAll();
+    expect(await feed.list()).toEqual({ notifications: [], unread: 0 });
+    expect((await runAnnouncementsJob(db, [NOVIDADE], round(7))).notified).toBe(0);
+    expect((await feed.list()).notifications).toHaveLength(0);
+  });
+
+  it('pede o nome, uma vez só, a quem ainda tem o começo do e-mail no lugar dele', async () => {
+    const semNome = randomUUID();
+    const comNome = randomUUID();
+    await db.insert(schema.user).values([
+      { id: semNome, name: 'enzo.teste', email: 'enzo.teste@teste.local' },
+      { id: comNome, name: 'Maria Souza', email: `${comNome}@teste.local` },
+    ]);
+
+    await runMissingNameJob(db, round(10));
+    const asked = (await new PostgresNotificationsRepository(db, semNome).list()).notifications;
+    expect(asked.map((n) => n.href)).toEqual(['/configuracoes']);
+    expect((await new PostgresNotificationsRepository(db, comNome).list()).notifications).toHaveLength(0);
+
+    await runMissingNameJob(db, round(12));
+    expect((await new PostgresNotificationsRepository(db, semNome).list()).notifications).toHaveLength(1);
+  });
+
   it('apaga de verdade um aviso que nada recria (um lembrete)', async () => {
     const { id, feed } = await oldAccount();
     await sendUserNotification(db, id, {
@@ -89,10 +121,7 @@ describe('novidades do app', () => {
     const [lembrete] = (await feed.list()).notifications;
     await feed.remove(lembrete.id);
 
-    const rows = await db
-      .select()
-      .from(schema.notifications)
-      .where(eq(schema.notifications.userId, id));
+    const rows = await db.select().from(schema.notifications).where(eq(schema.notifications.userId, id));
     expect(rows).toHaveLength(0);
   });
 });

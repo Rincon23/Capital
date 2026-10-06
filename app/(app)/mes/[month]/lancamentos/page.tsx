@@ -6,6 +6,6 @@ export default async function LancamentosPage({
   searchParams: Promise<{ aba?: string | string[] }>;
 }) {
   const { aba } = await searchParams;
-  // "?aba=a-receber" opens that tab (the "A receber" card on Início links there).
-  return <LancamentosScreen initialTab={aba === 'a-receber' ? 'reimbursable' : undefined} />;
+  // "?aba=a-receber" opens the list already filtered to "A receber" (the card on Início links there).
+  return <LancamentosScreen initialFilter={aba === 'a-receber' ? 'reimbursable' : undefined} />;
 }

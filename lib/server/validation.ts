@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { ModuleKey, NavKey } from '@/lib/budget';
-import { MAX_NAV_ITEMS, MODULE_KEYS } from '@/lib/modules';
+import type { HomeWidgetKey, ModuleKey, NavKey, QuickCategoryKey } from '@/lib/budget';
+import { HOME_WIDGET_KEYS, MAX_NAV_ITEMS, MODULE_KEYS } from '@/lib/modules';
 import { isAllowedPushEndpoint, type NotificationCategory } from '@/lib/notifications';
 import { QUOTAS } from './quotas';
 
@@ -9,7 +9,9 @@ const NOTIFICATION_CATEGORIES: NotificationCategory[] = ['reminder', 'card', 'gm
 /** A partial map keyed by every module (or notification category): every key optional, like
  * `Partial<Record<K, V>>` — unlike `z.record` with an enum key, which demands every key present. */
 function partialMap<K extends string, V extends z.ZodType>(keys: K[], value: V) {
-  return z.object(Object.fromEntries(keys.map((key) => [key, value.optional()])) as Record<K, z.ZodOptional<V>>);
+  return z.object(
+    Object.fromEntries(keys.map((key) => [key, value.optional()])) as Record<K, z.ZodOptional<V>>,
+  );
 }
 
 /**
@@ -51,6 +53,15 @@ const modulesSchema = z.object(
 /** The bottom bar: Início or a module, at most four (resolveNav drops what no longer applies). */
 const navSchema = z.array(z.enum(['inicio', ...MODULE_KEYS] as [NavKey, ...NavKey[]])).max(MAX_NAV_ITEMS);
 
+/** A widget of the Início: a module's card or one of the extra widgets (lib/modules/nav.ts). */
+const homeWidgetSchema = z.enum(HOME_WIDGET_KEYS as [HomeWidgetKey, ...HomeWidgetKey[]]);
+
+/** A category as the expense form lists it: "topic:<id>" or a special kind. */
+const quickCategorySchema = z.union([
+  z.enum(['fixedCost', 'unforeseen', 'reimbursable', 'uncounted']),
+  z.templateLiteral(['topic:', z.string().min(1).max(100)]),
+]) as z.ZodType<QuickCategoryKey>;
+
 const label = z.string().max(60);
 const color = z.string().max(20);
 
@@ -80,8 +91,14 @@ export const settingsSchema = z.object({
   nav: navSchema.nullable().optional(),
   dismissedNotices: z.array(z.string().min(1).max(60)).max(200).optional(),
   notificationPrefs: partialMap(NOTIFICATION_CATEGORIES, z.boolean()).optional(),
-  homeOrder: z.array(z.enum(MODULE_KEYS as [ModuleKey, ...ModuleKey[]])).nullable().optional(),
-  homeCardSizes: partialMap(MODULE_KEYS, z.enum(['half', 'full'])).optional(),
+  homeOrder: z.array(homeWidgetSchema).max(50).nullable().optional(),
+  homeCardSizes: partialMap(HOME_WIDGET_KEYS, z.enum(['half', 'full'])).optional(),
+  homeHidden: z.array(homeWidgetSchema).max(50).optional(),
+  quickCategories: z
+    .array(quickCategorySchema)
+    .max(MAX_TOPICS + 4)
+    .nullable()
+    .optional(),
 });
 
 export const incomeSchema = z.object({
@@ -103,9 +120,7 @@ export const expenseSchema = z.object({
   date: isoDate,
   singleInstallmentCard: z.boolean().optional(),
   cardId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
-  source: z
-    .enum(['form', 'voice', 'text', 'recurring', 'investment', 'installment', 'import'])
-    .optional(),
+  source: z.enum(['form', 'voice', 'text', 'recurring', 'investment', 'installment', 'import']).optional(),
   // Echoed back by the client when it edits an instalment's expense, so the link survives.
   installmentId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
   // 0 is the single expense of an "à vista" plan (see lib/budget/bill.ts).
@@ -141,10 +156,7 @@ export const recurringExpenseSchema = z.object({
   cardId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
   /** A template launched as a parcelamento (see RecurringExpense). */
   installmentCount: z.preprocess(absentAsUndefined, z.number().int().min(2).max(120).optional()),
-  installmentAccounting: z.preprocess(
-    absentAsUndefined,
-    z.enum(['installment', 'upfront']).optional(),
-  ),
+  installmentAccounting: z.preprocess(absentAsUndefined, z.enum(['installment', 'upfront']).optional()),
 });
 
 export const installmentPlanSchema = z.object({
@@ -231,9 +243,7 @@ export const reserveContributionSchema = z.object({
 
 export const cashSettingsSchema = z.object({
   reserveAccountAmount: money.min(0),
-  emergencyCosts: z
-    .array(z.object({ label: z.string().max(200), amount: money.min(0) }))
-    .max(50),
+  emergencyCosts: z.array(z.object({ label: z.string().max(200), amount: money.min(0) })).max(50),
   reserveMultiplier: z.number().int().min(1).max(60),
 });
 
@@ -256,7 +266,6 @@ export const pushSubscriptionSchema = z.object({
 // ---------------------------------------------------------------------------
 // Lembretes
 // ---------------------------------------------------------------------------
-
 
 const reminderFields = {
   id: z.string().min(1).max(100),

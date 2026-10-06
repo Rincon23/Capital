@@ -1,8 +1,10 @@
 import type {
   BudgetSettings,
   CategoryKind,
+  QuickCategoryKey,
   ResolvedSpecialCategoryLabels,
   SpecialCategoryLabels,
+  TopicConfig,
 } from './types';
 
 /**
@@ -47,16 +49,34 @@ export const INCOME_ONE_TOPIC_ADVICE =
 export function resolveSpecialCategoryLabels(
   source: Pick<BudgetSettings, 'specialCategories'> | SpecialCategoryLabels | undefined,
 ): ResolvedSpecialCategoryLabels {
-  const labels =
-    source && 'specialCategories' in source ? source.specialCategories : source;
+  const labels = source && 'specialCategories' in source ? source.specialCategories : source;
   return { ...DEFAULT_SPECIAL_CATEGORY_LABELS, ...labels };
 }
 
 /** The label for a non-envelope category; '' for 'topic', which is named by its own envelope. */
-export function specialCategoryLabel(
-  kind: CategoryKind,
-  labels: SpecialCategoryLabels | undefined,
-): string {
+export function specialCategoryLabel(kind: CategoryKind, labels: SpecialCategoryLabels | undefined): string {
   if (kind === 'topic') return '';
   return resolveSpecialCategoryLabels(labels)[kind];
+}
+
+/** How the expense form names a category in its lists (see `QuickCategoryKey`). */
+export function quickCategoryKey(value: { categoryKind: CategoryKind; topicId?: string }): QuickCategoryKey {
+  return value.categoryKind === 'topic' ? `topic:${value.topicId ?? ''}` : value.categoryKind;
+}
+
+/**
+ * The categories the expense form shows straight away. Until the person picks their own, that is
+ * every category of the budget plus Custos Fixos and Imprevistos; "A receber" and "Fora do
+ * orçamento" — the ones used now and then — wait behind "Outras".
+ */
+export function resolveQuickCategories(
+  quick: QuickCategoryKey[] | null | undefined,
+  topics: TopicConfig[],
+): QuickCategoryKey[] {
+  if (quick) return quick;
+  return [
+    ...topics.filter((topic) => !topic.archived).map((topic) => `topic:${topic.id}` as const),
+    'fixedCost',
+    'unforeseen',
+  ];
 }

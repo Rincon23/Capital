@@ -130,13 +130,21 @@ describe('repositório de lembretes', () => {
 
   it('concluir uma tarefa diária arquiva só ela', async () => {
     const { reminders } = await newAccount();
-    const task = (id: string): ReminderInput => ({ id, kind: 'daily', message: 'Mesmo texto', times: ['08:00'], repeat: true });
+    const task = (id: string): ReminderInput => ({
+      id,
+      kind: 'daily',
+      message: 'Mesmo texto',
+      times: ['08:00'],
+      repeat: true,
+    });
     await reminders.saveReminder(task('t1'));
     await reminders.saveReminder(task('t2'));
 
     await reminders.setDone('t1', '2026-09-16', true, at('2026-09-16', '09:00'));
     const list = (await reminders.getSnapshot()).reminders;
-    expect(list.find((r) => r.id === 't1')).toMatchObject({ completedAt: at('2026-09-16', '09:00').toISOString() });
+    expect(list.find((r) => r.id === 't1')).toMatchObject({
+      completedAt: at('2026-09-16', '09:00').toISOString(),
+    });
     expect(list.find((r) => r.id === 't2')).toMatchObject({ completedAt: null });
   });
 });
@@ -186,7 +194,8 @@ describe('agendador', () => {
     const on = await newAccount();
     const off = await newAccount({ module: false });
     const noDevice = await newAccount({ device: false });
-    for (const account of [on, off, noDevice]) await create(account.reminders, account.id, monthlyBill('conta-' + account.id));
+    for (const account of [on, off, noDevice])
+      await create(account.reminders, account.id, monthlyBill('conta-' + account.id));
     const { sender, payloads } = recordingSender();
 
     await runRemindersJob(db, at('2026-09-10', '08:59'), sender);
@@ -201,7 +210,13 @@ describe('agendador', () => {
   it('agrupa as tarefas do horário numa notificação só', async () => {
     const { id, reminders } = await newAccount();
     for (const message of ['Relatório', 'Ligar para a escola', 'Comprar pão']) {
-      await create(reminders, id, { id: randomUUID(), kind: 'daily', message, times: ['08:00'], repeat: true });
+      await create(reminders, id, {
+        id: randomUUID(),
+        kind: 'daily',
+        message,
+        times: ['08:00'],
+        repeat: true,
+      });
     }
     const { sender, payloads } = recordingSender();
 
@@ -210,7 +225,7 @@ describe('agendador', () => {
 
     const mine = payloads.filter((p) => p.endpoint.endsWith(id));
     expect(mine).toHaveLength(1);
-    expect(mine[0].message).toMatchObject({ title: '📋 3 tarefas para hoje', tag: 'tarefas' });
+    expect(mine[0].message).toMatchObject({ title: '📋 Teste, 3 tarefas para hoje', tag: 'tarefas' });
     expect(mine[0].message.actions).toBeUndefined();
   });
 
@@ -225,7 +240,13 @@ describe('agendador', () => {
       repeat: false,
     });
     for (const message of ['Relatório', 'Comprar pão']) {
-      await create(reminders, id, { id: randomUUID(), kind: 'daily', message, times: ['08:00'], repeat: true });
+      await create(reminders, id, {
+        id: randomUUID(),
+        kind: 'daily',
+        message,
+        times: ['08:00'],
+        repeat: true,
+      });
     }
     const { sender, payloads } = recordingSender();
 
@@ -235,7 +256,7 @@ describe('agendador', () => {
     const mine = payloads.filter((p) => p.endpoint.endsWith(id));
     expect(mine).toHaveLength(1);
     expect(mine[0].message).toMatchObject({ title: '🔔 Ver o óleo do carro' });
-    expect(mine[0].message.more).toMatchObject([{ title: '📋 2 tarefas para hoje', tag: 'tarefas' }]);
+    expect(mine[0].message.more).toMatchObject([{ title: '📋 Teste, 2 tarefas para hoje', tag: 'tarefas' }]);
     const logged = await db
       .select({ title: schema.notifications.title })
       .from(schema.notifications)
@@ -250,7 +271,10 @@ describe('token do botão Realizado', () => {
   it('vale por 36 horas para aquele lembrete e aquele dia', () => {
     const now = at('2026-09-10', '09:00');
     const token = signReminderAction(action, now)!;
-    expect(verifyReminderAction(token, new Date(now.getTime() + 35 * 3600_000))).toEqual({ ok: true, action });
+    expect(verifyReminderAction(token, new Date(now.getTime() + 35 * 3600_000))).toEqual({
+      ok: true,
+      action,
+    });
     expect(verifyReminderAction(token, new Date(now.getTime() + 37 * 3600_000))).toEqual({
       ok: false,
       reason: 'expired',
@@ -260,9 +284,9 @@ describe('token do botão Realizado', () => {
   it('recusa token adulterado ou assinado com outro segredo', () => {
     const token = signReminderAction(action)!;
     const [data, signature] = token.split('.');
-    const forged = Buffer.from(JSON.stringify({ u: randomUUID(), r: 'r1', d: '2026-09-10', e: 9_999_999_999 })).toString(
-      'base64url',
-    );
+    const forged = Buffer.from(
+      JSON.stringify({ u: randomUUID(), r: 'r1', d: '2026-09-10', e: 9_999_999_999 }),
+    ).toString('base64url');
     expect(verifyReminderAction(`${forged}.${signature}`)).toEqual({ ok: false, reason: 'invalid' });
     expect(verifyReminderAction(`${data}.x${signature.slice(1)}`)).toEqual({ ok: false, reason: 'invalid' });
     expect(verifyReminderAction('lixo')).toEqual({ ok: false, reason: 'invalid' });

@@ -1,4 +1,4 @@
-import type { BudgetSettings, ModuleKey, NavKey } from '../budget/types';
+import type { BudgetSettings, HomeWidgetKey, NavKey } from '../budget/types';
 
 /**
  * The card modules merged into one. "Cartão de crédito" (the card question), "Cartões" (the
@@ -33,7 +33,7 @@ function mergeList<T extends string>(list: T[]): T[] {
 export interface CardModuleMigration {
   modules: Partial<Record<string, boolean>>;
   nav: NavKey[] | null;
-  homeOrder: ModuleKey[] | null;
+  homeOrder: HomeWidgetKey[] | null;
   /** False when this account had nothing from before: no write is needed. */
   changed: boolean;
 }

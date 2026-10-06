@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Blocks, Check, Pencil } from 'lucide-react';
-import { isModuleOn, resolveHomeCards } from '@/lib/modules';
+import { Blocks, Check, LayoutGrid, Pencil } from 'lucide-react';
+import { homeCards, isModuleOn, resolveHomeCards } from '@/lib/modules';
 import { EditableHomeCards } from '@/components/modules/home/EditableHomeCards';
 import { HomeCards } from '@/components/modules/home/HomeCards';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
@@ -25,6 +25,8 @@ export function DashboardScreen() {
   }
 
   const cards = resolveHomeCards(settings);
+  // Every widget the modules that are on could show, whether or not it is on the Início now.
+  const available = homeCards(settings);
   const withActions = isModuleOn(settings, 'expenses');
   // The month only matters to the cards of the month (Lançamentos, Categorias, Cartão, A receber, Histórico).
   const monthly = cards.some((key) =>
@@ -37,7 +39,7 @@ export function DashboardScreen() {
         <div className="flex items-center justify-between gap-2">
           <GreetingHeader />
           <div className="flex items-center gap-1">
-            {cards.length > 0 && (
+            {available.length > 0 && (
               <button
                 type="button"
                 onClick={() => setEditing((current) => !current)}
@@ -49,7 +51,11 @@ export function DashboardScreen() {
                     : 'text-muted hover:text-foreground hover:bg-card'
                 }`}
               >
-                {editing ? <Check aria-hidden className="h-5 w-5" /> : <Pencil aria-hidden className="h-5 w-5" />}
+                {editing ? (
+                  <Check aria-hidden className="h-5 w-5" />
+                ) : (
+                  <Pencil aria-hidden className="h-5 w-5" />
+                )}
               </button>
             )}
             <NotificationBell />
@@ -59,13 +65,13 @@ export function DashboardScreen() {
       </div>
 
       <div className="flex flex-col gap-4 px-4 pt-4">
-        {cards.length === 0 ? (
+        {available.length === 0 ? (
           <div className="border-border bg-card flex flex-col items-center gap-3 rounded-2xl border p-6 text-center shadow-sm">
             <IconTile icon={Blocks} tone="blue" size="lg" />
             <p className="text-foreground font-semibold">Escolha o que o seu Capital vai ter</p>
             <p className="text-muted text-sm">
-              Cada recurso do app é um módulo: lançamentos, metas por categoria, cartão, lembretes e mais. Ligue
-              os que você quer usar e o resumo de cada um aparece aqui.
+              Cada recurso do app é um módulo: lançamentos, metas por categoria, cartão, lembretes e mais.
+              Ligue os que você quer usar e o resumo de cada um aparece aqui.
             </p>
             <Link
               href="/modulos"
@@ -76,13 +82,30 @@ export function DashboardScreen() {
           </div>
         ) : editing ? (
           <EditableHomeCards keys={cards} sizes={settings.homeCardSizes ?? {}} />
+        ) : cards.length === 0 ? (
+          <div className="border-border bg-card flex flex-col items-center gap-3 rounded-2xl border p-6 text-center shadow-sm">
+            <IconTile icon={LayoutGrid} tone="neutral" size="lg" />
+            <p className="text-foreground font-semibold">Nenhum widget na Início</p>
+            <p className="text-muted text-sm">Você tirou todos. Escolha quais quer ver por aqui.</p>
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="bg-primary text-primary-foreground flex min-h-[44px] items-center rounded-lg px-4 text-sm font-semibold"
+            >
+              Adicionar widgets
+            </button>
+          </div>
         ) : (
           <HomeCards keys={cards} sizes={settings.homeCardSizes} />
         )}
-        {editing && cards.length > 0 && (
+        {editing && (
           <p className="text-muted pb-4 text-center text-sm">
-            Segure e arraste um card para reorganizar. Toque em{' '}
-            <Check aria-hidden className="inline h-4 w-4 align-text-bottom" /> quando terminar.
+            Segure e arraste um card para reorganizar, ou toque em{' '}
+            <span className="bg-danger-fill inline-flex h-4 w-4 items-center justify-center rounded-full align-text-bottom text-xs font-bold text-white">
+              −
+            </span>{' '}
+            para tirar da Início. Toque em <Check aria-hidden className="inline h-4 w-4 align-text-bottom" />{' '}
+            quando terminar.
           </p>
         )}
       </div>

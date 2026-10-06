@@ -36,6 +36,23 @@ export function parseAmountInput(raw: string): number {
   return Number.isFinite(value) ? value : 0;
 }
 
+/** The most digits an amount field takes: R$ 999.999.999,99. */
+const MAX_AMOUNT_DIGITS = 11;
+
+/**
+ * What an amount field shows while the person types, the way a bank app does it: the digits fill
+ * in from the cents, so nobody has to type the comma. "1" is "0,01", "1234" is "12,34", and the
+ * thousands get their dots ("123456" is "1.234,56"). Anything that is not a digit is ignored;
+ * no digits at all is an empty field.
+ */
+export function formatAmountTyping(raw: string): string {
+  const digits = raw.replace(/\D/g, '').replace(/^0+/, '').slice(0, MAX_AMOUNT_DIGITS);
+  if (digits === '') return '';
+  const padded = digits.padStart(3, '0');
+  const integer = padded.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `${integer},${padded.slice(-2)}`;
+}
+
 /** Formats a number for editing inside an amount input, e.g. 144.8 -> "144,80". */
 export function amountToInputValue(value: number): string {
   return round2(value).toFixed(2).replace('.', ',');

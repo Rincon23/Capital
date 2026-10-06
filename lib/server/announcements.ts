@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import { hasRealName } from '../auth/names';
 import type { FeatureAnnouncement } from '../notifications/announcements';
 import { jobRuns, user } from './db/schema';
 import type { Database } from './db/types';
@@ -46,6 +47,41 @@ export async function runAnnouncementsJob(
       });
       if (sent) notified += 1;
     }
+  }
+  return { notified };
+}
+
+const MISSING_NAME_JOB = 'missing-name';
+
+/**
+ * Asks, once, every account that still has no name of its own — the ones made before the sign-up
+ * asked for it, which got the start of the e-mail instead — to write it in Configurações, so the
+ * app (the greeting, the reminders) can call the person by the first name. Checked once an hour,
+ * like the announcements; the `sourceKey` makes sure nobody is asked twice, even after swiping
+ * the notice away.
+ */
+export async function runMissingNameJob(db: Database, now: Date = new Date()): Promise<{ notified: number }> {
+  const [row] = await db.select().from(jobRuns).where(eq(jobRuns.name, MISSING_NAME_JOB));
+  if (row && now.getTime() - row.lastRunAt.getTime() < ANNOUNCEMENTS_EVERY_MS) return { notified: 0 };
+  await db
+    .insert(jobRuns)
+    .values({ name: MISSING_NAME_JOB, lastRunAt: now })
+    .onConflictDoUpdate({ target: jobRuns.name, set: { lastRunAt: now } });
+
+  const accounts = await db.select({ id: user.id, name: user.name, email: user.email }).from(user);
+  let notified = 0;
+  for (const account of accounts) {
+    if (hasRealName(account.name, account.email)) continue;
+    const sent = await sendUserNotification(db, account.id, {
+      category: 'system',
+      sourceKey: 'profile:missing-name',
+      message: {
+        title: '👋 Como podemos te chamar?',
+        body: 'Coloque seu nome e sobrenome em Configurações: é ali que você muda o nome da conta. Assim os lembretes te chamam pelo nome.',
+        url: '/configuracoes',
+      },
+    });
+    if (sent) notified += 1;
   }
   return { notified };
 }

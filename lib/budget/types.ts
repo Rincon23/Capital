@@ -100,6 +100,18 @@ export type ModuleKey = keyof ModuleFlags;
 /** An entry the bottom bar can hold: the home dashboard or a module that has a screen. */
 export type NavKey = 'inicio' | ModuleKey;
 
+/**
+ * A widget of the Início: the card of a module (keyed by the module itself) or one of the extra
+ * widgets a module brings besides its card — `calendar`, the next 30 days of Lembretes.
+ */
+export type HomeWidgetKey = ModuleKey | 'calendar';
+
+/**
+ * A category as the expense form lists it: `topic:<id>` for a category of the budget, or the
+ * special kind itself ("fixedCost", "unforeseen", "reimbursable", "uncounted").
+ */
+export type QuickCategoryKey = `topic:${string}` | Exclude<CategoryKind, 'topic'>;
+
 /** Global (not month-scoped) budget configuration. */
 export interface BudgetSettings {
   topics: TopicConfig[];
@@ -127,9 +139,16 @@ export interface BudgetSettings {
    * The order the user picked for the Início cards in "Organizar Início". Absent or null means
    * the default (see `resolveHomeCards`).
    */
-  homeOrder?: ModuleKey[] | null;
+  homeOrder?: HomeWidgetKey[] | null;
   /** Which of the resizable Início cards (the half-width tiles) the user stretched to full width. */
-  homeCardSizes?: Partial<Record<ModuleKey, 'half' | 'full'>>;
+  homeCardSizes?: Partial<Record<HomeWidgetKey, 'half' | 'full'>>;
+  /** The widgets the user took off the Início ("Organizar Início"); they come back from "Adicionar widget". */
+  homeHidden?: HomeWidgetKey[];
+  /**
+   * The categories the expense form shows straight away; the rest wait behind "Outras". Absent or
+   * null means the default (see `resolveQuickCategories`).
+   */
+  quickCategories?: QuickCategoryKey[] | null;
 }
 
 export interface Income {
@@ -147,14 +166,7 @@ export interface Income {
 
 /** Where an expense came from. Absent means the expense form (the default). */
 export type ExpenseSource =
-  | 'form'
-  | 'voice'
-  | 'text'
-  | 'recurring'
-  | 'investment'
-  | 'installment'
-  | 'reserve'
-  | 'import';
+  'form' | 'voice' | 'text' | 'recurring' | 'investment' | 'installment' | 'reserve' | 'import';
 
 export interface Expense {
   id: string;
@@ -181,6 +193,12 @@ export interface Expense {
    * only how the person keeps track of who already paid them.
    */
   reimbursedAt?: string;
+}
+
+/** An "A receber" expense still not paid back, with the month it was recorded in. */
+export interface PendingReimbursable {
+  month: Month;
+  expense: Expense;
 }
 
 /** How an instalment plan is accounted for (bot spec §4.8 and correction 9). */

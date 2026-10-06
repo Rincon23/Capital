@@ -221,7 +221,8 @@ function CategoriesForm({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    // An editor with its own "Salvar": leaving with changes asks first (BottomSheet).
+    <div className="flex flex-col gap-6" data-edit-scope>
       <section className="flex flex-col gap-3 px-4">
         <h2 className="text-muted text-sm font-semibold">
           {withTargets ? 'Categorias e metas' : 'Categorias'}
@@ -367,6 +368,7 @@ function CategoriesForm({
           type="button"
           onClick={() => void handleSave()}
           disabled={!canSave || busy}
+          data-edit-save
           className="bg-primary text-primary-foreground min-h-[44px] w-full rounded-lg px-4 py-2 font-semibold disabled:opacity-50"
         >
           {busy ? 'Salvando…' : 'Salvar categorias'}

@@ -1,6 +1,14 @@
 'use client';
 
-import { computeProgressState, formatBRL, type Expense, type Income } from '@/lib/budget';
+import {
+  computeProgressState,
+  formatBRL,
+  formatMonthShort,
+  sum,
+  type Expense,
+  type Income,
+} from '@/lib/budget';
+import { usePendingReimbursables } from '@/lib/hooks/usePendingReimbursables';
 import { useMonthContext } from '@/components/month/MonthContext';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { CardNote, HomeCard, HomeTile, Skeleton, Stat } from './HomeCard';
@@ -122,14 +130,26 @@ export function BudgetHomeCard() {
 
 /** A receber: what other people owe back this month. */
 export function ReimbursableHomeTile() {
-  const { month, summary } = useMonthContext();
+  const { month, monthData } = useMonthContext();
+  // Owed from this month and every month before it: a debt does not vanish when the month turns.
+  const { pending, error } = usePendingReimbursables(month, true, monthData);
+  const total = pending ? sum(pending.map((entry) => entry.expense.amount)) : null;
+  // The oldest month still owing, when it is not this one: "desde ago/26".
+  const oldest = pending?.reduce<string | null>(
+    (min, entry) => (min === null || entry.month < min ? entry.month : min),
+    null,
+  );
 
   return (
     <HomeTile
       module="reimbursable"
       href={`/mes/${month}/lancamentos?aba=a-receber`}
-      value={summary ? formatBRL(summary.reimbursablePendingTotal) : null}
-      caption="ainda devem"
+      value={error ? '—' : total === null ? null : formatBRL(total)}
+      caption={
+        pending && pending.length > 0
+          ? `${pending.length} ${pending.length === 1 ? 'pendente' : 'pendentes'}${oldest && oldest < month ? ` · desde ${formatMonthShort(oldest)}` : ''}`
+          : 'ninguém te deve'
+      }
     />
   );
 }

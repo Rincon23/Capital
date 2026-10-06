@@ -1,15 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Bell,
-  CheckCheck,
   Clock,
   CreditCard,
   Mail,
   Settings as SettingsIcon,
   Sparkles,
+  Trash2,
   type LucideIcon,
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -18,8 +18,14 @@ import { SwipeToDelete } from '@/components/notifications/SwipeToDelete';
 import { NotificationPreferencesSection } from '@/components/settings/NotificationPreferencesSection';
 import { NotificationsSection } from '@/components/settings/NotificationsSection';
 import { BottomSheet } from '@/components/ui/BottomSheet';
+import { useConfirm } from '@/components/ui/ConfirmSheet';
+import { useToast } from '@/components/ui/Toast';
 import { IconTile, type IconTone } from '@/components/ui/IconTile';
-import { NOTIFICATION_CATEGORY_LABELS, type AppNotification, type NotificationCategory } from '@/lib/notifications';
+import {
+  NOTIFICATION_CATEGORY_LABELS,
+  type AppNotification,
+  type NotificationCategory,
+} from '@/lib/notifications';
 
 const CATEGORY_VISUAL: Record<NotificationCategory, { icon: LucideIcon; tone: IconTone }> = {
   reminder: { icon: Clock, tone: 'amber' },
@@ -36,36 +42,77 @@ function formatWhen(iso: string): string {
   return `${day} às ${time}`;
 }
 
-/** Central de notificações: everything the app has ever told this account, most recent first. */
+/**
+ * Central de notificações: everything the app has ever told this account, most recent first.
+ * Opening it is seeing them — they are marked as read on the way in (the ones that were new keep
+ * their dot until the person leaves), so nobody has to tap anything to clear the bell.
+ */
 export function NotificationsScreen() {
-  const { snapshot, loading, markRead, markAllRead, remove } = useNotifications();
+  const { snapshot, loading, markAllRead, remove, removeAll } = useNotifications();
   const [configuring, setConfiguring] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const router = useRouter();
+  const confirm = useConfirm();
+  const { showToast } = useToast();
 
   const items = snapshot?.notifications ?? [];
-  const unread = snapshot?.unread ?? 0;
 
-  async function openNotification(item: AppNotification) {
-    if (!item.readAt) await markRead(item.id);
+  // What was new when the screen opened (or arrived while it is open) stays marked as new here.
+  const [seenNew, setSeenNew] = useState<Set<string>>(() => new Set());
+  const marking = useRef(false);
+  useEffect(() => {
+    if (!snapshot || snapshot.unread === 0 || marking.current) return;
+    const fresh = snapshot.notifications.filter((item) => !item.readAt).map((item) => item.id);
+    setSeenNew((current) => new Set([...current, ...fresh]));
+    marking.current = true;
+    void markAllRead()
+      .catch(() => {})
+      .finally(() => {
+        marking.current = false;
+      });
+  }, [snapshot, markAllRead]);
+
+  function openNotification(item: AppNotification) {
     if (item.href) router.push(item.href);
+  }
+
+  async function clearAll() {
+    const confirmed = await confirm({
+      title: 'Limpar notificações',
+      message: `${items.length === 1 ? 'A notificação sai' : `As ${items.length} notificações saem`} da lista. Isso não pode ser desfeito.`,
+      confirmLabel: 'Limpar',
+      cancelLabel: 'Manter',
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setClearing(true);
+    try {
+      await removeAll();
+      showToast('Notificações limpas.');
+    } catch {
+      showToast('Não foi possível limpar. Tente de novo.', 'error');
+    } finally {
+      setClearing(false);
+    }
   }
 
   return (
     <div className="flex flex-1 flex-col gap-4 pb-10">
       <PageHeader
         title="Notificações"
-        subtitle={unread > 0 ? `${unread} não ${unread === 1 ? 'lida' : 'lidas'}` : undefined}
+        subtitle={seenNew.size > 0 ? `${seenNew.size} ${seenNew.size === 1 ? 'nova' : 'novas'}` : undefined}
         action={
           <>
-            {unread > 0 && (
+            {items.length > 0 && (
               <button
                 type="button"
-                onClick={() => void markAllRead()}
-                aria-label="Marcar todas como lidas"
-                title="Marcar todas como lidas"
-                className="text-muted hover:text-foreground hover:bg-card flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors"
+                onClick={() => void clearAll()}
+                disabled={clearing}
+                aria-label="Limpar todas as notificações"
+                className="text-muted hover:text-danger hover:bg-card flex min-h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-semibold transition-colors disabled:opacity-50"
               >
-                <CheckCheck aria-hidden className="h-5 w-5" />
+                <Trash2 aria-hidden className="h-4 w-4" />
+                Limpar
               </button>
             )}
             <button
@@ -95,13 +142,13 @@ export function NotificationsScreen() {
           <ul className="flex flex-col gap-2 px-4" data-no-swipe-nav>
             {items.map((item) => {
               const visual = CATEGORY_VISUAL[item.category];
-              const unreadItem = !item.readAt;
+              const unreadItem = !item.readAt || seenNew.has(item.id);
               return (
                 <li key={item.id}>
                   <SwipeToDelete onDelete={() => void remove(item.id)}>
                     <button
                       type="button"
-                      onClick={() => void openNotification(item)}
+                      onClick={() => openNotification(item)}
                       className={`border-border bg-card hover:border-primary/40 flex w-full items-start gap-3 border p-3 text-left shadow-sm ${
                         unreadItem ? '' : 'opacity-70'
                       }`}
@@ -114,7 +161,9 @@ export function NotificationsScreen() {
                           >
                             {item.title}
                           </span>
-                          {unreadItem && <span aria-hidden className="bg-primary h-2 w-2 shrink-0 rounded-full" />}
+                          {unreadItem && (
+                            <span aria-hidden className="bg-primary h-2 w-2 shrink-0 rounded-full" />
+                          )}
                         </span>
                         <span className="text-muted block text-sm">{item.body}</span>
                         <span className="text-muted/80 block text-xs">

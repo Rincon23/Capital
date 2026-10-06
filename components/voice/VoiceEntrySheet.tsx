@@ -173,6 +173,7 @@ export function VoiceEntrySheet({
       onClose={onClose}
       title={phase.name === 'review' ? 'Confira o gasto' : 'Lançar por voz ou texto'}
       headerAction={<ModuleHelpButton module="voice" onBeforeTour={onClose} />}
+      confirmDiscard={false}
     >
       {phase.name === 'input' && !recorder.recording && (
         <div className="flex flex-col gap-5">

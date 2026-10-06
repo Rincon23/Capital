@@ -5,6 +5,7 @@ export * from './httpRepository';
 export * from './walletHttpRepository';
 export * from './notifications';
 export * from './notificationsFeed';
+export * from './reimbursables';
 export * from './reminders';
 export * from './gmail';
 export * from './preferences';

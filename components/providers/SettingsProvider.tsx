@@ -85,6 +85,11 @@ function StorageErrorScreen({
   );
 }
 
+/** The same, or null outside the provider — for a component that also renders on its own (tests). */
+export function useOptionalSettings(): SettingsContextValue | null {
+  return useContext(SettingsContext);
+}
+
 export function useSettings(): SettingsContextValue {
   const ctx = useContext(SettingsContext);
   if (!ctx) throw new Error('useSettings deve ser usado dentro de SettingsProvider');

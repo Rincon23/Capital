@@ -13,17 +13,24 @@ import {
   type Announcements,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Rows2, Square } from 'lucide-react';
-import type { ModuleKey } from '@/lib/budget';
-import { moduleDefinition } from '@/lib/modules';
-import { WalletProvider } from '@/components/wallet/WalletProvider';
+import Link from 'next/link';
+import { Minus, Plus, Rows2, Square } from 'lucide-react';
+import type { HomeWidgetKey } from '@/lib/budget';
+import { hiddenHomeCards, widgetDescription, widgetName } from '@/lib/modules';
 import { useSettings } from '@/components/providers/SettingsProvider';
+import { BottomSheet } from '@/components/ui/BottomSheet';
+import { IconTile } from '@/components/ui/IconTile';
 import { useToast } from '@/components/ui/Toast';
-import { Card, RESIZABLE_HOME_CARDS, effectiveSize } from './HomeCards';
-
-const WALLET: ModuleKey[] = ['card', 'recurring', 'investments', 'cash'];
+import { widgetVisual } from '../visuals';
+import { Card, HomeCardsData, RESIZABLE_HOME_CARDS, effectiveSize } from './HomeCards';
 
 /** How long a card has to be held before it comes loose, the way a phone picks up a widget. */
 const HOLD_MS = 240;
@@ -36,35 +43,37 @@ const HOLD_TOLERANCE = 8;
  */
 const MEASURING = { droppable: { strategy: MeasuringStrategy.Always } };
 
+const nameOf = (id: string | number) => widgetName(id as HomeWidgetKey);
+
 const ANNOUNCEMENTS: Announcements = {
-  onDragStart: ({ active }) => `Você pegou ${moduleDefinition(active.id as ModuleKey).name}.`,
+  onDragStart: ({ active }) => `Você pegou ${nameOf(active.id)}.`,
   onDragOver: ({ active, over }) =>
-    over
-      ? `${moduleDefinition(active.id as ModuleKey).name} está sobre ${moduleDefinition(over.id as ModuleKey).name}.`
-      : `${moduleDefinition(active.id as ModuleKey).name} está fora da grade.`,
+    over ? `${nameOf(active.id)} está sobre ${nameOf(over.id)}.` : `${nameOf(active.id)} está fora da grade.`,
   onDragEnd: ({ active, over }) =>
     over
-      ? `${moduleDefinition(active.id as ModuleKey).name} foi solto no lugar de ${moduleDefinition(over.id as ModuleKey).name}.`
-      : `${moduleDefinition(active.id as ModuleKey).name} foi solto.`,
+      ? `${nameOf(active.id)} foi solto no lugar de ${nameOf(over.id)}.`
+      : `${nameOf(active.id)} foi solto.`,
   onDragCancel: () => 'Arraste cancelado.',
 };
 
 /**
  * "Organizar Início" ao vivo: segure um card (o lápis liga isto) e arraste para qualquer lugar —
  * os outros vão se ajustando, igual mexer nos widgets da tela do Android. Os que aceitam também
- * têm um botão para esticar para a linha toda ou voltar a dividir. Cada solta e cada troca de
- * tamanho já salva na hora.
+ * têm um botão para esticar para a linha toda ou voltar a dividir; o "−" tira o widget da Início
+ * (o módulo continua ligado) e "Adicionar widget" traz de volta. Cada mudança já salva na hora.
  */
 export function EditableHomeCards({
   keys,
   sizes,
 }: {
-  keys: ModuleKey[];
-  sizes: Partial<Record<ModuleKey, 'half' | 'full'>>;
+  keys: HomeWidgetKey[];
+  sizes: Partial<Record<HomeWidgetKey, 'half' | 'full'>>;
 }) {
   const { settings, saveSettings } = useSettings();
   const { showToast } = useToast();
   const [order, setOrder] = useState(keys);
+  const [adding, setAdding] = useState(false);
+  const hidden = settings ? hiddenHomeCards(settings) : [];
 
   useEffect(() => {
     // A module could turn on/off from another tab while this one is open; follow the new set,
@@ -87,7 +96,7 @@ export function EditableHomeCards({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  async function persistOrder(next: ModuleKey[]) {
+  async function persistOrder(next: HomeWidgetKey[]) {
     setOrder(next);
     if (!settings) return;
     try {
@@ -97,7 +106,7 @@ export function EditableHomeCards({
     }
   }
 
-  async function toggleSize(key: ModuleKey) {
+  async function toggleSize(key: HomeWidgetKey) {
     if (!settings) return;
     const next: 'half' | 'full' = (sizes[key] ?? 'half') === 'half' ? 'full' : 'half';
     try {
@@ -109,55 +118,148 @@ export function EditableHomeCards({
 
   function handleDragEnd({ active, over }: DragEndEvent) {
     if (!over || active.id === over.id) return;
-    const from = order.indexOf(active.id as ModuleKey);
-    const to = order.indexOf(over.id as ModuleKey);
+    const from = order.indexOf(active.id as HomeWidgetKey);
+    const to = order.indexOf(over.id as HomeWidgetKey);
     void persistOrder(arrayMove(order, from, to));
+  }
+
+  /** Takes a widget off the Início; the module stays on, and "Adicionar widget" brings it back. */
+  async function remove(key: HomeWidgetKey) {
+    if (!settings) return;
+    const previous = order;
+    const next = order.filter((item) => item !== key);
+    setOrder(next);
+    try {
+      await saveSettings({
+        ...settings,
+        homeOrder: next,
+        homeHidden: [...(settings.homeHidden ?? []).filter((item) => item !== key), key],
+      });
+    } catch {
+      setOrder(previous);
+      showToast('Não foi possível remover. Tente de novo.', 'error');
+    }
+  }
+
+  /** Puts a widget back, at the end of the Início. */
+  async function add(key: HomeWidgetKey) {
+    if (!settings) return;
+    try {
+      await saveSettings({
+        ...settings,
+        homeOrder: [...order.filter((item) => item !== key), key],
+        homeHidden: (settings.homeHidden ?? []).filter((item) => item !== key),
+      });
+      setAdding(false);
+      showToast(`${widgetName(key)} voltou para a Início.`);
+    } catch {
+      showToast('Não foi possível adicionar. Tente de novo.', 'error');
+    }
   }
 
   async function restoreDefault() {
     if (!settings) return;
     try {
-      await saveSettings({ ...settings, homeOrder: null, homeCardSizes: {} });
+      await saveSettings({ ...settings, homeOrder: null, homeCardSizes: {}, homeHidden: [] });
     } catch {
       showToast('Não foi possível restaurar. Tente de novo.', 'error');
     }
   }
 
-  const content = (
-    <div className="flex flex-col gap-3">
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        measuring={MEASURING}
-        onDragEnd={handleDragEnd}
-        accessibility={{ announcements: ANNOUNCEMENTS }}
-      >
-        <SortableContext items={order} strategy={rectSortingStrategy}>
-          <div className="grid grid-cols-2 gap-3" data-no-swipe-nav>
-            {order.map((key) => (
-              <SortableCard
-                key={key}
-                cardKey={key}
-                size={effectiveSize(key, sizes) ?? 'half'}
-                resizable={RESIZABLE_HOME_CARDS.includes(key)}
-                onToggleSize={() => void toggleSize(key)}
-              />
-            ))}
+  return (
+    <>
+      <HomeCardsData keys={order}>
+        <div className="flex flex-col gap-3">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            measuring={MEASURING}
+            onDragEnd={handleDragEnd}
+            accessibility={{ announcements: ANNOUNCEMENTS }}
+          >
+            <SortableContext items={order} strategy={rectSortingStrategy}>
+              <div className="grid grid-cols-2 gap-3" data-no-swipe-nav>
+                {order.map((key) => (
+                  <SortableCard
+                    key={key}
+                    cardKey={key}
+                    size={effectiveSize(key, sizes) ?? 'half'}
+                    resizable={RESIZABLE_HOME_CARDS.includes(key)}
+                    onToggleSize={() => void toggleSize(key)}
+                    onRemove={() => void remove(key)}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            className="border-primary/50 text-primary hover:bg-primary/5 flex min-h-[56px] items-center justify-center gap-2 rounded-2xl border-2 border-dashed text-sm font-semibold"
+          >
+            <Plus aria-hidden className="h-5 w-5" />
+            Adicionar widget
+            {hidden.length > 0 && (
+              <span className="bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs">
+                {hidden.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void restoreDefault()}
+            className="text-muted hover:text-foreground self-center text-sm font-medium underline underline-offset-2"
+          >
+            Voltar ao padrão
+          </button>
+        </div>
+      </HomeCardsData>
+
+      {adding && (
+        <BottomSheet open title="Adicionar widget" onClose={() => setAdding(false)}>
+          <div className="flex flex-col gap-3">
+            {hidden.length === 0 ? (
+              <p className="text-muted text-sm">
+                Todos os widgets dos módulos que você usa já estão na Início.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {hidden.map((key) => {
+                  const visual = widgetVisual(key);
+                  return (
+                    <li key={key}>
+                      <button
+                        type="button"
+                        onClick={() => void add(key)}
+                        className="border-border bg-background hover:border-primary/40 flex w-full items-center gap-3 rounded-xl border p-3 text-left"
+                      >
+                        <IconTile icon={visual.icon} tone={visual.tone} />
+                        <span className="min-w-0 flex-1">
+                          <span className="text-foreground block font-medium">{widgetName(key)}</span>
+                          <span className="text-muted block text-xs">{widgetDescription(key)}</span>
+                        </span>
+                        <span className="bg-primary text-primary-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
+                          <Plus aria-hidden className="h-4 w-4" />
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <p className="text-muted text-xs">
+              Cada módulo ligado traz o seu widget.{' '}
+              <Link href="/modulos" className="text-primary font-semibold">
+                Ligar outros módulos
+              </Link>
+            </p>
           </div>
-        </SortableContext>
-      </DndContext>
-
-      <button
-        type="button"
-        onClick={() => void restoreDefault()}
-        className="text-muted hover:text-foreground self-center text-sm font-medium underline underline-offset-2"
-      >
-        Voltar ao padrão
-      </button>
-    </div>
+        </BottomSheet>
+      )}
+    </>
   );
-
-  return order.some((key) => WALLET.includes(key)) ? <WalletProvider>{content}</WalletProvider> : content;
 }
 
 function SortableCard({
@@ -165,13 +267,17 @@ function SortableCard({
   size,
   resizable,
   onToggleSize,
+  onRemove,
 }: {
-  cardKey: ModuleKey;
+  cardKey: HomeWidgetKey;
   size: 'half' | 'full';
   resizable: boolean;
   onToggleSize: () => void;
+  onRemove: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cardKey });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: cardKey,
+  });
 
   return (
     <div
@@ -193,18 +299,35 @@ function SortableCard({
         type="button"
         {...attributes}
         {...listeners}
-        aria-label={`Segurar e arrastar ${moduleDefinition(cardKey).name} para reorganizar`}
-        className="ring-primary/60 active:bg-primary/5 absolute inset-0 touch-manipulation rounded-2xl ring-2 ring-dashed"
+        aria-label={`Segurar e arrastar ${widgetName(cardKey)} para reorganizar`}
+        className="ring-primary/60 active:bg-primary/5 ring-dashed absolute inset-0 touch-manipulation rounded-2xl ring-2"
       />
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remover ${widgetName(cardKey)} da Início`}
+        title="Remover da Início"
+        className="bg-danger-fill absolute -top-2 -left-2 z-10 flex h-7 w-7 items-center justify-center rounded-full text-white shadow-md"
+      >
+        <Minus aria-hidden className="h-4 w-4" />
+      </button>
       {resizable && (
         <button
           type="button"
           onClick={onToggleSize}
-          aria-label={size === 'full' ? `Dividir a linha de ${moduleDefinition(cardKey).name}` : `Esticar ${moduleDefinition(cardKey).name} para a linha toda`}
+          aria-label={
+            size === 'full'
+              ? `Dividir a linha de ${widgetName(cardKey)}`
+              : `Esticar ${widgetName(cardKey)} para a linha toda`
+          }
           title={size === 'full' ? 'Linha inteira — toque para dividir' : 'Metade — toque para esticar'}
           className="bg-primary text-primary-foreground absolute -top-2 -right-2 z-10 flex h-7 w-7 items-center justify-center rounded-full shadow-md"
         >
-          {size === 'full' ? <Rows2 aria-hidden className="h-3.5 w-3.5" /> : <Square aria-hidden className="h-3.5 w-3.5" />}
+          {size === 'full' ? (
+            <Rows2 aria-hidden className="h-3.5 w-3.5" />
+          ) : (
+            <Square aria-hidden className="h-3.5 w-3.5" />
+          )}
         </button>
       )}
     </div>

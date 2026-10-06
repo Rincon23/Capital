@@ -68,6 +68,15 @@ export class PostgresNotificationsRepository {
       .returning({ id: notifications.id });
     if (hidden.length === 0) await this.db.delete(notifications).where(mine);
   }
+
+  /** "Limpar": the same as swiping every notification away, at once (see `remove`). */
+  async removeAll(): Promise<void> {
+    await this.db
+      .update(notifications)
+      .set({ dismissedAt: new Date() })
+      .where(and(this.visible, isNotNull(notifications.sourceKey)));
+    await this.db.delete(notifications).where(and(this.visible, isNull(notifications.sourceKey)));
+  }
 }
 
 function toNotification(row: typeof notifications.$inferSelect): AppNotification {

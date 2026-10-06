@@ -1,7 +1,8 @@
 import { eq, exists, gt, lt, or, sql } from 'drizzle-orm';
+import { firstName, realName } from '../auth/names';
 import { FEATURE_ANNOUNCEMENTS } from '../notifications/announcements';
 import { notificationSlots, planNotifications, weekdayOf, zonedMoment } from '../reminders';
-import { runAnnouncementsJob } from './announcements';
+import { runAnnouncementsJob, runMissingNameJob } from './announcements';
 import { runCardBillsJob } from './cardBills';
 import {
   budgetSettings,
@@ -9,6 +10,7 @@ import {
   investmentReserves,
   priceCache,
   reminderDeliveries,
+  user,
 } from './db/schema';
 import type { Database } from './db/types';
 import { catchUpFrom, lastRun, markRun } from './jobRuns';
@@ -78,8 +80,15 @@ async function notifyUser(
   const slots = notificationSlots(schedule, from, now);
   if (slots.length === 0) return 0;
 
+  // The reminders call the person by the first name, when the account has a real one.
+  const [account] = await db
+    .select({ name: user.name, email: user.email })
+    .from(user)
+    .where(eq(user.id, userId));
+  const name = firstName(realName(account?.name, account?.email));
+
   const due: NotifyInput[] = [];
-  for (const note of planNotifications(slots, schedule.reminders)) {
+  for (const note of planNotifications(slots, schedule.reminders, name)) {
     const recorded = await db
       .insert(reminderDeliveries)
       .values(note.slots.map((slot) => ({ userId, reminderId: slot.reminderId, slotAt: slot.at })))
@@ -198,6 +207,7 @@ export function startScheduler(getDb: () => Database): void {
       await runAnnouncementsJob(db, FEATURE_ANNOUNCEMENTS).catch((err) =>
         console.error('[novidades] falha ao notificar:', err),
       );
+      await runMissingNameJob(db).catch((err) => console.error('[nome] falha ao avisar:', err));
     } catch (err) {
       console.error('[agenda] falha na rodada:', err);
     } finally {

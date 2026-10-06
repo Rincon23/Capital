@@ -32,14 +32,15 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       anchor: 'lancamentos-abas',
       title: 'Tudo o que entrou e saiu',
       description:
-        'Gastos, renda, custos fixos e imprevistos do mês ficam em abas. Toque num lançamento para editar ou excluir.',
+        'Em Gastos ficam todos os gastos do mês numa lista só; em Renda, o que entrou. Toque num lançamento para editar ou excluir.',
       side: 'bottom',
     },
     {
       route: entries,
       anchor: 'lancamentos-busca',
-      title: 'Busca',
-      description: 'Procure pelo que você escreveu na descrição do gasto ou na fonte da renda.',
+      title: 'Busca e filtro',
+      description:
+        'Procure pelo que você escreveu na descrição. Em Filtrar, escolha as categorias que quer ver — só Diversos, por exemplo.',
       side: 'bottom',
     },
     {
@@ -184,7 +185,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       anchor: 'cartao-pergunta',
       title: 'Foi no cartão?',
       description:
-        'Ao lançar um gasto, marque aqui quando pagar no crédito: você escolhe o cartão (ou "Não informar") e, se quiser, parcela a compra.',
+        'Ao lançar um gasto, toque no cartãozinho ao lado do valor quando pagar no crédito — ele fica verde. Aí você escolhe o cartão (ou "Não informar") e, se quiser, parcela a compra.',
       side: 'top',
       sheet: 'expense-form',
     },
@@ -202,15 +203,17 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
     {
       route: (month) => `${entries(month)}?aba=a-receber`,
       anchor: 'aba-a-receber',
-      title: 'A aba A receber',
-      description: 'Em Lançamentos ficam todas essas compras do mês, para você saber quem ainda precisa te pagar.',
+      title: 'O filtro A receber',
+      description:
+        'Em Lançamentos, filtrando por A receber, ficam todas essas compras do mês, para você saber quem ainda precisa te pagar.',
       side: 'bottom',
     },
     {
       route: home,
       anchor: 'card-reimbursable',
       title: 'Quanto volta para você',
-      description: 'O total a receber no mês. Ele entra na fatura do cartão, mas não é dinheiro que você gastou.',
+      description:
+        'O total a receber no mês. Ele entra na fatura do cartão, mas não é dinheiro que você gastou.',
       side: 'bottom',
     },
   ],
@@ -260,14 +263,16 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: () => '/carteira/reserva',
       anchor: 'reserva-valor',
       title: 'O valor da reserva',
-      description: 'Suas cotas, o valor total e a reserva livre (a parte que não está em nenhuma categoria da reserva).',
+      description:
+        'Suas cotas, o valor total e a reserva livre (a parte que não está em nenhuma categoria da reserva).',
       side: 'bottom',
     },
     {
       route: () => '/carteira/reserva',
       anchor: 'reserva-cotacao',
       title: 'Cotação',
-      description: 'A cotação vem de graça da B3 e se atualiza sozinha. Toque em Atualizar para buscar a mais recente.',
+      description:
+        'A cotação vem de graça da B3 e se atualiza sozinha. Toque em Atualizar para buscar a mais recente.',
       side: 'bottom',
     },
     {
@@ -330,7 +335,8 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: () => '/lembretes',
       anchor: 'lembretes-novo',
       title: 'Novo lembrete',
-      description: 'Uma vez, tarefa do dia, toda semana ou todo mês, com o horário do aviso que você escolher.',
+      description:
+        'Uma vez, tarefa do dia, toda semana ou todo mês, com o horário do aviso que você escolher.',
       side: 'bottom',
     },
     {
@@ -396,7 +402,8 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: () => '/gmail',
       anchor: 'gmail-config',
       title: 'Avisos no celular',
-      description: 'Na engrenagem você ativa as notificações neste aparelho, para os alertas chegarem na hora.',
+      description:
+        'Na engrenagem você ativa as notificações neste aparelho, para os alertas chegarem na hora.',
       side: 'bottom',
     },
   ],

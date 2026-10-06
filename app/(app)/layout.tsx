@@ -6,6 +6,7 @@ import { SwipeNavigation } from '@/components/layout/SwipeNavigation';
 import { PushSubscriptionSync } from '@/components/pwa/PushSubscriptionSync';
 import { AppProviders } from '@/components/providers/AppProviders';
 import { LocalDataImportBanner } from '@/components/storage/LocalDataImportBanner';
+import { realName } from '@/lib/auth/names';
 import { userAccess } from '@/lib/server/access';
 import { getAuth } from '@/lib/server/auth';
 import { getDb } from '@/lib/server/db';
@@ -31,7 +32,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       initialUser={{
         id: session.user.id,
         email: session.user.email,
-        name: session.user.name || null,
+        // The placeholder from the e-mail ("enzo.rincon") is not a name: the app waits for a real one.
+        name: realName(session.user.name, session.user.email),
         vip,
         owner,
       }}

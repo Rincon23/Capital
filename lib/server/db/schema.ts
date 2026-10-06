@@ -28,10 +28,11 @@ import type {
   CategoryKind,
   EmergencyCost,
   ExpenseSource,
+  HomeWidgetKey,
   InstallmentAccounting,
   ModuleFlags,
-  ModuleKey,
   NavKey,
+  QuickCategoryKey,
   SpecialCategoryColors,
   SpecialCategoryLabels,
   TopicConfig,
@@ -158,9 +159,13 @@ export const budgetSettings = pgTable('budget_settings', {
     .notNull()
     .default({}),
   /** The order picked in "Organizar Início"; null means the default (see `resolveHomeCards`). */
-  homeOrder: jsonb('home_order').$type<ModuleKey[]>(),
+  homeOrder: jsonb('home_order').$type<HomeWidgetKey[]>(),
   /** Which resizable Início cards were stretched to full width. */
-  homeCardSizes: jsonb('home_card_sizes').$type<Partial<Record<ModuleKey, 'half' | 'full'>>>().notNull().default({}),
+  homeCardSizes: jsonb('home_card_sizes').$type<Partial<Record<HomeWidgetKey, 'half' | 'full'>>>().notNull().default({}),
+  /** The widgets taken off the Início ("Organizar Início"). */
+  homeHidden: jsonb('home_hidden').$type<HomeWidgetKey[]>().notNull().default([]),
+  /** The categories the expense form shows straight away; null means the default. */
+  quickCategories: jsonb('quick_categories').$type<QuickCategoryKey[]>(),
   updatedAt: updatedAt(),
 });
 

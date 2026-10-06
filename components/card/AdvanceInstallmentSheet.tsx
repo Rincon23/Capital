@@ -85,7 +85,7 @@ export function AdvanceInstallmentSheet({
   }
 
   return (
-    <BottomSheet open title="Adiantar parcelas" onClose={onClose}>
+    <BottomSheet open title="Adiantar parcelas" onClose={onClose} confirmDiscard={false}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <div>
           <p className="text-foreground font-medium">{plan.name}</p>

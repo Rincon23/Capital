@@ -1,13 +1,14 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import { Mic } from 'lucide-react';
+import { CreditCard, Mic } from 'lucide-react';
 import {
   amountToInputValue,
   currentMonthKey,
   monthsTouchedBy,
   nextChargeDate,
   parseAmountInput,
+  resolveQuickCategories,
   resolveSpecialCategoryLabels,
   specialCategoryLabel,
   todayISO,
@@ -22,6 +23,7 @@ import {
   type TopicConfig,
 } from '@/lib/budget';
 import { useCards } from '@/components/cards/CardsProvider';
+import { useOptionalSettings } from '@/components/providers/SettingsProvider';
 import { ClosedMonthsNotice, closedMonthsOf } from '@/components/card/ClosedMonthsNotice';
 import { InstallmentOptions, MAX_INSTALLMENTS } from '@/components/card/InstallmentOptions';
 import { AmountInput } from '@/components/ui/AmountInput';
@@ -107,6 +109,12 @@ export function ExpenseFormSheet({
     [topics],
   );
   const labels = resolveSpecialCategoryLabels(specialCategories);
+  // Which categories show straight away (the rest wait behind "Outras"): the person's own choice.
+  const settingsContext = useOptionalSettings();
+  const currentSettings = settingsContext?.settings;
+  const quick = currentSettings
+    ? resolveQuickCategories(currentSettings.quickCategories, activeTopics)
+    : undefined;
   // Turning the module off never hides an expense that is already "A receber": it stays
   // editable (and the user can move it to another category) instead of becoming unreachable.
   const showReimbursable = reimbursableEnabled || initial?.categoryKind === 'reimbursable';
@@ -266,7 +274,33 @@ export function ExpenseFormSheet({
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         {note && <div className="bg-background text-muted rounded-xl px-3 py-2 text-xs">{note}</div>}
 
-        <AmountInput value={amount} onChange={setAmount} autoFocus={autoFocusAmount && !prefill} />
+        <AmountInput
+          value={amount}
+          onChange={setAmount}
+          autoFocus={autoFocusAmount && !prefill}
+          trailing={
+            cardEnabled ? (
+              // "A compra foi no cartão?" as a small card that lights up green, right by the amount.
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={singleInstallmentCard}
+                aria-label="A compra foi no cartão?"
+                title={singleInstallmentCard ? 'Foi no cartão' : 'Foi no cartão? Toque para marcar'}
+                onClick={() => setSingleInstallmentCard((current) => !current)}
+                data-tour="cartao-pergunta"
+                className={`flex shrink-0 flex-col items-center gap-0.5 rounded-xl border px-2 py-1 transition-colors ${
+                  singleInstallmentCard
+                    ? 'border-success bg-success-bg text-success'
+                    : 'text-muted border-transparent opacity-50 hover:opacity-80'
+                }`}
+              >
+                <CreditCard aria-hidden className="h-6 w-6" />
+                <span className="text-[10px] leading-none font-semibold">Cartão</span>
+              </button>
+            ) : undefined
+          }
+        />
 
         <CategoryPicker
           topics={topics}
@@ -277,6 +311,12 @@ export function ExpenseFormSheet({
             setTopicId(next.topicId);
           }}
           showReimbursable={showReimbursable}
+          quick={quick}
+          onQuickChange={
+            settingsContext && currentSettings
+              ? (next) => settingsContext.saveSettings({ ...currentSettings, quickCategories: next })
+              : undefined
+          }
         />
 
         <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
@@ -304,18 +344,6 @@ export function ExpenseFormSheet({
             </span>
           )}
         </label>
-
-        {cardEnabled && (
-          <label className="text-foreground flex min-h-[44px] items-center gap-2 text-sm" data-tour="cartao-pergunta">
-            <input
-              type="checkbox"
-              checked={singleInstallmentCard}
-              onChange={(e) => setSingleInstallmentCard(e.target.checked)}
-              className="border-border h-5 w-5 rounded"
-            />
-            A compra foi no cartão?
-          </label>
-        )}
 
         {onCard && (
           <CardPicker

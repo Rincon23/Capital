@@ -5,12 +5,14 @@ import {
   MORE_DIVIDER,
   activeNavKey,
   changeNav,
+  hiddenHomeCards,
   homeCards,
   homeHref,
   moreItems,
   navEditorItems,
   navEntry,
   navFromEditor,
+  resolveHomeCards,
   resolveNav,
 } from '../nav';
 
@@ -125,6 +127,7 @@ describe('cards do Início', () => {
     const settings = { modules: everything, nav: ['reminders', 'expenses', 'inicio'] as NavKey[] };
     expect(homeCards(settings)).toEqual([
       'reminders',
+      'calendar',
       'expenses',
       'budget',
       'card',
@@ -215,5 +218,38 @@ describe('editor do rodapé', () => {
 
   it('acende o Mais na tela do rodapé', () => {
     expect(activeNavKey(['inicio'], '/rodape')).toBe('mais');
+  });
+});
+
+describe('widgets do Início', () => {
+  const settings = {
+    modules: on('expenses', 'reminders'),
+    nav: ['inicio', 'expenses', 'reminders'] as NavKey[],
+  };
+
+  it('Lembretes traz também o calendário, logo depois do seu card', () => {
+    expect(homeCards(settings)).toEqual(['expenses', 'reminders', 'calendar']);
+    expect(homeCards({ modules: on('expenses') })).toEqual(['expenses']);
+  });
+
+  it('um widget novo entra logo depois do card do seu módulo, mesmo com a ordem salva', () => {
+    expect(resolveHomeCards({ ...settings, homeOrder: ['reminders', 'expenses'] })).toEqual([
+      'reminders',
+      'calendar',
+      'expenses',
+    ]);
+  });
+
+  it('o que a pessoa tirou da Início fica de fora, pronto para voltar', () => {
+    const hidden = { ...settings, homeHidden: ['calendar', 'expenses'] as const };
+    expect(resolveHomeCards({ ...hidden, homeHidden: [...hidden.homeHidden] })).toEqual(['reminders']);
+    expect(hiddenHomeCards({ ...hidden, homeHidden: [...hidden.homeHidden] })).toEqual([
+      'expenses',
+      'calendar',
+    ]);
+  });
+
+  it('um widget escondido de um módulo desligado não aparece para adicionar', () => {
+    expect(hiddenHomeCards({ modules: on('expenses'), homeHidden: ['calendar'] })).toEqual([]);
   });
 });

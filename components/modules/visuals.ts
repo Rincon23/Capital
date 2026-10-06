@@ -1,4 +1,5 @@
 import {
+  CalendarDays,
   ChartColumn,
   ChartPie,
   Clock,
@@ -13,7 +14,7 @@ import {
   Scale,
   type LucideIcon,
 } from 'lucide-react';
-import type { ModuleKey, NavKey } from '@/lib/budget';
+import type { HomeWidgetKey, ModuleKey, NavKey } from '@/lib/budget';
 import type { IconTone } from '@/components/ui/IconTile';
 
 export interface ModuleVisual {
@@ -40,4 +41,9 @@ export const HOME_VISUAL: ModuleVisual = { icon: House, tone: 'neutral' };
 
 export function navVisual(key: NavKey): ModuleVisual {
   return key === 'inicio' ? HOME_VISUAL : MODULE_VISUALS[key];
+}
+
+/** The icon of an Início widget: its module's, except for the extra widgets, which have their own. */
+export function widgetVisual(key: HomeWidgetKey): ModuleVisual {
+  return key === 'calendar' ? { icon: CalendarDays, tone: 'blue' } : MODULE_VISUALS[key];
 }

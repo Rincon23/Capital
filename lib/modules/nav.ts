@@ -1,5 +1,5 @@
-import type { BudgetSettings, ModuleKey, Month, NavKey } from '../budget/types';
-import { MODULES, MODULE_GROUPS, moduleDefinition, type ModuleGroup } from './catalog';
+import type { BudgetSettings, HomeWidgetKey, ModuleKey, Month, NavKey } from '../budget/types';
+import { MODULES, MODULE_GROUPS, MODULE_KEYS, moduleDefinition, type ModuleGroup } from './catalog';
 import { parentOf, resolveModules } from './flags';
 
 /** How many entries the user picks for the bottom bar; "Mais" always takes the fifth place. */
@@ -99,12 +99,42 @@ export function homeHref(source: NavSource, month: Month): string {
   return navEntry(resolveNav(source)[0] ?? 'inicio').href(month);
 }
 
+/** The widgets a module brings to the Início besides its own card. */
+export const EXTRA_HOME_WIDGETS: { key: Exclude<HomeWidgetKey, ModuleKey>; module: ModuleKey }[] = [
+  { key: 'calendar', module: 'reminders' },
+];
+
+/** Every widget the Início knows: the card of each module, then the extra ones. */
+export const HOME_WIDGET_KEYS: HomeWidgetKey[] = [
+  ...MODULE_KEYS,
+  ...EXTRA_HOME_WIDGETS.map(({ key }) => key),
+];
+
+/** The module a widget belongs to: it is there while that module is on. */
+export function widgetModule(key: HomeWidgetKey): ModuleKey {
+  return EXTRA_HOME_WIDGETS.find((widget) => widget.key === key)?.module ?? (key as ModuleKey);
+}
+
+/** How a widget is called where the module's name alone would be ambiguous ("Adicionar widget"). */
+const WIDGET_TEXT: Partial<Record<HomeWidgetKey, { name: string; description: string }>> = {
+  reminders: { name: 'Lembretes de hoje', description: 'O que falta fazer hoje, com o botão de feito.' },
+  calendar: { name: 'Calendário', description: 'Hoje e os próximos 30 dias, com os compromissos marcados.' },
+};
+
+export function widgetName(key: HomeWidgetKey): string {
+  return WIDGET_TEXT[key]?.name ?? moduleDefinition(widgetModule(key)).name;
+}
+
+export function widgetDescription(key: HomeWidgetKey): string {
+  return WIDGET_TEXT[key]?.description ?? moduleDefinition(widgetModule(key)).tagline;
+}
+
 /**
- * The cards on the home dashboard, in order: the modules of the bottom bar, then those in Mais.
- * A module without a screen (the card bill, "A receber") comes right after the module it hangs
- * from.
+ * Every widget the Início can have right now, in the default order: the modules of the bottom
+ * bar, then those in Mais. A module without a screen (the card bill, "A receber") comes right
+ * after the module it hangs from, and a module's extra widgets (the calendar) right after its card.
  */
-export function homeCards(source: NavSource): ModuleKey[] {
+export function homeCards(source: NavSource): HomeWidgetKey[] {
   const modules = resolveModules(source);
   const nav = resolveNav(source);
   const withScreen = [...nav, ...availableNavKeys(source).filter((key) => !nav.includes(key))].filter(
@@ -123,22 +153,43 @@ export function homeCards(source: NavSource): ModuleKey[] {
   for (const m of MODULES) {
     if (!m.screen && m.homeCard && modules[m.key] && !order.includes(m.key)) place(m.key);
   }
-  return order.filter((key) => moduleDefinition(key).homeCard);
+  return order
+    .filter((key) => moduleDefinition(key).homeCard)
+    .flatMap((key) => [
+      key,
+      ...EXTRA_HOME_WIDGETS.filter((widget) => widget.module === key).map(({ key }) => key),
+    ]);
 }
 
+type HomeSource = NavSource & Partial<Pick<BudgetSettings, 'homeOrder' | 'homeHidden'>>;
+
 /**
- * `homeCards()`'s order, overridden by whatever the user rearranged in "Organizar Início"
- * (`homeOrder`) — the same idea as `resolveNav` keeping a saved bottom bar in step with the
- * modules that are actually on: anything turned off or no longer eligible drops out, anything
- * new lands at the end.
+ * The widgets on the Início, in order: `homeCards()`'s order, overridden by whatever the user
+ * rearranged in "Organizar Início" (`homeOrder`), minus the ones they took off (`homeHidden`) —
+ * the same idea as `resolveNav` keeping a saved bottom bar in step with the modules that are
+ * actually on: anything turned off or no longer eligible drops out, and anything new comes in —
+ * an extra widget right after the card of its module, anything else at the end.
  */
-export function resolveHomeCards(source: NavSource & Pick<BudgetSettings, 'homeOrder'>): ModuleKey[] {
+export function resolveHomeCards(source: HomeSource): HomeWidgetKey[] {
   const base = homeCards(source);
   const saved = source?.homeOrder;
-  if (!saved) return base;
-  const kept = saved.filter((key, index) => base.includes(key) && saved.indexOf(key) === index);
-  const added = base.filter((key) => !kept.includes(key));
-  return [...kept, ...added];
+  const order = saved
+    ? saved.filter((key, index) => base.includes(key) && saved.indexOf(key) === index)
+    : [...base];
+  for (const key of base) {
+    if (order.includes(key)) continue;
+    const owner = order.indexOf(widgetModule(key));
+    if (key !== widgetModule(key) && owner !== -1) order.splice(owner + 1, 0, key);
+    else order.push(key);
+  }
+  const hidden = source?.homeHidden ?? [];
+  return order.filter((key) => !hidden.includes(key));
+}
+
+/** The widgets the user took off the Início that could come back now ("Adicionar widget"). */
+export function hiddenHomeCards(source: HomeSource): HomeWidgetKey[] {
+  const hidden = source?.homeHidden ?? [];
+  return homeCards(source).filter((key) => hidden.includes(key));
 }
 
 /** The row that separates the bottom bar from Mais in the bottom-bar editor. */

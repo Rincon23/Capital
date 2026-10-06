@@ -132,6 +132,32 @@ function SignUpForm({ onModeChange }: { onModeChange: (mode: Mode) => void }) {
   return (
     <form action={action} className="flex flex-col gap-4">
       <Feedback state={state} />
+      <div className="grid grid-cols-2 gap-3">
+        <label className="text-muted flex min-w-0 flex-col gap-1 text-sm">
+          Nome
+          <input
+            type="text"
+            name="firstName"
+            autoComplete="given-name"
+            required
+            maxLength={60}
+            defaultValue={state.firstName}
+            className={FIELD_CLASS}
+          />
+        </label>
+        <label className="text-muted flex min-w-0 flex-col gap-1 text-sm">
+          Sobrenome
+          <input
+            type="text"
+            name="lastName"
+            autoComplete="family-name"
+            required
+            maxLength={60}
+            defaultValue={state.lastName}
+            className={FIELD_CLASS}
+          />
+        </label>
+      </div>
       <label className="text-muted flex flex-col gap-1 text-sm">
         E-mail
         <input
@@ -172,8 +198,7 @@ function ForgotForm({ onModeChange }: { onModeChange: (mode: Mode) => void }) {
     return (
       <div className="flex flex-col gap-4 text-center">
         <p className="text-foreground text-sm">
-          Se existir uma conta para <strong>{state.email}</strong>, enviamos um link para redefinir a
-          senha.
+          Se existir uma conta para <strong>{state.email}</strong>, enviamos um link para redefinir a senha.
         </p>
         <SwitchLink onClick={() => onModeChange('sign-in')}>Voltar para entrar</SwitchLink>
       </div>
@@ -205,23 +230,15 @@ function ForgotForm({ onModeChange }: { onModeChange: (mode: Mode) => void }) {
   );
 }
 
-function CheckEmail({
-  email,
-  resent,
-  onBack,
-}: {
-  email: string;
-  resent: boolean;
-  onBack: () => void;
-}) {
+function CheckEmail({ email, resent, onBack }: { email: string; resent: boolean; onBack: () => void }) {
   const [state, action, pending] = useActionState(resendConfirmation, EMPTY);
   const confirmedResent = resent || state.notice === 'check-email-resent';
 
   return (
     <div className="flex flex-col gap-4 text-center">
       <p className="text-foreground text-sm">
-        Enviamos um link de confirmação para <strong>{email}</strong>. Clique nele para ativar sua
-        conta e depois faça login.
+        Enviamos um link de confirmação para <strong>{email}</strong>. Clique nele para ativar sua conta e
+        depois faça login.
       </p>
       {confirmedResent && <p className="text-success text-sm">E-mail reenviado.</p>}
       <Feedback state={state} />

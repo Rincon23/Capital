@@ -113,18 +113,17 @@ describe('vencimentos', () => {
   it('semanal em vários dias da semana', () => {
     const r = weekly({ weekdays: [1, 3, 5] });
     // 14/09/2026 é segunda.
-    expect(['2026-09-14', '2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18'].map((d) => isDueOn(r, d))).toEqual(
-      [true, false, true, false, true],
-    );
+    expect(
+      ['2026-09-14', '2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18'].map((d) => isDueOn(r, d)),
+    ).toEqual([true, false, true, false, true]);
   });
 
   it('não cobra nada de antes da criação nem de mais de dois meses atrás', () => {
     const r = monthly({ createdAt: '2026-09-15T12:00:00.000Z' });
     expect(pendingDueDates(r, undefined, '2026-09-16')).toEqual([]);
-    expect(pendingDueDates(monthly({ createdAt: '2025-01-01T12:00:00.000Z' }), undefined, '2026-09-16')).toEqual([
-      '2026-08-10',
-      '2026-09-10',
-    ]);
+    expect(
+      pendingDueDates(monthly({ createdAt: '2025-01-01T12:00:00.000Z' }), undefined, '2026-09-16'),
+    ).toEqual(['2026-08-10', '2026-09-10']);
   });
 });
 
@@ -164,11 +163,15 @@ describe('quando notificar', () => {
   it('respeita os horários e o desligar da repetição', () => {
     const custom = { repeatEnabled: true, repeatTimes: ['07:00', '21:30'] };
     expect(
-      slotsFor([weekly()], at('2026-09-16', '00:00'), at('2026-09-16', '23:59'), [], custom).map(describeSlot),
+      slotsFor([weekly()], at('2026-09-16', '00:00'), at('2026-09-16', '23:59'), [], custom).map(
+        describeSlot,
+      ),
     ).toEqual(['due 2026-09-16 08:00', 'repeat 2026-09-16 21:30']);
 
     const off = { ...DEFAULT_REMINDER_SETTINGS, repeatEnabled: false };
-    expect(slotsFor([weekly()], at('2026-09-16', '00:00'), at('2026-09-16', '23:59'), [], off)).toHaveLength(1);
+    expect(slotsFor([weekly()], at('2026-09-16', '00:00'), at('2026-09-16', '23:59'), [], off)).toHaveLength(
+      1,
+    );
     expect(
       slotsFor([weekly({ repeat: false })], at('2026-09-16', '00:00'), at('2026-09-16', '23:59')),
     ).toHaveLength(1);
@@ -231,11 +234,20 @@ describe('o que vai na notificação', () => {
       done: { reminderId: 'mensal', dueDate: '2026-09-10' },
     });
 
-    const afternoon = planNotifications(
-      slotsFor([r], at('2026-09-11', '11:59'), at('2026-09-11', '12:00')),
-      [r],
-    );
+    const afternoon = planNotifications(slotsFor([r], at('2026-09-11', '11:59'), at('2026-09-11', '12:00')), [
+      r,
+    ]);
     expect(afternoon[0].body).toBe('Boa tarde 🌤️! Atrasado desde 10/09.');
+  });
+
+  it('chama a pessoa pelo primeiro nome quando a conta tem um', () => {
+    const r = monthly();
+    const plan = planNotifications(
+      slotsFor([r], at('2026-09-10', '08:00'), at('2026-09-10', '09:00')),
+      [r],
+      'Enzo',
+    );
+    expect(plan[0].body).toBe('Bom dia, Enzo ☀️! É para hoje, às 09:00.');
   });
 
   it('depois de o servidor ficar fora, manda só o aviso mais recente de cada lembrete', () => {
@@ -250,7 +262,10 @@ describe('o que vai na notificação', () => {
 
   it('agrupa as tarefas do mesmo horário numa notificação só', () => {
     const tasks = [task(), task({ id: 't2', message: 'Ligar para a escola', times: ['08:00'] })];
-    const plan = planNotifications(slotsFor(tasks, at('2026-09-16', '07:59'), at('2026-09-16', '08:00')), tasks);
+    const plan = planNotifications(
+      slotsFor(tasks, at('2026-09-16', '07:59'), at('2026-09-16', '08:00')),
+      tasks,
+    );
     expect(plan).toEqual([
       expect.objectContaining({
         title: '📋 2 tarefas para hoje',
@@ -259,7 +274,10 @@ describe('o que vai na notificação', () => {
       }),
     ]);
 
-    const single = planNotifications(slotsFor(tasks, at('2026-09-16', '13:59'), at('2026-09-16', '14:00')), tasks);
+    const single = planNotifications(
+      slotsFor(tasks, at('2026-09-16', '13:59'), at('2026-09-16', '14:00')),
+      tasks,
+    );
     expect(single[0]).toMatchObject({
       title: '📋 Mandar o relatório',
       body: 'Boa tarde 🌤️! Tarefa de hoje.',
@@ -286,7 +304,9 @@ describe('o dia na tela', () => {
     ];
     const day = reminderDay(reminders, [{ reminderId: 'pontual', dueDate: '2026-09-16' }], '2026-09-16');
 
-    expect(day.overdue.map((item) => [item.reminder.id, item.overdueSince])).toEqual([['mensal', '2026-09-14']]);
+    expect(day.overdue.map((item) => [item.reminder.id, item.overdueSince])).toEqual([
+      ['mensal', '2026-09-14'],
+    ]);
     expect(day.today.map((item) => [item.reminder.id, item.done])).toEqual([
       ['pontual', true],
       ['semanal', false],

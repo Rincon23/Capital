@@ -3,6 +3,7 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { APIError } from 'better-auth/api';
+import { joinName } from '@/lib/auth/names';
 import { getAuth } from '@/lib/server/auth';
 import { clientIp } from '@/lib/server/clientIp';
 import { forgetGmailToken } from '@/lib/server/gmail/job';
@@ -15,6 +16,9 @@ export interface AuthActionState {
   notice?: 'check-email' | 'check-email-resent' | 'reset-sent';
   /** Echoed back so the form keeps the typed address and notices can show it. */
   email?: string;
+  /** Echoed back too, so a refused sign-up keeps the name already typed. */
+  firstName?: string;
+  lastName?: string;
 }
 
 const MIN_PASSWORD = 8;
@@ -99,18 +103,24 @@ export async function signIn(_prev: AuthActionState, formData: FormData): Promis
 
 export async function signUp(_prev: AuthActionState, formData: FormData): Promise<AuthActionState> {
   const { email, password } = readCredentials(formData);
-  if (!email) return { error: 'Informe um e-mail.', email };
+  const firstName = String(formData.get('firstName') ?? '').slice(0, 200);
+  const lastName = String(formData.get('lastName') ?? '').slice(0, 200);
+  const typed = { email, firstName, lastName };
+  // The app calls the person by the first name (greeting, reminders), so it asks for it up front.
+  const name = lastName.trim() ? joinName(firstName, lastName) : null;
+  if (!name) return { error: 'Informe seu nome e sobrenome.', ...typed };
+  if (!email) return { error: 'Informe um e-mail.', ...typed };
   const lengthError = passwordLengthError(password);
-  if (lengthError) return { error: lengthError, email };
+  if (lengthError) return { error: lengthError, ...typed };
   // Every sign-up sends an e-mail: few per IP, so nobody can script accounts for other addresses.
   if (!allowAttempt(`sign-up:${clientIp(await headers())}`, 5, HOUR)) {
-    return { error: TOO_MANY_ATTEMPTS, email };
+    return { error: TOO_MANY_ATTEMPTS, ...typed };
   }
-  if (await isPasswordPwned(password)) return { error: PWNED_PASSWORD, email };
+  if (await isPasswordPwned(password)) return { error: PWNED_PASSWORD, ...typed };
 
   try {
     await getAuth().api.signUpEmail({
-      body: { email, password, name: email.split('@')[0], callbackURL: EMAIL_CONFIRMED_PATH },
+      body: { email, password, name, callbackURL: EMAIL_CONFIRMED_PATH },
     });
   } catch (err) {
     const code = errorCode(err);
@@ -119,10 +129,10 @@ export async function signUp(_prev: AuthActionState, formData: FormData): Promis
       return { notice: 'check-email', email };
     }
     if (err instanceof APIError) {
-      return { error: 'Não foi possível criar a conta. Verifique o e-mail e a senha.', email };
+      return { error: 'Não foi possível criar a conta. Verifique o e-mail e a senha.', ...typed };
     }
     console.error('[auth] falha ao criar conta:', err);
-    return { error: 'Não foi possível criar a conta agora. Tente novamente em instantes.', email };
+    return { error: 'Não foi possível criar a conta agora. Tente novamente em instantes.', ...typed };
   }
 
   // Email confirmation is on: there is no session yet.
@@ -216,6 +226,33 @@ export async function signOut(): Promise<void> {
 
 export interface DeleteAccountState {
   error?: string;
+}
+
+export interface UpdateNameState {
+  error?: string;
+  /** The name just saved, so the form can say so. */
+  saved?: string;
+}
+
+/** "Seu nome" in Configurações: the name and surname the app calls the person by. */
+export async function updateName(_prev: UpdateNameState, formData: FormData): Promise<UpdateNameState> {
+  const name = joinName(String(formData.get('firstName') ?? ''), String(formData.get('lastName') ?? ''));
+  if (!name) return { error: 'Informe pelo menos o seu nome (até 60 letras em cada campo).' };
+
+  const requestHeaders = await headers();
+  const auth = getAuth();
+  const session = await auth.api.getSession({ headers: requestHeaders });
+  if (!session) redirect('/login');
+  if (!allowAttempt(`update-name:${session.user.id}`, 10, FIFTEEN_MINUTES))
+    return { error: TOO_MANY_ATTEMPTS };
+
+  try {
+    await auth.api.updateUser({ body: { name }, headers: requestHeaders });
+  } catch (err) {
+    console.error('[auth] falha ao salvar o nome:', err);
+    return { error: 'Não foi possível salvar o nome agora. Tente novamente em instantes.' };
+  }
+  return { saved: name };
 }
 
 /**

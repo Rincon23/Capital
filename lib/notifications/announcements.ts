@@ -29,17 +29,22 @@ export const FEATURE_ANNOUNCEMENTS: FeatureAnnouncement[] = [
   {
     key: 'cards-module',
     title: '💳 Módulo Cartões',
-    body:
-      'Cadastre seus cartões, veja quando cada fatura vence e marque como paga — o Capital avisa antes do vencimento.',
+    body: 'Cadastre seus cartões, veja quando cada fatura vence e marque como paga — o Capital avisa antes do vencimento.',
     href: '/carteira/cartoes',
     publishedAt: '2026-09-19T12:00:00Z',
   },
   {
     key: 'card-single-module',
     title: '💳 Cartão agora é um módulo só',
-    body:
-      'Fatura, cartões e parcelados ficam juntos em Cartão. E ao lançar um gasto no cartão dá para parcelar na hora, escolhendo se o gasto conta todo no mês da compra ou parcela a parcela.',
+    body: 'Fatura, cartões e parcelados ficam juntos em Cartão. E ao lançar um gasto no cartão dá para parcelar na hora, escolhendo se o gasto conta todo no mês da compra ou parcela a parcela.',
     href: '/cartao',
     publishedAt: '2026-09-19T21:00:00Z',
+  },
+  {
+    key: 'home-widgets-calendar-filter',
+    title: '✨ Início do seu jeito',
+    body: 'Em Organizar Início (o lápis) dá para tirar e adicionar widgets — e Lembretes ganhou um calendário dos próximos 30 dias. Em Lançamentos, o botão Filtrar mostra só a categoria que você quiser.',
+    href: '/',
+    publishedAt: '2026-10-06T06:00:00Z',
   },
 ];

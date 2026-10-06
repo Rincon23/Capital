@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lt, max, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, max, sql, type SQL } from 'drizzle-orm';
 import { computeMonthSummary } from '../budget/calculations';
 import { DEFAULT_SPECIAL_CATEGORY_LABELS } from '../budget/categories';
 import { DEFAULT_SPECIAL_CATEGORY_COLORS } from '../budget/colors';
@@ -14,6 +14,7 @@ import type {
   InstallmentPlan,
   Month,
   MonthData,
+  PendingReimbursable,
 } from '../budget/types';
 import {
   BACKUP_VERSION,
@@ -24,6 +25,7 @@ import {
 } from '../storage/repository';
 import { budgetSettings, expenses, incomes, installments, months } from './db/schema';
 import type { Database, Transaction } from './db/types';
+import { HttpError } from './httpError';
 import { checkQuota, QUOTAS } from './quotas';
 
 /**
@@ -92,9 +94,7 @@ function expenseValues(month: Month, expense: Expense) {
     installmentNumber: expense.installmentNumber ?? null,
     // Only an "A receber" purchase can be settled, so moving it to another category clears it.
     reimbursedAt:
-      expense.categoryKind === 'reimbursable' && expense.reimbursedAt
-        ? new Date(expense.reimbursedAt)
-        : null,
+      expense.categoryKind === 'reimbursable' && expense.reimbursedAt ? new Date(expense.reimbursedAt) : null,
   };
 }
 
@@ -225,9 +225,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
       await this.requireOpenMonthIn(tx, month);
       await tx
         .delete(incomes)
-        .where(
-          and(eq(incomes.userId, this.userId), eq(incomes.month, month), eq(incomes.id, incomeId)),
-        );
+        .where(and(eq(incomes.userId, this.userId), eq(incomes.month, month), eq(incomes.id, incomeId)));
       await this.recascade(tx, month);
     });
   }
@@ -245,15 +243,49 @@ export class PostgresBudgetRepository implements BudgetRepository {
       await this.requireOpenMonthIn(tx, month);
       await tx
         .delete(expenses)
-        .where(
-          and(
-            eq(expenses.userId, this.userId),
-            eq(expenses.month, month),
-            eq(expenses.id, expenseId),
-          ),
-        );
+        .where(and(eq(expenses.userId, this.userId), eq(expenses.month, month), eq(expenses.id, expenseId)));
       await this.recascade(tx, month);
     });
+  }
+
+  /**
+   * Every "A receber" nobody paid back yet, from `until` and every month before it — the money
+   * someone still owes does not go away when the month turns. Most recent first.
+   */
+  async pendingReimbursables(until: Month): Promise<PendingReimbursable[]> {
+    const rows = await this.db
+      .select()
+      .from(expenses)
+      .where(
+        and(
+          eq(expenses.userId, this.userId),
+          eq(expenses.categoryKind, 'reimbursable'),
+          isNull(expenses.reimbursedAt),
+          lte(expenses.month, until),
+        ),
+      )
+      .orderBy(desc(expenses.date), asc(expenses.position));
+    return rows.map((row) => ({ month: row.month, expense: toExpense(row) }));
+  }
+
+  /**
+   * "Já me pagou" (or undoing it). Allowed in a closed month too: it changes no number of the
+   * budget — an "A receber" never consumed a category —, it only says who still owes.
+   */
+  async setReimbursed(month: Month, expenseId: string, reimbursedAt: string | null): Promise<void> {
+    const updated = await this.db
+      .update(expenses)
+      .set({ reimbursedAt: reimbursedAt ? new Date(reimbursedAt) : null })
+      .where(
+        and(
+          eq(expenses.userId, this.userId),
+          eq(expenses.month, month),
+          eq(expenses.id, expenseId),
+          eq(expenses.categoryKind, 'reimbursable'),
+        ),
+      )
+      .returning({ id: expenses.id });
+    if (updated.length === 0) throw new HttpError(404, 'NOT_FOUND', 'Esse gasto a receber não existe mais.');
   }
 
   // -------------------------------------------------------------------------
@@ -280,10 +312,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
 
   async deleteMonth(month: Month): Promise<void> {
     await this.write(async (tx) => {
-      const deleted = await tx
-        .delete(months)
-        .where(this.monthKey(month))
-        .returning({ month: months.month });
+      const deleted = await tx.delete(months).where(this.monthKey(month)).returning({ month: months.month });
       if (deleted.length === 0) return;
 
       // A month before the deleted one feeds the months after it: cascade from there.
@@ -504,11 +533,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
       .orderBy(desc(months.month))
       .limit(1);
     const [previous] = prior ? await this.loadMonths(ex, eq(months.month, prior.month)) : [];
-    const created = createMonthData(
-      month,
-      settings.topics,
-      previous ? computeMonthSummary(previous) : null,
-    );
+    const created = createMonthData(month, settings.topics, previous ? computeMonthSummary(previous) : null);
     // A month that does not exist yet still shows the instalments it will be charged, so the
     // preview never changes the moment something is written to it.
     return { ...created, expenses: await this.installmentExpensesFor(ex, month) };
@@ -555,10 +580,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
     const updated = cascadeCarryIn(chain, computeMonthSummary);
     for (let i = 0; i < updated.length; i++) {
       if (JSON.stringify(updated[i].carryIn) === JSON.stringify(chain[i].carryIn)) continue;
-      await tx
-        .update(months)
-        .set({ carryIn: updated[i].carryIn })
-        .where(this.monthKey(updated[i].month));
+      await tx.update(months).set({ carryIn: updated[i].carryIn }).where(this.monthKey(updated[i].month));
     }
   }
 
@@ -587,10 +609,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
   }
 
   private async readSettings(ex: Executor): Promise<BudgetSettings | undefined> {
-    const [row] = await ex
-      .select()
-      .from(budgetSettings)
-      .where(eq(budgetSettings.userId, this.userId));
+    const [row] = await ex.select().from(budgetSettings).where(eq(budgetSettings.userId, this.userId));
     if (!row) return undefined;
     return {
       topics: row.topics,
@@ -604,6 +623,8 @@ export class PostgresBudgetRepository implements BudgetRepository {
       notificationPrefs: row.notificationPrefs,
       homeOrder: row.homeOrder,
       homeCardSizes: row.homeCardSizes,
+      homeHidden: row.homeHidden,
+      quickCategories: row.quickCategories,
     };
   }
 
@@ -630,9 +651,17 @@ export class PostgresBudgetRepository implements BudgetRepository {
       ...(restoringBackup || settings.notificationPrefs !== undefined
         ? { notificationPrefs: settings.notificationPrefs ?? {} }
         : {}),
-      ...(restoringBackup || settings.homeOrder !== undefined ? { homeOrder: settings.homeOrder ?? null } : {}),
+      ...(restoringBackup || settings.homeOrder !== undefined
+        ? { homeOrder: settings.homeOrder ?? null }
+        : {}),
       ...(restoringBackup || settings.homeCardSizes !== undefined
         ? { homeCardSizes: settings.homeCardSizes ?? {} }
+        : {}),
+      ...(restoringBackup || settings.homeHidden !== undefined
+        ? { homeHidden: settings.homeHidden ?? [] }
+        : {}),
+      ...(restoringBackup || settings.quickCategories !== undefined
+        ? { quickCategories: settings.quickCategories ?? null }
         : {}),
       ...(restoringBackup && settings.onboardingCompleted !== undefined
         ? { onboardingCompleted: settings.onboardingCompleted }

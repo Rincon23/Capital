@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useState, type ChangeEvent } from 'react';
+import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
@@ -8,7 +9,14 @@ import { useTheme } from '@/components/providers/ThemeProvider';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { useToast } from '@/components/ui/Toast';
-import { deleteAccount, signOut, type DeleteAccountState } from '@/lib/auth/actions';
+import {
+  deleteAccount,
+  signOut,
+  updateName,
+  type DeleteAccountState,
+  type UpdateNameState,
+} from '@/lib/auth/actions';
+import { MAX_NAME_PART, splitName } from '@/lib/auth/names';
 import { budgetRepository, downloadBackup, readBackupFile } from '@/lib/storage';
 import { hasLocalData, importLocalDataToCloud } from '@/lib/storage/localMigration';
 
@@ -137,7 +145,8 @@ function AccountSection() {
     <section className="flex flex-col gap-3 px-4">
       <h2 className="text-muted text-sm font-semibold">Conta</h2>
       <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
-        <p className="text-foreground text-sm break-all">{user.email ?? 'Sessão ativa'}</p>
+        <NameForm current={user.name} />
+        <p className="text-muted text-sm break-all">{user.email ?? 'Sessão ativa'}</p>
         <form action={signOut}>
           <button
             type="submit"
@@ -159,6 +168,72 @@ function AccountSection() {
   );
 }
 
+const NAME_IDLE: UpdateNameState = {};
+
+/**
+ * "Seu nome": the name and surname the account goes by. The app only ever uses the first one —
+ * "Bom dia, Enzo" on Início, and in the reminders' notifications.
+ */
+function NameForm({ current }: { current: string | null }) {
+  const [state, action, pending] = useActionState(updateName, NAME_IDLE);
+  const router = useRouter();
+  const { showToast } = useToast();
+  const { first, last } = splitName(current);
+
+  useEffect(() => {
+    if (!state.saved) return;
+    showToast('Nome salvo.');
+    // The name comes from the server with the session: read it again so every screen gets it.
+    router.refresh();
+  }, [state, router, showToast]);
+
+  return (
+    <form action={action} className="flex flex-col gap-3">
+      {!current && (
+        <p className="bg-primary/10 text-foreground rounded-lg px-3 py-2 text-xs leading-relaxed">
+          Como podemos te chamar? Com o seu nome aqui, o Capital te chama pelo primeiro nome na Início e nos
+          lembretes.
+        </p>
+      )}
+      <div className="grid grid-cols-2 gap-3">
+        <label className="text-muted flex min-w-0 flex-col gap-1 text-sm">
+          Nome
+          <input
+            type="text"
+            name="firstName"
+            autoComplete="given-name"
+            required
+            maxLength={MAX_NAME_PART}
+            defaultValue={first}
+            key={`first-${first}`}
+            className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] w-full rounded-lg border px-3 py-2 text-base outline-none focus:ring-2"
+          />
+        </label>
+        <label className="text-muted flex min-w-0 flex-col gap-1 text-sm">
+          Sobrenome
+          <input
+            type="text"
+            name="lastName"
+            autoComplete="family-name"
+            maxLength={MAX_NAME_PART}
+            defaultValue={last}
+            key={`last-${last}`}
+            className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] w-full rounded-lg border px-3 py-2 text-base outline-none focus:ring-2"
+          />
+        </label>
+      </div>
+      {state.error && <p className="text-danger text-sm">{state.error}</p>}
+      <button
+        type="submit"
+        disabled={pending}
+        className="bg-primary text-primary-foreground min-h-[44px] rounded-lg px-4 text-sm font-semibold disabled:opacity-50"
+      >
+        {pending ? 'Salvando…' : 'Salvar nome'}
+      </button>
+    </form>
+  );
+}
+
 const NO_ERROR: DeleteAccountState = {};
 
 /** Deletes the account and everything in it, once the password is typed again. */
@@ -166,7 +241,7 @@ function DeleteAccountSheet({ onClose }: { onClose: () => void }) {
   const [state, action, pending] = useActionState(deleteAccount, NO_ERROR);
 
   return (
-    <BottomSheet open onClose={onClose} title="Excluir minha conta">
+    <BottomSheet open onClose={onClose} title="Excluir minha conta" confirmDiscard={false}>
       <form action={action} className="flex flex-col gap-4">
         <p className="text-muted text-sm">
           A conta e tudo o que ela guarda somem de vez: lançamentos de todos os módulos, lembretes, a conexão
