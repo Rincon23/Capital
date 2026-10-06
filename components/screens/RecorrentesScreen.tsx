@@ -31,7 +31,7 @@ import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { useToast } from '@/components/ui/Toast';
 import { ModuleGate } from '@/components/modules/ModuleGate';
 import { ModuleHelpButton } from '@/components/modules/ModuleHelpButton';
-import { useBackHref } from '@/components/modules/useBackHref';
+import { useHomeHref } from '@/components/modules/useHomeHref';
 import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { useWallet } from '@/components/wallet/WalletProvider';
 
@@ -52,7 +52,7 @@ function categoryLabel(item: RecurringExpense, topics: TopicConfig[], labels: Pa
 }
 
 function Recorrentes() {
-  const backHref = useBackHref('recurring');
+  const backHref = useHomeHref();
   const { settings } = useSettings();
   const { snapshot, loading, error, month, run } = useWallet();
   const confirm = useConfirm();

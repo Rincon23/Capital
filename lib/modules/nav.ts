@@ -1,9 +1,6 @@
-import type { BudgetSettings, HomeWidgetKey, ModuleKey, Month, NavKey } from '../budget/types';
-import { MODULES, MODULE_GROUPS, MODULE_KEYS, moduleDefinition, type ModuleGroup } from './catalog';
-import { parentOf, resolveModules } from './flags';
-
-/** How many entries the user picks for the bottom bar; "Mais" always takes the fifth place. */
-export const MAX_NAV_ITEMS = 4;
+import type { BudgetSettings, ModuleKey, Month, NavKey } from '../budget/types';
+import { MODULES, MODULE_GROUPS, moduleDefinition, type ModuleGroup } from './catalog';
+import { resolveModules } from './flags';
 
 export interface NavEntry {
   key: NavKey;
@@ -12,7 +9,7 @@ export interface NavEntry {
   isActive: (pathname: string) => boolean;
 }
 
-/** The home dashboard. It is not a module: it always exists, in the bar or in Mais. */
+/** The home screen (the áreas de trabalho). It is not a module: it always exists. */
 export const HOME_NAV: NavEntry = {
   key: 'inicio',
   label: 'Início',
@@ -20,45 +17,13 @@ export const HOME_NAV: NavEntry = {
   isActive: (pathname) => /^\/mes\/[^/]+\/?$/.test(pathname),
 };
 
-/** Screens that always live in Mais. */
-const MORE_PATHS = ['/mais', '/modulos', '/rodape', '/configuracoes'];
-
-type NavSource = Pick<BudgetSettings, 'modules' | 'nav'> | null | undefined;
+type NavSource = Pick<BudgetSettings, 'modules'> | null | undefined;
 
 export function navEntry(key: NavKey): NavEntry {
   if (key === 'inicio') return HOME_NAV;
   const { screen } = moduleDefinition(key);
   if (!screen) throw new Error(`O módulo ${key} não tem tela.`);
   return { key, ...screen };
-}
-
-/**
- * The whole name of a bar entry, for lists with room for it (the bottom-bar editor, the
- * announcements a screen reader reads). `navEntry(key).label` is the short one, for the bar itself.
- */
-export function navName(key: NavKey): string {
-  return key === 'inicio' ? HOME_NAV.label : moduleDefinition(key).name;
-}
-
-/** What can go in the bottom bar right now: Início and every module that is on and has a screen. */
-export function availableNavKeys(source: NavSource): NavKey[] {
-  const modules = resolveModules(source);
-  return ['inicio', ...MODULES.filter((m) => m.screen && modules[m.key]).map((m) => m.key)];
-}
-
-/**
- * The bottom bar, without "Mais". The user's choice, minus modules that were turned off since
- * (and repeats), up to four; with nothing saved (or nothing left of it), Início and the first
- * modules that are on, in catalog order.
- */
-export function resolveNav(source: NavSource): NavKey[] {
-  const available = availableNavKeys(source);
-  const saved = source?.nav;
-  if (saved) {
-    const kept = saved.filter((key, index) => available.includes(key) && saved.indexOf(key) === index);
-    if (kept.length > 0) return kept.slice(0, MAX_NAV_ITEMS);
-  }
-  return available.slice(0, MAX_NAV_ITEMS);
 }
 
 export interface MoreGroup {
@@ -68,8 +33,8 @@ export interface MoreGroup {
 }
 
 /**
- * The module screens Mais lists besides Início and its fixed entries: every module that is on and
- * has a screen, grouped, whether or not it is also in the bottom bar. Mais is the full list.
+ * The module screens the app drawer lists besides its fixed entries: every module that is on and
+ * has a screen, grouped. The drawer is the full list of apps.
  */
 export function moreItems(source: NavSource): MoreGroup[] {
   const modules = resolveModules(source);
@@ -80,164 +45,10 @@ export function moreItems(source: NavSource): MoreGroup[] {
   })).filter((group) => group.keys.length > 0);
 }
 
-/**
- * Which tab to light up: the bar entry whose screen is open, "mais" for any other screen of the
- * app (a module opened from Mais, the settings), or null for a page that is neither.
- */
-export function activeNavKey(nav: NavKey[], pathname: string): NavKey | 'mais' | null {
-  const inBar = nav.find((key) => navEntry(key).isActive(pathname));
-  if (inBar) return inBar;
-  const isAppScreen =
-    MORE_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`)) ||
-    HOME_NAV.isActive(pathname) ||
-    MODULES.some((m) => m.screen?.isActive(pathname));
-  return isAppScreen ? 'mais' : null;
-}
+/** The query that opens the Início with the app drawer already up (what an old /mais link becomes). */
+export const OPEN_APPS_PARAM = 'apps';
 
-/** Where "/" goes: the first entry of the bottom bar. */
-export function homeHref(source: NavSource, month: Month): string {
-  return navEntry(resolveNav(source)[0] ?? 'inicio').href(month);
-}
-
-/** The widgets a module brings to the Início besides its own card. */
-export const EXTRA_HOME_WIDGETS: { key: Exclude<HomeWidgetKey, ModuleKey>; module: ModuleKey }[] = [
-  { key: 'calendar', module: 'reminders' },
-];
-
-/** Every widget the Início knows: the card of each module, then the extra ones. */
-export const HOME_WIDGET_KEYS: HomeWidgetKey[] = [
-  ...MODULE_KEYS,
-  ...EXTRA_HOME_WIDGETS.map(({ key }) => key),
-];
-
-/** The module a widget belongs to: it is there while that module is on. */
-export function widgetModule(key: HomeWidgetKey): ModuleKey {
-  return EXTRA_HOME_WIDGETS.find((widget) => widget.key === key)?.module ?? (key as ModuleKey);
-}
-
-/** How a widget is called where the module's name alone would be ambiguous ("Adicionar widget"). */
-const WIDGET_TEXT: Partial<Record<HomeWidgetKey, { name: string; description: string }>> = {
-  reminders: { name: 'Lembretes de hoje', description: 'O que falta fazer hoje, com o botão de feito.' },
-  calendar: { name: 'Calendário', description: 'Hoje e os próximos 30 dias, com os compromissos marcados.' },
-};
-
-export function widgetName(key: HomeWidgetKey): string {
-  return WIDGET_TEXT[key]?.name ?? moduleDefinition(widgetModule(key)).name;
-}
-
-export function widgetDescription(key: HomeWidgetKey): string {
-  return WIDGET_TEXT[key]?.description ?? moduleDefinition(widgetModule(key)).tagline;
-}
-
-/**
- * Every widget the Início can have right now, in the default order: the modules of the bottom
- * bar, then those in Mais. A module without a screen (the card bill, "A receber") comes right
- * after the module it hangs from, and a module's extra widgets (the calendar) right after its card.
- */
-export function homeCards(source: NavSource): HomeWidgetKey[] {
-  const modules = resolveModules(source);
-  const nav = resolveNav(source);
-  const withScreen = [...nav, ...availableNavKeys(source).filter((key) => !nav.includes(key))].filter(
-    (key): key is ModuleKey => key !== 'inicio',
-  );
-
-  const order: ModuleKey[] = [];
-  const place = (key: ModuleKey) => {
-    order.push(key);
-    // Screenless children follow their parent (and their own children follow them).
-    for (const m of MODULES) {
-      if (!m.screen && m.homeCard && modules[m.key] && parentOf(m.key) === key) place(m.key);
-    }
-  };
-  for (const key of withScreen) place(key);
-  for (const m of MODULES) {
-    if (!m.screen && m.homeCard && modules[m.key] && !order.includes(m.key)) place(m.key);
-  }
-  return order
-    .filter((key) => moduleDefinition(key).homeCard)
-    .flatMap((key) => [
-      key,
-      ...EXTRA_HOME_WIDGETS.filter((widget) => widget.module === key).map(({ key }) => key),
-    ]);
-}
-
-type HomeSource = NavSource & Partial<Pick<BudgetSettings, 'homeOrder' | 'homeHidden'>>;
-
-/**
- * The widgets on the Início, in order: `homeCards()`'s order, overridden by whatever the user
- * rearranged in "Organizar Início" (`homeOrder`), minus the ones they took off (`homeHidden`) —
- * the same idea as `resolveNav` keeping a saved bottom bar in step with the modules that are
- * actually on: anything turned off or no longer eligible drops out, and anything new comes in —
- * an extra widget right after the card of its module, anything else at the end.
- */
-export function resolveHomeCards(source: HomeSource): HomeWidgetKey[] {
-  const base = homeCards(source);
-  const saved = source?.homeOrder;
-  const order = saved
-    ? saved.filter((key, index) => base.includes(key) && saved.indexOf(key) === index)
-    : [...base];
-  for (const key of base) {
-    if (order.includes(key)) continue;
-    const owner = order.indexOf(widgetModule(key));
-    if (key !== widgetModule(key) && owner !== -1) order.splice(owner + 1, 0, key);
-    else order.push(key);
-  }
-  const hidden = source?.homeHidden ?? [];
-  return order.filter((key) => !hidden.includes(key));
-}
-
-/** The widgets the user took off the Início that could come back now ("Adicionar widget"). */
-export function hiddenHomeCards(source: HomeSource): HomeWidgetKey[] {
-  const hidden = source?.homeHidden ?? [];
-  return homeCards(source).filter((key) => hidden.includes(key));
-}
-
-/** The row that separates the bottom bar from Mais in the bottom-bar editor. */
-export const MORE_DIVIDER = 'mais';
-
-export type NavEditorItem = NavKey | typeof MORE_DIVIDER;
-
-/** The editor's list: the bar, the divider, then everything else that could go in the bar. */
-export function navEditorItems(source: NavSource): NavEditorItem[] {
-  const nav = resolveNav(source);
-  return [...nav, MORE_DIVIDER, ...availableNavKeys(source).filter((key) => !nav.includes(key))];
-}
-
-export type NavChange =
-  | { ok: true; nav: NavKey[]; /** Pushed out of a full bar into Mais. */ bumped: NavKey | null }
-  | { ok: false; reason: 'empty' | 'full' };
-
-/**
- * The bar after a drag: whatever sits above the divider, in order. A fifth item pushes the last
- * other one down to Mais; an empty bar is refused (Mais alone would leave nothing to tap).
- */
-export function navFromEditor(items: NavEditorItem[], moved: NavKey): NavChange {
-  const divider = items.indexOf(MORE_DIVIDER);
-  const bar = (divider === -1 ? items : items.slice(0, divider)).filter(
-    (item): item is NavKey => item !== MORE_DIVIDER,
-  );
-  if (bar.length === 0) return { ok: false, reason: 'empty' };
-  if (bar.length <= MAX_NAV_ITEMS) return { ok: true, nav: bar, bumped: null };
-  const bumped = [...bar].reverse().find((key) => key !== moved) ?? null;
-  return { ok: true, nav: bar.filter((key) => key !== bumped).slice(0, MAX_NAV_ITEMS), bumped };
-}
-
-/** The same changes without dragging: up, down, into the bar or out of it. */
-export function changeNav(nav: NavKey[], key: NavKey, action: 'up' | 'down' | 'add' | 'remove'): NavChange {
-  const index = nav.indexOf(key);
-  if (action === 'add') {
-    if (index !== -1) return { ok: true, nav, bumped: null };
-    if (nav.length >= MAX_NAV_ITEMS) return { ok: false, reason: 'full' };
-    return { ok: true, nav: [...nav, key], bumped: null };
-  }
-  if (action === 'remove') {
-    if (index === -1) return { ok: true, nav, bumped: null };
-    if (nav.length === 1) return { ok: false, reason: 'empty' };
-    return { ok: true, nav: nav.filter((item) => item !== key), bumped: null };
-  }
-  const target = index + (action === 'up' ? -1 : 1);
-  if (index === -1 || target < 0 || target >= nav.length) return { ok: true, nav, bumped: null };
-  const next = [...nav];
-  [next[index], next[target]] = [next[target], next[index]];
-  return { ok: true, nav: next, bumped: null };
+/** Where "/" goes, and where every screen's back arrow leads: the Início of that month. */
+export function homeHref(month: Month): string {
+  return HOME_NAV.href(month);
 }

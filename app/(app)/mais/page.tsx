@@ -1,7 +1,8 @@
 'use client';
 
-import { MaisScreen } from '@/components/screens/MaisScreen';
+import { HomeRedirect } from '@/components/layout/HomeRedirect';
 
+/** Mais is now the app drawer of the Início: old links open the Início with it already up. */
 export default function MaisPage() {
-  return <MaisScreen />;
+  return <HomeRedirect openApps />;
 }

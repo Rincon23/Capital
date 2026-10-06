@@ -16,11 +16,11 @@ conexão o app abre, mas as telas ficam carregando até a rede voltar.
 ### Módulos: cada pessoa monta o seu Capital
 
 **Tudo o que o app faz é um módulo**, e todos **começam desligados** numa conta nova. Cada pessoa
-liga os seus em **Mais → Módulos** (`/modulos`). Desligar um módulo nunca apaga dados: ele só
-some do rodapé, do Mais, do Início e dos formulários. Religou, está tudo lá.
+liga os seus em **Módulos** (`/modulos`, na bandeja de apps). Desligar um módulo nunca apaga dados:
+ele só some da bandeja, da Início e dos formulários. Religou, está tudo lá.
 
 A ficha de cada módulo (nome, explicação, grupo, dependências, tela e card do Início) fica escrita
-uma vez em `lib/modules/catalog.ts`. O rodapé, o Mais, o Início e a tela Módulos leem dela. Os
+uma vez em `lib/modules/catalog.ts`. A bandeja de apps, a Início e a tela Módulos leem dela. Os
 ícones e os cards ficam em `components/modules`.
 
 **Dependências.** Alguns módulos precisam de outro para funcionar. A tela Módulos mostra os
@@ -244,27 +244,38 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
   Ignora o que você enviou, rascunhos e spam. Se o Google recusar a conexão, avisa uma vez e pede
   para conectar de novo.
 
-### Navegação: rodapé, Mais e Início
+### Navegação: a Início como a tela de um celular
 
-- **Rodapé** (`resolveNav` em `lib/modules/nav.ts`): até **4 itens e o Mais sempre no fim**. Os
-  itens podem ser o Início e os módulos ligados que têm tela. A escolha fica por conta, em
-  `budget_settings.nav` (vale em todos os aparelhos). Sem escolha salva, o padrão é o Início e os
-  primeiros módulos ligados com tela, na ordem do catálogo. Módulos desligados saem sozinhos. Se o
-  Início sair do rodapé, `/` abre o primeiro item.
-- **Escolher e ordenar o rodapé** (`/rodape`, em Mais): prévia ao vivo e uma lista
-  única; o que fica acima da linha do Mais está no rodapé. Arrasta-se pela alça (`@dnd-kit`, com
-  toque, mouse e teclado, avisos em português para leitor de tela) ou pelos botões subir, descer,
-  pôr e tirar. Um quinto item empurra o último para o Mais; o rodapé nunca fica vazio. Salva na hora,
-  com "Desfazer", e "Voltar ao padrão" apaga a escolha.
-- **Mais** (`/mais`): a lista completa. O Início, a tela de **todo** módulo ligado (mesmo os que já
-  estão no rodapé), agrupadas em Dinheiro do mês, Carteira e Assistente, e sempre Módulos, Rodapé,
-  Privacidade (`/privacidade`) e Configurações. Uma tela fora do rodapé aberta pelo Mais acende a
-  aba Mais.
-- **Início** (`/mes/[mês]`): um painel com **um card por módulo ligado**, na ordem do rodapé e
-  depois do Mais (Cartão e A receber logo depois de quem eles dependem). Tocar num card abre a
-  tela do módulo. Cada card carrega os próprios dados, mostra esqueleto enquanto carrega e, se
-  falhar, não derruba os outros. O card do Histórico lê só os últimos 6 meses. Sem nenhum módulo,
-  o Início mostra "Escolha o que o seu Capital vai ter".
+Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de um celular (HyperOS), e
+`/` sempre abre a Início do último mês visto.
+
+- **Áreas de trabalho** (`resolveHomePages` em `lib/modules/home.ts`): a Início tem até **5 áreas**
+  lado a lado, cada uma com os seus widgets, salvas por conta em `budget_settings.home_pages`
+  (vale em todos os aparelhos; nulo é o padrão, uma área só na ordem do catálogo). Deslizar para o
+  lado troca de área com a física de antes (a tela acompanha o dedo, cede na primeira e na última,
+  troca com 30% da largura ou um peteleco, `components/layout/swipePhysics.ts`); funciona com mouse
+  e com as setas, e as bolinhas embaixo dizem em qual você está. Cada área rola sozinha e guarda a
+  própria posição; a área aberta fica guardada na sessão. Um módulo ligado traz o widget dele para
+  o fim da última área; um widget extra (o Calendário dos Lembretes) entra logo depois do card do
+  seu módulo. Um Início salvo antes das áreas (`home_order`) vira a área 1.
+- **Bandeja de apps** (`components/layout/AppDrawer.tsx`): a setinha embaixo da Início (toque, Enter
+  ou arrastar para cima) abre o que era o Mais: a conta, **todo** módulo ligado com tela, agrupado
+  (com o selo de lembretes não lidos no ícone), Módulos, Privacidade, Configurações e, para o dono,
+  Administração. Em grade ou lista. Fecha com o botão voltar do celular, Esc, o "⌄" ou arrastando
+  para baixo. Links antigos para `/mais` abrem a Início com ela aberta; `/rodape` leva à Início.
+- **Telas de módulo**: toda tela tem a seta de voltar para a Início (como fechar um app), e a de uma
+  categoria volta para Categorias.
+- **Modo de edição** (o lápis, ou segurar num espaço vazio): as áreas encolhem e mostram a borda das
+  vizinhas. Segure um widget (240 ms) e arraste para mudar de lugar, até a borda (600 ms) para levar
+  à área do lado, ou, na última, criar uma área nova; "Mover" faz o mesmo sem arrastar. O "−" (ou
+  arrastar até a bandeja) tira o widget da Início, e a **bandeja de widgets** embaixo traz de volta,
+  com um toque ou arrastando até o lugar, além de listar os widgets de módulos desligados. Excluir
+  uma área manda os widgets dela para a bandeja; áreas vazias somem ao sair. Tudo salva na hora; o
+  botão voltar do celular fecha a bandeja e depois sai do modo de edição.
+- **Widgets** (`components/modules/home`): tocar num widget abre a tela do módulo. Cada um carrega
+  os próprios dados, mostra esqueleto enquanto carrega e, se falhar, não derruba os outros; a
+  carteira e os lembretes são lidos uma vez para todas as áreas. Sem nenhum módulo, a Início mostra
+  "Escolha o que o seu Capital vai ter".
 - **Tela de módulo desligado** (`ModuleGate`): explica o módulo e oferece ligar ali mesmo, ou diz
   qual módulo precisa ser ligado antes.
 - **Avisos já vistos**: `budget_settings.dismissed_notices` guarda, por conta, as chaves dos avisos
@@ -276,7 +287,8 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
   escurece a tela, destaca uma parte por vez e explica para que serve. Fica no topo da tela do
   módulo; nos módulos sem tela, no card do Cartão no Início, na aba A receber de Lançamentos e na
   janela de voz. Os passos ficam em `lib/modules/tours.ts` (um `Record` por módulo, então módulo sem
-  tour não compila) e apontam só para a tela do módulo, nunca para o rodapé. Todo tour termina no
+  tour não compila) e apontam só para a tela do módulo (ou para o widget dele, e a Início troca
+  para a área em que ele está), nunca para a setinha ou as bandejas. Todo tour termina no
   próprio botão de ajuda. O motor (`components/modules/tour/TourProvider.tsx`) navega entre as
   telas, espera cada elemento aparecer, abre e fecha o formulário de gasto ou a janela de voz quando
   o passo pede e volta para onde começou. Um teste confere que toda âncora de tour existe nas telas e
@@ -287,12 +299,12 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
   aparelho e horários para lembrar de novo. Gmail: notificações. Cartões: horário do aviso, insistir
   até a fatura ser paga e notificações deste aparelho. Reserva de emergência: reserva em
   conta e custos de emergência. Reserva investida: o ativo. **Configurações** fica só com o que é
-  geral: conta, tema, backup, dados locais e apagar tudo (Módulos, Rodapé e Privacidade ficam no
-  Mais).
+  geral: conta, tema, backup, dados locais e apagar tudo (Módulos e Privacidade ficam na bandeja de
+  apps).
 - **Primeira visita** (`useModuleIntro`): a primeira vez que a pessoa abre a tela de um módulo, o
   tour dele começa sozinho. Nas Categorias vêm antes as perguntas das porcentagens (veja abaixo).
   Fica guardado por conta, então acontece uma vez só, no aparelho que chegar primeiro. Não existe
-  mais um tour geral do app nem uma "Ajuda" no Mais: a ajuda de cada coisa fica na tela dela.
+  mais um tour geral do app nem uma "Ajuda" geral: a ajuda de cada coisa fica na tela dela.
 
 ### Categorias
 
@@ -423,7 +435,7 @@ rede Docker, com o túnel apontando para `http://172.17.0.1:3000`).
 (`lib/server/loadGuard.ts`). Um IP que exagera é bloqueado sozinho por um minuto; se o total passar
 do ponto crítico, ou a placa esquentar demais, o servidor responde "volte em instantes" por um
 tempo em vez de cair. O dono (`OWNER_EMAIL`) recebe um aviso no celular, e tudo aparece em
-**Mais → Administração**. Os limites ficam no `.env.local` (veja o `.env.example`).
+**Administração** (na bandeja de apps). Os limites ficam no `.env.local` (veja o `.env.example`).
 
 ### Instalar no Android
 
@@ -446,7 +458,7 @@ na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de 
   /api/v1                API do app (Route Handlers): o único caminho até o banco
   /api/auth              Endpoints do Better Auth (destino dos links dos e-mails)
 /components
-  /screens               Uma tela por arquivo (Início, Categorias, Lançamentos, Módulos, Mais, Configurações…)
+  /screens               Uma tela por arquivo (Início, Categorias, Lançamentos, Módulos, Configurações…)
   /modules               Ícones dos módulos, a tela bloqueada, ligar/desligar e os cards do Início
   /month                  Componentes e contexto compartilhados pelas rotas /mes/[month]/*
   /history                Gráficos (Recharts) e o indicador de aderência à meta
@@ -457,7 +469,7 @@ na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de 
   /ai                     Lançar por voz/texto: regras de leitura do gasto, prompt, rascunho e progresso (puras)
   /gmail                  Monitor de Gmail: palavras-chave num e-mail e o texto da notificação (puras)
   /notifications          Web Push: tipos, nome dos aparelhos e o lado do navegador (permissão, inscrição)
-  /modules                A ficha de cada módulo, dependências, rodapé, Mais e cards do Início (puras)
+  /modules                A ficha de cada módulo, dependências, bandeja de apps e áreas da Início (puras)
   /storage                Contrato BudgetRepository e o repositório do navegador (HTTP)
   /server                 Só no servidor: banco (Drizzle), repositório Postgres, auth, e-mail, API
   /auth                   Server Actions de autenticação (entrar, criar conta, sair, redefinir senha)
@@ -642,7 +654,8 @@ Os demais testes:
 - **`lib/server/__tests__/budgetRepository.test.ts`:** cobre o repositório Postgres contra o
   schema e as migrações reais, num Postgres em memória (PGlite). Casos: seed, cascata de
   rollover, mês fechado/inexistente, fechar abrindo o mês seguinte, apagar mês, export→import,
-  módulos, rodapé e avisos vistos por usuário (e no backup), isolamento entre contas e escritas
+  módulos, áreas da Início e avisos vistos por usuário (e no backup, inclusive os antigos com
+  rodapé), isolamento entre contas e escritas
   simultâneas.
 - **Componentes** (`components/**/__tests__`, Testing Library): o formulário de gasto com a
   categoria "A receber" e sem o módulo Cartão, e a prévia do "Fechar mês".
@@ -662,9 +675,9 @@ Os demais testes:
   repetido, e-mails enviados e spam ignorados, `historyId` expirado, conexão recusada (avisa uma
   vez e para), token cifrado e o `state` do OAuth, com o Gmail simulado.
 - **`lib/modules/__tests__`:** o catálogo, as dependências (filho travado sem o pai, o que ligar
-  antes e em que ordem, desligar em cascata, a árvore), o rodapé (padrão, escolha, cortes, arrastar,
-  botões, nunca vazio), o Mais, a aba acesa, a ordem dos cards do Início e os tours (todo módulo tem
-  tour e botão de ajuda, e toda âncora existe nas telas).
+  antes e em que ordem, desligar em cascata, a árvore), a bandeja de apps, as áreas da Início
+  (padrão, a ordem antiga, widget novo, repetidos, áreas vazias, mover, pôr, tirar, criar e excluir
+  área) e os tours (todo módulo tem tour e botão de ajuda, e toda âncora existe nas telas).
 - **`lib/budget/__tests__/topics.test.ts`, `components/settings/__tests__` e
   `components/onboarding/__tests__`:** as categorias padrão e suas descrições, restaurar o padrão
   (inclusive com dados antigos, sem `preset`), nunca apagar uma categoria, a arquivada no mês atual,

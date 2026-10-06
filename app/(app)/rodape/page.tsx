@@ -1,15 +1,8 @@
 'use client';
 
-import { PageHeader } from '@/components/layout/PageHeader';
-import { NavEditor } from '@/components/modules/NavEditor';
+import { HomeRedirect } from '@/components/layout/HomeRedirect';
 
-export default function Page() {
-  return (
-    <div className="flex flex-1 flex-col gap-4 pb-10">
-      <PageHeader title="Rodapé" subtitle="Escolha e ordene os ícones de baixo" backHref="/mais" />
-      <div className="px-4">
-        <NavEditor />
-      </div>
-    </div>
-  );
+/** The bottom-bar editor is gone (there is no bottom bar any more); old links land on the Início. */
+export default function RodapePage() {
+  return <HomeRedirect />;
 }

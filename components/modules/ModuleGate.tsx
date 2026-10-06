@@ -8,6 +8,7 @@ import { isModuleOn, moduleDefinition, moduleNames, nearestMissing } from '@/lib
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { IconTile } from '@/components/ui/IconTile';
+import { useHomeHref } from './useHomeHref';
 import { MODULE_VISUALS } from './visuals';
 import { useModuleSwitch } from './useModuleSwitch';
 
@@ -20,6 +21,7 @@ export function ModuleGate({ module, children }: { module: ModuleKey; children: 
   const { settings, loading } = useSettings();
   const { turnOn, busy } = useModuleSwitch();
   const [turning, setTurning] = useState(false);
+  const homeHref = useHomeHref();
 
   if (loading || !settings) {
     return <div className="text-muted flex flex-1 items-center justify-center px-4 py-16">Carregando…</div>;
@@ -41,7 +43,7 @@ export function ModuleGate({ module, children }: { module: ModuleKey; children: 
 
   return (
     <div className="flex flex-1 flex-col gap-4 pb-10">
-      <PageHeader title={info.name} backHref="/mais" />
+      <PageHeader title={info.name} backHref={homeHref} />
       <div className="border-border bg-card mx-4 flex flex-col gap-4 rounded-2xl border p-4 shadow-sm">
         <div className="flex items-center gap-3">
           <IconTile icon={MODULE_VISUALS[module].icon} tone={MODULE_VISUALS[module].tone} size="lg" />

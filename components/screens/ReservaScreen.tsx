@@ -21,7 +21,7 @@ import { useToast } from '@/components/ui/Toast';
 import { ModuleGate } from '@/components/modules/ModuleGate';
 import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
 import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
-import { useBackHref } from '@/components/modules/useBackHref';
+import { useHomeHref } from '@/components/modules/useHomeHref';
 import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { useWallet } from '@/components/wallet/WalletProvider';
 
@@ -50,7 +50,7 @@ function formatFetchedAt(iso: string | null): string {
 }
 
 function Reserva() {
-  const backHref = useBackHref('investments');
+  const backHref = useHomeHref();
   const { settings } = useSettings();
   const { snapshot, loading, error, month, run } = useWallet();
   const confirm = useConfirm();

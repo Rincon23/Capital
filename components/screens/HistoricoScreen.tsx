@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ModuleGate } from '@/components/modules/ModuleGate';
 import { ModuleHelpButton } from '@/components/modules/ModuleHelpButton';
-import { useBackHref } from '@/components/modules/useBackHref';
+import { useHomeHref } from '@/components/modules/useHomeHref';
 import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { AdherenceMeter } from '@/components/history/AdherenceMeter';
 import {
@@ -26,7 +26,7 @@ export function HistoricoScreen() {
 }
 
 function Historico() {
-  const backHref = useBackHref('history');
+  const backHref = useHomeHref();
   const { settings } = useSettings();
   const { summaries, loading, error } = useAllMonths(settings?.topics);
 

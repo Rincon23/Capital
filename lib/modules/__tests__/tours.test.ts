@@ -47,9 +47,19 @@ describe('tours dos módulos', () => {
     expect(missing).toEqual([]);
   });
 
-  it('nunca aponta para o rodapé, que muda conforme a escolha de cada um', () => {
+  it('nunca aponta para a setinha nem para as bandejas da Início, que não são do módulo', () => {
     const anchors = MODULE_KEYS.flatMap((key) => MODULE_TOURS[key].map((step) => step.anchor));
     expect(anchors.filter((anchor) => anchor.startsWith('nav-'))).toEqual([]);
+    // The up-arrow (in HomeScreen), the app drawer and the widget tray carry no anchor at all.
+    const chrome = [
+      'components/modules/home/HomeScreen.tsx',
+      'components/modules/home/WidgetTray.tsx',
+      'components/layout/AppDrawer.tsx',
+      'components/layout/MoreMenu.tsx',
+    ]
+      .map((file) => readFileSync(path.join(process.cwd(), file), 'utf8'))
+      .join('\n');
+    expect(chrome).not.toMatch(/\sdata-tour=/);
   });
 
   it('monta as rotas do mês e marca de qual módulo é cada passo', () => {

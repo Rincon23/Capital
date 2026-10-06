@@ -14,6 +14,7 @@ import {
   type ModuleTreeNode,
 } from '@/lib/modules';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { useHomeHref } from '@/components/modules/useHomeHref';
 import { MODULE_VISUALS } from '@/components/modules/visuals';
 import { useModuleSwitch } from '@/components/modules/useModuleSwitch';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -33,6 +34,7 @@ export function ModulosScreen() {
   const { settings } = useSettings();
   const { user } = useAuth();
   const { turnOn, turnOff, busy } = useModuleSwitch();
+  const homeHref = useHomeHref();
   const { showToast } = useToast();
   const [shaking, setShaking] = useState<ModuleKey | null>(null);
   const [attention, setAttention] = useState<ModuleKey[]>([]);
@@ -110,12 +112,12 @@ export function ModulosScreen() {
 
   return (
     <div className="flex flex-1 flex-col gap-5 pb-10">
-      <PageHeader title="Módulos" subtitle="Escolha o que o seu Capital tem" backHref="/mais" />
+      <PageHeader title="Módulos" subtitle="Escolha o que o seu Capital tem" backHref={homeHref} />
 
       <p className="text-muted px-4 text-sm">
-        Ligue só o que você usa: o que fica desligado some do rodapé, do Mais e do Início. Desligar não apaga
-        nada. Alguns módulos precisam de outro para funcionar: eles ficam logo abaixo dele, com um cadeado,
-        até você ligar o de cima.
+        Ligue só o que você usa: o que fica desligado some da bandeja e da Início. Desligar não apaga nada.
+        Alguns módulos precisam de outro para funcionar: eles ficam logo abaixo dele, com um cadeado, até você
+        ligar o de cima.
       </p>
 
       {branches.map((root, index) => (

@@ -1,0 +1,340 @@
+'use client';
+
+import { useRef, useState } from 'react';
+import { useDraggable, useDroppable } from '@dnd-kit/core';
+import Link from 'next/link';
+import { ChevronDown, ChevronUp, Crown, Lock, Plus, Trash2 } from 'lucide-react';
+import type { HomeWidgetKey } from '@/lib/budget';
+import {
+  moduleDefinition,
+  moduleNames,
+  nearestMissing,
+  widgetDescription,
+  widgetModule,
+  widgetName,
+} from '@/lib/modules';
+import { drawerCommits } from '@/components/layout/AppDrawer';
+import { BACK_MS, EASE } from '@/components/layout/swipePhysics';
+import { useVerticalDrag } from '@/components/layout/useVerticalDrag';
+import { useAuth } from '@/components/providers/AuthProvider';
+import { useSettings } from '@/components/providers/SettingsProvider';
+import { IconTile } from '@/components/ui/IconTile';
+import { widgetVisual } from '../visuals';
+import { effectiveSize } from './HomeCards';
+
+/** The droppable id of the tray: a widget dropped on it leaves the Início. */
+export const TRAY_ID = 'widget-tray';
+/** The draggable id of a widget picked up from the tray. */
+export const trayDragId = (key: HomeWidgetKey) => `tray:${key}`;
+export const widgetOfTrayDrag = (id: string | number): HomeWidgetKey | null =>
+  typeof id === 'string' && id.startsWith('tray:') ? (id.slice(5) as HomeWidgetKey) : null;
+
+/** How much of the tray shows while it is closed: the bar with "Widgets". */
+export const TRAY_BAR_HEIGHT = '3.5rem';
+
+const restTransform = (open: boolean) =>
+  open ? 'translate3d(0, 0, 0)' : `translate3d(0, calc(100% - ${TRAY_BAR_HEIGHT}), 0)`;
+const REST_TRANSITION = `transform ${BACK_MS}ms ${EASE}`;
+
+/**
+ * The widget tray of edit mode, at the bottom of the Início where the up-arrow was. Closed, it is
+ * a bar saying how many widgets wait in it; a tap or a drag up opens it to half the screen.
+ *
+ * It lists the widgets that are on no área (the ones taken off) — a tap puts one at the end of
+ * the área on screen, a hold-and-drag drops it exactly where it goes — and, below, the widgets of
+ * modules that are still off, which point to Módulos (with the VIP mark and the padlock of a
+ * module that needs another first). It is also where a widget goes to leave: dragged onto it, the
+ * bar turns red, "Solte aqui para tirar da Início". (The back button closes it before it leaves
+ * edit mode: `HomeScreen` handles that, with edit mode's own history entry.)
+ */
+export function WidgetTray({
+  open,
+  onOpenChange,
+  hidden,
+  offModule,
+  sizes,
+  dragging,
+  dragActive,
+  overTray,
+  onAdd,
+  onRestoreDefault,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  hidden: HomeWidgetKey[];
+  offModule: HomeWidgetKey[];
+  sizes: Partial<Record<HomeWidgetKey, 'half' | 'full'>>;
+  /** A widget of an área is being dragged: the bar becomes the place to drop it to take it off. */
+  dragging: boolean;
+  /** Any drag at all, the tray's own included: its list must stay live under the finger. */
+  dragActive: boolean;
+  overTray: boolean;
+  onAdd: (key: HomeWidgetKey) => void;
+  onRestoreDefault: () => void;
+}) {
+  const { setNodeRef } = useDroppable({ id: TRAY_ID });
+  const panel = useRef<HTMLDivElement>(null);
+  const bar = useRef<HTMLButtonElement>(null);
+
+  const travel = () => (panel.current?.offsetHeight ?? 0) - (bar.current?.offsetHeight ?? 0);
+  const { wasDragged } = useVerticalDrag(bar, {
+    direction: open ? 'down' : 'up',
+    onMove: (distance) => {
+      const el = panel.current;
+      if (!el) return;
+      const max = travel();
+      const offset = open ? Math.min(distance, max) : Math.max(max - distance, 0);
+      el.style.transition = 'none';
+      el.style.transform = `translate3d(0, ${offset}px, 0)`;
+    },
+    onEnd: (distance, speed) => {
+      const el = panel.current;
+      if (el) {
+        el.style.transition = REST_TRANSITION;
+        el.style.transform = restTransform(open);
+      }
+      if (drawerCommits(distance, travel(), speed)) onOpenChange(!open);
+    },
+  });
+
+  const count = hidden.length;
+  const barTone = dragging
+    ? overTray
+      ? 'bg-danger-fill text-white'
+      : 'bg-danger-bg text-danger'
+    : 'bg-card text-foreground';
+
+  return (
+    <div
+      ref={(node) => {
+        panel.current = node;
+        setNodeRef(node);
+      }}
+      data-no-swipe-nav
+      className="border-border bg-card absolute inset-x-0 z-40 flex h-[50dvh] flex-col rounded-t-3xl border-t shadow-[0_-8px_24px_rgba(0,0,0,0.12)]"
+      style={{
+        bottom: 'env(safe-area-inset-bottom)',
+        transform: restTransform(open),
+        transition: REST_TRANSITION,
+      }}
+    >
+      <button
+        ref={bar}
+        type="button"
+        onClick={() => {
+          if (!wasDragged() && !dragging) onOpenChange(!open);
+        }}
+        aria-expanded={open}
+        aria-controls="bandeja-widgets"
+        className={`flex shrink-0 flex-col items-center justify-center rounded-t-3xl px-4 transition-colors ${barTone}`}
+        style={{ height: TRAY_BAR_HEIGHT }}
+      >
+        {dragging ? (
+          <span className="flex items-center gap-2 text-sm font-semibold">
+            <Trash2 aria-hidden className="h-4 w-4" />
+            Solte aqui para tirar da Início
+          </span>
+        ) : (
+          <>
+            <span aria-hidden className="bg-border mb-1 h-1 w-10 rounded-full" />
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              {open ? (
+                <ChevronDown aria-hidden className="h-4 w-4" />
+              ) : (
+                <ChevronUp aria-hidden className="h-4 w-4" />
+              )}
+              Widgets
+              <span className="bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs">
+                {count}
+              </span>
+            </span>
+          </>
+        )}
+      </button>
+
+      <div
+        id="bandeja-widgets"
+        role="region"
+        aria-label="Bandeja de widgets"
+        inert={!open && !dragActive}
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-1"
+        style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+      >
+        <div className="flex flex-col gap-4">
+          {count === 0 ? (
+            <p className="text-muted text-sm">
+              Todos os widgets dos módulos que você usa já estão na Início. Toque em{' '}
+              <span className="bg-danger-fill inline-flex h-4 w-4 items-center justify-center rounded-full align-text-bottom text-xs font-bold text-white">
+                −
+              </span>{' '}
+              num widget, ou arraste até aqui, para guardar na bandeja.
+            </p>
+          ) : (
+            <section className="flex flex-col gap-2">
+              <p className="text-muted text-xs">
+                Toque para pôr na área que está na tela, ou segure e arraste até o lugar.
+              </p>
+              <ul className="flex flex-col gap-2">
+                {hidden.map((key) => (
+                  <TrayWidget
+                    key={key}
+                    widget={key}
+                    size={effectiveSize(key, sizes) ?? 'half'}
+                    onAdd={() => onAdd(key)}
+                  />
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {offModule.length > 0 && (
+            <section className="flex flex-col gap-2">
+              <h3 className="text-muted px-1 text-xs font-semibold tracking-wide uppercase">
+                De módulos desligados
+              </h3>
+              <ul className="flex flex-col gap-2">
+                {offModule.map((key) => (
+                  <OffModuleWidget key={key} widget={key} />
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <div className="flex flex-col items-center gap-3 pt-1">
+            <Link
+              href="/modulos"
+              className="border-primary/50 text-primary hover:bg-primary/5 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed text-sm font-semibold"
+            >
+              <Plus aria-hidden className="h-5 w-5" />
+              Ligar outros módulos
+            </Link>
+            <button
+              type="button"
+              onClick={onRestoreDefault}
+              className="text-muted hover:text-foreground text-sm font-medium underline underline-offset-2"
+            >
+              Voltar ao padrão
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const sizeLabel = (size: 'half' | 'full') => (size === 'full' ? 'Linha inteira' : 'Meia linha');
+
+/** A widget waiting in the tray: a tap adds it to the área on screen, a hold picks it up. */
+function TrayWidget({
+  widget,
+  size,
+  onAdd,
+}: {
+  widget: HomeWidgetKey;
+  size: 'half' | 'full';
+  onAdd: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: trayDragId(widget) });
+  // Enter and Space keep meaning "add" (a keyboard drag here would have nowhere visible to go):
+  // only the pointer half of the drag is wired in.
+  const pointerListeners = { ...listeners };
+  delete pointerListeners.onKeyDown;
+  const visual = widgetVisual(widget);
+
+  return (
+    <li ref={setNodeRef} className={isDragging ? 'opacity-40' : ''}>
+      <button
+        type="button"
+        {...attributes}
+        {...pointerListeners}
+        onClick={onAdd}
+        aria-label={`Pôr ${widgetName(widget)} na Início`}
+        className="border-border bg-background hover:border-primary/40 flex w-full touch-manipulation items-center gap-3 rounded-xl border p-3 text-left"
+      >
+        <IconTile icon={visual.icon} tone={visual.tone} />
+        <span className="min-w-0 flex-1">
+          <span className="text-foreground block font-medium">{widgetName(widget)}</span>
+          <span className="text-muted block text-xs">{widgetDescription(widget)}</span>
+          <span className="text-muted mt-0.5 block text-[11px] font-medium">{sizeLabel(size)}</span>
+        </span>
+        <span className="bg-primary text-primary-foreground flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
+          <Plus aria-hidden className="h-4 w-4" />
+        </span>
+      </button>
+    </li>
+  );
+}
+
+/** A widget of a module that is off: a tap explains it and points to Módulos. */
+function OffModuleWidget({ widget }: { widget: HomeWidgetKey }) {
+  const { settings } = useSettings();
+  const { user } = useAuth();
+  const [expanded, setExpanded] = useState(false);
+  const owner = widgetModule(widget);
+  const info = moduleDefinition(owner);
+  const visual = widgetVisual(widget);
+  const vipLocked = info.vipOnly === true && !user.vip;
+  const blockers = vipLocked ? [] : nearestMissing(settings, owner);
+
+  return (
+    <li className="border-border bg-background rounded-xl border">
+      <button
+        type="button"
+        onClick={() => setExpanded((current) => !current)}
+        aria-expanded={expanded}
+        className="flex w-full items-center gap-3 p-3 text-left"
+      >
+        <span className="relative shrink-0 opacity-50 grayscale">
+          <IconTile icon={visual.icon} tone={visual.tone} />
+          {blockers.length > 0 && (
+            <span
+              aria-hidden
+              className="bg-card border-border text-muted absolute -right-1.5 -bottom-1.5 flex h-5 w-5 items-center justify-center rounded-full border"
+            >
+              <Lock className="h-3 w-3" strokeWidth={2.5} />
+            </span>
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="text-muted block font-medium">
+            {widgetName(widget)}
+            {info.vipOnly && (
+              <span className="bg-primary/10 text-primary ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 align-middle text-[11px] font-semibold">
+                <Crown aria-hidden className="h-3 w-3" />
+                VIP
+              </span>
+            )}
+          </span>
+          <span className="text-muted block text-xs">{widgetDescription(widget)}</span>
+        </span>
+      </button>
+      {expanded && (
+        <div className="flex flex-col gap-2 px-3 pb-3 text-xs">
+          {vipLocked ? (
+            <p className="text-muted">É do módulo {info.name}, disponível só para contas VIP.</p>
+          ) : blockers.length > 0 ? (
+            <p className="text-foreground flex items-start gap-1.5">
+              <Lock aria-hidden className="text-muted mt-0.5 h-3 w-3 shrink-0" />
+              <span>
+                É do módulo {info.name}, que precisa de{' '}
+                <strong className="font-semibold">{moduleNames(blockers)}</strong>.
+              </span>
+            </p>
+          ) : (
+            <p className="text-muted">
+              É do módulo {info.name}, que está desligado. Ligou, ele vem para a Início.
+            </p>
+          )}
+          {!vipLocked && (
+            <Link
+              href="/modulos"
+              className="bg-primary text-primary-foreground flex min-h-[40px] items-center justify-center rounded-lg px-3 text-sm font-semibold"
+            >
+              Ligar em Módulos
+            </Link>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}

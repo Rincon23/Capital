@@ -49,7 +49,7 @@ import { ExpenseFormSheet } from '@/components/month/ExpenseFormSheet';
 import { ModuleGate } from '@/components/modules/ModuleGate';
 import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
 import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
-import { useBackHref } from '@/components/modules/useBackHref';
+import { useHomeHref } from '@/components/modules/useHomeHref';
 import { useCards } from '@/components/cards/CardsProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { NotificationsSection } from '@/components/settings/NotificationsSection';
@@ -84,7 +84,7 @@ export function CartaoScreen({ initialTab }: { initialTab?: CardTab }) {
  * is already committed in the months ahead, and the cards themselves.
  */
 function Cartao({ initialTab }: { initialTab?: CardTab }) {
-  const backHref = useBackHref('card');
+  const backHref = useHomeHref();
   const { settings } = useSettings();
   const { snapshot, loading, error, refresh } = useWallet();
   const { refresh: refreshCards } = useCards();

@@ -12,6 +12,8 @@ export interface MoreMenuItem {
   /** Either a page to open or an action to run. */
   href?: string;
   onClick?: () => void;
+  /** Unread things in it (Lembretes): a red count on the icon. */
+  badge?: number;
 }
 
 export interface MoreMenuSection {
@@ -20,19 +22,21 @@ export interface MoreMenuSection {
 }
 
 /**
- * The "Mais" tab: who is signed in, then grouped entries, each with its own icon. Two looks, the
- * button in the header switches between them: `list`, the settings list of a phone (label,
- * what it is for and a chevron), and `grid`, the app drawer (a big icon with the name under it).
- * Purely presentational.
+ * The app drawer's content: who is signed in, then grouped entries, each with its own icon. Two
+ * looks, a button switches between them: `grid`, a phone's app drawer (a big icon with the name
+ * under it), and `list`, the settings list of a phone (label, what it is for and a chevron).
+ * `onNavigate` runs when an entry that opens a page is tapped. Purely presentational.
  */
 export function MoreMenu({
   user,
   sections,
-  layout = 'list',
+  layout = 'grid',
+  onNavigate,
 }: {
   user: { name: string | null; email: string | null };
   sections: MoreMenuSection[];
   layout?: MoreLayout;
+  onNavigate?: () => void;
 }) {
   const displayName = user.name?.trim() || user.email?.split('@')[0] || 'Sua conta';
   const initial = displayName.charAt(0).toUpperCase();
@@ -41,6 +45,7 @@ export function MoreMenu({
     <div className="flex flex-col gap-5 px-4">
       <Link
         href="/configuracoes"
+        onClick={onNavigate}
         className="border-border bg-card hover:border-primary/40 flex items-center gap-3 rounded-2xl border p-4 shadow-sm transition"
       >
         <span
@@ -61,22 +66,55 @@ export function MoreMenu({
           <h2 className="text-muted px-1 text-xs font-semibold tracking-wide uppercase">
             {section.title}
           </h2>
-          {layout === 'grid' ? <GridSection items={section.items} /> : <ListSection items={section.items} />}
+          {layout === 'grid' ? (
+            <GridSection items={section.items} onNavigate={onNavigate} />
+          ) : (
+            <ListSection items={section.items} onNavigate={onNavigate} />
+          )}
         </section>
       ))}
     </div>
   );
 }
 
-function ListSection({ items }: { items: MoreMenuItem[] }) {
+/** The icon of an entry, with the red count of what is unread in it. */
+function ItemIcon({ item, size }: { item: MoreMenuItem; size?: 'lg' }) {
+  const badge = item.badge ?? 0;
+  return (
+    <span className="relative shrink-0">
+      <IconTile icon={item.icon} tone={item.tone} size={size} />
+      {badge > 0 && (
+        <span
+          aria-hidden
+          className="bg-danger ring-card absolute -top-1.5 -right-1.5 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-bold text-white ring-2"
+        >
+          {badge > 9 ? '9+' : badge}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** What a screen reader hears after the name of an entry with unread things. */
+function badgeText(item: MoreMenuItem): string {
+  const badge = item.badge ?? 0;
+  return badge > 0 ? ` · ${badge} não ${badge === 1 ? 'lida' : 'lidas'}` : '';
+}
+
+type SectionProps = { items: MoreMenuItem[]; onNavigate?: () => void };
+
+function ListSection({ items, onNavigate }: SectionProps) {
   return (
     <ul className="border-border bg-card divide-border divide-y overflow-hidden rounded-2xl border shadow-sm">
       {items.map((item) => {
         const content = (
           <>
-            <IconTile icon={item.icon} tone={item.tone} />
+            <ItemIcon item={item} />
             <span className="min-w-0 flex-1 text-left">
-              <span className="text-foreground block font-medium">{item.label}</span>
+              <span className="text-foreground block font-medium">
+                {item.label}
+                <span className="sr-only">{badgeText(item)}</span>
+              </span>
               <span className="text-muted block truncate text-xs">{item.description}</span>
             </span>
             <ChevronRight aria-hidden className="text-muted h-5 w-5 shrink-0" />
@@ -87,7 +125,7 @@ function ListSection({ items }: { items: MoreMenuItem[] }) {
         return (
           <li key={item.key}>
             {item.href ? (
-              <Link href={item.href} className={className}>
+              <Link href={item.href} onClick={onNavigate} className={className}>
                 {content}
               </Link>
             ) : (
@@ -102,7 +140,7 @@ function ListSection({ items }: { items: MoreMenuItem[] }) {
   );
 }
 
-function GridSection({ items }: { items: MoreMenuItem[] }) {
+function GridSection({ items, onNavigate }: SectionProps) {
   return (
     <ul className="grid grid-cols-3 gap-2">
       {items.map((item) => {
@@ -110,11 +148,13 @@ function GridSection({ items }: { items: MoreMenuItem[] }) {
         // for the label, so the rest goes to the title attribute and to screen readers.
         const content = (
           <>
-            <IconTile icon={item.icon} tone={item.tone} size="lg" />
+            <ItemIcon item={item} size="lg" />
             <span className="text-foreground line-clamp-2 w-full text-center text-xs leading-tight font-medium">
               {item.label}
             </span>
-            <span className="sr-only">{item.description}</span>
+            <span className="sr-only">
+              {badgeText(item)} · {item.description}
+            </span>
           </>
         );
         const className =
@@ -122,7 +162,7 @@ function GridSection({ items }: { items: MoreMenuItem[] }) {
         return (
           <li key={item.key} className="min-w-0">
             {item.href ? (
-              <Link href={item.href} title={item.description} className={className}>
+              <Link href={item.href} onClick={onNavigate} title={item.description} className={className}>
                 {content}
               </Link>
             ) : (

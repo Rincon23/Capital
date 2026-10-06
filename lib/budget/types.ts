@@ -97,7 +97,7 @@ export interface ModuleFlags {
 
 export type ModuleKey = keyof ModuleFlags;
 
-/** An entry the bottom bar can hold: the home dashboard or a module that has a screen. */
+/** A screen of the app: the Início or a module that has a screen. */
 export type NavKey = 'inicio' | ModuleKey;
 
 /**
@@ -127,8 +127,8 @@ export interface BudgetSettings {
   /** Which modules this user turned on. Absent/partial means "off"; resolve with `resolveModules`. */
   modules?: Partial<ModuleFlags>;
   /**
-   * The bottom bar the user picked, in order (without "Mais", which is always there). Absent or
-   * null means the default; resolve with `resolveNav`.
+   * @deprecated The bottom bar the user picked, from when there was one. Still accepted (older
+   * backups and clients send it) and ignored everywhere.
    */
   nav?: NavKey[] | null;
   /** One-time notices ("Novidade" cards and the like) this account already dismissed, by key. */
@@ -136,13 +136,18 @@ export interface BudgetSettings {
   /** Which notification categories push to this account's devices; see `isNotificationCategoryOn`. */
   notificationPrefs?: Partial<Record<NotificationCategory, boolean>>;
   /**
-   * The order the user picked for the Início cards in "Organizar Início". Absent or null means
-   * the default (see `resolveHomeCards`).
+   * The áreas de trabalho of the Início, in order, each with its widgets in order. Absent or null
+   * means the default, one page (see `resolveHomePages`).
+   */
+  homePages?: HomeWidgetKey[][] | null;
+  /**
+   * @deprecated The Início as a single list, from before it had pages. Read as one page while
+   * `homePages` is null; the app only ever writes null here now.
    */
   homeOrder?: HomeWidgetKey[] | null;
   /** Which of the resizable Início cards (the half-width tiles) the user stretched to full width. */
   homeCardSizes?: Partial<Record<HomeWidgetKey, 'half' | 'full'>>;
-  /** The widgets the user took off the Início ("Organizar Início"); they come back from "Adicionar widget". */
+  /** The widgets the user took off the Início (edit mode); they wait in the widget tray to come back. */
   homeHidden?: HomeWidgetKey[];
   /**
    * The categories the expense form shows straight away; the rest wait behind "Outras". Absent or

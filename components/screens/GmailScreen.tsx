@@ -13,7 +13,7 @@ import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/Mod
 import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
 import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { NotificationsSection } from '@/components/settings/NotificationsSection';
-import { useBackHref } from '@/components/modules/useBackHref';
+import { useHomeHref } from '@/components/modules/useHomeHref';
 import { gmailConnectErrorMessage, senderName, type GmailAlert, type GmailOverview } from '@/lib/gmail';
 import { GMAIL_CONNECT_URL, gmailRepository } from '@/lib/storage';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
@@ -60,7 +60,7 @@ function Card({ children, tour }: { children: ReactNode; tour?: string }) {
 }
 
 function Gmail() {
-  const backHref = useBackHref('gmail');
+  const backHref = useHomeHref();
   const [configuring, setConfiguring] = useState(false);
   const router = useRouter();
   const confirm = useConfirm();

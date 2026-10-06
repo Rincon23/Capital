@@ -18,6 +18,7 @@ import { moduleNames, VIP_ONLY_MODULES } from '@/lib/modules';
 import { adminRepository } from '@/lib/storage/admin';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { useHomeHref } from '@/components/modules/useHomeHref';
 import { IconTile, type IconTone } from '@/components/ui/IconTile';
 import { Switch } from '@/components/ui/Switch';
 import { useToast } from '@/components/ui/Toast';
@@ -99,6 +100,7 @@ function Card({
  */
 export function AdminScreen() {
   const { showToast } = useToast();
+  const homeHref = useHomeHref();
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -162,7 +164,7 @@ export function AdminScreen() {
     return term ? list.filter((item) => item.email.toLowerCase().includes(term)) : list;
   }, [overview, query]);
 
-  const header = <PageHeader title="Administração" subtitle="Só você vê esta tela" backHref="/mais" />;
+  const header = <PageHeader title="Administração" subtitle="Só você vê esta tela" backHref={homeHref} />;
 
   if (!overview) {
     return (

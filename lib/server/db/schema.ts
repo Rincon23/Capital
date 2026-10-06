@@ -149,7 +149,7 @@ export const budgetSettings = pgTable('budget_settings', {
   onboardingCompleted: boolean('onboarding_completed').notNull().default(true),
   /** The modules this user turned on. Anything absent is off. */
   modules: jsonb('modules').$type<Partial<ModuleFlags>>().notNull().default({}),
-  /** The bottom bar the user picked, in order; null means the default (see `resolveNav`). */
+  /** Obsolete: the bottom bar, from when there was one. Kept so older backups still restore; ignored. */
   nav: jsonb('nav').$type<NavKey[]>(),
   /** Keys of the one-time notices this account already dismissed. */
   dismissedNotices: jsonb('dismissed_notices').$type<string[]>().notNull().default([]),
@@ -158,11 +158,13 @@ export const budgetSettings = pgTable('budget_settings', {
     .$type<Partial<Record<NotificationCategory, boolean>>>()
     .notNull()
     .default({}),
-  /** The order picked in "Organizar Início"; null means the default (see `resolveHomeCards`). */
+  /** Obsolete: the Início as one list, read as a single page while `homePages` is null. */
   homeOrder: jsonb('home_order').$type<HomeWidgetKey[]>(),
+  /** The áreas de trabalho of the Início and their widgets; null means the default (see `resolveHomePages`). */
+  homePages: jsonb('home_pages').$type<HomeWidgetKey[][]>(),
   /** Which resizable Início cards were stretched to full width. */
   homeCardSizes: jsonb('home_card_sizes').$type<Partial<Record<HomeWidgetKey, 'half' | 'full'>>>().notNull().default({}),
-  /** The widgets taken off the Início ("Organizar Início"). */
+  /** The widgets taken off the Início (they wait in the widget tray). */
   homeHidden: jsonb('home_hidden').$type<HomeWidgetKey[]>().notNull().default([]),
   /** The categories the expense form shows straight away; null means the default. */
   quickCategories: jsonb('quick_categories').$type<QuickCategoryKey[]>(),

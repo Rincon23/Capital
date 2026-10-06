@@ -4,6 +4,7 @@ const THEME_KEY = 'capital:theme';
 const LAST_MONTH_KEY = 'capital:lastMonth';
 const UNFORESEEN_ESTIMATE_KEY = 'capital:unforeseenEstimate';
 const MORE_LAYOUT_KEY = 'capital:moreLayout';
+const HOME_PAGE_KEY = 'capital:homePage';
 
 export type Theme = 'light' | 'dark' | 'system';
 
@@ -45,15 +46,46 @@ export function setUnforeseenEstimate(amount: number): void {
   window.localStorage.setItem(UNFORESEEN_ESTIMATE_KEY, String(amount));
 }
 
-/** How the Mais tab shows its entries: a settings-style list, or an app-drawer grid of icons. */
+/** How the app drawer shows its entries: a settings-style list, or a grid of icons (the default). */
 export type MoreLayout = 'list' | 'grid';
 
 export function getStoredMoreLayout(): MoreLayout {
-  if (typeof window === 'undefined') return 'list';
-  return window.localStorage.getItem(MORE_LAYOUT_KEY) === 'grid' ? 'grid' : 'list';
+  if (typeof window === 'undefined') return 'grid';
+  try {
+    return window.localStorage.getItem(MORE_LAYOUT_KEY) === 'list' ? 'list' : 'grid';
+  } catch {
+    return 'grid';
+  }
 }
 
 export function setStoredMoreLayout(layout: MoreLayout): void {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(MORE_LAYOUT_KEY, layout);
+  try {
+    window.localStorage.setItem(MORE_LAYOUT_KEY, layout);
+  } catch {
+    // A blocked storage only means the choice is not remembered.
+  }
+}
+
+/**
+ * The área de trabalho the Início was on, for this session only (sessionStorage): coming back from
+ * a module lands on the same one, while opening the app again starts on the first.
+ */
+export function getSessionHomePage(): number {
+  if (typeof window === 'undefined') return 0;
+  try {
+    const value = Number(window.sessionStorage.getItem(HOME_PAGE_KEY));
+    return Number.isInteger(value) && value > 0 ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function setSessionHomePage(page: number): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(HOME_PAGE_KEY, String(page));
+  } catch {
+    // Nothing to do: the Início just opens on the first page next time.
+  }
 }

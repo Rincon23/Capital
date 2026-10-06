@@ -135,7 +135,8 @@
 html {
   color-scheme: light;
   /* Stops a sideways drag from being read as the browser's own back/forward swipe gesture
-     (Chrome/Safari on phones) — SwipeNavigation handles a horizontal drag itself instead. */
+     (Chrome/Safari on phones) — on the Início, a horizontal drag pages between the áreas de
+     trabalho instead (HomeDesk). */
   overscroll-behavior-x: none;
 }
 
@@ -145,7 +146,7 @@ html.dark {
 
 body {
   /* Lets the browser keep handling vertical scroll on its own, but decide fast that a
-     horizontal drag is ours (SwipeNavigation) rather than a page pan. */
+     horizontal drag is ours (the Início's áreas, HomeDesk) rather than a page pan. */
   touch-action: pan-y;
   background: var(--color-background);
   color: var(--color-foreground);

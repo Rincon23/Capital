@@ -6,7 +6,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { computeMonthSummary, currentMonthKey, previousMonth, type Expense } from '@/lib/budget';
-import { NO_MODULES, resolveModules, resolveNav } from '@/lib/modules';
+import { NO_MODULES, resolveHomePages, resolveModules } from '@/lib/modules';
 import { BACKUP_VERSION, MonthClosedError, MonthNotFoundError } from '@/lib/storage/repository';
 import { PostgresBudgetRepository } from '../budgetRepository';
 import * as schema from '../db/schema';
@@ -379,44 +379,65 @@ describe('PostgresBudgetRepository', () => {
     expect(resolveModules(await repo.getSettings()).reimbursable).toBe(true);
   });
 
-  it('stores the bottom bar and the dismissed notices per account, in every device', async () => {
+  it('stores the Início pages and the dismissed notices per account, in every device', async () => {
     const { id, repo } = await newAccount();
     const settings = await repo.getSettings();
-    expect(settings.nav).toBeNull();
+    expect(settings.homePages).toBeNull();
     expect(settings.dismissedNotices).toEqual([]);
 
     await repo.saveSettings({
       ...settings,
       modules: { reminders: true, gmail: true },
-      nav: ['reminders', 'gmail', 'inicio'],
+      homePages: [['gmail'], ['reminders', 'calendar']],
+      homeOrder: null,
       dismissedNotices: ['modular-intro'],
     });
 
     const elsewhere = await new PostgresBudgetRepository(db, id).getSettings();
-    expect(resolveNav(elsewhere)).toEqual(['reminders', 'gmail', 'inicio']);
+    expect(resolveHomePages(elsewhere)).toEqual([['gmail'], ['reminders', 'calendar']]);
     expect(elsewhere.dismissedNotices).toEqual(['modular-intro']);
 
     // Saving without them (an older client) keeps them.
-    const withoutNav = { ...elsewhere };
-    delete withoutNav.nav;
-    delete withoutNav.dismissedNotices;
-    await repo.saveSettings(withoutNav);
-    expect((await repo.getSettings()).nav).toEqual(['reminders', 'gmail', 'inicio']);
+    const withoutPages = { ...elsewhere };
+    delete withoutPages.homePages;
+    delete withoutPages.dismissedNotices;
+    await repo.saveSettings(withoutPages);
+    expect((await repo.getSettings()).homePages).toEqual([['gmail'], ['reminders', 'calendar']]);
     expect((await repo.getSettings()).dismissedNotices).toEqual(['modular-intro']);
 
     // Nobody else's app changes.
     const other = await newAccount();
     const otherSettings = await other.repo.getSettings();
-    expect(otherSettings.nav).toBeNull();
-    expect(resolveNav(otherSettings)).toEqual(['inicio']);
+    expect(otherSettings.homePages).toBeNull();
+    expect(resolveHomePages(otherSettings)).toEqual([[]]);
 
     // The backup carries them to another account.
     const { repo: target } = await newAccount();
     await target.importData(await repo.exportData());
     const restored = await target.getSettings();
-    expect(restored.nav).toEqual(['reminders', 'gmail', 'inicio']);
+    expect(restored.homePages).toEqual([['gmail'], ['reminders', 'calendar']]);
     expect(restored.dismissedNotices).toEqual(['modular-intro']);
     expect(resolveModules(restored).gmail).toBe(true);
+  });
+
+  it('restores an older backup with a bottom bar and a single Início list', async () => {
+    const { repo } = await newAccount();
+    const backup = await repo.exportData();
+    const { repo: target } = await newAccount();
+    await target.importData({
+      ...backup,
+      settings: {
+        ...backup.settings,
+        modules: { expenses: true, reminders: true },
+        nav: ['reminders', 'inicio'],
+        homeOrder: ['reminders', 'expenses'],
+        homePages: undefined,
+      },
+    });
+    const restored = await target.getSettings();
+    // The bar is kept as it came, but nothing reads it; the old list becomes the first page.
+    expect(restored.nav).toEqual(['reminders', 'inicio']);
+    expect(resolveHomePages(restored)).toEqual([['reminders', 'calendar', 'expenses']]);
   });
 
   it('carries an unpaid "A receber" into the next months until someone pays it back', async () => {

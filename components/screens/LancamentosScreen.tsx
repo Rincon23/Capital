@@ -8,7 +8,7 @@ import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/Mod
 import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
 import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { CategoriesSettings } from '@/components/settings/CategoriesSettings';
-import { useBackHref } from '@/components/modules/useBackHref';
+import { useHomeHref } from '@/components/modules/useHomeHref';
 import { ClosedMonthBanner } from '@/components/month/ClosedMonthBanner';
 import { MONTH_ACTIONS_PADDING, MonthActions } from '@/components/month/MonthActions';
 import { useMonthContext } from '@/components/month/MonthContext';
@@ -69,7 +69,7 @@ export function LancamentosScreen({ initialFilter }: { initialFilter?: Lancament
 }
 
 function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
-  const backHref = useBackHref('expenses');
+  const backHref = useHomeHref();
   const { month, monthData, loading, error, openExpenseForm, openIncomeForm, deleteMonth, refresh } =
     useMonthContext();
   const router = useRouter();

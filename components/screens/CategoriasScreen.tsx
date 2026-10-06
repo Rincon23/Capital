@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { ModuleGate } from '@/components/modules/ModuleGate';
 import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
 import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
-import { useBackHref } from '@/components/modules/useBackHref';
+import { useHomeHref } from '@/components/modules/useHomeHref';
 import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { ClosedMonthBanner } from '@/components/month/ClosedMonthBanner';
 import { CloseMonthSheet } from '@/components/month/CloseMonthSheet';
@@ -32,7 +32,7 @@ export function CategoriasScreen() {
 }
 
 function Categorias() {
-  const backHref = useBackHref('budget');
+  const backHref = useHomeHref();
   const { month, summary, monthData, loading, error, closeMonth, refresh } = useMonthContext();
   const { settings, saveSettings } = useSettings();
   const { showToast } = useToast();

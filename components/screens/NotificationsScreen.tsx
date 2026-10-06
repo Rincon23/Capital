@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { useHomeHref } from '@/components/modules/useHomeHref';
 import { useNotifications } from '@/components/notifications/NotificationsProvider';
 import { SwipeToDelete } from '@/components/notifications/SwipeToDelete';
 import { NotificationPreferencesSection } from '@/components/settings/NotificationPreferencesSection';
@@ -54,6 +55,7 @@ export function NotificationsScreen() {
   const router = useRouter();
   const confirm = useConfirm();
   const { showToast } = useToast();
+  const homeHref = useHomeHref();
 
   const items = snapshot?.notifications ?? [];
 
@@ -100,6 +102,7 @@ export function NotificationsScreen() {
     <div className="flex flex-1 flex-col gap-4 pb-10">
       <PageHeader
         title="Notificações"
+        backHref={homeHref}
         subtitle={seenNew.size > 0 ? `${seenNew.size} ${seenNew.size === 1 ? 'nova' : 'novas'}` : undefined}
         action={
           <>

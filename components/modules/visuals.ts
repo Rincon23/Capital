@@ -5,7 +5,6 @@ import {
   Clock,
   CreditCard,
   HandCoins,
-  House,
   Mail,
   Mic,
   PiggyBank,
@@ -14,7 +13,7 @@ import {
   Scale,
   type LucideIcon,
 } from 'lucide-react';
-import type { HomeWidgetKey, ModuleKey, NavKey } from '@/lib/budget';
+import type { HomeWidgetKey, ModuleKey } from '@/lib/budget';
 import type { IconTone } from '@/components/ui/IconTile';
 
 export interface ModuleVisual {
@@ -22,7 +21,7 @@ export interface ModuleVisual {
   tone: IconTone;
 }
 
-/** The icon and colour that identify each module everywhere: bottom bar, Mais, cards and the module list. */
+/** The icon and colour that identify each module everywhere: the app drawer, the widgets and the module list. */
 export const MODULE_VISUALS: Record<ModuleKey, ModuleVisual> = {
   expenses: { icon: ReceiptText, tone: 'blue' },
   budget: { icon: ChartPie, tone: 'purple' },
@@ -36,12 +35,6 @@ export const MODULE_VISUALS: Record<ModuleKey, ModuleVisual> = {
   voice: { icon: Mic, tone: 'pink' },
   gmail: { icon: Mail, tone: 'red' },
 };
-
-export const HOME_VISUAL: ModuleVisual = { icon: House, tone: 'neutral' };
-
-export function navVisual(key: NavKey): ModuleVisual {
-  return key === 'inicio' ? HOME_VISUAL : MODULE_VISUALS[key];
-}
 
 /** The icon of an Início widget: its module's, except for the extra widgets, which have their own. */
 export function widgetVisual(key: HomeWidgetKey): ModuleVisual {

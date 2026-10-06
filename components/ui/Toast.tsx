@@ -84,9 +84,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      {/* Above the bottom nav, below the sheets, and never blocking taps when empty. */}
+      {/* Above the Início's dots and up-arrow (and the widget tray), below the sheets, and never
+          blocking taps when empty. */}
       <div
-        className="pointer-events-none fixed inset-x-0 bottom-20 z-[45] flex flex-col items-center gap-2 px-4"
+        className="pointer-events-none fixed inset-x-0 z-[45] flex flex-col items-center gap-2 px-4"
+        style={{ bottom: 'calc(env(safe-area-inset-bottom) + 4.75rem)' }}
         role="status"
         aria-live="polite"
       >

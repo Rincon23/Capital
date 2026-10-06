@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { HomeWidgetKey, ModuleKey, NavKey, QuickCategoryKey } from '@/lib/budget';
-import { HOME_WIDGET_KEYS, MAX_NAV_ITEMS, MODULE_KEYS } from '@/lib/modules';
+import { HOME_WIDGET_KEYS, MAX_HOME_PAGES, MAX_WIDGETS_PER_HOME_PAGE, MODULE_KEYS } from '@/lib/modules';
 import { isAllowedPushEndpoint, type NotificationCategory } from '@/lib/notifications';
 import { QUOTAS } from './quotas';
 
@@ -50,10 +50,13 @@ const modulesSchema = z.object(
   >,
 );
 
-/** The bottom bar: Início or a module, at most four (resolveNav drops what no longer applies). */
-const navSchema = z.array(z.enum(['inicio', ...MODULE_KEYS] as [NavKey, ...NavKey[]])).max(MAX_NAV_ITEMS);
+/**
+ * Obsolete: the bottom bar (Início or a module, at most four). Still accepted, so older backups and
+ * cached clients keep working, and ignored.
+ */
+const navSchema = z.array(z.enum(['inicio', ...MODULE_KEYS] as [NavKey, ...NavKey[]])).max(4);
 
-/** A widget of the Início: a module's card or one of the extra widgets (lib/modules/nav.ts). */
+/** A widget of the Início: a module's card or one of the extra widgets (lib/modules/home.ts). */
 const homeWidgetSchema = z.enum(HOME_WIDGET_KEYS as [HomeWidgetKey, ...HomeWidgetKey[]]);
 
 /** A category as the expense form lists it: "topic:<id>" or a special kind. */
@@ -92,6 +95,11 @@ export const settingsSchema = z.object({
   dismissedNotices: z.array(z.string().min(1).max(60)).max(200).optional(),
   notificationPrefs: partialMap(NOTIFICATION_CATEGORIES, z.boolean()).optional(),
   homeOrder: z.array(homeWidgetSchema).max(50).nullable().optional(),
+  homePages: z
+    .array(z.array(homeWidgetSchema).max(MAX_WIDGETS_PER_HOME_PAGE))
+    .max(MAX_HOME_PAGES)
+    .nullable()
+    .optional(),
   homeCardSizes: partialMap(HOME_WIDGET_KEYS, z.enum(['half', 'full'])).optional(),
   homeHidden: z.array(homeWidgetSchema).max(50).optional(),
   quickCategories: z
@@ -329,7 +337,8 @@ export const aiProblemReportSchema = z.object({
 export const closeMonthSchema = z.object({ openNext: z.boolean().optional() });
 
 export const backupSchema = z.object({
-  // v2 added the modules and the "A receber" category, v3 the bottom bar; older files still import.
+  // v2 added the modules and the "A receber" category, v3 the (now obsolete) bottom bar; older
+  // files still import.
   version: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   exportedAt: z.string(),
   settings: settingsSchema,

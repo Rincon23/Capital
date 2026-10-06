@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState, type ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { useHomeHref } from '@/components/modules/useHomeHref';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { useTheme } from '@/components/providers/ThemeProvider';
@@ -22,7 +23,7 @@ import { hasLocalData, importLocalDataToCloud } from '@/lib/storage/localMigrati
 
 /**
  * What belongs to no module: the account, the theme, backups and the local data of this device.
- * Módulos, Rodapé and Privacidade are entries of Mais, and each module's own settings live behind
+ * Módulos and Privacidade are entries of the app drawer, and each module's own settings live behind
  * the gear in its screen (categories in Categorias, reminder times in Lembretes, and so on).
  */
 export function ConfiguracoesScreen() {
@@ -31,6 +32,7 @@ export function ConfiguracoesScreen() {
   const confirm = useConfirm();
   const { showToast } = useToast();
   const [importError, setImportError] = useState<string | null>(null);
+  const homeHref = useHomeHref();
 
   async function handleExport() {
     const payload = await budgetRepository.exportData();
@@ -80,7 +82,7 @@ export function ConfiguracoesScreen() {
 
   return (
     <div className="flex flex-1 flex-col gap-6 pb-10">
-      <PageHeader title="Configurações" />
+      <PageHeader title="Configurações" backHref={homeHref} />
 
       <AccountSection />
 

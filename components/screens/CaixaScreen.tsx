@@ -31,7 +31,7 @@ import { useToast } from '@/components/ui/Toast';
 import { ModuleGate } from '@/components/modules/ModuleGate';
 import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
 import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
-import { useBackHref } from '@/components/modules/useBackHref';
+import { useHomeHref } from '@/components/modules/useHomeHref';
 import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { useWallet } from '@/components/wallet/WalletProvider';
 
@@ -74,7 +74,7 @@ function Row({
 }
 
 function Caixa() {
-  const backHref = useBackHref('cash');
+  const backHref = useHomeHref();
   const { snapshot, loading, error } = useWallet();
   const { settings } = useSettings();
   const [configuring, setConfiguring] = useState(false);

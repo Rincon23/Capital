@@ -113,10 +113,11 @@ export default function PrivacyPage() {
 
       <Section title="Apagar os seus dados">
         <p>
-          Em Mais → Configurações, &quot;Apagar todos os dados&quot; apaga tudo o que você lançou em todos os
-          módulos (inclusive a conexão com o Gmail) e mantém a conta. &quot;Excluir minha conta&quot;, no
-          mesmo lugar, apaga a conta e todos os dados dela de uma vez, depois de você confirmar a senha. Em
-          Mais → Módulos você também pode desligar qualquer módulo.
+          Em Configurações (na bandeja de apps, a setinha embaixo da Início), &quot;Apagar todos os
+          dados&quot; apaga tudo o que você lançou em todos os módulos (inclusive a conexão com o Gmail) e
+          mantém a conta. &quot;Excluir minha conta&quot;, no mesmo lugar, apaga a conta e todos os dados dela
+          de uma vez, depois de você confirmar a senha. Em Módulos, na mesma bandeja, você também pode
+          desligar qualquer módulo.
         </p>
       </Section>
 

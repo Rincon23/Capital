@@ -14,7 +14,7 @@ import { useToast } from '@/components/ui/Toast';
 import { ModuleGate } from '@/components/modules/ModuleGate';
 import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
 import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
-import { useBackHref } from '@/components/modules/useBackHref';
+import { useHomeHref } from '@/components/modules/useHomeHref';
 import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { NotificationsSection } from '@/components/settings/NotificationsSection';
 import { ReminderSettingsSection } from '@/components/settings/ReminderSettingsSection';
@@ -71,7 +71,7 @@ function longDate(date: ISODate): string {
 }
 
 function Lembretes({ initialTab, initialDay }: { initialTab?: LembretesTab; initialDay?: ISODate }) {
-  const backHref = useBackHref('reminders');
+  const backHref = useHomeHref();
   const { snapshot, loading, error, run, refresh } = useReminders();
   const confirm = useConfirm();
   const { showToast } = useToast();

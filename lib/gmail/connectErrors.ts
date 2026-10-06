@@ -5,7 +5,7 @@
  */
 const CONNECT_ERRORS = {
   'nao-configurado': 'O Google ainda não está configurado neste servidor.',
-  'modulo-desligado': 'Ligue "Monitor de Gmail" em Mais → Módulos.',
+  'modulo-desligado': 'Ligue "Monitor de Gmail" em Módulos (na bandeja de apps da Início).',
   'inicio-falhou': 'Não foi possível iniciar a conexão com o Google.',
   expirou: 'A conexão expirou ou veio de outro lugar. Toque em "Conectar Gmail" de novo.',
   negado: 'Você não deu a permissão no Google. Nada foi conectado.',

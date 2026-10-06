@@ -622,6 +622,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
       dismissedNotices: row.dismissedNotices,
       notificationPrefs: row.notificationPrefs,
       homeOrder: row.homeOrder,
+      homePages: row.homePages,
       homeCardSizes: row.homeCardSizes,
       homeHidden: row.homeHidden,
       quickCategories: row.quickCategories,
@@ -630,7 +631,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
 
   /**
    * Saving settings from the app never touches the onboarding flag (only `completeOnboarding`
-   * does), and leaves the modules, the bottom bar and the dismissed notices alone unless the
+   * does), and leaves the modules, the Início and the dismissed notices alone unless the
    * payload actually carries them — an older client (a cached bundle that predates them) must
    * not wipe them. Restoring a backup replaces all of it, along with everything else.
    */
@@ -653,6 +654,9 @@ export class PostgresBudgetRepository implements BudgetRepository {
         : {}),
       ...(restoringBackup || settings.homeOrder !== undefined
         ? { homeOrder: settings.homeOrder ?? null }
+        : {}),
+      ...(restoringBackup || settings.homePages !== undefined
+        ? { homePages: settings.homePages ?? null }
         : {}),
       ...(restoringBackup || settings.homeCardSizes !== undefined
         ? { homeCardSizes: settings.homeCardSizes ?? {} }

@@ -1,6 +1,6 @@
 import type { ModuleKey, Month } from '../budget/types';
 
-/** How the Mais screen (and the module list) groups modules. */
+/** How the app drawer (and the module list) groups modules. */
 export type ModuleGroup = 'month' | 'wallet' | 'assistant';
 
 export const MODULE_GROUPS: { key: ModuleGroup; label: string }[] = [
@@ -9,18 +9,18 @@ export const MODULE_GROUPS: { key: ModuleGroup; label: string }[] = [
   { key: 'assistant', label: 'Assistente' },
 ];
 
-/** A screen that can sit in the bottom bar or in Mais. */
+/** A module's own screen, opened from the app drawer (and from its widget on the Início). */
 export interface ModuleScreen {
-  /** Short label for the bottom bar, where there is only room for a word. Everywhere with
-   *  room for the whole thing (Mais, the home cards, the module list) uses `name`. */
+  /** Short label, for where there is only room for a word. Everywhere with room for the whole
+   *  thing (the app drawer, the home cards, the module list) uses `name`. */
   label: string;
   href: (month: Month) => string;
   isActive: (pathname: string) => boolean;
 }
 
 /**
- * Everything the app needs to know about a module, written once: the module list, the bottom
- * bar, Mais and the home dashboard all read it. Icons and card components live in
+ * Everything the app needs to know about a module, written once: the module list, the app
+ * drawer and the Início all read it. Icons and card components live in
  * `components/modules` (this file stays free of React).
  */
 export interface ModuleDefinition {
@@ -28,7 +28,7 @@ export interface ModuleDefinition {
   name: string;
   /** One or two sentences: what the module does. */
   description: string;
-  /** A few words for a menu line (Mais). */
+  /** A few words for a menu line (the app drawer, the widget tray). */
   tagline: string;
   group: ModuleGroup;
   /** Modules that must be on before this one can be turned on. */
@@ -46,7 +46,7 @@ export interface ModuleDefinition {
 
 /**
  * Every module, in catalog order. A module always comes after the ones it depends on, which is
- * also the order of the defaults (bottom bar, Mais, home cards).
+ * also the order of the defaults (the app drawer and the Início widgets).
  */
 export const MODULES: ModuleDefinition[] = [
   {

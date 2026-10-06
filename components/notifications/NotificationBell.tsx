@@ -6,7 +6,7 @@ import { useNotifications } from './NotificationsProvider';
 
 /**
  * The sino: opens the Central de notificações, with a dot while there is something unread.
- * Shown top-right on Início and Mais.
+ * Shown top-right on the Início.
  */
 export function NotificationBell() {
   const { snapshot } = useNotifications();

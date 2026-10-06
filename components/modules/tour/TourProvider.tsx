@@ -7,7 +7,8 @@ import 'driver.js/dist/driver.css';
 import '@/components/onboarding/tour.css';
 import type { ModuleKey } from '@/lib/budget';
 import { useLastViewedMonth } from '@/lib/hooks/useLastViewedMonth';
-import { tourSteps, type TourStep } from '@/lib/modules';
+import { HOME_NAV, tourSteps, type TourStep } from '@/lib/modules';
+import { revealOnHome } from './homeReveal';
 import { requestTourSheet } from './tourSheets';
 
 interface TourContextValue {
@@ -54,6 +55,8 @@ export function TourProvider({ children }: { children: ReactNode }) {
         if (from?.sheet && from.sheet !== to.sheet) requestTourSheet('close');
         if (to.href !== here()) router.push(to.href);
         if (to.sheet && to.sheet !== from?.sheet) requestTourSheet(to.sheet);
+        // A widget of the Início may sit on another área de trabalho: the Início switches to it first.
+        if (HOME_NAV.isActive(to.href.split('?')[0])) revealOnHome(to.anchor);
         current = index;
       };
 
@@ -61,6 +64,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
         if (finished) return;
         finished = true;
         if (steps[current]?.sheet) requestTourSheet('close');
+        revealOnHome(null);
         tour.destroy();
         active.current = null;
         if (here() !== origin) router.push(origin);

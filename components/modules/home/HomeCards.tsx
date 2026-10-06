@@ -39,7 +39,7 @@ const WALLET: HomeWidgetKey[] = ['card', 'recurring', 'investments', 'cash'];
 /** The cards that read the reminders: they share one snapshot of them too. */
 const REMINDERS: HomeWidgetKey[] = ['reminders', 'calendar'];
 
-/** One read of the wallet and one of the reminders, shared by every card that needs them. */
+/** One read of the wallet and one of the reminders, shared by every card (of every área) that needs them. */
 export function HomeCardsData({ keys, children }: { keys: HomeWidgetKey[]; children: ReactNode }) {
   let content = children;
   if (keys.some((key) => REMINDERS.includes(key))) content = <RemindersProvider>{content}</RemindersProvider>;
@@ -47,7 +47,7 @@ export function HomeCardsData({ keys, children }: { keys: HomeWidgetKey[]; child
   return content;
 }
 
-/** The Início cards a person can stretch to full width in "Organizar Início" — the tiles only: a
+/** The Início cards a person can stretch to full width in edit mode — the tiles only: a
  * full card (Lançamentos, Histórico, ...) has its own layout that only makes sense at full width. */
 export const RESIZABLE_HOME_CARDS: HomeWidgetKey[] = (Object.keys(CARDS) as HomeWidgetKey[]).filter(
   (key) => CARDS[key]?.size === 'half',
@@ -64,8 +64,9 @@ export function effectiveSize(
 }
 
 /**
- * The dashboard's cards, in the given order. Consecutive tiles share a row two by two (an odd
- * one out takes the whole row). Each card loads its own data and fails on its own.
+ * The widgets of one área de trabalho, in the given order. Consecutive tiles share a row two by
+ * two (an odd one out takes the whole row). Each card loads its own data and fails on its own;
+ * what they share (the wallet, the reminders) comes from one `HomeCardsData` above all the áreas.
  */
 export function HomeCards({
   keys,
@@ -84,7 +85,7 @@ export function HomeCards({
     else blocks.push([key]);
   }
 
-  const content = (
+  return (
     <div className="flex flex-col gap-3">
       {blocks.map((block) =>
         effectiveSize(block[0], sizes) === 'half' ? (
@@ -92,6 +93,7 @@ export function HomeCards({
             {block.map((key, index) => (
               <div
                 key={key}
+                data-home-widget
                 className={`grid min-w-0 ${block.length % 2 === 1 && index === block.length - 1 ? 'col-span-2' : ''}`}
               >
                 <Card moduleKey={key} />
@@ -99,13 +101,13 @@ export function HomeCards({
             ))}
           </div>
         ) : (
-          <Card key={block[0]} moduleKey={block[0]} />
+          <div key={block[0]} data-home-widget className="grid min-w-0">
+            <Card moduleKey={block[0]} />
+          </div>
         ),
       )}
     </div>
   );
-
-  return <HomeCardsData keys={keys}>{content}</HomeCardsData>;
 }
 
 export function Card({ moduleKey }: { moduleKey: HomeWidgetKey }): ReactNode {

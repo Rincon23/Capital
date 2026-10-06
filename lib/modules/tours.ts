@@ -23,7 +23,8 @@ const card = () => '/cartao';
 
 /**
  * The tour of every module (a `Record`, so a module without a tour does not compile). Steps point
- * at the module's own screen, never at the bottom bar, which changes with each person's choices.
+ * at the module's own screen (or its widget on the Início, which the Início brings into view),
+ * never at the up-arrow or the trays of the Início, which are not the module's.
  */
 export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
   expenses: [

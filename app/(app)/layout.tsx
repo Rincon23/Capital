@@ -1,8 +1,6 @@
 import type { ReactNode } from 'react';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { BottomNav } from '@/components/layout/BottomNav';
-import { SwipeNavigation } from '@/components/layout/SwipeNavigation';
 import { PushSubscriptionSync } from '@/components/pwa/PushSubscriptionSync';
 import { AppProviders } from '@/components/providers/AppProviders';
 import { LocalDataImportBanner } from '@/components/storage/LocalDataImportBanner';
@@ -38,13 +36,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         owner,
       }}
     >
-      <SwipeNavigation>
-        <div className="flex min-h-full flex-1 flex-col pb-16">
-          <LocalDataImportBanner />
-          {children}
-        </div>
-      </SwipeNavigation>
-      <BottomNav />
+      <div className="flex min-h-full flex-1 flex-col">
+        <LocalDataImportBanner />
+        {children}
+      </div>
       <PushSubscriptionSync />
     </AppProviders>
   );

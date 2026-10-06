@@ -34,7 +34,11 @@ export async function requireVoiceAccess(
   }
   const settings = await repo.getSettings();
   if (!isModuleOn(settings, 'voice')) {
-    throw new HttpError(403, 'MODULE_OFF', 'Ligue "Lançar por voz ou texto" em Mais → Módulos.');
+    throw new HttpError(
+      403,
+      'MODULE_OFF',
+      'Ligue "Lançar por voz ou texto" em Módulos (na bandeja de apps da Início).',
+    );
   }
   const config = aiConfig();
   if (!config) {
