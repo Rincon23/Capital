@@ -1,9 +1,9 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, type RefObject } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import Link from 'next/link';
-import { ChevronDown, ChevronUp, Crown, Lock, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Crown, Lock, Plus } from 'lucide-react';
 import type { HomeWidgetKey } from '@/lib/budget';
 import {
   moduleDefinition,
@@ -22,7 +22,7 @@ import { IconTile } from '@/components/ui/IconTile';
 import { widgetVisual } from '../visuals';
 import { effectiveSize } from './HomeCards';
 
-/** The droppable id of the tray: a widget dropped on it leaves the Início. */
+/** The droppable id of the tray's bar: a widget picked up from the tray and let go there stays in it. */
 export const TRAY_ID = 'widget-tray';
 /** The draggable id of a widget picked up from the tray. */
 export const trayDragId = (key: HomeWidgetKey) => `tray:${key}`;
@@ -43,9 +43,9 @@ const REST_TRANSITION = `transform ${BACK_MS}ms ${EASE}`;
  * It lists the widgets that are on no área (the ones taken off) — a tap puts one at the end of
  * the área on screen, a hold-and-drag drops it exactly where it goes — and, below, the widgets of
  * modules that are still off, which point to Módulos (with the VIP mark and the padlock of a
- * module that needs another first). It is also where a widget goes to leave: dragged onto it, the
- * bar turns red, "Solte aqui para tirar da Início". (The back button closes it before it leaves
- * edit mode: `HomeScreen` handles that, with edit mode's own history entry.)
+ * module that needs another first). A widget only comes here by its "−": dragging one onto the
+ * tray never takes it off the Início. (The back button closes the tray before it leaves edit
+ * mode: `HomeScreen` handles that, with edit mode's own history entry.)
  */
 export function WidgetTray({
   open,
@@ -53,25 +53,32 @@ export function WidgetTray({
   hidden,
   offModule,
   sizes,
-  dragging,
+  trayDrag,
   dragActive,
-  overTray,
   onAdd,
   onRestoreDefault,
+  barRef,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   hidden: HomeWidgetKey[];
   offModule: HomeWidgetKey[];
   sizes: Partial<Record<HomeWidgetKey, 'half' | 'full'>>;
-  /** A widget of an área is being dragged: the bar becomes the place to drop it to take it off. */
-  dragging: boolean;
+  /** A widget picked up from the tray is being dragged: letting go on the bar leaves it there. */
+  trayDrag: boolean;
   /** Any drag at all, the tray's own included: its list must stay live under the finger. */
   dragActive: boolean;
-  overTray: boolean;
   onAdd: (key: HomeWidgetKey) => void;
   onRestoreDefault: () => void;
+  /**
+   * The bar, for `HomeScreen` to tell whether the finger is over it while a widget from the tray
+   * is dragged. Closed, the rest of the tray is below the screen.
+   */
+  barRef: RefObject<HTMLButtonElement | null>;
 }) {
+  // On the bar, never on the whole panel: dnd-kit measures a droppable without its own transform,
+  // and the closed panel is pushed down by one — measured like that, it covered the lower half of
+  // the screen.
   const { setNodeRef } = useDroppable({ id: TRAY_ID });
   const panel = useRef<HTMLDivElement>(null);
   const bar = useRef<HTMLButtonElement>(null);
@@ -98,18 +105,10 @@ export function WidgetTray({
   });
 
   const count = hidden.length;
-  const barTone = dragging
-    ? overTray
-      ? 'bg-danger-fill text-white'
-      : 'bg-danger-bg text-danger'
-    : 'bg-card text-foreground';
 
   return (
     <div
-      ref={(node) => {
-        panel.current = node;
-        setNodeRef(node);
-      }}
+      ref={panel}
       data-no-swipe-nav
       className="border-border bg-card absolute inset-x-0 z-40 flex h-[50dvh] flex-col rounded-t-3xl border-t shadow-[0_-8px_24px_rgba(0,0,0,0.12)]"
       style={{
@@ -119,21 +118,22 @@ export function WidgetTray({
       }}
     >
       <button
-        ref={bar}
+        ref={(node) => {
+          bar.current = node;
+          barRef.current = node;
+          setNodeRef(node);
+        }}
         type="button"
         onClick={() => {
-          if (!wasDragged() && !dragging) onOpenChange(!open);
+          if (!wasDragged() && !dragActive) onOpenChange(!open);
         }}
         aria-expanded={open}
         aria-controls="bandeja-widgets"
-        className={`flex shrink-0 flex-col items-center justify-center rounded-t-3xl px-4 transition-colors ${barTone}`}
+        className="bg-card text-foreground flex shrink-0 flex-col items-center justify-center rounded-t-3xl px-4"
         style={{ height: TRAY_BAR_HEIGHT }}
       >
-        {dragging ? (
-          <span className="flex items-center gap-2 text-sm font-semibold">
-            <Trash2 aria-hidden className="h-4 w-4" />
-            Solte aqui para tirar da Início
-          </span>
+        {trayDrag ? (
+          <span className="text-muted text-sm font-semibold">Solte aqui para deixar na bandeja</span>
         ) : (
           <>
             <span aria-hidden className="bg-border mb-1 h-1 w-10 rounded-full" />
@@ -167,7 +167,7 @@ export function WidgetTray({
               <span className="bg-danger-fill inline-flex h-4 w-4 items-center justify-center rounded-full align-text-bottom text-xs font-bold text-white">
                 −
               </span>{' '}
-              num widget, ou arraste até aqui, para guardar na bandeja.
+              num widget para guardar ele aqui.
             </p>
           ) : (
             <section className="flex flex-col gap-2">

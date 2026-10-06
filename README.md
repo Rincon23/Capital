@@ -267,11 +267,13 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   categoria volta para Categorias.
 - **Modo de edição** (o lápis, ou segurar num espaço vazio): as áreas encolhem e mostram a borda das
   vizinhas. Segure um widget (240 ms) e arraste para mudar de lugar, até a borda (600 ms) para levar
-  à área do lado, ou, na última, criar uma área nova; "Mover" faz o mesmo sem arrastar. O "−" (ou
-  arrastar até a bandeja) tira o widget da Início, e a **bandeja de widgets** embaixo traz de volta,
-  com um toque ou arrastando até o lugar, além de listar os widgets de módulos desligados. Excluir
-  uma área manda os widgets dela para a bandeja; áreas vazias somem ao sair. Tudo salva na hora; o
-  botão voltar do celular fecha a bandeja e depois sai do modo de edição.
+  à área do lado, ou, na última, criar uma área nova; "Mover" faz o mesmo sem arrastar. **Só o "−"
+  vermelho tira um widget da Início**: soltar um widget, em qualquer lugar, nunca tira. A **bandeja
+  de widgets** embaixo traz de volta os tirados, com um toque ou arrastando até o lugar, além de
+  listar os widgets de módulos desligados. Excluir uma área leva os widgets dela para a área do
+  lado; áreas vazias somem ao sair. "Voltar ao padrão" fica no topo: uma área só, com todos os
+  widgets e nenhum guardado. Tudo salva na hora; o botão voltar do celular fecha a bandeja e depois
+  sai do modo de edição. O seletor de mês fica no topo de todas as áreas.
 - **Widgets** (`components/modules/home`): tocar num widget abre a tela do módulo. Cada um carrega
   os próprios dados, mostra esqueleto enquanto carrega e, se falhar, não derruba os outros; a
   carteira e os lembretes são lidos uma vez para todas as áreas. Sem nenhum módulo, a Início mostra

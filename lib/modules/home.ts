@@ -166,14 +166,15 @@ export function addHomePage(pages: HomePages): HomePages | null {
 }
 
 /**
- * Deletes a page; `removed` is what was on it (it goes to the widget tray). Deleting the only
- * page leaves one empty page, never none.
+ * Deletes a page without losing anything on it: a widget only leaves the Início by its own "−".
+ * Its widgets go to the end of the page before it (the first page's, to the next one); `movedTo`
+ * is that page in the result, or -1 when the page was empty. The only page cannot be deleted.
  */
-export function deleteHomePage(
-  pages: HomePages,
-  index: number,
-): { pages: HomePages; removed: HomeWidgetKey[] } {
-  const removed = pages[index] ? [...pages[index]] : [];
-  const kept = pages.filter((_, position) => position !== index).map((page) => [...page]);
-  return { pages: kept.length > 0 ? kept : [[]], removed };
+export function deleteHomePage(pages: HomePages, index: number): { pages: HomePages; movedTo: number } {
+  const copy = pages.map((page) => [...page]);
+  if (copy.length <= 1 || !copy[index]) return { pages: copy, movedTo: -1 };
+  const [widgets] = copy.splice(index, 1);
+  const movedTo = widgets.length > 0 ? Math.max(0, index - 1) : -1;
+  if (movedTo !== -1) copy[movedTo].push(...widgets);
+  return { pages: copy, movedTo };
 }

@@ -17,7 +17,6 @@ import {
   MouseSensor,
   TouchSensor,
   closestCenter,
-  pointerWithin,
   useDndContext,
   useDroppable,
   useSensor,
@@ -34,7 +33,7 @@ import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates } fro
 import { getEventCoordinates } from '@dnd-kit/utilities';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Blocks, Check, ChevronUp, LayoutGrid, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Blocks, Check, ChevronUp, LayoutGrid, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import type { BudgetSettings, HomeWidgetKey } from '@/lib/budget';
 import {
   MAX_HOME_PAGES,
@@ -73,7 +72,7 @@ import { widgetVisual } from '../visuals';
 import { EditableWidget } from './EditableWidget';
 import { HomeDesk, type HomeDeskHandle } from './HomeDesk';
 import { Card, HomeCards, HomeCardsData, RESIZABLE_HOME_CARDS, effectiveSize } from './HomeCards';
-import { HOME_FOOTER_HEIGHT, MONTHLY_WIDGETS } from './homeLayout';
+import { HOME_FOOTER_HEIGHT } from './homeLayout';
 import { TRAY_BAR_HEIGHT, TRAY_ID, WidgetTray, widgetOfTrayDrag } from './WidgetTray';
 
 /** How long a widget has to be held before it comes loose, the way a phone picks up a widget. */
@@ -144,13 +143,13 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
   const [current, setCurrent] = useState(getSessionHomePage);
   const [trayOpen, setTrayOpen] = useState(false);
   const [drag, setDrag] = useState<ActiveDrag | null>(null);
-  const [overTray, setOverTray] = useState(false);
   /** The widget whose "Mover" sheet is open. */
   const [moving, setMoving] = useState<HomeWidgetKey | null>(null);
 
   const desk = useRef<HomeDeskHandle>(null);
   const drawer = useRef<AppDrawerHandle>(null);
   const appsButton = useRef<HTMLButtonElement>(null);
+  const trayBar = useRef<HTMLButtonElement>(null);
 
   // Every widget the modules that are on can show — on an área or in the tray. One `HomeCardsData`
   // for all of them: one read of the wallet and of the reminders for every área.
@@ -165,7 +164,6 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
   const shown = Math.max(0, Math.min(current, count - 1));
   const hidden = hiddenHomeCards({ modules: settings.modules, homeHidden: layout.hidden });
   const withActions = isModuleOn(settings, 'expenses');
-  const monthly = !editing && (pages[shown] ?? []).some((key) => MONTHLY_WIDGETS.includes(key));
 
   // What the window listeners and dnd-kit's callbacks read between renders.
   const layoutRef = useRef(layout);
@@ -307,38 +305,37 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     void save({ ...previous, pages: next }, previous);
   }
 
+  /** Deletes an área; its widgets go to the área next to it (only the "−" takes one off). */
   async function deletePage(index: number) {
     const widgets = layout.pages[index] ?? [];
     if (widgets.length > 0) {
+      // Where they go, numbered as the áreas are now: the one before, or the next for the first.
+      const neighbour = (index > 0 ? index - 1 : index + 1) + 1;
       const confirmed = await confirm({
         title: `Excluir a área ${index + 1}?`,
         message:
           widgets.length === 1
-            ? `${widgetName(widgets[0])} vai para a bandeja de widgets, de onde você põe de volta quando quiser.`
-            : `Os ${widgets.length} widgets dela vão para a bandeja de widgets, de onde você põe de volta quando quiser.`,
+            ? `${widgetName(widgets[0])} vai para o fim da área ${neighbour}. Nenhum widget sai da Início.`
+            : `Os ${widgets.length} widgets dela vão para o fim da área ${neighbour}. Nenhum widget sai da Início.`,
         confirmLabel: 'Excluir área',
         destructive: true,
       });
       if (!confirmed) return;
     }
     const previous = layoutRef.current;
-    const { pages: next, removed } = deleteHomePage(previous.pages, index);
+    const { pages: next, movedTo } = deleteHomePage(previous.pages, index);
     const on = shownRef.current;
-    setCurrent(on > index ? on - 1 : Math.min(on, next.length - 1));
-    void save(
-      {
-        ...previous,
-        pages: next,
-        hidden: [...previous.hidden.filter((key) => !removed.includes(key)), ...removed],
-      },
-      previous,
+    setCurrent(
+      movedTo !== -1 && on === index ? movedTo : on > index ? on - 1 : Math.min(on, next.length - 1),
     );
+    void save({ ...previous, pages: next }, previous);
   }
 
   async function restoreDefault() {
     const confirmed = await confirm({
       title: 'Voltar ao padrão?',
-      message: 'Todas as áreas voltam a ser uma só, com os widgets na ordem padrão.',
+      message:
+        'Todas as áreas voltam a ser uma só, com todos os widgets nela, na ordem padrão — nenhum fica guardado na bandeja.',
       confirmLabel: 'Voltar ao padrão',
     });
     if (!confirmed) return;
@@ -378,10 +375,18 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     edge.current = { side: 0, timer: null };
   };
 
-  // Only what is on the área on screen (and the tray) can be under the widget: the neighbours,
-  // offscreen or peeking at the edges, never are.
+  // Only what is on the área on screen can be under the widget: the neighbours, offscreen or
+  // peeking at the edges, never are. Dropping never takes a widget off the Início — only its "−"
+  // does —, so the tray's bar only matters to a widget picked up from the tray itself: let go
+  // there, it stays in the tray. The bar is checked where it is right now (it slides down when the
+  // drag starts), under the finger.
   const collisionDetection: CollisionDetection = useCallback((args) => {
-    if (pointerWithin(args).some((collision) => collision.id === TRAY_ID)) return [{ id: TRAY_ID }];
+    const bar = trayBar.current?.getBoundingClientRect();
+    const finger = args.pointerCoordinates;
+    const fromTray = widgetOfTrayDrag(args.active.id) !== null;
+    if (fromTray && bar && finger && finger.y >= bar.top && finger.x >= bar.left && finger.x <= bar.right) {
+      return [{ id: TRAY_ID }];
+    }
     const page = shownRef.current;
     const keys = layoutRef.current.pages[page] ?? [];
     const items = args.droppableContainers.filter((container) =>
@@ -402,12 +407,11 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     beforeDrag.current = layoutRef.current;
     dragRef.current = next;
     setDrag(next);
-    // Out of the way: the widget goes to an área, or (from an área) onto the tray's bar.
+    // Out of the way: the áreas are where the widget goes.
     setTrayOpen(false);
   }
 
   function handleDragOver({ active, over }: DragOverEvent) {
-    setOverTray(over?.id === TRAY_ID);
     if (!over || over.id === TRAY_ID) return;
     const widget = widgetOfId(active.id);
     const fromTray = widgetOfTrayDrag(active.id) !== null;
@@ -465,7 +469,6 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     dragRef.current = null;
     beforeDrag.current = null;
     setDrag(null);
-    setOverTray(false);
   }
 
   function handleDragEnd({ active, over }: DragEndEvent) {
@@ -487,13 +490,8 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
       return;
     }
 
-    if (over?.id === TRAY_ID) {
-      next = {
-        ...next,
-        pages: removeWidget(next.pages, widget),
-        hidden: [...next.hidden.filter((key) => key !== widget), widget],
-      };
-    } else if (over && over.id !== widget && pageOfId(over.id) === null) {
+    // Wherever it is let go, a widget of an área stays on the Início (only its "−" takes it off).
+    if (over && over.id !== widget && over.id !== TRAY_ID && pageOfId(over.id) === null) {
       const page = pageOfWidget(next.pages, widget);
       const to = page === -1 ? -1 : next.pages[page].indexOf(over.id as HomeWidgetKey);
       if (to !== -1) next = { ...next, pages: moveWidget(next.pages, widget, page, to) };
@@ -522,7 +520,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
       !over
         ? `${nameOf(active.id)} está fora das áreas.`
         : over.id === TRAY_ID
-          ? `${nameOf(active.id)} está sobre a bandeja de widgets. Solte para tirar da Início.`
+          ? `${nameOf(active.id)} está sobre a bandeja de widgets. Solte para deixar lá.`
           : pageOfId(over.id) !== null
             ? `${nameOf(active.id)} está ${whereIs(over.id)}.`
             : `${nameOf(active.id)} está sobre ${nameOf(over.id)}, ${whereIs(over.id)}.`,
@@ -530,7 +528,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
       !over
         ? `${nameOf(active.id)} foi solto e voltou para onde estava.`
         : over.id === TRAY_ID
-          ? `${nameOf(active.id)} saiu da Início e foi para a bandeja de widgets.`
+          ? `${nameOf(active.id)} continua na bandeja de widgets.`
           : `${nameOf(active.id)} foi solto ${whereIs(active.id)}.`,
     onDragCancel: ({ active }) => `Arraste cancelado. ${nameOf(active.id)} voltou para onde estava.`,
   };
@@ -637,7 +635,18 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
       <div className="relative flex h-dvh flex-col overflow-hidden">
         <header className="flex shrink-0 flex-col gap-2 px-4 pt-3 pb-2">
           <div className="flex items-center justify-between gap-2">
-            <GreetingHeader />
+            {editing ? (
+              <button
+                type="button"
+                onClick={() => void restoreDefault()}
+                className="border-border text-foreground hover:bg-card flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold transition-colors"
+              >
+                <RotateCcw aria-hidden className="h-4 w-4" />
+                Voltar ao padrão
+              </button>
+            ) : (
+              <GreetingHeader />
+            )}
             <div className="flex items-center gap-1">
               {available.length > 0 && (
                 <button
@@ -661,7 +670,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
               <NotificationBell />
             </div>
           </div>
-          {monthly && <MonthSwitcher month={month} />}
+          <MonthSwitcher month={month} />
         </header>
 
         <DndContext
@@ -714,11 +723,11 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
               hidden={hidden}
               offModule={offModuleWidgets(settings)}
               sizes={layout.sizes}
-              dragging={drag !== null && !drag.fromTray}
+              trayDrag={drag?.fromTray ?? false}
               dragActive={drag !== null}
-              overTray={overTray}
               onAdd={(key) => placeWidget(key, shown)}
               onRestoreDefault={() => void restoreDefault()}
+              barRef={trayBar}
             />
           )}
 
@@ -847,8 +856,9 @@ function EditablePage({
         </div>
       </SortableContext>
       <p className="text-muted pt-2 text-center text-xs">
-        Segure um widget e arraste: até a borda, ele vai para a área do lado; até a bandeja, sai da Início.
-        Toque em <Check aria-hidden className="inline h-3.5 w-3.5 align-text-bottom" /> quando terminar.
+        Segure um widget e arraste para mudar de lugar; até a borda, ele vai para a área do lado. Para tirar
+        da Início, toque no −. Toque em <Check aria-hidden className="inline h-3.5 w-3.5 align-text-bottom" />{' '}
+        quando terminar.
       </p>
     </div>
   );

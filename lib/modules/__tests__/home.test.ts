@@ -268,12 +268,23 @@ describe('mexendo nas áreas', () => {
     expect(addHomePage([[], [], [], [], []])).toBeNull();
   });
 
-  it('excluir uma área devolve os widgets dela para a bandeja, e nunca fica sem nenhuma', () => {
+  it('excluir uma área leva os widgets dela para a área de antes, sem tirar nenhum da Início', () => {
     expect(deleteHomePage(pages, 1)).toEqual({
-      pages: [['expenses', 'budget', 'card']],
-      removed: ['reminders', 'calendar'],
+      pages: [['expenses', 'budget', 'card', 'reminders', 'calendar']],
+      movedTo: 0,
     });
-    expect(deleteHomePage([['gmail']], 0)).toEqual({ pages: [[]], removed: ['gmail'] });
+    // A primeira passa os widgets para a seguinte, que vira a primeira.
+    expect(deleteHomePage(pages, 0)).toEqual({
+      pages: [['reminders', 'calendar', 'expenses', 'budget', 'card']],
+      movedTo: 0,
+    });
+    const three: HomeWidgetKey[][] = [['expenses'], [], ['gmail']];
+    expect(deleteHomePage(three, 1)).toEqual({ pages: [['expenses'], ['gmail']], movedTo: -1 });
+    expect(deleteHomePage(three, 2)).toEqual({ pages: [['expenses'], ['gmail']], movedTo: 1 });
+  });
+
+  it('a única área não se exclui', () => {
+    expect(deleteHomePage([['gmail']], 0)).toEqual({ pages: [['gmail']], movedTo: -1 });
   });
 
   it('não mexe nas áreas recebidas', () => {

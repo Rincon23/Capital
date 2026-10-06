@@ -1,5 +1,4 @@
 import type { CSSProperties } from 'react';
-import type { HomeWidgetKey } from '@/lib/budget';
 
 /**
  * The geometry of the Início: the áreas de trabalho side by side on one track, each a page of the
@@ -17,9 +16,6 @@ const EDIT_GAP = 12;
 
 /** How long a finger has to stay on an empty part of an área before edit mode comes on. */
 export const LONG_PRESS_MS = 500;
-
-/** The widgets that show numbers of a month: an área with one of them gets the month switcher. */
-export const MONTHLY_WIDGETS: HomeWidgetKey[] = ['expenses', 'budget', 'card', 'reimbursable', 'history'];
 
 /** How far one page is from the next, in px, for a viewport `width` px wide. */
 export function pageStep(width: number, editing: boolean): number {
