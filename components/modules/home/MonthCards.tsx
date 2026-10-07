@@ -2,6 +2,7 @@
 
 import {
   computeProgressState,
+  expenseListDate,
   formatBRL,
   formatMonthShort,
   sum,
@@ -22,6 +23,11 @@ function shortDate(iso: string | undefined): string {
 
 type Entry = { kind: 'expense'; item: Expense } | { kind: 'income'; item: Income };
 
+/** The day the entry sits on: an instalment on the day it was bought, like in Lançamentos. */
+function entryDate(entry: Entry): string {
+  return entry.kind === 'expense' ? expenseListDate(entry.item) : (entry.item.date ?? '');
+}
+
 /** Lançamentos: income and spending of the month, and the three latest entries. */
 export function ExpensesHomeCard() {
   const { month, summary, monthData, error } = useMonthContext();
@@ -31,7 +37,7 @@ export function ExpensesHomeCard() {
         ...monthData.expenses.map((item) => ({ kind: 'expense' as const, item })),
         ...monthData.incomes.map((item) => ({ kind: 'income' as const, item })),
       ]
-        .sort((a, b) => (b.item.date ?? '').localeCompare(a.item.date ?? ''))
+        .sort((a, b) => entryDate(b).localeCompare(entryDate(a)))
         .slice(0, 3)
     : [];
 
@@ -63,7 +69,7 @@ export function ExpensesHomeCard() {
                     {entry.kind === 'expense' ? entry.item.description : entry.item.source}
                   </span>
                   <span className="flex shrink-0 items-baseline gap-2">
-                    <span className="text-muted text-xs">{shortDate(entry.item.date)}</span>
+                    <span className="text-muted text-xs">{shortDate(entryDate(entry))}</span>
                     <span
                       className={`font-medium tabular-nums ${entry.kind === 'income' ? 'text-success' : 'text-foreground'}`}
                     >
