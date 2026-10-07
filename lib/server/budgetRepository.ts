@@ -175,11 +175,11 @@ export class PostgresBudgetRepository implements BudgetRepository {
 
   async getMonth(month: Month): Promise<MonthData | undefined> {
     const [data] = await this.loadMonths(this.db, eq(months.month, month));
-    return data;
+    return data && this.withPurchaseDates(data);
   }
 
   async peekMonth(month: Month): Promise<MonthData> {
-    return (await this.getMonth(month)) ?? this.buildMonth(this.db, month);
+    return (await this.getMonth(month)) ?? this.withPurchaseDates(await this.buildMonth(this.db, month));
   }
 
   async ensureMonth(month: Month): Promise<MonthData> {
@@ -465,6 +465,32 @@ export class PostgresBudgetRepository implements BudgetRepository {
       ...(row.paidCount ? { paidCount: row.paidCount } : {}),
       ...(row.advancedCount ? { advancedCount: row.advancedCount } : {}),
     }));
+  }
+
+  /**
+   * Gives every instalment of `data` the day its purchase was made (`Expense.purchaseDate`), so
+   * the lists place it there and not on the day the bank debits it. Only for reading: the stored
+   * expense keeps its charge date alone.
+   */
+  private async withPurchaseDates(data: MonthData): Promise<MonthData> {
+    const ids = [...new Set(data.expenses.flatMap((e) => (e.installmentId ? [e.installmentId] : [])))];
+    if (ids.length === 0) return data;
+    const rows = await this.db
+      .select({
+        id: installments.id,
+        purchaseDate: installments.purchaseDate,
+        firstDebitDate: installments.firstDebitDate,
+      })
+      .from(installments)
+      .where(and(eq(installments.userId, this.userId), inArray(installments.id, ids)));
+    const purchased = new Map(rows.map((row) => [row.id, row.purchaseDate ?? row.firstDebitDate]));
+    return {
+      ...data,
+      expenses: data.expenses.map((expense) => {
+        const purchaseDate = expense.installmentId && purchased.get(expense.installmentId);
+        return purchaseDate ? { ...expense, purchaseDate } : expense;
+      }),
+    };
   }
 
   /** The instalments charged during `month`, as expenses (correction 9 of the bot spec). */

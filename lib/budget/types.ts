@@ -193,6 +193,12 @@ export interface Expense {
   /** 1-based position of this instalment in its plan. */
   installmentNumber?: number;
   /**
+   * For an instalment, the day the purchase was made (the plan's purchase date, or its first
+   * charge when that was never given). Filled in when the month is read and never stored — `date`
+   * stays the day the bank debits it, which is what decides the competence.
+   */
+  purchaseDate?: string;
+  /**
    * When the person got this money back, for an "A receber" purchase (ISO instant). Absent means
    * they still owe it. It changes nothing in the budget — the category was never charged — it is
    * only how the person keeps track of who already paid them.

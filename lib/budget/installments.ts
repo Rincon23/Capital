@@ -177,6 +177,26 @@ export function installmentExpense(plan: InstallmentPlan, number: number, dueDat
 }
 
 /**
+ * The day a list places an expense on. An instalment is dated the day the bank debits it — that
+ * is what puts it in its competence — but the person remembers it by the day they bought it, so a
+ * purchase made months ago sits down the list, not on the bill's day.
+ */
+export function expenseListDate(expense: Pick<Expense, 'date' | 'purchaseDate'>): string {
+  return expense.purchaseDate ?? expense.date;
+}
+
+/** "11/10", or "compra em 15/03" for an instalment bought another day ("15/03/25" in another year). */
+export function expenseDayLabel(expense: Pick<Expense, 'date' | 'purchaseDate'>): string {
+  const day = (iso: string, withYear: boolean) => {
+    const [year, month, date] = iso.split('-');
+    return withYear ? `${date}/${month}/${year.slice(2)}` : `${date}/${month}`;
+  };
+  const purchase = expense.purchaseDate;
+  if (!purchase || purchase === expense.date) return day(expense.date, false);
+  return `compra em ${day(purchase, purchase.slice(0, 4) !== expense.date.slice(0, 4))}`;
+}
+
+/**
  * What the instalment plans still owe, as a negative number: every charge of a competence
  * **later** than the current one, whether or not it already became an expense line.
  *

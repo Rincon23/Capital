@@ -8,6 +8,8 @@ import {
   advanceProblem,
   advanceTotal,
   advancedPlanOf,
+  expenseDayLabel,
+  expenseListDate,
   installmentDebt,
   installmentEndDate,
   installmentsDueIn,
@@ -180,5 +182,26 @@ describe('a categoria "Fora do orçamento"', () => {
     expect(summary.topics[0].spent).toBe(230);
     // Na fatura ela está: o banco vai cobrar de qualquer jeito.
     expect(summary.cardTotal).toBe(100);
+  });
+});
+
+describe('a parcela nas listas de gastos', () => {
+  const mercado = { date: '2026-10-05' };
+  const tenis = { date: '2026-10-11', purchaseDate: '2026-03-15' };
+  const geladeira = { date: '2026-10-11', purchaseDate: '2025-12-20' };
+
+  it('fica no dia da compra, não no dia em que o banco cobra', () => {
+    const order = [geladeira, mercado, tenis].sort((a, b) =>
+      expenseListDate(b).localeCompare(expenseListDate(a)),
+    );
+    expect(order).toEqual([mercado, tenis, geladeira]);
+  });
+
+  it('mostra o dia da compra, com o ano quando é de outro ano', () => {
+    expect(expenseDayLabel(mercado)).toBe('05/10');
+    expect(expenseDayLabel(tenis)).toBe('compra em 15/03');
+    expect(expenseDayLabel(geladeira)).toBe('compra em 20/12/25');
+    // A compra cobrada no mesmo dia em que foi feita não precisa dizer nada a mais.
+    expect(expenseDayLabel({ date: '2026-10-11', purchaseDate: '2026-10-11' })).toBe('11/10');
   });
 });

@@ -20,6 +20,8 @@ import { Chip } from '@/components/ui/Chip';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { useToast } from '@/components/ui/Toast';
 import {
+  expenseDayLabel,
+  expenseListDate,
   formatBRL,
   formatMonthLabel,
   formatMonthShort,
@@ -137,7 +139,7 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
     return monthData.expenses
       .filter((e) => filter.length === 0 || filter.includes(quickCategoryKey(e)))
       .filter((e) => e.description.toLowerCase().includes(search.toLowerCase()))
-      .sort((a, b) => b.date.localeCompare(a.date));
+      .sort((a, b) => expenseListDate(b).localeCompare(expenseListDate(a)));
   }, [monthData, filter, search]);
 
   const filteredIncomes = useMemo(() => {
@@ -436,7 +438,7 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
                         {expense.description}
                       </span>
                       <span className="text-muted block text-xs">
-                        {formatDate(expense.date)} · {expenseCategory(expense)}
+                        {expenseDayLabel(expense)} · {expenseCategory(expense)}
                       </span>
                     </span>
                     <span className="text-foreground font-semibold">{formatBRL(expense.amount)}</span>

@@ -178,6 +178,27 @@ describe('PostgresWalletRepository', () => {
     expect((await budget.getMonth(third))?.expenses).toHaveLength(1);
   });
 
+  it('tells each instalment the day of its purchase, without storing it', async () => {
+    const { budget, wallet } = await newAccount();
+    const month = currentMonthKey();
+    const bought = `${shiftMonth(month, -7)}-15`;
+    await budget.ensureMonth(month);
+    await wallet.saveInstallment(planFor(month, { purchaseDate: bought }));
+    // A plan registered without the day of the purchase falls back to its first charge.
+    await wallet.saveInstallment(planFor(shiftMonth(month, -1), { name: 'Celular' }));
+
+    const charges = (await budget.getMonth(month))?.expenses;
+    expect(charges?.find((e) => e.description === 'Notebook 1/3')?.purchaseDate).toBe(bought);
+    expect(charges?.find((e) => e.description === 'Celular 2/3')?.purchaseDate).toBe(
+      `${shiftMonth(month, -1)}-10`,
+    );
+    const preview = (await budget.peekMonth(nextMonth(month))).expenses;
+    expect(preview.find((e) => e.description === 'Notebook 2/3')?.purchaseDate).toBe(bought);
+    // The backup carries only what is stored: the charge keeps the day the bank debits it.
+    const stored = (await budget.exportData()).months.find((m) => m.month === month)?.expenses;
+    expect(stored?.every((e) => e.purchaseDate === undefined)).toBe(true);
+  });
+
   it('never charges the same instalment twice, however many times the plan is saved', async () => {
     const { budget, wallet } = await newAccount();
     const month = currentMonthKey();

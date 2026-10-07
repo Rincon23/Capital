@@ -4,7 +4,14 @@ import { ModuleGate } from '@/components/modules/ModuleGate';
 import { useMonthContext } from '@/components/month/MonthContext';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ProgressBar } from '@/components/ui/ProgressBar';
-import { computeProgressState, formatBRL, formatMonthLabel, formatPct } from '@/lib/budget';
+import {
+  computeProgressState,
+  expenseDayLabel,
+  expenseListDate,
+  formatBRL,
+  formatMonthLabel,
+  formatPct,
+} from '@/lib/budget';
 
 export function CategoryDetailScreen({ topicId }: { topicId: string }) {
   return (
@@ -33,7 +40,7 @@ function CategoryDetail({ topicId }: { topicId: string }) {
 
   const entries = monthData.expenses
     .filter((e) => e.topicId === topicId && e.categoryKind === 'topic')
-    .sort((a, b) => b.date.localeCompare(a.date));
+    .sort((a, b) => expenseListDate(b).localeCompare(expenseListDate(a)));
 
   const state = computeProgressState(topic.usedPct);
 
@@ -116,7 +123,7 @@ function CategoryDetail({ topicId }: { topicId: string }) {
               >
                 <span className="min-w-0">
                   <span className="text-foreground block truncate font-medium">{entry.description}</span>
-                  <span className="text-muted block text-xs">{formatDate(entry.date)}</span>
+                  <span className="text-muted block text-xs">{expenseDayLabel(entry)}</span>
                 </span>
                 <span className="text-foreground font-semibold">{formatBRL(entry.amount)}</span>
               </button>
@@ -126,9 +133,4 @@ function CategoryDetail({ topicId }: { topicId: string }) {
       </div>
     </div>
   );
-}
-
-function formatDate(iso: string): string {
-  const [, m, d] = iso.split('-');
-  return `${d}/${m}`;
 }
