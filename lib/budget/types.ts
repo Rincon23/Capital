@@ -93,6 +93,8 @@ export interface ModuleFlags {
   voice: boolean;
   /** Gmail keyword monitor. */
   gmail: boolean;
+  /** Diagrama: how much of each aporte goes to each type and asset. */
+  diagram: boolean;
 }
 
 export type ModuleKey = keyof ModuleFlags;

@@ -8,6 +8,7 @@ export * from './notificationsFeed';
 export * from './reimbursables';
 export * from './reminders';
 export * from './gmail';
+export * from './diagram';
 export * from './preferences';
 export * from './exportImport';
 
@@ -19,6 +20,7 @@ import { HttpNotificationsRepository, type NotificationsRepository } from './not
 import { HttpNotificationsFeedRepository, type NotificationsFeedRepository } from './notificationsFeed';
 import { HttpRemindersRepository, type RemindersRepository } from './reminders';
 import { HttpGmailRepository, type GmailRepository } from './gmail';
+import { HttpDiagramRepository, type DiagramRepository } from './diagram';
 
 /**
  * Singleton repository used throughout the app: the app's own API (Postgres on the server,
@@ -41,3 +43,6 @@ export const remindersRepository: RemindersRepository = new HttpRemindersReposit
 
 /** The Gmail monitor (owner only). */
 export const gmailRepository: GmailRepository = new HttpGmailRepository();
+
+/** The Diagrama: targets per type, assets and their scores, aportes. */
+export const diagramRepository: DiagramRepository = new HttpDiagramRepository();

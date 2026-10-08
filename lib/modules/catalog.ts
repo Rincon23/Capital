@@ -1,11 +1,12 @@
 import type { ModuleKey, Month } from '../budget/types';
 
 /** How the app drawer (and the module list) groups modules. */
-export type ModuleGroup = 'month' | 'wallet' | 'assistant';
+export type ModuleGroup = 'month' | 'wallet' | 'investing' | 'assistant';
 
 export const MODULE_GROUPS: { key: ModuleGroup; label: string }[] = [
   { key: 'month', label: 'Dinheiro do mês' },
   { key: 'wallet', label: 'Carteira' },
+  { key: 'investing', label: 'Investimentos' },
   { key: 'assistant', label: 'Assistente' },
 ];
 
@@ -160,6 +161,21 @@ export const MODULES: ModuleDefinition[] = [
       label: 'Emergência',
       href: () => '/carteira/caixa',
       isActive: (pathname) => pathname.startsWith('/carteira/caixa'),
+    },
+    homeCard: true,
+  },
+  {
+    key: 'diagram',
+    name: 'Diagrama',
+    description:
+      'Diga quanto quer investir e veja quanto vai para cada tipo e cada ativo, em reais e em cotas, pelas suas metas e pelas notas que você dá aos ativos.',
+    tagline: 'Quanto aportar em cada ativo',
+    group: 'investing',
+    dependsOn: [],
+    screen: {
+      label: 'Diagrama',
+      href: () => '/diagrama',
+      isActive: (pathname) => pathname.startsWith('/diagrama'),
     },
     homeCard: true,
   },

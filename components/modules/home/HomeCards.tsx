@@ -7,6 +7,7 @@ import { TodayRemindersCard } from '@/components/month/TodayRemindersCard';
 import { RemindersProvider } from '@/components/reminders/RemindersProvider';
 import { WalletProvider } from '@/components/wallet/WalletProvider';
 import { CalendarHomeCard } from './CalendarHomeCard';
+import { DiagramHomeCard } from './DiagramHomeCard';
 import { GmailHomeCard } from './GmailHomeCard';
 import { HistoryHomeCard } from './HistoryHomeCard';
 import { HomeCardBoundary } from './HomeCard';
@@ -29,6 +30,7 @@ const CARDS: Partial<Record<HomeWidgetKey, CardSpec>> = {
   recurring: { size: 'half', Component: RecurringHomeTile },
   investments: { size: 'half', Component: InvestmentsHomeTile },
   cash: { size: 'full', Component: CashHomeCard },
+  diagram: { size: 'full', Component: DiagramHomeCard },
   reminders: { size: 'full', Component: TodayRemindersCard },
   calendar: { size: 'full', Component: CalendarHomeCard },
   gmail: { size: 'full', Component: GmailHomeCard },

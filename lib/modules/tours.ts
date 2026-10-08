@@ -323,6 +323,55 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       side: 'bottom',
     },
   ],
+  diagram: [
+    {
+      route: () => '/diagrama',
+      anchor: 'diagrama-abas',
+      title: 'Aporte e Ativos e notas',
+      description:
+        'Em Aporte você diz quanto quer investir. Em Ativos e notas ficam os seus ativos, a nota de cada um e as perguntas.',
+      side: 'bottom',
+    },
+    {
+      route: () => '/diagrama',
+      anchor: 'diagrama-carteira',
+      title: 'Sua carteira por tipo',
+      description: 'Quanto cada tipo pesa hoje na carteira e a meta que você escolheu para ele.',
+      side: 'bottom',
+    },
+    {
+      route: () => '/diagrama',
+      anchor: 'diagrama-valor',
+      title: 'Quanto você quer investir?',
+      description:
+        'Digite o valor e toque em Calcular. O app manda primeiro para quem está mais longe da meta, em reais e em cotas, e explica o que sobrar.',
+      side: 'top',
+    },
+    {
+      route: () => '/diagrama?aba=ativos',
+      anchor: 'diagrama-ativos',
+      title: 'Ativos e notas',
+      description:
+        'Cada ativo tem uma nota de −1 a 1, dada pelas perguntas do tipo dele: quanto maior, mais ele recebe. "Não compro mais" faz o ativo nunca ser sugerido.',
+      side: 'top',
+    },
+    {
+      route: () => '/diagrama?aba=ativos',
+      anchor: 'diagrama-perguntas',
+      title: 'Perguntas',
+      description:
+        'Cada tipo tem a sua própria lista de perguntas, cada uma com um peso. Crie as suas ou comece pelas recomendadas.',
+      side: 'bottom',
+    },
+    {
+      route: () => '/diagrama',
+      anchor: 'diagrama-config',
+      title: 'Tipos e metas',
+      description:
+        'Na engrenagem você escolhe os tipos da sua carteira e quanto cada um deve pesar. Os perfis prontos ajudam a começar.',
+      side: 'bottom',
+    },
+  ],
   reminders: [
     {
       route: () => '/lembretes',
@@ -424,6 +473,7 @@ export const MODULE_HELP: Record<ModuleKey, Pick<TourStepDefinition, 'route' | '
   recurring: { route: () => '/carteira/recorrentes' },
   investments: { route: () => '/carteira/reserva' },
   cash: { route: () => '/carteira/caixa' },
+  diagram: { route: () => '/diagrama' },
   reminders: { route: () => '/lembretes' },
   voice: { route: home, sheet: 'voice' },
   gmail: { route: () => '/gmail' },

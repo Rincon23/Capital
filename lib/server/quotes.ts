@@ -1,4 +1,6 @@
 import 'server-only';
+import { DOLLAR_CACHE_KEY, looksLikeEtf, priceCacheKey } from '../diagram/tickers';
+import type { QuoteMarket } from '../diagram/types';
 
 /**
  * Prices of B3 assets (stocks, FIIs, ETFs, BDRs), free and without any token:
@@ -124,19 +126,134 @@ async function fromB3(tickers: string[]): Promise<FetchedQuote[]> {
 }
 
 async function fromYahoo(tickers: string[]): Promise<FetchedQuote[]> {
+  const wanted = new Set(tickers);
+  return (await fromYahooSymbols(tickers.map((ticker) => `${ticker}.SA`))).filter((quote) =>
+    wanted.has(quote.ticker),
+  );
+}
+
+/** Yahoo's spark for these exact symbols ("VOO", "BTC-BRL", "USDBRL=X"), many per request. */
+async function fromYahooSymbols(symbols: string[]): Promise<FetchedQuote[]> {
   const quotes: FetchedQuote[] = [];
-  for (let i = 0; i < tickers.length; i += YAHOO_BATCH) {
-    const symbols = tickers
-      .slice(i, i + YAHOO_BATCH)
-      .map((ticker) => `${ticker}.SA`)
-      .join(',');
-    const payload = await getJson(
-      `${YAHOO_SPARK_URL}?symbols=${encodeURIComponent(symbols)}&range=1d&interval=1d`,
-    );
-    const wanted = new Set(tickers);
-    quotes.push(...parseYahooSpark(payload).filter((quote) => wanted.has(quote.ticker)));
+  for (let i = 0; i < symbols.length; i += YAHOO_BATCH) {
+    const batch = symbols.slice(i, i + YAHOO_BATCH).join(',');
+    const payload = await getJson(`${YAHOO_SPARK_URL}?symbols=${encodeURIComponent(batch)}&range=1d&interval=1d`);
+    quotes.push(...parseYahooSpark(payload));
   }
   return quotes;
+}
+
+// ---------------------------------------------------------------------------
+// The Diagrama's other markets: US stocks, ETFs and REITs (Yahoo, in US$), crypto (Yahoo, already
+// in R$) and the dollar. Same rule as above: free, no token, never an exception.
+// ---------------------------------------------------------------------------
+
+/** What the Diagrama asks for: a ticker and the market that prices it. */
+export interface MarketRequest {
+  market: QuoteMarket;
+  /** As the app keeps it (lib/diagram/tickers.ts): "PETR4", "VOO", "BTC". */
+  ticker: string;
+}
+
+/** The symbol Yahoo knows a ticker by, outside B3. */
+function yahooSymbol({ market, ticker }: MarketRequest): string {
+  return market === 'crypto' ? `${ticker}-BRL` : ticker;
+}
+
+/** The dollar in R$, as Yahoo calls it. */
+export const DOLLAR_SYMBOL = 'USDBRL=X';
+
+/**
+ * Prices for the Diagrama, keyed by `priceCacheKey`, in the asset's own currency (US$ for the
+ * `us` market — the caller converts with the dollar, which comes along under `DOLLAR_CACHE_KEY`
+ * whenever any `us` ticker was asked for). Whatever no source knows is left out.
+ */
+export async function fetchMarketQuotes(requests: MarketRequest[]): Promise<Map<string, FetchedQuote>> {
+  const found = new Map<string, FetchedQuote>();
+  const b3 = requests.filter((request) => request.market === 'b3').map((request) => request.ticker);
+  const others = requests.filter((request) => request.market !== 'b3');
+
+  if (b3.length > 0) {
+    for (const [ticker, quote] of await fetchQuotes(b3)) found.set(priceCacheKey('b3', ticker), quote);
+  }
+
+  const bySymbol = new Map<string, string>();
+  for (const request of others) bySymbol.set(yahooSymbol(request), priceCacheKey(request.market, request.ticker));
+  if (others.some((request) => request.market === 'us')) bySymbol.set(DOLLAR_SYMBOL, DOLLAR_CACHE_KEY);
+  if (bySymbol.size > 0) {
+    for (const quote of await fromYahooSymbols([...bySymbol.keys()])) {
+      const key = bySymbol.get(quote.ticker);
+      if (key) found.set(key, { ...quote, ticker: key });
+    }
+  }
+  return found;
+}
+
+/** One suggestion while the person types a ticker. */
+export interface TickerSuggestion {
+  ticker: string;
+  name?: string;
+  /** Whether the source says (or the name shows) it is an ETF. */
+  isEtf: boolean;
+}
+
+const YAHOO_SEARCH_URL = 'https://query1.finance.yahoo.com/v1/finance/search';
+/** The US exchanges as Yahoo names them (NYSE, Nasdaq, NYSE Arca, NYSE American, Cboe, OTC). */
+const US_EXCHANGES = new Set(['NYQ', 'NYS', 'NMS', 'NGM', 'NCM', 'NAS', 'PCX', 'ASE', 'BTS', 'PNK']);
+/** A B3 code in the regular market: four letters and the share-class digits (no "F" or "Q"). */
+const B3_SYMBOL = /^([A-Z0-9]{4}\d{1,2})\.SA$/;
+const MAX_SUGGESTIONS = 8;
+
+/** Reads Yahoo's search answer, keeping only what the market can price, at most 8. */
+export function parseYahooSearch(market: QuoteMarket, payload: unknown): TickerSuggestion[] {
+  if (typeof payload !== 'object' || payload === null) return [];
+  const quotes = (payload as { quotes?: unknown }).quotes;
+  if (!Array.isArray(quotes)) return [];
+
+  const suggestions = new Map<string, TickerSuggestion>();
+  for (const entry of quotes) {
+    const item = entry as {
+      symbol?: unknown;
+      quoteType?: unknown;
+      exchange?: unknown;
+      shortname?: unknown;
+      longname?: unknown;
+    };
+    if (typeof item.symbol !== 'string') continue;
+    const kind = typeof item.quoteType === 'string' ? item.quoteType.toUpperCase() : '';
+    const name = cleanName(item.longname) ?? cleanName(item.shortname);
+    let ticker: string | null = null;
+
+    if (market === 'b3') {
+      const match = B3_SYMBOL.exec(item.symbol.toUpperCase());
+      if (match && (kind === 'EQUITY' || kind === 'ETF')) ticker = match[1];
+    } else if (market === 'us') {
+      const exchange = typeof item.exchange === 'string' ? item.exchange : '';
+      if ((kind === 'EQUITY' || kind === 'ETF') && US_EXCHANGES.has(exchange) && /^[A-Z][A-Z0-9.-]*$/.test(item.symbol))
+        ticker = item.symbol;
+    } else if (kind === 'CRYPTOCURRENCY') {
+      const match = /^([A-Z0-9]+)-(USD|BRL)$/.exec(item.symbol.toUpperCase());
+      if (match) ticker = match[1];
+    }
+
+    if (ticker && !suggestions.has(ticker)) {
+      suggestions.set(ticker, {
+        ticker,
+        name: market === 'crypto' ? name?.replace(/\s+(USD|BRL)$/i, '') : name,
+        isEtf: looksLikeEtf(name, kind),
+      });
+    }
+    if (suggestions.size >= MAX_SUGGESTIONS) break;
+  }
+  return [...suggestions.values()];
+}
+
+/** Tickers that start like `query`, from Yahoo's search (free, no token). Empty when it fails. */
+export async function searchTickers(market: QuoteMarket, query: string): Promise<TickerSuggestion[]> {
+  const text = query.trim();
+  if (!text) return [];
+  const params = new URLSearchParams({ q: text, quotesCount: '15', newsCount: '0', listsCount: '0' });
+  return parseYahooSearch(market, await getJson(`${YAHOO_SEARCH_URL}?${params.toString()}`));
 }
 
 /**

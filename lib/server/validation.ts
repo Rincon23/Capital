@@ -1,6 +1,14 @@
 import { z } from 'zod';
 import type { HomeWidgetKey, ModuleKey, NavKey, QuickCategoryKey } from '@/lib/budget';
 import { HOME_WIDGET_KEYS, MAX_HOME_PAGES, MAX_WIDGETS_PER_HOME_PAGE, MODULE_KEYS } from '@/lib/modules';
+import {
+  ASSET_TYPE_KEYS,
+  TICKER_TYPES,
+  type AssetType,
+  type DiagramBackup,
+  type DiagramTargets,
+  type TickerType,
+} from '@/lib/diagram';
 import { isAllowedPushEndpoint, type NotificationCategory } from '@/lib/notifications';
 import { QUOTAS } from './quotas';
 
@@ -336,13 +344,152 @@ export const aiProblemReportSchema = z.object({
 /** Body of "fechar mês": whether to open the next month in the same transaction. */
 export const closeMonthSchema = z.object({ openNext: z.boolean().optional() });
 
+// ---------------------------------------------------------------------------
+// Diagrama
+// ---------------------------------------------------------------------------
+
+const tickerTypeSchema = z.enum(TICKER_TYPES as [TickerType, ...TickerType[]]);
+const fixedIncomeTypeSchema = z.enum(['fixedIncome', 'intlFixedIncome']);
+const ratio = z.number().min(0).max(1);
+const diagramAmount = z.number().min(0).max(1_000_000_000_000);
+const optionalLabel = (max: number) => z.string().max(max).nullable().optional();
+
+/** The target of each type in the portfolio; a type left out is not in it. */
+export const diagramTargetsSchema = z.object({
+  targets: partialMap(ASSET_TYPE_KEYS, ratio) as z.ZodType<DiagramTargets>,
+});
+
+export const diagramLastAmountSchema = z.object({ amount: diagramAmount });
+
+export const diagramFixedIncomeSchema = z.object({ amount: diagramAmount, date: isoDate });
+
+export const diagramAssetSchema = z.object({
+  type: tickerTypeSchema,
+  ticker: z.string().trim().min(1).max(30),
+  quantity: diagramAmount,
+  sector: optionalLabel(100),
+  subsector: optionalLabel(100),
+  note: optionalLabel(500),
+  stopBuying: z.boolean(),
+  isEtf: z.boolean(),
+  directScore: z.number().min(-1).max(1).nullable(),
+  /** Today, on the person's device: the date of the quantity. */
+  date: isoDate,
+});
+
+export const diagramStopBuyingSchema = z.object({ stopBuying: z.boolean() });
+
+export const diagramAnswerSchema = z.object({
+  questionId: z.string().min(1).max(100),
+  answer: z.union([z.literal(1), z.literal(-1), z.null()]),
+});
+
+const questionFields = {
+  criterion: z.string().trim().min(1, 'Escreva o critério.').max(40),
+  text: z.string().trim().min(1, 'Escreva a pergunta.').max(300),
+  help: z.string().max(600).nullable().optional(),
+  weight: z.number().min(0).max(100),
+};
+
+export const diagramQuestionSchema = z.object({ type: tickerTypeSchema, ...questionFields });
+export const diagramQuestionUpdateSchema = z.object(questionFields);
+export const diagramReorderSchema = z.object({
+  type: tickerTypeSchema,
+  ids: z.array(z.string().min(1).max(100)).max(QUOTAS.diagramQuestions),
+});
+export const diagramRecommendedSchema = z.object({ type: tickerTypeSchema });
+
+export const diagramContributeSchema = z.object({
+  date: isoDate,
+  month: monthKeySchema,
+  items: z
+    .array(
+      z.object({
+        assetId: z.string().min(1).max(100).optional(),
+        type: z.enum(ASSET_TYPE_KEYS as [AssetType, ...AssetType[]]),
+        quantity: diagramAmount,
+      }),
+    )
+    .min(1)
+    .max(QUOTAS.diagramAssets + 2),
+  launchExpense: z.boolean(),
+});
+
+const diagramBackupSchema = z.object({
+  settings: z.object({
+    targets: partialMap(ASSET_TYPE_KEYS, ratio) as z.ZodType<DiagramTargets>,
+    lastAmount: diagramAmount.nullable(),
+  }),
+  assets: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(100),
+        type: tickerTypeSchema,
+        ticker: z.string().min(1).max(30),
+        quantity: diagramAmount,
+        quantityUpdatedOn: isoDate.nullable(),
+        sector: z.string().max(100).optional(),
+        subsector: z.string().max(100).optional(),
+        note: z.string().max(500).optional(),
+        stopBuying: z.boolean(),
+        isEtf: z.boolean(),
+        directScore: z.number().min(-1).max(1).nullable(),
+        position: z.number().int().min(0).max(100_000),
+      }),
+    )
+    .max(QUOTAS.diagramAssets),
+  fixedIncome: z
+    .array(z.object({ type: fixedIncomeTypeSchema, amount: diagramAmount, updatedOn: isoDate.nullable() }))
+    .max(2),
+  questions: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(100),
+        type: tickerTypeSchema,
+        criterion: z.string().max(40),
+        text: z.string().max(300),
+        help: z.string().max(600).optional(),
+        weight: z.number().min(0).max(100),
+        position: z.number().int().min(0).max(100_000),
+      }),
+    )
+    .max(QUOTAS.diagramQuestions),
+  answers: z.record(
+    z.string().max(100),
+    z.record(z.string().max(100), z.union([z.literal(1), z.literal(-1)])),
+  ),
+  contributions: z
+    .array(
+      z.object({
+        id: z.string().min(1).max(100),
+        date: isoDate,
+        amount: diagramAmount,
+        items: z
+          .array(
+            z.object({
+              type: z.enum(ASSET_TYPE_KEYS as [AssetType, ...AssetType[]]),
+              assetId: z.string().max(100).optional(),
+              ticker: z.string().max(30).optional(),
+              quantity: diagramAmount,
+              price: z.number().min(0).nullable(),
+              amount: diagramAmount,
+            }),
+          )
+          .max(QUOTAS.diagramAssets + 2),
+      }),
+    )
+    .max(QUOTAS.diagramContributions),
+}) satisfies z.ZodType<DiagramBackup>;
+
 export const backupSchema = z.object({
   // v2 added the modules and the "A receber" category, v3 the (now obsolete) bottom bar; older
-  // files still import.
+  // files still import. The Diagrama came later and is optional: a backup without it leaves the
+  // Diagrama as it is.
   version: z.union([z.literal(1), z.literal(2), z.literal(3)]),
   exportedAt: z.string(),
   settings: settingsSchema,
   months: z.array(monthDataSchema).max(1200),
+  diagram: diagramBackupSchema.optional(),
 });
 
 /** Administração: make an account VIP or take it back. */

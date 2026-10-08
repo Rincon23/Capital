@@ -6,6 +6,7 @@ import { userAccess, type UserAccess } from './access';
 import { getAuth } from './auth';
 import { PostgresBudgetRepository } from './budgetRepository';
 import { getDb } from './db';
+import { PostgresDiagramRepository } from './diagramRepository';
 import { HttpError } from './httpError';
 import { allowedOriginHosts } from './origins';
 import { PostgresGmailRepository } from './gmail/repository';
@@ -35,6 +36,8 @@ interface RouteArgs<P> {
   repo: PostgresBudgetRepository;
   /** Carteira data (recorrentes, parcelados, reserva, caixa) for the same user. */
   wallet: PostgresWalletRepository;
+  /** The Diagrama (targets per type, assets and scores, aportes). */
+  diagram: PostgresDiagramRepository;
   /** The devices that receive this user's notifications. */
   push: PostgresPushRepository;
   /** Lembretes and daily tasks. */
@@ -90,6 +93,7 @@ export function apiRoute<P = Record<string, never>>(
         params: await context.params,
         repo,
         wallet,
+        diagram: new PostgresDiagramRepository(db, session.user.id, repo),
         push: new PostgresPushRepository(db, session.user.id),
         reminders: new PostgresRemindersRepository(db, session.user.id),
         gmail: new PostgresGmailRepository(db, session.user.id),

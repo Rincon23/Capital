@@ -6,6 +6,11 @@ import {
   cards,
   cardSettings,
   cashSettings,
+  diagramAssets,
+  diagramContributions,
+  diagramFixedIncome,
+  diagramQuestions,
+  diagramSettings,
   gmailAccounts,
   gmailAlerts,
   gmailKeywords,
@@ -25,8 +30,8 @@ import { forgetGmailToken } from './gmail/job';
 
 /**
  * "Apagar todos os dados": everything the account stored, in every module — months and their
- * entries, settings, cards and bills, recurring and instalment purchases, reserves, reminders,
- * the Gmail connection (its token included) and the notification history. The account itself
+ * entries, settings, cards and bills, recurring and instalment purchases, reserves, the Diagrama,
+ * reminders, the Gmail connection (its token included) and the notification history. The account itself
  * stays, and so do the devices that receive notifications; "Excluir minha conta" removes those too.
  * Rows that hang from others (entries, deliveries, completions) go with them by cascade.
  */
@@ -46,6 +51,12 @@ export async function clearAccountData(db: Database, userId: string): Promise<vo
     await tx.delete(investmentBuckets).where(eq(investmentBuckets.userId, userId));
     await tx.delete(investmentReserves).where(eq(investmentReserves.userId, userId));
     await tx.delete(cashSettings).where(eq(cashSettings.userId, userId));
+    // The Diagrama's answers go with its assets and questions.
+    await tx.delete(diagramContributions).where(eq(diagramContributions.userId, userId));
+    await tx.delete(diagramAssets).where(eq(diagramAssets.userId, userId));
+    await tx.delete(diagramQuestions).where(eq(diagramQuestions.userId, userId));
+    await tx.delete(diagramFixedIncome).where(eq(diagramFixedIncome.userId, userId));
+    await tx.delete(diagramSettings).where(eq(diagramSettings.userId, userId));
     await tx.delete(reminders).where(eq(reminders.userId, userId));
     await tx.delete(reminderSettings).where(eq(reminderSettings.userId, userId));
     await tx.delete(gmailAlerts).where(eq(gmailAlerts.userId, userId));

@@ -17,6 +17,10 @@ export const QUOTAS = {
   installments: 500,
   buckets: 50,
   reminders: 300,
+  /** Diagrama: assets of every type together, questions of every type together, aportes kept. */
+  diagramAssets: 300,
+  diagramQuestions: 200,
+  diagramContributions: 2000,
   /** Browsers receiving notifications; past it, the one unused the longest is dropped. */
   pushDevices: 10,
 } as const;

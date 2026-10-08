@@ -37,6 +37,12 @@ import type {
   SpecialCategoryLabels,
   TopicConfig,
 } from '../../budget/types';
+import type {
+  DiagramContributionItem,
+  DiagramTargets,
+  FixedIncomeType,
+  TickerType,
+} from '../../diagram/types';
 import type { NotificationCategory } from '../../notifications/types';
 import type { ReminderKind, TimeOfDay } from '../../reminders/types';
 
@@ -763,5 +769,145 @@ export const gmailAlerts = pgTable(
   (t) => [
     primaryKey({ columns: [t.userId, t.messageId] }),
     index('gmail_alerts_user_received_idx').on(t.userId, t.receivedAt),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Diagrama (lib/diagram): targets per type, assets with scores, fixed-income totals, the
+// questions of each type and the aportes registered. Separate from the Reserva investida and from
+// the Reserva de emergência.
+// ---------------------------------------------------------------------------
+
+const TICKER_TYPES = sql`in ('brStocks', 'intlStocks', 'fiis', 'reits', 'crypto')`;
+const FIXED_INCOME_TYPES = sql`in ('fixedIncome', 'intlFixedIncome')`;
+
+/** One row per user: the target of each type in the portfolio (absent type = not in it). */
+export const diagramSettings = pgTable('diagram_settings', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  targets: jsonb('targets').$type<DiagramTargets>().notNull().default({}),
+  /** The amount of the last calculation, to fill the field next time. */
+  lastAmount: numeric('last_amount', { mode: 'number' }),
+  updatedAt: updatedAt(),
+});
+
+export const diagramAssets = pgTable(
+  'diagram_assets',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    id: text('id').notNull(),
+    type: text('type').$type<TickerType>().notNull(),
+    ticker: text('ticker').notNull(),
+    quantity: numeric('quantity', { precision: 24, scale: 8, mode: 'number' }).notNull().default(0),
+    quantityUpdatedOn: date('quantity_updated_on', { mode: 'string' }),
+    sector: text('sector'),
+    subsector: text('subsector'),
+    note: text('note'),
+    /** "Não compro mais": never bought, but its value still fills its type's target. */
+    stopBuying: boolean('stop_buying').notNull().default(false),
+    /** An ETF is scored by `direct_score`, not by the questions of its type. */
+    isEtf: boolean('is_etf').notNull().default(false),
+    directScore: numeric('direct_score', { mode: 'number' }),
+    position: integer('position').notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.id] }),
+    unique('diagram_assets_ticker_unique').on(t.userId, t.type, t.ticker),
+    check('diagram_assets_type', sql`${t.type} ${TICKER_TYPES}`),
+    check('diagram_assets_quantity', sql`${t.quantity} >= 0`),
+    check('diagram_assets_direct_score', sql`${t.directScore} is null or ${t.directScore} between -1 and 1`),
+  ],
+);
+
+/** The single total of each fixed-income type, typed by hand (R$). */
+export const diagramFixedIncome = pgTable(
+  'diagram_fixed_income',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    type: text('type').$type<FixedIncomeType>().notNull(),
+    amount: numeric('amount', { mode: 'number' }).notNull().default(0),
+    updatedOn: date('updated_on', { mode: 'string' }),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.type] }),
+    check('diagram_fixed_income_type', sql`${t.type} ${FIXED_INCOME_TYPES}`),
+    check('diagram_fixed_income_amount', sql`${t.amount} >= 0`),
+  ],
+);
+
+/** Each person's own questions, per type (changing one type's list never touches another's). */
+export const diagramQuestions = pgTable(
+  'diagram_questions',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    id: text('id').notNull(),
+    type: text('type').$type<TickerType>().notNull(),
+    criterion: text('criterion').notNull(),
+    text: text('text').notNull(),
+    help: text('help'),
+    /** 0 turns the question off without deleting its answers. */
+    weight: numeric('weight', { mode: 'number' }).notNull().default(1),
+    position: integer('position').notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.id] }),
+    check('diagram_questions_type', sql`${t.type} ${TICKER_TYPES}`),
+    check('diagram_questions_weight', sql`${t.weight} >= 0`),
+  ],
+);
+
+/** Sim (+1) or Não (−1) of an asset to a question; no row means no answer. Goes with either. */
+export const diagramAnswers = pgTable(
+  'diagram_answers',
+  {
+    userId: uuid('user_id').notNull(),
+    assetId: text('asset_id').notNull(),
+    questionId: text('question_id').notNull(),
+    answer: integer('answer').$type<1 | -1>().notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.assetId, t.questionId] }),
+    foreignKey({
+      columns: [t.userId, t.assetId],
+      foreignColumns: [diagramAssets.userId, diagramAssets.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.userId, t.questionId],
+      foreignColumns: [diagramQuestions.userId, diagramQuestions.id],
+    }).onDelete('cascade'),
+    check('diagram_answers_answer', sql`${t.answer} in (-1, 1)`),
+  ],
+);
+
+/** Every aporte registered with "Aportar" / "Aportar tudo", with what it bought. */
+export const diagramContributions = pgTable(
+  'diagram_contributions',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    id: text('id').notNull(),
+    date: date('date', { mode: 'string' }).notNull(),
+    amount: numeric('amount', { mode: 'number' }).notNull(),
+    items: jsonb('items').$type<DiagramContributionItem[]>().notNull(),
+    /** The expense launched in Investimentos with it, when the person asked for one. */
+    expenseId: text('expense_id'),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.id] }),
+    index('diagram_contributions_user_date_idx').on(t.userId, t.date),
   ],
 );

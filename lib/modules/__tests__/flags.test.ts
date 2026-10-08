@@ -21,7 +21,7 @@ import {
 const on = (...keys: ModuleKey[]) => Object.fromEntries(keys.map((key) => [key, true]));
 
 describe('catálogo de módulos', () => {
-  it('tem os 11 módulos, cada um depois dos que ele precisa', () => {
+  it('tem os 12 módulos, cada um depois dos que ele precisa', () => {
     expect(MODULE_KEYS).toEqual([
       'expenses',
       'budget',
@@ -31,6 +31,7 @@ describe('catálogo de módulos', () => {
       'recurring',
       'investments',
       'cash',
+      'diagram',
       'reminders',
       'voice',
       'gmail',
@@ -148,7 +149,7 @@ describe('dependências', () => {
     expect(parentOf('cash')).toBeNull();
 
     const tree = moduleTree();
-    expect(tree.map((node) => node.key)).toEqual(['expenses', 'cash', 'reminders', 'gmail']);
+    expect(tree.map((node) => node.key)).toEqual(['expenses', 'cash', 'diagram', 'reminders', 'gmail']);
     const expenses = tree[0];
     expect(expenses.children.map((node) => node.key)).toEqual([
       'budget',
