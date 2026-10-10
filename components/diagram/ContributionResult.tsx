@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Check, Info, Minus, Plus, RotateCcw } from 'lucide-react';
+import { Check, ChevronDown, Minus, Plus, RotateCcw } from 'lucide-react';
 import { amountToInputValue, currentMonthKey, formatBRL, parseAmountInput, todayISO } from '@/lib/budget';
 import {
   assetType,
@@ -9,6 +9,7 @@ import {
   sharesAfter,
   stepQuantity,
   suggestQuantities,
+  type AssetType,
   type BlockReason,
   type DiagramOverview,
   type OrphanReason,
@@ -55,7 +56,7 @@ function leftoverText(plan: Plan): string {
     case 'allAtTarget':
       return `Todos os ativos que podem receber chegaram na meta: ${left} ficam para o próximo aporte.`;
     case 'noReceivers':
-      return `Nenhum ativo pode receber agora (veja os avisos acima): ${left} ficam sem destino. Dê nota aos ativos ou adicione ativos aos tipos.`;
+      return `Nenhum ativo pode receber agora (veja o relatório): ${left} ficam sem destino.`;
     case 'unspent':
       return `${left} ainda sem destino. Use o + em algum ativo ou toque em Refazer sugestão.`;
   }
@@ -68,9 +69,9 @@ function lineQuantity(line: PlanLine): string | null {
 }
 
 /**
- * The result of an aporte: a donut with where the money goes (or the portfolio after it), the
- * leftover always in sight and explained, each type with its assets — quotas and R$ with − / +,
- * % today → after → target, "Aportar" on the line — and "Aportar tudo".
+ * The result of an aporte: a donut with where the money goes (or the portfolio after it), then
+ * only what is bought — quotas and R$ with − / + and "Aportar" — the leftover in one line, and
+ * "Aportar tudo". Why the other assets got nothing is in the report folded below.
  */
 export function ContributionResult({
   basis,
@@ -89,15 +90,20 @@ export function ContributionResult({
   const [contributing, setContributing] = useState<PlanLine | 'all' | null>(null);
 
   const plan = useMemo(() => buildPlan(basis.input, quantities), [basis.input, quantities]);
-  const receivingTypes = plan.types.filter((type) => type.target > 0 && !type.orphan);
-  const orphans = plan.types.filter((type) => type.orphan);
-  const stopped = plan.lines.filter((line) => line.blocked === 'stopped');
   const pending = plan.lines.filter((line) => !done.includes(line.id) && !line.blocked && line.quantity > 0);
   const after = sharesAfter(plan);
 
   function adjust(line: PlanLine, direction: 1 | -1) {
     setQuantities((current) => ({ ...current, [line.id]: stepQuantity(line, direction, plan.leftover) }));
   }
+
+  // The lines the suggestion bought (or the person added to) are the purchases on top, even at 0
+  // after a "−"; everything else — and why — is in the report below.
+  const buying = plan.lines.filter(
+    (line) =>
+      line.blocked !== 'stopped' && ((suggested[line.id] ?? 0) > 0 || line.quantity > 0 || done.includes(line.id)),
+  );
+  const buyingTypes = plan.types.filter((type) => buying.some((line) => line.type === type.type));
 
   return (
     <div className="flex flex-col gap-3">
@@ -107,7 +113,7 @@ export function ContributionResult({
           <div role="tablist" className="bg-background flex gap-1 rounded-lg p-1 text-xs">
             {(
               [
-                ['aporte', 'Distribuição do aporte'],
+                ['aporte', 'Aporte'],
                 ['depois', 'Carteira depois'],
               ] as const
             ).map(([key, label]) => (
@@ -129,7 +135,7 @@ export function ContributionResult({
             <Donut
               label="Distribuição do aporte por tipo"
               slices={plan.types.map((type) => ({ key: type.type, value: type.amount, color: assetType(type.type).color }))}
-              size={120}
+              size={112}
             >
               <span className="text-muted text-[10px]">Aporte</span>
               <span className="text-foreground text-xs font-semibold tabular-nums">{formatBRL(plan.spent)}</span>
@@ -139,7 +145,7 @@ export function ContributionResult({
               label="Carteira depois do aporte: anel de fora é depois, anel de dentro é a meta"
               slices={after.map((item) => ({ key: item.type, value: item.share, color: assetType(item.type).color }))}
               inner={plan.types.map((type) => ({ key: type.type, value: type.target, color: assetType(type.type).color }))}
-              size={120}
+              size={112}
             >
               <span className="text-muted text-[10px]">Depois</span>
               <span className="text-foreground text-xs font-semibold tabular-nums">
@@ -167,138 +173,84 @@ export function ContributionResult({
         </div>
       </section>
 
-      <section
-        className={`mx-4 flex items-start gap-2 rounded-xl px-4 py-3 text-sm ${
+      {buying.length > 0 && (
+        <section className="border-border bg-card divide-border mx-4 flex flex-col divide-y rounded-2xl border shadow-sm">
+          {buyingTypes.map((type) => (
+            <div key={type.type} className="flex flex-col">
+              <div className="flex items-center gap-2 px-4 pt-3 pb-1">
+                <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: assetType(type.type).color }} />
+                <h3 className="text-muted min-w-0 flex-1 truncate text-xs font-semibold uppercase">
+                  {assetType(type.type).label}
+                </h3>
+                <span className="text-muted text-xs tabular-nums">{formatBRL(type.amount)}</span>
+              </div>
+              <ul className="flex flex-col">
+                {buying
+                  .filter((line) => line.type === type.type)
+                  .map((line) => (
+                    <li key={line.id} className="flex items-center gap-2 px-4 py-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-foreground truncate text-sm font-semibold">{line.label}</p>
+                        <p className="text-muted truncate text-xs">
+                          {lineQuantity(line) ? `${lineQuantity(line)} = ` : ''}
+                          {formatBRL(line.amount)}
+                        </p>
+                      </div>
+                      {done.includes(line.id) ? (
+                        <span className="text-success flex items-center gap-1 text-xs font-semibold">
+                          <Check aria-hidden className="h-4 w-4" /> Aportado
+                        </span>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => adjust(line, -1)}
+                            disabled={line.quantity <= 0}
+                            aria-label={`Menos ${line.label}`}
+                            className="border-border text-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border disabled:opacity-30"
+                          >
+                            <Minus aria-hidden className="h-4 w-4" />
+                          </button>
+                          {line.unit !== 'money' && (
+                            <span className="text-foreground min-w-[2.5rem] text-center text-sm font-semibold tabular-nums">
+                              {formatQuantity(line.quantity, line.type)}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => adjust(line, 1)}
+                            disabled={stepQuantity(line, 1, plan.leftover) === line.quantity}
+                            aria-label={`Mais ${line.label}`}
+                            className="border-border text-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border disabled:opacity-30"
+                          >
+                            <Plus aria-hidden className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setContributing(line)}
+                            disabled={line.quantity <= 0}
+                            className="bg-primary/10 text-primary min-h-[36px] shrink-0 rounded-lg px-3 text-sm font-semibold disabled:opacity-40"
+                          >
+                            Aportar
+                          </button>
+                        </>
+                      )}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ))}
+        </section>
+      )}
+
+      <p
+        className={`mx-4 rounded-xl px-4 py-2.5 text-sm ${
           plan.leftover >= 0.01 ? 'bg-warning-bg text-warning' : 'bg-success-bg text-success'
         }`}
         aria-live="polite"
       >
-        <Info aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
-        <span>
-          <strong>Sobra: {formatBRL(Math.max(0, plan.leftover))}.</strong> {leftoverText(plan)}
-        </span>
-      </section>
-
-      {orphans.map((type) => (
-        <p key={type.type} className="bg-background text-foreground mx-4 rounded-xl px-4 py-3 text-sm">
-          <strong>{assetType(type.type).label}</strong>: {ORPHAN_TEXT[type.orphan as OrphanReason]}. A meta dele (
-          {pct(type.target)}) foi dividida entre os outros tipos, na proporção das metas.
-        </p>
-      ))}
-
-      {receivingTypes.map((type) => {
-        const lines = plan.lines.filter((line) => line.type === type.type && line.blocked !== 'stopped');
-        // The lines the suggestion bought (or the person added to) stay as full lines, even at 0.
-        const buying = lines.filter(
-          (line) => (suggested[line.id] ?? 0) > 0 || line.quantity > 0 || done.includes(line.id),
-        );
-        const idle = lines.filter((line) => !buying.includes(line));
-        const before = plan.invested > 0 ? type.value / plan.invested : 0;
-        const afterShare = after.find((item) => item.type === type.type)?.share ?? 0;
-        return (
-          <section key={type.type} className="mx-4 flex flex-col gap-2">
-            <div className="flex items-baseline gap-2">
-              <span aria-hidden className="h-2.5 w-2.5 self-center rounded-full" style={{ background: assetType(type.type).color }} />
-              <h3 className="text-foreground min-w-0 flex-1 truncate text-sm font-semibold">{assetType(type.type).label}</h3>
-              <span className="text-foreground text-sm font-semibold tabular-nums">{formatBRL(type.amount)}</span>
-            </div>
-            <p className="text-muted -mt-1 text-xs">
-              {pct(before)} → {pct(afterShare)} · meta {pct(type.effectiveTarget)}
-              {Math.abs(type.effectiveTarget - type.target) > 0.0001 ? ` (sua meta: ${pct(type.target)})` : ''}
-            </p>
-            <ul className="flex flex-col gap-2">
-              {buying.map((line) => (
-                <li key={line.id} className="border-border bg-card flex flex-col gap-2 rounded-xl border px-4 py-3 shadow-sm">
-                  <div className="flex items-start gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-foreground font-semibold">{line.label}</p>
-                      {lineQuantity(line) && <p className="text-muted text-xs">{lineQuantity(line)}</p>}
-                    </div>
-                    <p className="text-foreground font-semibold tabular-nums">{formatBRL(line.amount)}</p>
-                  </div>
-                  {done.includes(line.id) ? (
-                    <p className="text-success flex items-center gap-1 text-sm font-semibold">
-                      <Check aria-hidden className="h-4 w-4" /> Aportado
-                    </p>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => adjust(line, -1)}
-                        disabled={line.quantity <= 0}
-                        aria-label={`Menos ${line.label}`}
-                        className="border-border text-foreground flex h-10 w-10 items-center justify-center rounded-lg border disabled:opacity-30"
-                      >
-                        <Minus aria-hidden className="h-4 w-4" />
-                      </button>
-                      <span className="text-foreground min-w-[3.5rem] text-center text-sm font-semibold tabular-nums">
-                        {line.unit === 'money' ? formatBRL(line.quantity) : formatQuantity(line.quantity, line.type)}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => adjust(line, 1)}
-                        disabled={stepQuantity(line, 1, plan.leftover) === line.quantity}
-                        aria-label={`Mais ${line.label}`}
-                        className="border-border text-foreground flex h-10 w-10 items-center justify-center rounded-lg border disabled:opacity-30"
-                      >
-                        <Plus aria-hidden className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setContributing(line)}
-                        disabled={line.quantity <= 0}
-                        className="bg-primary/10 text-primary ml-auto min-h-[40px] rounded-lg px-4 text-sm font-semibold disabled:opacity-40"
-                      >
-                        Aportar
-                      </button>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-            {idle.length > 0 && (
-              <ul className="flex flex-col gap-1 px-1">
-                {idle.map((line) => {
-                  const canAdd =
-                    (line.blocked === 'waiting' || line.blocked === 'atTarget') &&
-                    stepQuantity(line, 1, plan.leftover) !== line.quantity;
-                  return (
-                    <li key={line.id} className="text-muted flex min-h-[32px] items-center gap-2 text-xs">
-                      <span className="text-foreground font-medium">{line.label}</span>
-                      <span className="min-w-0 flex-1 truncate">{line.blocked ? BLOCK_TEXT[line.blocked] : ''}</span>
-                      {canAdd && (
-                        <button
-                          type="button"
-                          onClick={() => adjust(line, 1)}
-                          aria-label={`Pôr ${line.label} neste aporte`}
-                          className="border-border text-foreground flex h-8 w-8 items-center justify-center rounded-lg border"
-                        >
-                          <Plus aria-hidden className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-        );
-      })}
-
-      {stopped.length > 0 && (
-        <section className="mx-4 flex flex-col gap-1.5">
-          <h3 className="text-muted text-sm font-semibold">Não compro mais</h3>
-          <ul className="flex flex-col gap-1">
-            {stopped.map((line) => (
-              <li key={line.id} className="text-muted flex items-center gap-2 text-xs">
-                <span className="text-foreground font-medium">{line.label}</span>
-                <span className="min-w-0 flex-1 truncate">{assetType(line.type).shortLabel}</span>
-                <span className="tabular-nums">hoje {plan.invested > 0 ? pct(line.value / plan.invested) : '—'}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+        <strong>Sobra: {formatBRL(Math.max(0, plan.leftover))}.</strong> {leftoverText(plan)}
+      </p>
 
       <div className="flex gap-3 px-4">
         <button
@@ -319,6 +271,8 @@ export function ContributionResult({
         </button>
       </div>
 
+      <Report plan={plan} after={after} buying={buying} onAdd={(line) => adjust(line, 1)} />
+
       {contributing && (
         <ContributeSheet
           lines={contributing === 'all' ? pending : [contributing]}
@@ -337,6 +291,101 @@ export function ContributionResult({
         />
       )}
     </div>
+  );
+}
+
+/**
+ * "Relatório do aporte", folded at the bottom: for every type, how it goes (% today → after →
+ * target) and where each asset stands — what it gets, or why it got nothing. The types that could
+ * not receive and the "Não compro mais" ones are here too, so the result above shows only what
+ * is bought.
+ */
+function Report({
+  plan,
+  after,
+  buying,
+  onAdd,
+}: {
+  plan: Plan;
+  after: { type: AssetType; share: number }[];
+  buying: PlanLine[];
+  onAdd: (line: PlanLine) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="mx-4 flex flex-col gap-2">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="text-muted flex min-h-[40px] items-center gap-1.5 self-start text-sm font-semibold"
+      >
+        <ChevronDown aria-hidden className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+        Relatório do aporte
+      </button>
+      {open && (
+        <div className="border-border bg-card divide-border flex flex-col divide-y rounded-2xl border text-xs shadow-sm">
+          {plan.types.map((type) => {
+            const lines = plan.lines.filter((line) => line.type === type.type);
+            const before = plan.invested > 0 ? type.value / plan.invested : 0;
+            const share = after.find((item) => item.type === type.type)?.share ?? 0;
+            return (
+              <div key={type.type} className="flex flex-col gap-1.5 px-4 py-3">
+                <p className="flex items-center gap-2">
+                  <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: assetType(type.type).color }} />
+                  <span className="text-foreground flex-1 font-semibold">{assetType(type.type).label}</span>
+                  <span className="text-muted tabular-nums">
+                    {pct(before)} → {pct(share)} · meta {pct(type.effectiveTarget)}
+                  </span>
+                </p>
+                {type.orphan && (
+                  <p className="text-muted">
+                    Não recebe: {ORPHAN_TEXT[type.orphan]}. A meta dele ({pct(type.target)}) foi dividida entre os outros
+                    tipos.
+                  </p>
+                )}
+                {!type.orphan && Math.abs(type.effectiveTarget - type.target) > 0.0001 && (
+                  <p className="text-muted">Sua meta é {pct(type.target)}; recebeu a parte de um tipo que não recebe.</p>
+                )}
+                <ul className="flex flex-col gap-0.5">
+                  {lines.map((line) => {
+                    const bought = buying.includes(line) && line.amount > 0;
+                    const canAdd =
+                      !buying.includes(line) &&
+                      (line.blocked === 'waiting' || line.blocked === 'atTarget') &&
+                      stepQuantity(line, 1, plan.leftover) !== line.quantity;
+                    return (
+                      <li key={line.id} className="flex min-h-[28px] items-center gap-2">
+                        <span className="text-foreground w-24 shrink-0 truncate font-medium">{line.label}</span>
+                        <span className={`min-w-0 flex-1 truncate ${bought ? 'text-success' : 'text-muted'}`}>
+                          {bought
+                            ? `${lineQuantity(line) ?? 'em reais'} = ${formatBRL(line.amount)}`
+                            : line.blocked
+                              ? BLOCK_TEXT[line.blocked]
+                              : 'Nada neste aporte'}
+                          {line.blocked === 'stopped' && plan.invested > 0 ? ` · hoje ${pct(line.value / plan.invested)}` : ''}
+                        </span>
+                        {canAdd && (
+                          <button
+                            type="button"
+                            onClick={() => onAdd(line)}
+                            aria-label={`Pôr ${line.label} neste aporte`}
+                            className="border-border text-foreground flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border"
+                          >
+                            <Plus aria-hidden className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                  {lines.length === 0 && <li className="text-muted">Nenhum ativo.</li>}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
 
