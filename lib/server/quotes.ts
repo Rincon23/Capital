@@ -132,7 +132,7 @@ async function fromYahoo(tickers: string[]): Promise<FetchedQuote[]> {
   );
 }
 
-/** Yahoo's spark for these exact symbols ("VOO", "BTC-BRL", "USDBRL=X"), many per request. */
+/** Yahoo's spark for these exact symbols ("VOO", "BTC-USD", "USDBRL=X"), many per request. */
 async function fromYahooSymbols(symbols: string[]): Promise<FetchedQuote[]> {
   const quotes: FetchedQuote[] = [];
   for (let i = 0; i < symbols.length; i += YAHOO_BATCH) {
@@ -144,8 +144,9 @@ async function fromYahooSymbols(symbols: string[]): Promise<FetchedQuote[]> {
 }
 
 // ---------------------------------------------------------------------------
-// The Diagrama's other markets: US stocks, ETFs and REITs (Yahoo, in US$), crypto (Yahoo, already
-// in R$) and the dollar. Same rule as above: free, no token, never an exception.
+// The Diagrama's other markets: US stocks, ETFs and REITs and crypto (Yahoo, in US$ — Yahoo has no
+// pair in R$ for crypto any more) and the dollar. Same rule as above: free, no token, never an
+// exception.
 // ---------------------------------------------------------------------------
 
 /** What the Diagrama asks for: a ticker and the market that prices it. */
@@ -157,16 +158,21 @@ export interface MarketRequest {
 
 /** The symbol Yahoo knows a ticker by, outside B3. */
 function yahooSymbol({ market, ticker }: MarketRequest): string {
-  return market === 'crypto' ? `${ticker}-BRL` : ticker;
+  return market === 'crypto' ? `${ticker}-USD` : ticker;
+}
+
+/** Whether a market's prices come in US$ (and need the dollar to become R$). */
+export function pricedInDollars(market: QuoteMarket): boolean {
+  return market === 'us' || market === 'crypto';
 }
 
 /** The dollar in R$, as Yahoo calls it. */
 export const DOLLAR_SYMBOL = 'USDBRL=X';
 
 /**
- * Prices for the Diagrama, keyed by `priceCacheKey`, in the asset's own currency (US$ for the
- * `us` market — the caller converts with the dollar, which comes along under `DOLLAR_CACHE_KEY`
- * whenever any `us` ticker was asked for). Whatever no source knows is left out.
+ * Prices for the Diagrama, keyed by `priceCacheKey`, in the asset's own currency (US$ for the `us`
+ * and `crypto` markets — the caller converts with the dollar, which comes along under
+ * `DOLLAR_CACHE_KEY` whenever one of those was asked for). Whatever no source knows is left out.
  */
 export async function fetchMarketQuotes(requests: MarketRequest[]): Promise<Map<string, FetchedQuote>> {
   const found = new Map<string, FetchedQuote>();
@@ -179,7 +185,7 @@ export async function fetchMarketQuotes(requests: MarketRequest[]): Promise<Map<
 
   const bySymbol = new Map<string, string>();
   for (const request of others) bySymbol.set(yahooSymbol(request), priceCacheKey(request.market, request.ticker));
-  if (others.some((request) => request.market === 'us')) bySymbol.set(DOLLAR_SYMBOL, DOLLAR_CACHE_KEY);
+  if (others.some((request) => pricedInDollars(request.market))) bySymbol.set(DOLLAR_SYMBOL, DOLLAR_CACHE_KEY);
   if (bySymbol.size > 0) {
     for (const quote of await fromYahooSymbols([...bySymbol.keys()])) {
       const key = bySymbol.get(quote.ticker);

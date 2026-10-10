@@ -238,6 +238,15 @@ describe('perguntas automáticas (VIP)', () => {
     expect((await diagram.getOverview(true)).answers[tgma.id][graham.id]).toBe(-1);
   });
 
+  it('converts crypto from US$ with the dollar (Yahoo has no pair in R$)', async () => {
+    const { diagram } = await newAccount();
+    const btc = await diagram.addAsset(asset({ type: 'crypto', ticker: 'btc-brl', quantity: 0.5 }), todayISO());
+    expect(btc.ticker).toBe('BTC');
+    await setPrice('CRYPTO:BTC', 60_000);
+    await setPrice('FX:USDBRL', 5);
+    expect((await diagram.getOverview(false)).quotes[btc.id].price).toBe(300_000);
+  });
+
   it('prices a B3 code from B3 in any type (ABTC11 in Criptomoedas)', async () => {
     const { diagram } = await newAccount();
     const abtc = await diagram.addAsset(asset({ type: 'crypto', ticker: 'abtc11.sa', isEtf: true }), todayISO());

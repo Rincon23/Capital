@@ -21,7 +21,11 @@ export function TypeChips<T extends AssetType>({
 }) {
   const chip = 'flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-medium';
   return (
-    <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" data-no-swipe-nav data-tour={tourAnchor}>
+    <div
+      className="-mx-4 flex [scrollbar-width:none] gap-2 overflow-x-auto px-4 pb-1"
+      data-no-swipe-nav
+      data-tour={tourAnchor}
+    >
       {all && (
         <button
           type="button"

@@ -18,7 +18,7 @@ export type AssetType =
   | 'fixedIncome'
   | 'intlFixedIncome';
 
-/** Where a type's prices come from: B3 (Yahoo ".SA" as a fallback), Yahoo in US$, Yahoo in R$. */
+/** Where a type's prices come from: B3 (Yahoo ".SA" as a fallback) or Yahoo in US$ (stocks and crypto). */
 export type QuoteMarket = 'b3' | 'us' | 'crypto';
 
 /** The two types that are a single total typed by hand (no tickers, no score). */

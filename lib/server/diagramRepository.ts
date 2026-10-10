@@ -53,7 +53,7 @@ import type { Database, Transaction } from './db/types';
 import { HttpError } from './httpError';
 import { fetchFundamentals } from './fundamentals';
 import { checkQuota, QUOTAS } from './quotas';
-import { fetchMarketQuotes, searchTickers, type TickerSuggestion } from './quotes';
+import { fetchMarketQuotes, pricedInDollars, searchTickers, type TickerSuggestion } from './quotes';
 
 /** A cached price older than this is refreshed the next time the Diagrama is opened. */
 const AUTO_REFRESH_MINUTES = 15;
@@ -63,6 +63,25 @@ const AUTO_REFRESH_WAIT_MS = 4_000;
 const RECENT_CONTRIBUTIONS = 30;
 /** LPA, VPA and P/VP change with each balance sheet: twice a day is plenty. */
 const INDICATORS_MAX_AGE_MINUTES = 12 * 60;
+
+/**
+ * When a source last failed to answer for a key (a price or an indicator), in this process. A key
+ * nobody knows (a typo, a delisted pair) is asked again only after AUTO_REFRESH_MINUTES, so it
+ * never holds every opening of the screen for AUTO_REFRESH_WAIT_MS.
+ */
+const recentMisses = new Map<string, number>();
+
+function missedRecently(key: string, now: number): boolean {
+  const at = recentMisses.get(key);
+  return at !== undefined && now - at < AUTO_REFRESH_MINUTES * 60_000;
+}
+
+function rememberMisses(asked: string[], found: { has: (key: string) => boolean }, now: number): void {
+  for (const key of asked) {
+    if (found.has(key)) recentMisses.delete(key);
+    else recentMisses.set(key, now);
+  }
+}
 
 type AssetRow = typeof diagramAssets.$inferSelect;
 type QuestionRow = typeof diagramQuestions.$inferSelect;
@@ -224,7 +243,7 @@ export class PostgresDiagramRepository {
   /** The cached prices of these assets, in R$ (US$ ones converted with the cached dollar). */
   private async readQuotes(assets: DiagramAsset[]): Promise<Pick<DiagramOverview, 'quotes' | 'dollar'>> {
     const keys = [...new Set(assets.map((asset) => this.cacheKey(asset)))];
-    const needsDollar = assets.some((asset) => assetMarket(asset.type, asset.ticker) === 'us');
+    const needsDollar = assets.some((asset) => pricedInDollars(assetMarket(asset.type, asset.ticker)));
     if (needsDollar) keys.push(DOLLAR_CACHE_KEY);
     const rows = keys.length > 0 ? await this.db.select().from(priceCache).where(inArray(priceCache.ticker, keys)) : [];
     const byKey = new Map(rows.map((row) => [row.ticker, row]));
@@ -238,7 +257,7 @@ export class PostgresDiagramRepository {
     for (const asset of assets) {
       const row = byKey.get(this.cacheKey(asset));
       if (!row) continue;
-      const us = assetMarket(asset.type, asset.ticker) === 'us';
+      const us = pricedInDollars(assetMarket(asset.type, asset.ticker));
       if (us && !dollar) continue;
       quotes[asset.id] = {
         price: us && dollar ? row.price * dollar.price : row.price,
@@ -258,7 +277,11 @@ export class PostgresDiagramRepository {
     const cached = await this.readQuotes(assets);
     const now = new Date();
     const stale =
-      assets.some((asset) => isPriceStale(cached.quotes[asset.id]?.fetchedAt, now, AUTO_REFRESH_MINUTES)) ||
+      assets.some(
+        (asset) =>
+          isPriceStale(cached.quotes[asset.id]?.fetchedAt, now, AUTO_REFRESH_MINUTES) &&
+          !missedRecently(this.cacheKey(asset), now.getTime()),
+      ) ||
       (cached.dollar !== null && isPriceStale(cached.dollar.fetchedAt, now, AUTO_REFRESH_MINUTES));
     if (assets.length === 0 || !stale) return cached;
 
@@ -282,6 +305,11 @@ export class PostgresDiagramRepository {
   private async storeQuotes(assets: Pick<DiagramAsset, 'type' | 'ticker'>[]): Promise<number> {
     const requests = assets.map((asset) => ({ market: assetMarket(asset.type, asset.ticker), ticker: asset.ticker }));
     const found = await fetchMarketQuotes(requests);
+    rememberMisses(
+      assets.map((asset) => this.cacheKey(asset)),
+      found,
+      Date.now(),
+    );
     const fetchedAt = new Date();
     for (const [key, quote] of found) {
       const values = { price: quote.price, name: quote.name ?? null, source: quote.source, fetchedAt };
@@ -349,6 +377,11 @@ export class PostgresDiagramRepository {
   private async storeIndicators(tickers: string[]): Promise<void> {
     if (tickers.length === 0) return;
     const found = await fetchFundamentals(tickers);
+    rememberMisses(
+      tickers.map((ticker) => `fundamentals:${ticker}`),
+      { has: (key) => found.has(key.slice('fundamentals:'.length)) },
+      Date.now(),
+    );
     const fetchedAt = new Date();
     for (const item of found.values()) {
       const values = { lpa: item.lpa, vpa: item.vpa, pvp: item.pvp, fetchedAt };
@@ -371,8 +404,10 @@ export class PostgresDiagramRepository {
     const tickers = this.indicatorTickers(assets, questions);
     let byTicker = await this.readIndicators(tickers);
     const now = new Date();
-    const stale = tickers.filter((ticker) =>
-      isPriceStale(byTicker.get(ticker)?.fetchedAt, now, INDICATORS_MAX_AGE_MINUTES),
+    const stale = tickers.filter(
+      (ticker) =>
+        isPriceStale(byTicker.get(ticker)?.fetchedAt, now, INDICATORS_MAX_AGE_MINUTES) &&
+        !missedRecently(`fundamentals:${ticker}`, now.getTime()),
     );
     if (stale.length > 0) {
       const refreshed = this.storeIndicators(stale)
