@@ -391,8 +391,11 @@ const questionFields = {
   weight: z.number().min(0).max(100),
 };
 
+const autoKindSchema = z.enum(['graham', 'pvp']);
+
 export const diagramQuestionSchema = z.object({ type: tickerTypeSchema, ...questionFields });
-export const diagramQuestionUpdateSchema = z.object(questionFields);
+export const diagramQuestionUpdateSchema = z.object({ ...questionFields, auto: autoKindSchema.nullable().optional() });
+export const diagramAutoQuestionSchema = z.object({ kind: autoKindSchema });
 export const diagramReorderSchema = z.object({
   type: tickerTypeSchema,
   ids: z.array(z.string().min(1).max(100)).max(QUOTAS.diagramQuestions),
@@ -449,6 +452,7 @@ const diagramBackupSchema = z.object({
         criterion: z.string().max(40),
         text: z.string().max(300),
         help: z.string().max(600).optional(),
+        auto: autoKindSchema.optional(),
         weight: z.number().min(0).max(100),
         position: z.number().int().min(0).max(100_000),
       }),

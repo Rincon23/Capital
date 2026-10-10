@@ -61,7 +61,7 @@ function asset(overrides: Partial<AssetInput> = {}): AssetInput {
 describe('PostgresDiagramRepository', () => {
   it('starts empty: no targets, no assets, no questions', async () => {
     const { diagram } = await newAccount();
-    const overview = await diagram.getOverview();
+    const overview = await diagram.getOverview(false);
     expect(overview.settings).toEqual({ targets: {}, lastAmount: null });
     expect(overview.assets).toEqual([]);
     expect(overview.questions).toEqual([]);
@@ -71,7 +71,7 @@ describe('PostgresDiagramRepository', () => {
     const { diagram } = await newAccount();
     await expect(diagram.saveTargets({ brStocks: 0.5, fiis: 0.4 })).rejects.toMatchObject({ code: 'TARGETS_NOT_100' });
     await diagram.saveTargets({ brStocks: 0.6, fiis: 0.4, crypto: 0 });
-    expect((await diagram.getOverview()).settings.targets).toEqual({ brStocks: 0.6, fiis: 0.4, crypto: 0 });
+    expect((await diagram.getOverview(false)).settings.targets).toEqual({ brStocks: 0.6, fiis: 0.4, crypto: 0 });
   });
 
   it('normalizes the ticker, refuses a duplicate and converts US$ prices with the dollar', async () => {
@@ -83,7 +83,7 @@ describe('PostgresDiagramRepository', () => {
     });
     await setPrice('US:WTAI', 43.6);
     await setPrice('FX:USDBRL', 5);
-    const overview = await diagram.getOverview();
+    const overview = await diagram.getOverview(false);
     expect(overview.quotes[added.id].price).toBeCloseTo(218, 6);
     expect(overview.dollar?.price).toBe(5);
   });
@@ -92,7 +92,7 @@ describe('PostgresDiagramRepository', () => {
     const { diagram } = await newAccount();
     expect(await diagram.useRecommended('fiis')).toBe(RECOMMENDED_QUESTIONS.fiis.length);
     expect(await diagram.useRecommended('fiis')).toBe(0);
-    const questions = (await diagram.getOverview()).questions;
+    const questions = (await diagram.getOverview(false)).questions;
     expect(questions.every((question) => question.type === 'fiis')).toBe(true);
     expect(questions.map((question) => question.position)).toEqual(questions.map((_, index) => index));
   });
@@ -104,9 +104,9 @@ describe('PostgresDiagramRepository', () => {
     const pvp = await diagram.addQuestion({ type: 'fiis', criterion: 'P/VP', text: 'P/VP < 1?', weight: 1 });
     await diagram.setAnswer(wege.id, roe.id, 1);
     await expect(diagram.setAnswer(wege.id, pvp.id, 1)).rejects.toMatchObject({ code: 'WRONG_TYPE' });
-    expect((await diagram.getOverview()).answers[wege.id]).toEqual({ [roe.id]: 1 });
+    expect((await diagram.getOverview(false)).answers[wege.id]).toEqual({ [roe.id]: 1 });
     await diagram.deleteQuestion(roe.id);
-    expect((await diagram.getOverview()).answers[wege.id]).toBeUndefined();
+    expect((await diagram.getOverview(false)).answers[wege.id]).toBeUndefined();
   });
 
   it('adds the quotas of an aporte, keeps it in the history and can launch it in Investimentos', async () => {
@@ -126,7 +126,7 @@ describe('PostgresDiagramRepository', () => {
     });
     expect(contribution.amount).toBe(350);
 
-    const overview = await diagram.getOverview();
+    const overview = await diagram.getOverview(false);
     expect(overview.assets[0]).toMatchObject({ quantity: 13, quantityUpdatedOn: todayISO() });
     expect(overview.fixedIncome).toEqual([{ type: 'fixedIncome', amount: 200, updatedOn: todayISO() }]);
     expect(overview.contributions).toHaveLength(1);
@@ -149,7 +149,7 @@ describe('PostgresDiagramRepository', () => {
         launchExpense: false,
       }),
     ).rejects.toMatchObject({ code: 'NO_QUOTE' });
-    expect((await diagram.getOverview()).assets[0].quantity).toBe(1);
+    expect((await diagram.getOverview(false)).assets[0].quantity).toBe(1);
   });
 
   it('round-trips through the backup and goes away with "Apagar todos os dados"', async () => {
@@ -162,7 +162,7 @@ describe('PostgresDiagramRepository', () => {
     const backup = await diagram.exportData();
 
     await clearAccountData(db, id);
-    const empty = await diagram.getOverview();
+    const empty = await diagram.getOverview(false);
     expect(empty.assets).toEqual([]);
     expect(empty.settings.targets).toEqual({});
 
@@ -192,5 +192,89 @@ describe('parseYahooSearch', () => {
     expect(parseYahooSearch('us', payload)).toEqual([{ ticker: 'VOO', name: 'Vanguard S&P 500 ETF', isEtf: true }]);
     expect(parseYahooSearch('crypto', payload)).toEqual([{ ticker: 'BTC', name: 'Bitcoin', isEtf: false }]);
     expect(parseYahooSearch('b3', null)).toEqual([]);
+  });
+});
+
+describe('perguntas automáticas (VIP)', () => {
+  async function setIndicators(ticker: string, values: { lpa?: number; vpa?: number; pvp?: number }) {
+    const row = { lpa: values.lpa ?? null, vpa: values.vpa ?? null, pvp: values.pvp ?? null, fetchedAt: new Date() };
+    await db
+      .insert(schema.fundamentalsCache)
+      .values({ ticker, ...row })
+      .onConflictDoUpdate({ target: schema.fundamentalsCache.ticker, set: row });
+  }
+
+  it('turns the manual P/VP question into the automatic one and answers it for VIP only', async () => {
+    const { diagram } = await newAccount();
+    await diagram.useRecommended('fiis');
+    const hglg = await diagram.addAsset(asset({ type: 'fiis', ticker: 'HGLG11' }), todayISO());
+    const manual = (await diagram.getOverview(false)).questions.find((question) => question.criterion === 'P/VP')!;
+    await diagram.setAnswer(hglg.id, manual.id, -1);
+
+    const auto = await diagram.enableAutoQuestion('pvp');
+    expect(auto).toMatchObject({ id: manual.id, auto: 'pvp' });
+    expect((await diagram.enableAutoQuestion('pvp')).id).toBe(manual.id);
+
+    await setIndicators('HGLG11', { pvp: 0.95 });
+    expect((await diagram.getOverview(true)).answers[hglg.id][manual.id]).toBe(1);
+    // Not VIP: no indicators, and the old manual answer is what is stored.
+    const plain = await diagram.getOverview(false);
+    expect(plain.indicators).toEqual({});
+    expect(plain.answers[hglg.id][manual.id]).toBe(-1);
+    await expect(diagram.setAnswer(hglg.id, manual.id, 1)).rejects.toMatchObject({ code: 'AUTO_QUESTION' });
+  });
+
+  it('puts Graham first among the Ações nacionais and answers it with the price', async () => {
+    const { diagram } = await newAccount();
+    await diagram.useRecommended('brStocks');
+    const graham = await diagram.enableAutoQuestion('graham');
+    const questions = (await diagram.getOverview(false)).questions.filter((question) => question.type === 'brStocks');
+    expect(questions.find((question) => question.position === 0)?.id).toBe(graham.id);
+    expect(new Set(questions.map((question) => question.position)).size).toBe(questions.length);
+
+    const tgma = await diagram.addAsset(asset({ ticker: 'TGMA3' }), todayISO());
+    await setPrice('TGMA3', 45.25);
+    await setIndicators('TGMA3', { lpa: 3.61, vpa: 13.8 });
+    expect((await diagram.getOverview(true)).answers[tgma.id][graham.id]).toBe(-1);
+  });
+
+  it('prices a B3 code from B3 in any type (ABTC11 in Criptomoedas)', async () => {
+    const { diagram } = await newAccount();
+    const abtc = await diagram.addAsset(asset({ type: 'crypto', ticker: 'abtc11.sa', isEtf: true }), todayISO());
+    expect(abtc.ticker).toBe('ABTC11');
+    await setPrice('ABTC11', 124.05);
+    expect((await diagram.getOverview(false)).quotes[abtc.id].price).toBe(124.05);
+  });
+});
+
+describe('parseFundamentus', () => {
+  const page = (rows: [string, string][]) =>
+    rows
+      .map(
+        ([label, value]) =>
+          `<td class="label w2"><span class="help tips" title="x">?</span><span class="txt">${label}</span></td>\n\t\t<td class="data w2"><span class="txt">${value}</span></td>`,
+      )
+      .join('\n');
+
+  it('reads LPA, VPA and P/VP of a stock and VP/Cota of a fund', async () => {
+    const { parseFundamentus } = await import('../fundamentals');
+    expect(parseFundamentus('WEGE3', page([['LPA', '1,49'], ['VPA', '4,49'], ['P/VP', '11,45']]))).toEqual({
+      ticker: 'WEGE3',
+      lpa: 1.49,
+      vpa: 4.49,
+      pvp: 11.45,
+    });
+    expect(parseFundamentus('HGLG11', page([['P/VP', '0,95'], ['VP/Cota', '165,95']]))).toEqual({
+      ticker: 'HGLG11',
+      lpa: null,
+      vpa: 165.95,
+      pvp: 0.95,
+    });
+    expect(parseFundamentus('X', page([['LPA', '-0,52'], ['VPA', '-'], ['P/VP', '1.234,5']]))).toMatchObject({
+      lpa: -0.52,
+      vpa: null,
+      pvp: 1234.5,
+    });
+    expect(parseFundamentus('XXXX99', '<h1>Nenhum papel encontrado</h1>')).toBeNull();
   });
 });

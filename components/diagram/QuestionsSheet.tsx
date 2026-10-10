@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, Plus } from 'lucide-react';
 import {
+  AUTO_QUESTIONS,
   assetType,
   isFixedIncomeType,
   questionsOf,
@@ -10,12 +11,14 @@ import {
   TICKER_TYPES,
   typesInUse,
   type DiagramOverview,
+  type AutoQuestionKind,
   type DiagramQuestion,
   type TickerType,
 } from '@/lib/diagram';
 import { diagramRepository } from '@/lib/storage';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
+import { Switch } from '@/components/ui/Switch';
 import { useToast } from '@/components/ui/Toast';
 import { TypeChips } from './TypeChips';
 
@@ -46,6 +49,9 @@ export function QuestionsSheet({
 
   const questions = questionsOf(overview.questions, type);
   const recommended = RECOMMENDED_QUESTIONS[type];
+  // The automatic question this type can have (Graham, P/VP), and whether it is already on.
+  const automatic = AUTO_QUESTIONS.find((definition) => definition.type === type);
+  const automaticOn = automatic ? questions.some((question) => question.auto === automatic.kind) : false;
   const label = assetType(type).label;
 
   async function act(action: () => Promise<unknown>, done?: string) {
@@ -110,8 +116,13 @@ export function QuestionsSheet({
                 }`}
               >
                 <button type="button" onClick={() => setEditing(question)} className="min-w-0 flex-1 text-left">
-                  <span className="text-muted block text-[11px] font-semibold tracking-wide uppercase">
+                  <span className="text-muted flex flex-wrap items-center gap-1.5 text-[11px] font-semibold tracking-wide uppercase">
                     {question.criterion}
+                    {question.auto && (
+                      <span className="bg-primary/10 text-primary rounded-full px-1.5 py-0.5 text-[10px] tracking-normal normal-case">
+                        {overview.vip ? 'Automática' : 'VIP'}
+                      </span>
+                    )}
                     {question.weight <= 0
                       ? ' · desligada'
                       : question.weight !== 1
@@ -145,6 +156,37 @@ export function QuestionsSheet({
           </ul>
         )}
 
+        {automatic && !automaticOn && (
+          <div className="border-border flex flex-col gap-2 rounded-xl border p-3">
+            <p className="text-foreground flex items-center gap-2 text-sm font-semibold">
+              Pergunta automática: {automatic.criterion}
+              <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-[11px] font-semibold">VIP</span>
+            </p>
+            <p className="text-muted text-xs">
+              {automatic.kind === 'graham'
+                ? 'O app calcula o preço justo de Graham com o LPA e o VPA de cada ação e responde sozinho, todo dia.'
+                : 'O app busca o P/VP de cada fundo e responde sozinho, todo dia: abaixo de 1 é Sim.'}
+              {questions.some((question) => question.criterion.trim().toLowerCase() === automatic.criterion.toLowerCase())
+                ? ` A sua pergunta "${automatic.criterion}" passa a ser respondida sozinha.`
+                : ''}
+            </p>
+            {overview.vip ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  void act(() => diagramRepository.enableAutoQuestion(automatic.kind), `${automatic.criterion} automático ligado.`)
+                }
+                className="bg-primary text-primary-foreground min-h-[40px] self-start rounded-lg px-4 text-sm font-semibold disabled:opacity-50"
+              >
+                Ligar
+              </button>
+            ) : (
+              <p className="text-muted text-xs font-medium">Disponível para contas VIP.</p>
+            )}
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -173,8 +215,8 @@ export function QuestionsSheet({
           )}
         </div>
         <p className="text-muted text-xs">
-          Cada resposta vale Sim (+1), Não (−1) ou nada, vezes o peso. A nota é a soma dividida pela soma dos pesos:
-          vai de −1 a 1. Peso 0 desliga a pergunta sem apagar as respostas.
+          Cada resposta vale Sim (+1), Não (−1) ou nada, vezes o peso. A nota é a soma dividida pela soma dos pesos,
+          vezes 10: vai de −10 a 10. Peso 0 desliga a pergunta sem apagar as respostas.
         </p>
       </div>
 
@@ -182,6 +224,7 @@ export function QuestionsSheet({
         <QuestionFormSheet
           initial={editing === 'new' ? undefined : editing}
           typeLabel={label}
+          vip={overview.vip}
           onClose={() => setEditing(null)}
           onDelete={editing === 'new' ? undefined : () => void handleDelete(editing)}
           onSave={async (values) => {
@@ -203,16 +246,25 @@ export function QuestionsSheet({
 function QuestionFormSheet({
   initial,
   typeLabel,
+  vip,
   onClose,
   onSave,
   onDelete,
 }: {
   initial?: DiagramQuestion;
   typeLabel: string;
+  vip: boolean;
   onClose: () => void;
-  onSave: (values: { criterion: string; text: string; help: string | null; weight: number }) => Promise<void>;
+  onSave: (values: {
+    criterion: string;
+    text: string;
+    help: string | null;
+    weight: number;
+    auto?: AutoQuestionKind | null;
+  }) => Promise<void>;
   onDelete?: () => void;
 }) {
+  const [automatic, setAutomatic] = useState(!!initial?.auto);
   const [criterion, setCriterion] = useState(initial?.criterion ?? '');
   const [text, setText] = useState(initial?.text ?? '');
   const [help, setHelp] = useState(initial?.help ?? '');
@@ -235,12 +287,27 @@ function QuestionFormSheet({
               text: text.trim(),
               help: help.trim() || null,
               weight,
+              // Turning the switch off makes it a normal question, answered by hand.
+              ...(initial?.auto && !automatic ? { auto: null } : {}),
             });
           } finally {
             setSaving(false);
           }
         }}
       >
+        {initial?.auto && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="flex flex-col">
+              <span className="text-foreground text-sm font-medium">Responder sozinha</span>
+              <span className="text-muted text-xs">
+                {vip
+                  ? 'Com os dados do mercado (VIP). Desligada, vira uma pergunta normal, respondida à mão.'
+                  : 'Só para contas VIP: enquanto isso, não entra na nota. Desligada, vira uma pergunta normal.'}
+              </span>
+            </span>
+            <Switch checked={automatic} onChange={setAutomatic} label="Responder sozinha" />
+          </div>
+        )}
         <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
           Critério (curto)
           <input

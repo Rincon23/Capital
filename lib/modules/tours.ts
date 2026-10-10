@@ -352,7 +352,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       anchor: 'diagrama-ativos',
       title: 'Ativos e notas',
       description:
-        'Cada ativo tem uma nota de −1 a 1, dada pelas perguntas do tipo dele: quanto maior, mais ele recebe. "Não compro mais" faz o ativo nunca ser sugerido.',
+        'Cada ativo tem uma nota de −10 a 10, dada pelas perguntas do tipo dele: quanto maior, mais ele recebe. "Não compro mais" faz o ativo nunca ser sugerido.',
       side: 'top',
     },
     {

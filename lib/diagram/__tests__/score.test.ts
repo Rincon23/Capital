@@ -21,7 +21,7 @@ describe('questionsScore', () => {
     const score = questionsScore(list, answers);
     expect(score.score).toBeCloseTo(13 / 14, 9);
     expect(score).toMatchObject({ positive: 13, negative: 0, unanswered: 1 });
-    expect(formatScore(score.score)).toBe('0,93');
+    expect(formatScore(score.score)).toBe('9,3');
   });
 
   it('weighs each answer by its question, and a weight of 0 turns a question off', () => {
@@ -30,7 +30,7 @@ describe('questionsScore', () => {
     // (1 − 1 − 2) / (1 + 1 + 2)
     expect(score.score).toBeCloseTo(-0.5, 9);
     expect(score).toMatchObject({ positive: 1, negative: 3 });
-    expect(formatScore(score.score)).toBe('−0,5');
+    expect(formatScore(score.score)).toBe('−5');
   });
 
   it('is the same score whatever the screen: the asset sheet and the list read the same function', () => {

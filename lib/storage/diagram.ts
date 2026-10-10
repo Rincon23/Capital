@@ -1,6 +1,7 @@
 import type {
   Answer,
   AssetInput,
+  AutoQuestionKind,
   ContributeInput,
   DiagramAsset,
   DiagramContribution,
@@ -20,6 +21,9 @@ export interface TickerSuggestion {
   isEtf: boolean;
 }
 
+/** An edited question; `auto: null` makes an automatic question a normal one again. */
+export type QuestionUpdate = Omit<QuestionInput, 'type'> & { auto?: AutoQuestionKind | null };
+
 /** Like `BudgetRepository`: the Diagrama screen only talks to this contract. */
 export interface DiagramRepository {
   getOverview(): Promise<DiagramOverview>;
@@ -32,7 +36,8 @@ export interface DiagramRepository {
   deleteAsset(id: string): Promise<void>;
   setAnswer(assetId: string, questionId: string, answer: Answer | null): Promise<void>;
   addQuestion(input: QuestionInput): Promise<DiagramQuestion>;
-  updateQuestion(id: string, input: Omit<QuestionInput, 'type'>): Promise<void>;
+  updateQuestion(id: string, input: QuestionUpdate): Promise<void>;
+  enableAutoQuestion(kind: AutoQuestionKind): Promise<DiagramQuestion>;
   deleteQuestion(id: string): Promise<void>;
   reorderQuestions(type: TickerType, ids: string[]): Promise<void>;
   useRecommended(type: TickerType): Promise<{ added: number }>;
@@ -82,8 +87,12 @@ export class HttpDiagramRepository implements DiagramRepository {
     return apiRequest('POST', '/diagram/questions', input);
   }
 
-  updateQuestion(id: string, input: Omit<QuestionInput, 'type'>): Promise<void> {
+  updateQuestion(id: string, input: QuestionUpdate): Promise<void> {
     return apiRequest('PUT', `/diagram/questions/${seg(id)}`, input);
+  }
+
+  enableAutoQuestion(kind: AutoQuestionKind): Promise<DiagramQuestion> {
+    return apiRequest('POST', '/diagram/questions/auto', { kind });
   }
 
   deleteQuestion(id: string): Promise<void> {

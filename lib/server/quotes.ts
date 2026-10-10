@@ -248,12 +248,25 @@ export function parseYahooSearch(market: QuoteMarket, payload: unknown): TickerS
   return [...suggestions.values()];
 }
 
-/** Tickers that start like `query`, from Yahoo's search (free, no token). Empty when it fails. */
-export async function searchTickers(market: QuoteMarket, query: string): Promise<TickerSuggestion[]> {
+/**
+ * Tickers that start like `query`, from Yahoo's search (free, no token), for these markets in this
+ * order (the type's own market first). Empty when it fails.
+ */
+export async function searchTickers(markets: QuoteMarket[], query: string): Promise<TickerSuggestion[]> {
   const text = query.trim();
   if (!text) return [];
   const params = new URLSearchParams({ q: text, quotesCount: '15', newsCount: '0', listsCount: '0' });
-  return parseYahooSearch(market, await getJson(`${YAHOO_SEARCH_URL}?${params.toString()}`));
+  const payload = await getJson(`${YAHOO_SEARCH_URL}?${params.toString()}`);
+  const seen = new Set<string>();
+  const suggestions: TickerSuggestion[] = [];
+  for (const market of markets) {
+    for (const suggestion of parseYahooSearch(market, payload)) {
+      if (seen.has(suggestion.ticker)) continue;
+      seen.add(suggestion.ticker);
+      suggestions.push(suggestion);
+    }
+  }
+  return suggestions.slice(0, MAX_SUGGESTIONS);
 }
 
 /**

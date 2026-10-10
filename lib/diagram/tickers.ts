@@ -9,7 +9,8 @@ export function normalizeAssetTicker(market: QuoteMarket, raw: string): string {
   let ticker = raw.trim().toUpperCase().replace(/\s+/g, '');
   const colon = ticker.lastIndexOf(':');
   if (colon >= 0) ticker = ticker.slice(colon + 1);
-  if (market === 'b3') ticker = ticker.replace(/\.SA$/, '');
+  // A B3 code pasted with Yahoo's suffix, in any type (IVVB11.SA in Ações internacionais).
+  ticker = ticker.replace(/\.SA$/, '');
   if (market === 'crypto') ticker = ticker.replace(/-(BRL|USD|USDT)$/, '');
   return ticker;
 }

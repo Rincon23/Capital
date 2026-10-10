@@ -1,9 +1,12 @@
-import { assetType, isFixedIncomeType, typesInUse } from './assetTypes';
+import { assetFractionDigits, assetType, isFixedIncomeType, typesInUse } from './assetTypes';
 import type { PlanPosition } from './plan';
 import { assetScore, type AssetScore } from './score';
 import type { AssetType, DiagramAsset, DiagramOverview, DiagramQuestion, FixedIncomeType } from './types';
 
-type Source = Pick<DiagramOverview, 'settings' | 'assets' | 'fixedIncome' | 'questions' | 'answers' | 'quotes'>;
+type Source = Pick<
+  DiagramOverview,
+  'settings' | 'assets' | 'fixedIncome' | 'questions' | 'answers' | 'quotes' | 'vip'
+>;
 
 /** The questions of one type, in order. */
 export function questionsOf(questions: DiagramQuestion[], type: AssetType): DiagramQuestion[] {
@@ -16,8 +19,22 @@ export function assetValue(asset: DiagramAsset, source: Pick<DiagramOverview, 'q
   return quote ? asset.quantity * quote.price : 0;
 }
 
-export function scoreOf(asset: DiagramAsset, source: Pick<DiagramOverview, 'questions' | 'answers'>): AssetScore {
-  return assetScore(asset, questionsOf(source.questions, asset.type), source.answers[asset.id]);
+/**
+ * The questions of a type that count for this account: an automatic one (Graham, P/VP) only
+ * counts for VIP accounts — for the others it is shown, marked VIP, and left out of the score.
+ */
+export function countedQuestions(
+  source: Pick<DiagramOverview, 'questions' | 'vip'>,
+  type: AssetType,
+): DiagramQuestion[] {
+  return questionsOf(source.questions, type).filter((question) => !question.auto || source.vip);
+}
+
+export function scoreOf(
+  asset: DiagramAsset,
+  source: Pick<DiagramOverview, 'questions' | 'answers' | 'vip'>,
+): AssetScore {
+  return assetScore(asset, countedQuestions(source, asset.type), source.answers[asset.id]);
 }
 
 export function fixedIncomeAmount(source: Pick<DiagramOverview, 'fixedIncome'>, type: FixedIncomeType): number {
@@ -50,7 +67,7 @@ export function planPositions(source: Source): PlanPosition[] {
       label: asset.ticker,
       value: assetValue(asset, source),
       price: source.quotes[asset.id]?.price ?? null,
-      fractionDigits: assetType(asset.type).fractionDigits,
+      fractionDigits: assetFractionDigits(asset.type, asset.ticker),
       unit: 'quota',
       score: scoreOf(asset, source).score,
       stopBuying: asset.stopBuying,

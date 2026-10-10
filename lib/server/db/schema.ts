@@ -38,6 +38,7 @@ import type {
   TopicConfig,
 } from '../../budget/types';
 import type {
+  AutoQuestionKind,
   DiagramContributionItem,
   DiagramTargets,
   FixedIncomeType,
@@ -855,6 +856,8 @@ export const diagramQuestions = pgTable(
     criterion: text('criterion').notNull(),
     text: text('text').notNull(),
     help: text('help'),
+    /** Answered by the app from market data (Graham, P/VP) — VIP accounts only. */
+    auto: text('auto').$type<AutoQuestionKind>(),
     /** 0 turns the question off without deleting its answers. */
     weight: numeric('weight', { mode: 'number' }).notNull().default(1),
     position: integer('position').notNull(),
@@ -865,6 +868,7 @@ export const diagramQuestions = pgTable(
     primaryKey({ columns: [t.userId, t.id] }),
     check('diagram_questions_type', sql`${t.type} ${TICKER_TYPES}`),
     check('diagram_questions_weight', sql`${t.weight} >= 0`),
+    check('diagram_questions_auto', sql`${t.auto} is null or ${t.auto} in ('graham', 'pvp')`),
   ],
 );
 
@@ -890,6 +894,18 @@ export const diagramAnswers = pgTable(
     check('diagram_answers_answer', sql`${t.answer} in (-1, 1)`),
   ],
 );
+
+/**
+ * LPA, VPA and P/VP per B3 ticker (lib/server/fundamentals.ts), for the automatic questions.
+ * Global, like `price_cache`: an indicator is not personal.
+ */
+export const fundamentalsCache = pgTable('fundamentals_cache', {
+  ticker: text('ticker').primaryKey(),
+  lpa: numeric('lpa', { mode: 'number' }),
+  vpa: numeric('vpa', { mode: 'number' }),
+  pvp: numeric('pvp', { mode: 'number' }),
+  fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+});
 
 /** Every aporte registered with "Aportar" / "Aportar tudo", with what it bought. */
 export const diagramContributions = pgTable(

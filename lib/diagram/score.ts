@@ -88,9 +88,15 @@ export function clampScore(value: number): number {
   return Math.min(1, Math.max(-1, value));
 }
 
-/** "0,93", "−0,14", "1": two decimals at most, with a real minus sign. */
+/**
+ * How many points the screens show for a score: the score is kept from −1 to 1 (the formula of
+ * the spreadsheet), and shown from −10 to 10 — the scale people already use for grades.
+ */
+export const SCORE_SCALE = 10;
+
+/** "9,3", "−1,4", "10": the score on the −10…10 scale, one decimal at most, a real minus sign. */
 export function formatScore(score: number | null): string {
   if (score === null) return '—';
-  const text = Math.abs(score).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+  const text = Math.abs(score * SCORE_SCALE).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
   return score < 0 && text !== '0' ? `−${text}` : text;
 }

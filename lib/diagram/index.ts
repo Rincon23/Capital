@@ -5,3 +5,4 @@ export * from './plan';
 export * from './recommended';
 export * from './tickers';
 export * from './portfolio';
+export * from './indicators';

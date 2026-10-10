@@ -1,3 +1,5 @@
+import type { AssetIndicators } from './indicators';
+
 /**
  * The Diagrama: the person says how much they want to invest and the app says how much goes to
  * each type and each asset, from a target % per type and a score given to each asset.
@@ -62,9 +64,14 @@ export interface FixedIncomeTotal {
   updatedOn: string | null;
 }
 
+/** A question the app answers by itself from market data (VIP only). */
+export type AutoQuestionKind = 'graham' | 'pvp';
+
 export interface DiagramQuestion {
   id: string;
   type: TickerType;
+  /** Answered by the app (Graham, P/VP) for VIP accounts; for the others it does not count. */
+  auto?: AutoQuestionKind;
   /** A word or two: "ROE", "P/VP". */
   criterion: string;
   text: string;
@@ -111,6 +118,13 @@ export interface DiagramContributionItem {
 
 /** Everything the Diagrama screen reads, in one request. */
 export interface DiagramOverview {
+  /** The automatic questions (Graham, P/VP) work only for VIP accounts. */
+  vip: boolean;
+  /**
+   * By asset id: LPA, VPA and P/VP from the free source, for the assets an automatic question
+   * needs (VIP only). Their answers already come inside `answers`.
+   */
+  indicators: Record<string, AssetIndicators>;
   settings: DiagramSettings;
   assets: DiagramAsset[];
   fixedIncome: FixedIncomeTotal[];
@@ -157,4 +171,6 @@ export interface AssetInput {
   directScore: number | null;
 }
 
-export type QuestionInput = Pick<DiagramQuestion, 'type' | 'criterion' | 'text' | 'weight'> & { help?: string | null };
+export type QuestionInput = Pick<DiagramQuestion, 'type' | 'criterion' | 'text' | 'weight'> & {
+  help?: string | null;
+};

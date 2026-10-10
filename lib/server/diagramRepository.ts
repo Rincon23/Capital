@@ -5,7 +5,10 @@ import { isPriceStale } from '../budget/investments';
 import { round2 } from '../budget/money';
 import type { Expense, Month } from '../budget/types';
 import {
+  assetMarket,
   assetType,
+  autoAnswer,
+  autoQuestion,
   isFixedIncomeType,
   normalizeAssetTicker,
   isValidAssetTicker,
@@ -15,8 +18,10 @@ import {
   targetsComplete,
   type Answer,
   type AssetAnswers,
+  type AssetIndicators,
   type AssetInput,
   type AssetQuote,
+  type AutoQuestionKind,
   type ContributeInput,
   type DiagramAsset,
   type DiagramBackup,
@@ -29,6 +34,7 @@ import {
   type FixedIncomeTotal,
   type FixedIncomeType,
   type QuestionInput,
+  type QuoteMarket,
   type TickerType,
 } from '../diagram';
 import { isModuleOn } from '../modules';
@@ -40,10 +46,12 @@ import {
   diagramFixedIncome,
   diagramQuestions,
   diagramSettings,
+  fundamentalsCache,
   priceCache,
 } from './db/schema';
 import type { Database, Transaction } from './db/types';
 import { HttpError } from './httpError';
+import { fetchFundamentals } from './fundamentals';
 import { checkQuota, QUOTAS } from './quotas';
 import { fetchMarketQuotes, searchTickers, type TickerSuggestion } from './quotes';
 
@@ -53,6 +61,8 @@ const AUTO_REFRESH_MINUTES = 15;
 const AUTO_REFRESH_WAIT_MS = 4_000;
 /** How many registered aportes the screen receives (the history keeps them all). */
 const RECENT_CONTRIBUTIONS = 30;
+/** LPA, VPA and P/VP change with each balance sheet: twice a day is plenty. */
+const INDICATORS_MAX_AGE_MINUTES = 12 * 60;
 
 type AssetRow = typeof diagramAssets.$inferSelect;
 type QuestionRow = typeof diagramQuestions.$inferSelect;
@@ -82,9 +92,37 @@ function toQuestion(row: QuestionRow): DiagramQuestion {
     criterion: row.criterion,
     text: row.text,
     ...(row.help ? { help: row.help } : {}),
+    ...(row.auto ? { auto: row.auto } : {}),
     weight: row.weight,
     position: row.position,
   };
+}
+
+/**
+ * The stored answers with the automatic questions answered from the indicators (VIP): what the
+ * person may have answered by hand before the question became automatic does not count.
+ */
+function withAutoAnswers(
+  stored: Record<string, AssetAnswers>,
+  assets: DiagramAsset[],
+  questions: DiagramQuestion[],
+  indicators: Record<string, AssetIndicators>,
+  quotes: Record<string, AssetQuote>,
+): Record<string, AssetAnswers> {
+  const automatic = questions.filter((question) => question.auto);
+  if (automatic.length === 0) return stored;
+  const answers: Record<string, AssetAnswers> = {};
+  for (const [assetId, byQuestion] of Object.entries(stored)) answers[assetId] = { ...byQuestion };
+  for (const asset of assets) {
+    for (const question of automatic) {
+      if (question.type !== asset.type) continue;
+      const own = (answers[asset.id] ??= {});
+      const answer = autoAnswer(question.auto as AutoQuestionKind, indicators[asset.id], quotes[asset.id]?.price ?? null);
+      if (answer === null) delete own[question.id];
+      else own[question.id] = answer;
+    }
+  }
+  return answers;
 }
 
 /** "" and whitespace are "não informado". */
@@ -109,8 +147,13 @@ export class PostgresDiagramRepository {
   // Reads
   // -------------------------------------------------------------------------
 
-  async getOverview(): Promise<DiagramOverview> {
-    const [settings, assets, fixedIncome, questions, answers, contributions] = await Promise.all([
+  /**
+   * Everything the screen shows. For a VIP account the automatic questions (Graham, P/VP) come
+   * already answered inside `answers`, from the indicators that come along; for the others they
+   * do not count (see `countedQuestions`) and nothing is fetched for them.
+   */
+  async getOverview(vip: boolean): Promise<DiagramOverview> {
+    const [settings, assets, fixedIncome, questions, stored, contributions] = await Promise.all([
       this.readSettings(),
       this.listAssets(),
       this.listFixedIncome(),
@@ -118,8 +161,12 @@ export class PostgresDiagramRepository {
       this.readAnswers(),
       this.listContributions(RECENT_CONTRIBUTIONS),
     ]);
-    const { quotes, dollar } = await this.currentQuotes(assets);
-    return { settings, assets, fixedIncome, questions, answers, quotes, dollar, contributions };
+    const [{ quotes, dollar }, indicators] = await Promise.all([
+      this.currentQuotes(assets),
+      vip ? this.currentIndicators(assets, questions) : Promise.resolve({}),
+    ]);
+    const answers = vip ? withAutoAnswers(stored, assets, questions, indicators, quotes) : stored;
+    return { vip, settings, assets, fixedIncome, questions, answers, quotes, dollar, indicators, contributions };
   }
 
   private async readSettings(executor: Executor = this.db): Promise<DiagramSettings> {
@@ -177,7 +224,7 @@ export class PostgresDiagramRepository {
   /** The cached prices of these assets, in R$ (US$ ones converted with the cached dollar). */
   private async readQuotes(assets: DiagramAsset[]): Promise<Pick<DiagramOverview, 'quotes' | 'dollar'>> {
     const keys = [...new Set(assets.map((asset) => this.cacheKey(asset)))];
-    const needsDollar = assets.some((asset) => assetType(asset.type).market === 'us');
+    const needsDollar = assets.some((asset) => assetMarket(asset.type, asset.ticker) === 'us');
     if (needsDollar) keys.push(DOLLAR_CACHE_KEY);
     const rows = keys.length > 0 ? await this.db.select().from(priceCache).where(inArray(priceCache.ticker, keys)) : [];
     const byKey = new Map(rows.map((row) => [row.ticker, row]));
@@ -191,7 +238,7 @@ export class PostgresDiagramRepository {
     for (const asset of assets) {
       const row = byKey.get(this.cacheKey(asset));
       if (!row) continue;
-      const us = assetType(asset.type).market === 'us';
+      const us = assetMarket(asset.type, asset.ticker) === 'us';
       if (us && !dollar) continue;
       quotes[asset.id] = {
         price: us && dollar ? row.price * dollar.price : row.price,
@@ -228,12 +275,12 @@ export class PostgresDiagramRepository {
   }
 
   private cacheKey(asset: Pick<DiagramAsset, 'type' | 'ticker'>): string {
-    return priceCacheKey(assetType(asset.type).market ?? 'b3', asset.ticker);
+    return priceCacheKey(assetMarket(asset.type, asset.ticker), asset.ticker);
   }
 
   /** Asks the free sources for these assets (and the dollar) and caches what they answer. */
   private async storeQuotes(assets: Pick<DiagramAsset, 'type' | 'ticker'>[]): Promise<number> {
-    const requests = assets.map((asset) => ({ market: assetType(asset.type).market ?? 'b3', ticker: asset.ticker }));
+    const requests = assets.map((asset) => ({ market: assetMarket(asset.type, asset.ticker), ticker: asset.ticker }));
     const found = await fetchMarketQuotes(requests);
     const fetchedAt = new Date();
     for (const [key, quote] of found) {
@@ -247,10 +294,13 @@ export class PostgresDiagramRepository {
   }
 
   /** "Atualizar cotações": every asset of the account, now. */
-  async refreshQuotes(): Promise<{ updated: number; missing: string[] }> {
+  async refreshQuotes(vip: boolean): Promise<{ updated: number; missing: string[] }> {
     const assets = await this.listAssets();
     if (assets.length === 0) return { updated: 0, missing: [] };
-    await this.storeQuotes(assets);
+    await Promise.all([
+      this.storeQuotes(assets),
+      vip ? this.storeIndicators(this.indicatorTickers(assets, await this.listQuestions())) : Promise.resolve(),
+    ]);
     const { quotes } = await this.readQuotes(assets);
     return {
       updated: Object.keys(quotes).length,
@@ -258,10 +308,89 @@ export class PostgresDiagramRepository {
     };
   }
 
-  /** Suggestions while the person types a ticker of `type`. */
+  /**
+   * Suggestions while the person types a ticker of `type`: its own market first and, for the
+   * international types and crypto, the B3 codes too (IVVB11, ABTC11), which B3 prices in R$.
+   */
   async searchTickers(type: TickerType, query: string): Promise<TickerSuggestion[]> {
     const market = assetType(type).market ?? 'b3';
-    return searchTickers(market, normalizeAssetTicker(market, query));
+    const markets: QuoteMarket[] = market === 'b3' ? ['b3'] : [market, 'b3'];
+    return searchTickers(markets, normalizeAssetTicker(market, query));
+  }
+
+  // -------------------------------------------------------------------------
+  // Indicators (VIP): LPA, VPA and P/VP for the automatic questions
+  // -------------------------------------------------------------------------
+
+  /** The B3 tickers an automatic question of this account needs (Graham: stocks; P/VP: funds). */
+  private indicatorTickers(assets: DiagramAsset[], questions: DiagramQuestion[]): string[] {
+    const types = new Set(questions.filter((question) => question.auto).map((question) => question.type));
+    return [
+      ...new Set(
+        assets
+          .filter((asset) => types.has(asset.type) && assetMarket(asset.type, asset.ticker) === 'b3')
+          .map((asset) => asset.ticker),
+      ),
+    ];
+  }
+
+  private async readIndicators(tickers: string[]): Promise<Map<string, AssetIndicators>> {
+    if (tickers.length === 0) return new Map();
+    const rows = await this.db.select().from(fundamentalsCache).where(inArray(fundamentalsCache.ticker, tickers));
+    return new Map(
+      rows.map((row) => [
+        row.ticker,
+        { lpa: row.lpa, vpa: row.vpa, pvp: row.pvp, fetchedAt: row.fetchedAt.toISOString() },
+      ]),
+    );
+  }
+
+  /** Asks the free source for these tickers and caches what it answers. */
+  private async storeIndicators(tickers: string[]): Promise<void> {
+    if (tickers.length === 0) return;
+    const found = await fetchFundamentals(tickers);
+    const fetchedAt = new Date();
+    for (const item of found.values()) {
+      const values = { lpa: item.lpa, vpa: item.vpa, pvp: item.pvp, fetchedAt };
+      await this.db
+        .insert(fundamentalsCache)
+        .values({ ticker: item.ticker, ...values })
+        .onConflictDoUpdate({ target: fundamentalsCache.ticker, set: values });
+    }
+  }
+
+  /**
+   * The indicators of every asset an automatic question needs, by asset id — refreshed first when
+   * one is missing or older than INDICATORS_MAX_AGE_MINUTES (they change with each balance sheet),
+   * waiting at most AUTO_REFRESH_WAIT_MS like the quotes.
+   */
+  private async currentIndicators(
+    assets: DiagramAsset[],
+    questions: DiagramQuestion[],
+  ): Promise<Record<string, AssetIndicators>> {
+    const tickers = this.indicatorTickers(assets, questions);
+    let byTicker = await this.readIndicators(tickers);
+    const now = new Date();
+    const stale = tickers.filter((ticker) =>
+      isPriceStale(byTicker.get(ticker)?.fetchedAt, now, INDICATORS_MAX_AGE_MINUTES),
+    );
+    if (stale.length > 0) {
+      const refreshed = this.storeIndicators(stale)
+        .then(() => this.readIndicators(tickers))
+        .catch(() => null);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const gaveUp = new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), AUTO_REFRESH_WAIT_MS);
+      });
+      byTicker = (await Promise.race([refreshed, gaveUp])) ?? byTicker;
+      clearTimeout(timer);
+    }
+    const indicators: Record<string, AssetIndicators> = {};
+    for (const asset of assets) {
+      const found = byTicker.get(asset.ticker);
+      if (found && tickers.includes(asset.ticker)) indicators[asset.id] = found;
+    }
+    return indicators;
   }
 
   // -------------------------------------------------------------------------
@@ -408,6 +537,9 @@ export class PostgresDiagramRepository {
     if (question.type !== asset.type) {
       throw new HttpError(400, 'WRONG_TYPE', 'Essa pergunta é de outro tipo.');
     }
+    if (question.auto) {
+      throw new HttpError(400, 'AUTO_QUESTION', 'Essa pergunta é respondida sozinha, com os dados do mercado.');
+    }
     const where = and(
       eq(diagramAnswers.userId, this.userId),
       eq(diagramAnswers.assetId, assetId),
@@ -459,8 +591,19 @@ export class PostgresDiagramRepository {
     return this.findQuestion(id);
   }
 
-  async updateQuestion(id: string, input: Omit<QuestionInput, 'type'>): Promise<void> {
-    await this.findQuestion(id);
+  /**
+   * Edits a question. `auto: null` turns an automatic question into a normal one (answered by
+   * hand from then on); turning one automatic is only for VIP accounts (the route checks) and only
+   * in the type that question belongs to.
+   */
+  async updateQuestion(
+    id: string,
+    input: Omit<QuestionInput, 'type'> & { auto?: AutoQuestionKind | null },
+  ): Promise<void> {
+    const current = await this.findQuestion(id);
+    if (input.auto && autoQuestion(input.auto).type !== current.type) {
+      throw new HttpError(400, 'WRONG_TYPE', 'Essa pergunta automática é de outro tipo.');
+    }
     await this.db
       .update(diagramQuestions)
       .set({
@@ -468,8 +611,56 @@ export class PostgresDiagramRepository {
         text: input.text.trim(),
         help: optionalText(input.help),
         weight: input.weight,
+        ...(input.auto !== undefined ? { auto: input.auto } : {}),
       })
       .where(and(eq(diagramQuestions.userId, this.userId), eq(diagramQuestions.id, id)));
+  }
+
+  /**
+   * Turns on an automatic question (VIP; the route checks): a normal question of the same
+   * criterion becomes automatic, or a new one is created — Graham first in the list, as in the
+   * owner's spreadsheet; P/VP at the end. Turning it on twice changes nothing.
+   */
+  async enableAutoQuestion(kind: AutoQuestionKind): Promise<DiagramQuestion> {
+    const definition = autoQuestion(kind);
+    const all = await this.listQuestions();
+    const own = all.filter((question) => question.type === definition.type);
+    const existing = own.find((question) => question.auto === kind);
+    if (existing) return existing;
+
+    const manual = own.find((question) => question.criterion.trim().toLowerCase() === definition.criterion.toLowerCase());
+    if (manual) {
+      await this.db
+        .update(diagramQuestions)
+        .set({ auto: kind, help: definition.help })
+        .where(and(eq(diagramQuestions.userId, this.userId), eq(diagramQuestions.id, manual.id)));
+      return this.findQuestion(manual.id);
+    }
+
+    checkQuota(all.length, QUOTAS.diagramQuestions, `Dá para ter até ${QUOTAS.diagramQuestions} perguntas no Diagrama.`);
+    const id = createId();
+    await this.db.transaction(async (tx) => {
+      let position = own.reduce((max, question) => Math.max(max, question.position + 1), 0);
+      if (kind === 'graham') {
+        position = 0;
+        await tx
+          .update(diagramQuestions)
+          .set({ position: sql`${diagramQuestions.position} + 1` })
+          .where(and(eq(diagramQuestions.userId, this.userId), eq(diagramQuestions.type, definition.type)));
+      }
+      await tx.insert(diagramQuestions).values({
+        userId: this.userId,
+        id,
+        type: definition.type,
+        criterion: definition.criterion,
+        text: definition.text,
+        help: definition.help,
+        auto: kind,
+        weight: 1,
+        position,
+      });
+    });
+    return this.findQuestion(id);
   }
 
   /** Removes a question and every answer to it (the screen asks first). */
@@ -689,6 +880,7 @@ export class PostgresDiagramRepository {
             criterion: question.criterion,
             text: question.text,
             help: question.help ?? null,
+            auto: question.auto ?? null,
             weight: question.weight,
             position: question.position,
           })),

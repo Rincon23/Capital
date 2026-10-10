@@ -102,6 +102,28 @@ export function isAssetType(value: unknown): value is AssetType {
   return typeof value === 'string' && BY_KEY.has(value as AssetType);
 }
 
+/** A B3 code: four letters (or digits) and the share-class number — IVVB11, ABTC11, AAPL34. */
+const B3_TICKER = /^[A-Z0-9]{4}\d{1,2}$/;
+
+export function isB3Ticker(ticker: string): boolean {
+  return B3_TICKER.test(ticker);
+}
+
+/**
+ * Where an asset's price comes from: its type's market — except a B3 code in any type (an ETF or
+ * a BDR listed in Brazil, like IVVB11 in Ações internacionais or ABTC11 in Criptomoedas), which B3
+ * prices, in R$ and in whole quotas.
+ */
+export function assetMarket(type: AssetType, ticker: string): QuoteMarket {
+  const market = assetType(type).market ?? 'b3';
+  return market !== 'b3' && isB3Ticker(ticker) ? 'b3' : market;
+}
+
+/** How many decimals of a quota of this asset can be bought (see `assetMarket`). */
+export function assetFractionDigits(type: AssetType, ticker: string): number {
+  return assetMarket(type, ticker) === 'b3' ? 0 : assetType(type).fractionDigits;
+}
+
 export function isFixedIncomeType(key: AssetType): key is FixedIncomeType {
   return FIXED_INCOME_TYPES.includes(key as FixedIncomeType);
 }
