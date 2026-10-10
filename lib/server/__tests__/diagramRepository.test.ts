@@ -128,7 +128,7 @@ describe('PostgresDiagramRepository', () => {
 
     const overview = await diagram.getOverview(false);
     expect(overview.assets[0]).toMatchObject({ quantity: 13, quantityUpdatedOn: todayISO() });
-    expect(overview.fixedIncome).toEqual([{ type: 'fixedIncome', amount: 200, updatedOn: todayISO() }]);
+    expect(overview.fixedIncome).toEqual([{ type: 'fixedIncome', amount: 200, updatedOn: todayISO(), score: 1 }]);
     expect(overview.contributions).toHaveLength(1);
 
     const month = await budget.getMonth(currentMonthKey());
@@ -236,6 +236,25 @@ describe('perguntas automáticas (VIP)', () => {
     await setPrice('TGMA3', 45.25);
     await setIndicators('TGMA3', { lpa: 3.61, vpa: 13.8 });
     expect((await diagram.getOverview(true)).answers[tgma.id][graham.id]).toBe(-1);
+  });
+
+  it('takes a fixed-income fund (DEBB11) as an asset: an aporte adds quotas, not to the total', async () => {
+    const { diagram } = await newAccount();
+    const debb = await diagram.addAsset(asset({ type: 'fixedIncome', ticker: 'DEBB11', quantity: 26, directScore: 0.1 }), todayISO());
+    await diagram.setFixedIncome('fixedIncome', 6_497.56, todayISO(), 1);
+    await setPrice('DEBB11', 17.22);
+    await diagram.contribute({
+      date: todayISO(),
+      month: currentMonthKey(),
+      items: [{ assetId: debb.id, type: 'fixedIncome', quantity: 2 }],
+      launchExpense: false,
+    });
+    const overview = await diagram.getOverview(false);
+    expect(overview.assets[0]).toMatchObject({ ticker: 'DEBB11', quantity: 28 });
+    expect(overview.fixedIncome[0]).toMatchObject({ amount: 6_497.56, score: 1 });
+    expect(overview.quotes[debb.id].price).toBe(17.22);
+    await diagram.setFixedIncome('fixedIncome', 7_000, todayISO());
+    expect((await diagram.getOverview(false)).fixedIncome[0]).toMatchObject({ amount: 7_000, score: 1 });
   });
 
   it('converts crypto from US$ with the dollar (Yahoo has no pair in R$)', async () => {

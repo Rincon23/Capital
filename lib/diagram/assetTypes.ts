@@ -1,12 +1,12 @@
-import type { AssetType, DiagramTargets, FixedIncomeType, QuoteMarket, TickerType } from './types';
+import type { AssetType, DiagramTargets, FixedIncomeType, QuoteMarket, QuestionType } from './types';
 
 export interface AssetTypeDefinition {
   key: AssetType;
   label: string;
   /** For chips and narrow places. */
   shortLabel: string;
-  /** Where the price comes from; absent for the fixed-income totals (typed by hand). */
-  market?: QuoteMarket;
+  /** Where the price of its assets comes from (a B3 code is priced by B3 in any type). */
+  market: QuoteMarket;
   /**
    * How many decimals of a quota can be bought: 0 for whole quotas (B3), more for the
    * international assets and crypto, which brokers sell in fractions.
@@ -69,15 +69,19 @@ export const ASSET_TYPES: AssetTypeDefinition[] = [
     key: 'fixedIncome',
     label: 'Renda fixa',
     shortLabel: 'Renda fixa',
-    fractionDigits: 2,
+    market: 'b3',
+    fractionDigits: 0,
     color: 'var(--series-3)',
+    example: 'DEBB11',
   },
   {
     key: 'intlFixedIncome',
     label: 'Renda fixa internacional',
     shortLabel: 'RF exterior',
-    fractionDigits: 2,
+    market: 'us',
+    fractionDigits: 6,
     color: 'var(--series-6)',
+    example: 'BND',
   },
 ];
 
@@ -85,9 +89,9 @@ export const ASSET_TYPE_KEYS: AssetType[] = ASSET_TYPES.map((type) => type.key);
 
 export const FIXED_INCOME_TYPES: FixedIncomeType[] = ['fixedIncome', 'intlFixedIncome'];
 
-/** The types that have assets, quotas, questions and scores. */
-export const TICKER_TYPES = ASSET_TYPE_KEYS.filter(
-  (key): key is TickerType => !FIXED_INCOME_TYPES.includes(key as FixedIncomeType),
+/** The types that have questions (the fixed-income assets are scored directly). */
+export const QUESTION_TYPES = ASSET_TYPE_KEYS.filter(
+  (key): key is QuestionType => !FIXED_INCOME_TYPES.includes(key as FixedIncomeType),
 );
 
 const BY_KEY = new Map(ASSET_TYPES.map((type) => [type.key, type]));
@@ -115,7 +119,7 @@ export function isB3Ticker(ticker: string): boolean {
  * prices, in R$ and in whole quotas.
  */
 export function assetMarket(type: AssetType, ticker: string): QuoteMarket {
-  const market = assetType(type).market ?? 'b3';
+  const market = assetType(type).market;
   return market !== 'b3' && isB3Ticker(ticker) ? 'b3' : market;
 }
 

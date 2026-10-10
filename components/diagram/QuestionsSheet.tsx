@@ -8,12 +8,12 @@ import {
   isFixedIncomeType,
   questionsOf,
   RECOMMENDED_QUESTIONS,
-  TICKER_TYPES,
+  QUESTION_TYPES,
   typesInUse,
   type DiagramOverview,
   type AutoQuestionKind,
   type DiagramQuestion,
-  type TickerType,
+  type QuestionType,
 } from '@/lib/diagram';
 import { diagramRepository } from '@/lib/storage';
 import { BottomSheet } from '@/components/ui/BottomSheet';
@@ -34,16 +34,16 @@ export function QuestionsSheet({
   onChanged,
 }: {
   overview: DiagramOverview;
-  initialType?: TickerType;
+  initialType?: QuestionType;
   onClose: () => void;
   onChanged: () => Promise<unknown>;
 }) {
   const { showToast } = useToast();
   const confirm = useConfirm();
-  const inUse = typesInUse(overview.settings.targets).filter((key): key is TickerType => !isFixedIncomeType(key));
+  const inUse = typesInUse(overview.settings.targets).filter((key): key is QuestionType => !isFixedIncomeType(key));
   // The types of the portfolio; with none yet, every type that has questions.
-  const types = inUse.length > 0 ? inUse : TICKER_TYPES;
-  const [type, setType] = useState<TickerType>(initialType && types.includes(initialType) ? initialType : types[0]);
+  const types = inUse.length > 0 ? inUse : QUESTION_TYPES;
+  const [type, setType] = useState<QuestionType>(initialType && types.includes(initialType) ? initialType : types[0]);
   const [editing, setEditing] = useState<DiagramQuestion | 'new' | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -215,8 +215,7 @@ export function QuestionsSheet({
           )}
         </div>
         <p className="text-muted text-xs">
-          Cada resposta vale Sim (+1), Não (−1) ou nada, vezes o peso. A nota é a soma dividida pela soma dos pesos,
-          vezes 10: vai de −10 a 10. Peso 0 desliga a pergunta sem apagar as respostas.
+          Sim vale +1, Não −1 e sem resposta 0, vezes o peso; a nota vai de −10 a 10. Peso 0 desliga a pergunta.
         </p>
       </div>
 

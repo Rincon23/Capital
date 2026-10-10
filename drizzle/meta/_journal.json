@@ -155,6 +155,13 @@
       "when": 1791640700285,
       "tag": "0021_graham_pvp",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1791673787158,
+      "tag": "0022_renda_fixa_ativos",
+      "breakpoints": true
     }
   ]
 }

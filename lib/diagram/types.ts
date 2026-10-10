@@ -21,11 +21,14 @@ export type AssetType =
 /** Where a type's prices come from: B3 (Yahoo ".SA" as a fallback) or Yahoo in US$ (stocks and crypto). */
 export type QuoteMarket = 'b3' | 'us' | 'crypto';
 
-/** The two types that are a single total typed by hand (no tickers, no score). */
+/**
+ * The two fixed-income types: a total typed by hand for what has no quote (Tesouro Direto, CDB,
+ * LCI, LCA…), plus any fund with a ticker (DEBB11, IMAB11, BND), priced like the other assets.
+ */
 export type FixedIncomeType = Extract<AssetType, 'fixedIncome' | 'intlFixedIncome'>;
 
-/** The types whose assets have tickers, quotas and a score. */
-export type TickerType = Exclude<AssetType, FixedIncomeType>;
+/** The types that have questions; fixed-income assets are scored directly. */
+export type QuestionType = Exclude<AssetType, FixedIncomeType>;
 
 /**
  * The person's target per type, as a 0..1 ratio. A type that is a key here is in the person's
@@ -39,7 +42,7 @@ export type Answer = 1 | -1;
 
 export interface DiagramAsset {
   id: string;
-  type: TickerType;
+  type: AssetType;
   /** As the person typed it, normalized: "PETR4", "VOO", "BTC". */
   ticker: string;
   quantity: number;
@@ -58,10 +61,13 @@ export interface DiagramAsset {
 }
 
 /** The single total of a fixed-income type, in R$. */
+/** What a fixed-income type holds without a quote (Tesouro Direto, CDB, LCI, LCA…), in R$. */
 export interface FixedIncomeTotal {
   type: FixedIncomeType;
   amount: number;
   updatedOn: string | null;
+  /** Its score (−1 to 1, 1 by default): how it shares the type with the funds that have a ticker. */
+  score: number;
 }
 
 /** A question the app answers by itself from market data (VIP only). */
@@ -69,7 +75,7 @@ export type AutoQuestionKind = 'graham' | 'pvp';
 
 export interface DiagramQuestion {
   id: string;
-  type: TickerType;
+  type: QuestionType;
   /** Answered by the app (Graham, P/VP) for VIP accounts; for the others it does not count. */
   auto?: AutoQuestionKind;
   /** A word or two: "ROE", "P/VP". */
@@ -160,7 +166,7 @@ export interface ContributeInput {
 
 /** What adding or editing an asset sends (the ticker is normalized on the server). */
 export interface AssetInput {
-  type: TickerType;
+  type: AssetType;
   ticker: string;
   quantity: number;
   sector?: string | null;

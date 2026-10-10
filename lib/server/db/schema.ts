@@ -41,8 +41,9 @@ import type {
   AutoQuestionKind,
   DiagramContributionItem,
   DiagramTargets,
+  AssetType,
   FixedIncomeType,
-  TickerType,
+  QuestionType,
 } from '../../diagram/types';
 import type { NotificationCategory } from '../../notifications/types';
 import type { ReminderKind, TimeOfDay } from '../../reminders/types';
@@ -779,7 +780,9 @@ export const gmailAlerts = pgTable(
 // the Reserva de emergência.
 // ---------------------------------------------------------------------------
 
-const TICKER_TYPES = sql`in ('brStocks', 'intlStocks', 'fiis', 'reits', 'crypto')`;
+/** The types that have questions; assets can be of any type (fixed income has funds too). */
+const QUESTION_TYPES = sql`in ('brStocks', 'intlStocks', 'fiis', 'reits', 'crypto')`;
+const ASSET_TYPES = sql`in ('brStocks', 'intlStocks', 'fiis', 'reits', 'crypto', 'fixedIncome', 'intlFixedIncome')`;
 const FIXED_INCOME_TYPES = sql`in ('fixedIncome', 'intlFixedIncome')`;
 
 /** One row per user: the target of each type in the portfolio (absent type = not in it). */
@@ -800,7 +803,7 @@ export const diagramAssets = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     id: text('id').notNull(),
-    type: text('type').$type<TickerType>().notNull(),
+    type: text('type').$type<AssetType>().notNull(),
     ticker: text('ticker').notNull(),
     quantity: numeric('quantity', { precision: 24, scale: 8, mode: 'number' }).notNull().default(0),
     quantityUpdatedOn: date('quantity_updated_on', { mode: 'string' }),
@@ -819,13 +822,13 @@ export const diagramAssets = pgTable(
   (t) => [
     primaryKey({ columns: [t.userId, t.id] }),
     unique('diagram_assets_ticker_unique').on(t.userId, t.type, t.ticker),
-    check('diagram_assets_type', sql`${t.type} ${TICKER_TYPES}`),
+    check('diagram_assets_type', sql`${t.type} ${ASSET_TYPES}`),
     check('diagram_assets_quantity', sql`${t.quantity} >= 0`),
     check('diagram_assets_direct_score', sql`${t.directScore} is null or ${t.directScore} between -1 and 1`),
   ],
 );
 
-/** The single total of each fixed-income type, typed by hand (R$). */
+/** What each fixed-income type holds without a quote (Tesouro, CDB, LCI…), typed by hand (R$). */
 export const diagramFixedIncome = pgTable(
   'diagram_fixed_income',
   {
@@ -835,12 +838,15 @@ export const diagramFixedIncome = pgTable(
     type: text('type').$type<FixedIncomeType>().notNull(),
     amount: numeric('amount', { mode: 'number' }).notNull().default(0),
     updatedOn: date('updated_on', { mode: 'string' }),
+    /** −1..1: how this total shares its type with the funds that have a ticker (DEBB11…). */
+    score: numeric('score', { mode: 'number' }).notNull().default(1),
     updatedAt: updatedAt(),
   },
   (t) => [
     primaryKey({ columns: [t.userId, t.type] }),
     check('diagram_fixed_income_type', sql`${t.type} ${FIXED_INCOME_TYPES}`),
     check('diagram_fixed_income_amount', sql`${t.amount} >= 0`),
+    check('diagram_fixed_income_score', sql`${t.score} between -1 and 1`),
   ],
 );
 
@@ -852,7 +858,7 @@ export const diagramQuestions = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: 'cascade' }),
     id: text('id').notNull(),
-    type: text('type').$type<TickerType>().notNull(),
+    type: text('type').$type<QuestionType>().notNull(),
     criterion: text('criterion').notNull(),
     text: text('text').notNull(),
     help: text('help'),
@@ -866,7 +872,7 @@ export const diagramQuestions = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.userId, t.id] }),
-    check('diagram_questions_type', sql`${t.type} ${TICKER_TYPES}`),
+    check('diagram_questions_type', sql`${t.type} ${QUESTION_TYPES}`),
     check('diagram_questions_weight', sql`${t.weight} >= 0`),
     check('diagram_questions_auto', sql`${t.auto} is null or ${t.auto} in ('graham', 'pvp')`),
   ],

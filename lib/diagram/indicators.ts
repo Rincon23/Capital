@@ -1,4 +1,4 @@
-import type { Answer, AutoQuestionKind, TickerType } from './types';
+import type { Answer, AutoQuestionKind, QuestionType } from './types';
 
 /**
  * The questions the app can answer by itself, from free market data (VIP only): Graham for the
@@ -20,7 +20,7 @@ export interface AssetIndicators {
 export interface AutoQuestionDefinition {
   kind: AutoQuestionKind;
   /** The only type it can be added to. */
-  type: TickerType;
+  type: QuestionType;
   criterion: string;
   text: string;
   help: string;

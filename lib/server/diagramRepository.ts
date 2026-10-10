@@ -21,6 +21,7 @@ import {
   type AssetIndicators,
   type AssetInput,
   type AssetQuote,
+  type AssetType,
   type AutoQuestionKind,
   type ContributeInput,
   type DiagramAsset,
@@ -35,7 +36,7 @@ import {
   type FixedIncomeType,
   type QuestionInput,
   type QuoteMarket,
-  type TickerType,
+  type QuestionType,
 } from '../diagram';
 import { isModuleOn } from '../modules';
 import type { PostgresBudgetRepository } from './budgetRepository';
@@ -207,7 +208,7 @@ export class PostgresDiagramRepository {
       .select()
       .from(diagramFixedIncome)
       .where(eq(diagramFixedIncome.userId, this.userId));
-    return rows.map((row) => ({ type: row.type, amount: row.amount, updatedOn: row.updatedOn }));
+    return rows.map((row) => ({ type: row.type, amount: row.amount, updatedOn: row.updatedOn, score: row.score }));
   }
 
   private async listQuestions(executor: Executor = this.db): Promise<DiagramQuestion[]> {
@@ -340,8 +341,8 @@ export class PostgresDiagramRepository {
    * Suggestions while the person types a ticker of `type`: its own market first and, for the
    * international types and crypto, the B3 codes too (IVVB11, ABTC11), which B3 prices in R$.
    */
-  async searchTickers(type: TickerType, query: string): Promise<TickerSuggestion[]> {
-    const market = assetType(type).market ?? 'b3';
+  async searchTickers(type: AssetType, query: string): Promise<TickerSuggestion[]> {
+    const market = assetType(type).market;
     const markets: QuoteMarket[] = market === 'b3' ? ['b3'] : [market, 'b3'];
     return searchTickers(markets, normalizeAssetTicker(market, query));
   }
@@ -352,7 +353,7 @@ export class PostgresDiagramRepository {
 
   /** The B3 tickers an automatic question of this account needs (Graham: stocks; P/VP: funds). */
   private indicatorTickers(assets: DiagramAsset[], questions: DiagramQuestion[]): string[] {
-    const types = new Set(questions.filter((question) => question.auto).map((question) => question.type));
+    const types = new Set<AssetType>(questions.filter((question) => question.auto).map((question) => question.type));
     return [
       ...new Set(
         assets
@@ -455,8 +456,16 @@ export class PostgresDiagramRepository {
   }
 
   /** The total of a fixed-income type ("Continua igual" saves the same amount: the date moves). */
-  async setFixedIncome(type: FixedIncomeType, amount: number, date: string): Promise<void> {
-    const values = { amount: round2(Math.max(0, amount)), updatedOn: date };
+  /**
+   * The total of a fixed-income type without a quote ("Continua igual" saves the same amount: the
+   * date moves). `score` changes only when given.
+   */
+  async setFixedIncome(type: FixedIncomeType, amount: number, date: string, score?: number): Promise<void> {
+    const values = {
+      amount: round2(Math.max(0, amount)),
+      updatedOn: date,
+      ...(score !== undefined ? { score: Math.min(1, Math.max(-1, score)) } : {}),
+    };
     await this.db
       .insert(diagramFixedIncome)
       .values({ userId: this.userId, type, ...values })
@@ -468,7 +477,7 @@ export class PostgresDiagramRepository {
   // -------------------------------------------------------------------------
 
   private normalize(input: AssetInput): { ticker: string } {
-    const ticker = normalizeAssetTicker(assetType(input.type).market ?? 'b3', input.ticker);
+    const ticker = normalizeAssetTicker(assetType(input.type).market, input.ticker);
     if (!isValidAssetTicker(ticker)) {
       throw new HttpError(400, 'INVALID_TICKER', 'Confira o código do ativo: só letras, números, ponto e traço.');
     }
@@ -706,7 +715,7 @@ export class PostgresDiagramRepository {
   }
 
   /** The new order of one type's questions (ids of other types are ignored). */
-  async reorderQuestions(type: TickerType, ids: string[]): Promise<void> {
+  async reorderQuestions(type: QuestionType, ids: string[]): Promise<void> {
     const own = (await this.listQuestions()).filter((question) => question.type === type);
     const known = new Set(own.map((question) => question.id));
     const ordered = [...ids.filter((id) => known.has(id)), ...own.map((q) => q.id).filter((id) => !ids.includes(id))];
@@ -725,7 +734,7 @@ export class PostgresDiagramRepository {
    * the person's, with no link to the original). The ones already there (same criterion) are
    * skipped, so pressing it twice changes nothing.
    */
-  async useRecommended(type: TickerType): Promise<number> {
+  async useRecommended(type: QuestionType): Promise<number> {
     const all = await this.listQuestions();
     const own = all.filter((question) => question.type === type);
     const have = new Set(own.map((question) => question.criterion.toLowerCase()));
@@ -769,7 +778,8 @@ export class PostgresDiagramRepository {
     const items: DiagramContributionItem[] = [];
     for (const item of input.items) {
       if (!(item.quantity > 0)) continue;
-      if (isFixedIncomeType(item.type)) {
+      // A fixed-income line without an asset is the total without a quote, in R$.
+      if (!item.assetId && isFixedIncomeType(item.type)) {
         items.push({ type: item.type, quantity: round2(item.quantity), price: null, amount: round2(item.quantity) });
         continue;
       }

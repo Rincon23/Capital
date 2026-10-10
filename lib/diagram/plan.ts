@@ -37,7 +37,7 @@ export interface PlanPosition {
   /** 0 = whole quotas only; more = how many decimals of a quota can be bought. */
   fractionDigits: number;
   unit: PositionUnit;
-  /** −1..1, or null when not evaluated yet. Ignored for a fixed-income total. */
+  /** −1..1, or null when not evaluated yet (a fixed-income total without one weighs 1). */
   score: number | null;
   stopBuying: boolean;
 }
@@ -157,17 +157,23 @@ function quantityFor(position: PlanPosition, money: number): number {
 }
 
 /** Can this position receive at all (before looking at targets)? */
+/** A fixed-income total without a score weighs 1, as it did when it was the type's only asset. */
+function scoreOf(position: PlanPosition): number | null {
+  return position.unit === 'money' ? (position.score ?? 1) : position.score;
+}
+
 function receives(position: PlanPosition): boolean {
-  if (position.unit === 'money') return true;
-  return position.price !== null && position.price > 0 && buyWeight(position.score, position.stopBuying) > 0;
+  const weight = buyWeight(scoreOf(position), position.stopBuying);
+  if (position.unit === 'money') return weight > 0;
+  return position.price !== null && position.price > 0 && weight > 0;
 }
 
 function weightOf(position: PlanPosition): number {
-  return position.unit === 'money' ? 1 : buyWeight(position.score, position.stopBuying);
+  return buyWeight(scoreOf(position), position.stopBuying);
 }
 
 function ownBlock(position: PlanPosition): BlockReason | null {
-  if (position.unit === 'money') return null;
+  if (position.unit === 'money') return (scoreOf(position) ?? 0) <= 0 ? 'lowScore' : null;
   if (position.stopBuying) return 'stopped';
   if (position.score === null) return 'noScore';
   if (position.score <= 0) return 'lowScore';

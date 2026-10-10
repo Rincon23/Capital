@@ -11,6 +11,7 @@ import {
   isFixedIncomeType,
   scoreOf,
   typesInUse,
+  UNQUOTED_LABEL,
   type AssetType,
   type DiagramAsset,
   type DiagramOverview,
@@ -20,9 +21,13 @@ import { diagramRepository } from '@/lib/storage';
 import { AmountInput } from '@/components/ui/AmountInput';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { useToast } from '@/components/ui/Toast';
+import { DirectScoreField } from './AssetSheet';
 import { formatDate, formatQuantity, formatWhen, pct } from './format';
 import { PortfolioChart } from './PortfolioCard';
 import { TypeChips } from './TypeChips';
+
+/** Past this many assets the list gets a search field. */
+const SEARCH_FROM = 8;
 
 /** The oldest price on screen: what "Cotações de …" says. */
 function oldestQuote(overview: DiagramOverview): string | null {
@@ -30,10 +35,65 @@ function oldestQuote(overview: DiagramOverview): string | null {
   return times.length > 0 ? times.reduce((oldest, time) => (time < oldest ? time : oldest)) : null;
 }
 
+/** The score as a small coloured pill. */
+function ScorePill({ score, muted }: { score: number | null; muted?: boolean }) {
+  const tone =
+    muted || score === null
+      ? 'bg-background text-muted'
+      : score > 0
+        ? 'bg-success-bg text-success'
+        : 'bg-danger-bg text-danger';
+  return (
+    <span className={`min-w-[2.75rem] shrink-0 rounded-full px-2 py-1 text-center text-sm font-semibold tabular-nums ${tone}`}>
+      {formatScore(score)}
+    </span>
+  );
+}
+
+/** One line of the list: what it is, what it is worth, its score. */
+function Row({
+  title,
+  badge,
+  subtitle,
+  value,
+  score,
+  stopped,
+  onClick,
+}: {
+  title: string;
+  badge?: string;
+  subtitle?: string;
+  value: string;
+  score: number | null;
+  stopped?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <li>
+      <button type="button" onClick={onClick} className="flex min-h-[56px] w-full items-center gap-3 px-4 py-2 text-left">
+        <span className="min-w-0 flex-1">
+          <span className={`flex items-center gap-1.5 font-semibold ${stopped ? 'text-muted' : 'text-foreground'}`}>
+            <span className="truncate">{title}</span>
+            {badge && <span className="bg-background text-muted rounded px-1.5 py-0.5 text-[10px] font-semibold">{badge}</span>}
+          </span>
+          {(subtitle || stopped) && (
+            <span className="text-muted block truncate text-xs">
+              {stopped ? 'Não compro mais' : subtitle}
+              {stopped && subtitle ? ` · ${subtitle}` : ''}
+            </span>
+          )}
+        </span>
+        <span className="text-foreground shrink-0 text-sm tabular-nums">{value}</span>
+        <ScorePill score={score} muted={stopped} />
+      </button>
+    </li>
+  );
+}
+
 /**
- * "Ativos e notas": the portfolio by type, the filters (a coloured chip per type) and the search,
- * and every asset with its value, its share inside the type, its score, its quantity and when it
- * last changed — plus "Não compro mais" right on the line. Fixed income is one total per type.
+ * "Ativos e notas": the portfolio by type, the filters and, per type, one card with a line per
+ * asset (value and score; "Não compro mais" and the rest live in the asset's sheet). Fixed income
+ * has its total without a quote (Tesouro, CDB, LCI…) plus the funds with a ticker (DEBB11).
  */
 export function AssetsTab({
   overview,
@@ -57,14 +117,10 @@ export function AssetsTab({
   const [editingFixed, setEditingFixed] = useState<FixedIncomeType | null>(null);
 
   const inUse = typesInUse(overview.settings.targets);
-  const filters = inUse.filter((type) => (overview.settings.targets[type] ?? 0) > 0);
   const search = query.trim().toUpperCase();
   const visibleTypes = inUse.filter((type) => filter === null || filter === type);
   const hidden = overview.assets.filter((asset) => !inUse.includes(asset.type)).length;
   const quotedAt = oldestQuote(overview);
-
-  const typeTotal = (type: AssetType) =>
-    overview.assets.filter((asset) => asset.type === type).reduce((sum, asset) => sum + assetValue(asset, overview), 0);
 
   async function refresh() {
     setRefreshing(true);
@@ -79,20 +135,6 @@ export function AssetsTab({
     }
   }
 
-  async function toggleStop(asset: DiagramAsset, stopBuying: boolean) {
-    try {
-      await diagramRepository.setStopBuying(asset.id, stopBuying);
-      await onChanged();
-      showToast(
-        stopBuying
-          ? `${asset.ticker}: não compro mais. Ele fica na carteira e nunca é sugerido.`
-          : `${asset.ticker} volta a receber aporte, com a nota de antes.`,
-      );
-    } catch {
-      showToast('Não foi possível salvar.', 'error');
-    }
-  }
-
   return (
     <div className="flex flex-col gap-3">
       <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm">
@@ -104,14 +146,14 @@ export function AssetsTab({
         )}
       </section>
 
-      <div className="flex flex-wrap items-center gap-2 px-4">
+      <div className="flex items-center gap-2 px-4">
         <button
           type="button"
           onClick={onAddAsset}
           className="bg-primary text-primary-foreground flex min-h-[44px] items-center gap-1.5 rounded-lg px-4 text-sm font-semibold"
         >
           <Plus aria-hidden className="h-4 w-4" />
-          Adicionar ativo
+          Ativo
         </button>
         <button
           type="button"
@@ -127,31 +169,21 @@ export function AssetsTab({
           onClick={() => void refresh()}
           disabled={refreshing || overview.assets.length === 0}
           aria-label="Atualizar cotações"
-          title="Atualizar cotações"
-          className="border-border text-foreground ml-auto flex h-11 w-11 items-center justify-center rounded-lg border disabled:opacity-40"
+          title={quotedAt ? `Cotações de ${formatWhen(quotedAt)}` : 'Atualizar cotações'}
+          className="text-muted ml-auto flex min-h-[44px] items-center gap-1.5 rounded-lg px-2 text-xs disabled:opacity-40"
         >
+          {quotedAt && <span className="tabular-nums">{formatWhen(quotedAt)}</span>}
           <RefreshCw aria-hidden className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
         </button>
       </div>
-      {quotedAt && (
-        <p className="text-muted -mt-1 px-4 text-xs">
-          Cotações de {formatWhen(quotedAt)} (B3 e Yahoo Finance)
-          {overview.dollar ? ` · dólar ${formatBRL(overview.dollar.price)}` : ''}
-        </p>
-      )}
 
-      {filters.length > 1 && (
+      {inUse.length > 1 && (
         <div className="px-4">
-          <TypeChips
-            types={filters}
-            selected={filter}
-            onSelect={setFilter}
-            all={{ label: 'Todos', onSelect: () => setFilter(null) }}
-          />
+          <TypeChips types={inUse} selected={filter} onSelect={setFilter} all={{ label: 'Todos', onSelect: () => setFilter(null) }} />
         </div>
       )}
 
-      {overview.assets.length > 0 && (
+      {overview.assets.length > SEARCH_FROM && (
         <label className="border-border bg-card focus-within:ring-primary mx-4 flex min-h-[44px] items-center gap-2 rounded-lg border px-3 focus-within:ring-2">
           <Search aria-hidden className="text-muted h-4 w-4" />
           <input
@@ -167,81 +199,63 @@ export function AssetsTab({
       <section className="flex flex-col gap-4 px-4" data-tour="diagrama-ativos">
         {visibleTypes.map((type) => {
           const definition = assetType(type);
-          if (isFixedIncomeType(type)) {
-            if (search && !definition.label.toUpperCase().includes(search)) return null;
-            const total = overview.fixedIncome.find((item) => item.type === type);
-            return (
-              <div key={type} className="flex flex-col gap-2">
-                <TypeHeader type={type} value={fixedIncomeAmount(overview, type)} target={overview.settings.targets[type] ?? 0} />
-                <button
-                  type="button"
-                  onClick={() => setEditingFixed(type)}
-                  className="border-border bg-card flex items-center gap-3 rounded-xl border px-4 py-3 text-left shadow-sm"
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="text-foreground block font-medium">Valor total</span>
-                    <span className="text-muted block text-xs">
-                      {total?.updatedOn ? `Atualizado em ${formatDate(total.updatedOn)}` : 'Ainda não informado'} · toque para
-                      mudar
-                    </span>
-                  </span>
-                  <span className="text-foreground font-semibold tabular-nums">{formatBRL(total?.amount ?? 0)}</span>
-                </button>
-              </div>
-            );
-          }
-
+          const fixed = isFixedIncomeType(type);
           const assets = overview.assets
             .filter((asset) => asset.type === type)
-            .filter((asset) => !search || asset.ticker.includes(search) || (overview.quotes[asset.id]?.name ?? '').toUpperCase().includes(search));
-          if (search && assets.length === 0) return null;
-          const inType = typeTotal(type);
+            .filter(
+              (asset) =>
+                !search ||
+                asset.ticker.includes(search) ||
+                (overview.quotes[asset.id]?.name ?? '').toUpperCase().includes(search),
+            );
+          const showUnquoted = fixed && (!search || UNQUOTED_LABEL.toUpperCase().includes(search));
+          if (search && assets.length === 0 && !showUnquoted) return null;
+
+          const unquoted = fixed ? fixedIncomeAmount(overview, type as FixedIncomeType) : 0;
+          const inType =
+            unquoted + overview.assets.filter((asset) => asset.type === type).reduce((sum, asset) => sum + assetValue(asset, overview), 0);
+          const total = overview.fixedIncome.find((item) => item.type === type);
           return (
-            <div key={type} className="flex flex-col gap-2">
-              <TypeHeader type={type} value={inType} target={overview.settings.targets[type] ?? 0} />
-              {assets.length === 0 ? (
-                <p className="text-muted text-sm">Nenhum ativo de {definition.label} ainda.</p>
+            <div key={type} className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2 px-1">
+                <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: definition.color }} />
+                <h3 className="text-foreground min-w-0 flex-1 truncate text-sm font-semibold">{definition.label}</h3>
+                <span className="text-muted text-xs tabular-nums">
+                  {inType > 0 ? `${formatBRL(inType)} · ` : ''}meta {pct(overview.settings.targets[type] ?? 0)}
+                </span>
+              </div>
+              {assets.length === 0 && !showUnquoted ? (
+                <p className="text-muted px-1 text-sm">Nenhum ativo ainda.</p>
               ) : (
-                <ul className="flex flex-col gap-2">
+                <ul className="border-border bg-card divide-border divide-y rounded-xl border shadow-sm">
+                  {showUnquoted && (
+                    <Row
+                      title={UNQUOTED_LABEL}
+                      subtitle={total?.updatedOn ? `Tesouro, CDB, LCI… · ${formatDate(total.updatedOn)}` : 'Tesouro, CDB, LCI…'}
+                      value={formatBRL(unquoted)}
+                      score={total?.score ?? 1}
+                      onClick={() => setEditingFixed(type as FixedIncomeType)}
+                    />
+                  )}
                   {assets.map((asset) => {
-                    const value = assetValue(asset, overview);
-                    const score = scoreOf(asset, overview).score;
                     const quote = overview.quotes[asset.id];
+                    const value = assetValue(asset, overview);
+                    const parts = [
+                      asset.quantity > 0 ? `${formatQuantity(asset.quantity, asset.type)} cotas` : '',
+                      value > 0 && inType > 0 ? `${pct(value / inType)} do tipo` : '',
+                      quote ? '' : 'sem cotação',
+                    ].filter(Boolean);
                     return (
-                      <li key={asset.id} className={`border-border bg-card rounded-xl border shadow-sm ${asset.stopBuying ? 'opacity-75' : ''}`}>
-                        <button type="button" onClick={() => onOpenAsset(asset)} className="flex w-full items-start gap-3 px-4 pt-3 pb-2 text-left">
-                          <span className="min-w-0 flex-1">
-                            <span className="text-foreground flex items-center gap-1.5 font-semibold">
-                              {asset.ticker}
-                              {asset.isEtf && (
-                                <span className="bg-background text-muted rounded-full px-1.5 py-0.5 text-[10px] font-semibold">ETF</span>
-                              )}
-                            </span>
-                            <span className="text-muted block truncate text-xs">
-                              {formatQuantity(asset.quantity, asset.type)} cotas · atualizado em {formatDate(asset.quantityUpdatedOn)}
-                            </span>
-                            {(asset.sector || asset.subsector) && (
-                              <span className="text-muted block truncate text-xs">
-                                {[asset.sector, asset.subsector].filter(Boolean).join(' · ')}
-                              </span>
-                            )}
-                          </span>
-                          <span className="flex shrink-0 flex-col items-end">
-                            <span className="text-foreground font-semibold tabular-nums">{quote ? formatBRL(value) : 'sem cotação'}</span>
-                            <span className="text-muted text-xs tabular-nums">{inType > 0 ? `${pct(value / inType)} do tipo` : '—'}</span>
-                          </span>
-                          <ScoreBadge score={score} stopped={asset.stopBuying} />
-                        </button>
-                        <label className="border-border text-muted flex min-h-[40px] items-center gap-2 border-t px-4 text-xs">
-                          <input
-                            type="checkbox"
-                            checked={asset.stopBuying}
-                            onChange={(event) => void toggleStop(asset, event.target.checked)}
-                            className="accent-primary h-4 w-4"
-                          />
-                          Não compro mais
-                        </label>
-                      </li>
+                      <Row
+                        key={asset.id}
+                        title={asset.ticker}
+                        badge={asset.isEtf && !fixed ? 'ETF' : undefined}
+                        subtitle={parts.join(' · ') || undefined}
+                        value={value > 0 ? formatBRL(value) : '—'}
+                        score={scoreOf(asset, overview).score}
+                        stopped={asset.stopBuying}
+                        onClick={() => onOpenAsset(asset)}
+                      />
                     );
                   })}
                 </ul>
@@ -251,18 +265,14 @@ export function AssetsTab({
         })}
 
         {inUse.length > 0 && overview.assets.length === 0 && (
-          <p className="text-muted text-center text-sm">
-            Nenhum ativo ainda. Toque em Adicionar ativo e depois responda as perguntas dele.
-          </p>
+          <p className="text-muted text-center text-sm">Nenhum ativo ainda. Toque em + Ativo.</p>
         )}
         {hidden > 0 && (
           <p className="text-muted text-xs">
-            {hidden === 1 ? '1 ativo está guardado' : `${hidden} ativos estão guardados`} em tipos que você tirou da
-            carteira. Eles voltam quando o tipo for adicionado de novo, em{' '}
+            {hidden === 1 ? '1 ativo guardado' : `${hidden} ativos guardados`} em tipos fora da carteira.{' '}
             <button type="button" onClick={onOpenTargets} className="text-primary font-semibold">
               Tipos e metas
             </button>
-            .
           </p>
         )}
       </section>
@@ -282,35 +292,10 @@ export function AssetsTab({
   );
 }
 
-function TypeHeader({ type, value, target }: { type: AssetType; value: number; target: number }) {
-  const definition = assetType(type);
-  return (
-    <div className="flex items-center gap-2">
-      <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: definition.color }} />
-      <h3 className="text-foreground min-w-0 flex-1 truncate text-sm font-semibold">{definition.label}</h3>
-      <span className="text-muted text-xs tabular-nums">
-        {formatBRL(value)} · meta {pct(target)}
-      </span>
-    </div>
-  );
-}
-
-function ScoreBadge({ score, stopped }: { score: number | null; stopped: boolean }) {
-  const tone =
-    stopped || score === null
-      ? 'bg-background text-muted'
-      : score > 0
-        ? 'bg-success-bg text-success'
-        : 'bg-danger-bg text-danger';
-  return (
-    <span className={`flex w-12 shrink-0 flex-col items-center rounded-lg px-1 py-1 ${tone}`}>
-      <span className="text-[9px] font-semibold uppercase">Nota</span>
-      <span className="text-sm font-semibold tabular-nums">{formatScore(score)}</span>
-    </span>
-  );
-}
-
-/** The single total of a fixed-income type: the person changes only this number. */
+/**
+ * What a fixed-income type holds without a quote (Tesouro Direto, CDB, LCI, LCA…), summed up, and
+ * its score — how it shares the type with the funds that have a ticker.
+ */
 export function FixedIncomeSheet({
   overview,
   type,
@@ -325,19 +310,20 @@ export function FixedIncomeSheet({
   const { showToast } = useToast();
   const current = overview.fixedIncome.find((item) => item.type === type);
   const [amount, setAmount] = useState(current ? amountToInputValue(current.amount) : '');
+  const [score, setScore] = useState(current?.score ?? 1);
   const [saving, setSaving] = useState(false);
 
   return (
-    <BottomSheet open title={assetType(type).label} onClose={onClose}>
+    <BottomSheet open title={`${UNQUOTED_LABEL} · ${assetType(type).shortLabel}`} onClose={onClose}>
       <form
         className="flex flex-col gap-4"
         onSubmit={async (event) => {
           event.preventDefault();
           setSaving(true);
           try {
-            await diagramRepository.setFixedIncome(type, Math.max(0, parseAmountInput(amount)), todayISO());
+            await diagramRepository.setFixedIncome(type, Math.max(0, parseAmountInput(amount)), todayISO(), score);
             await onSaved();
-            showToast('Valor salvo.');
+            showToast('Salvo.');
           } catch {
             showToast('Não foi possível salvar.', 'error');
           } finally {
@@ -346,11 +332,12 @@ export function FixedIncomeSheet({
         }}
       >
         <p className="text-muted text-sm">
-          Quanto você tem hoje em {assetType(type).label.toLowerCase()}, somando tudo. É um valor só: não precisa
-          cadastrar cada título.
+          A soma do que não tem cotação: Tesouro Direto, CDB, LCI, LCA… Fundos com código, como o DEBB11, entram
+          como ativo.
         </p>
         <AmountInput value={amount} onChange={setAmount} autoFocus label="Valor total" />
-        {current?.updatedOn && <p className="text-muted text-xs">Último valor salvo em {formatDate(current.updatedOn)}.</p>}
+        {current?.updatedOn && <p className="text-muted -mt-2 text-xs">Atualizado em {formatDate(current.updatedOn)}.</p>}
+        <DirectScoreField value={score} onChange={(value) => setScore(Math.round(value * 100) / 100)} />
         <button
           type="submit"
           disabled={saving}

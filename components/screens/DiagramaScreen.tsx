@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { DiagramAsset, TickerType } from '@/lib/diagram';
+import type { DiagramAsset, QuestionType } from '@/lib/diagram';
 import { diagramRepository } from '@/lib/storage';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useSettings } from '@/components/providers/SettingsProvider';
@@ -42,7 +42,7 @@ function Diagrama({ initialTab }: { initialTab?: DiagramTab }) {
   const [configuring, setConfiguring] = useState(false);
   const [adding, setAdding] = useState(false);
   const [openAsset, setOpenAsset] = useState<string | null>(null);
-  const [questionsFor, setQuestionsFor] = useState<TickerType | 'any' | null>(null);
+  const [questionsFor, setQuestionsFor] = useState<QuestionType | 'any' | null>(null);
   useModuleIntro('diagram', { ready: !!overview });
 
   useEffect(() => {

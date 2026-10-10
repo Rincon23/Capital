@@ -16,6 +16,7 @@ import {
   isFixedIncomeType,
   planPositions,
   typesWithTarget,
+  UNQUOTED_LABEL,
   type DiagramOverview,
   type FixedIncomeType,
   type PlanInput,
@@ -180,9 +181,7 @@ export function AporteTab({
       {step === 'fixed' && (
         <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm">
           <h2 className="text-foreground font-semibold">Atualize a renda fixa</h2>
-          <p className="text-muted text-sm">
-            Renda fixa não tem cotação: confira o total de hoje antes de ver o resultado.
-          </p>
+          <p className="text-muted text-sm">Tesouro, CDB e LCI não têm cotação: confira o total de hoje.</p>
           {fixedTypes.map((type) => (
             <FixedIncomeCheck
               key={type}
@@ -259,7 +258,9 @@ function FixedIncomeCheck({
     <div className="bg-background flex flex-col gap-2 rounded-xl p-3">
       <div className="flex items-center gap-2">
         <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: assetType(type).color }} />
-        <span className="text-foreground min-w-0 flex-1 text-sm font-medium">{assetType(type).label}</span>
+        <span className="text-foreground min-w-0 flex-1 text-sm font-medium">
+          {UNQUOTED_LABEL} · {assetType(type).shortLabel}
+        </span>
         {done && <span className="text-success text-xs font-semibold">Conferido ✓</span>}
       </div>
       <p className="text-muted text-xs">

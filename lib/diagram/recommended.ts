@@ -1,4 +1,4 @@
-import type { DiagramQuestion, TickerType } from './types';
+import type { DiagramQuestion, QuestionType } from './types';
 
 /** A recommended question, before it is copied into someone's account. */
 export type RecommendedQuestion = Pick<DiagramQuestion, 'criterion' | 'text'> & { help?: string };
@@ -40,7 +40,7 @@ const REAL_ESTATE: RecommendedQuestion[] = [
  * person's: editable, with no link to these). Nobody starts with them: every account starts with
  * empty lists. Criptomoedas has none — the person writes their own or uses a direct score.
  */
-export const RECOMMENDED_QUESTIONS: Record<TickerType, RecommendedQuestion[]> = {
+export const RECOMMENDED_QUESTIONS: Record<QuestionType, RecommendedQuestion[]> = {
   brStocks: [
     {
       criterion: 'Tag along',

@@ -5,11 +5,12 @@ import { parseAmountInput, todayISO } from '@/lib/budget';
 import {
   assetType,
   isFixedIncomeType,
+  UNQUOTED_LABEL,
   normalizeAssetTicker,
   typesInUse,
   type DiagramAsset,
   type DiagramOverview,
-  type TickerType,
+  type AssetType,
 } from '@/lib/diagram';
 import { diagramRepository, type TickerSuggestion } from '@/lib/storage';
 import { BottomSheet } from '@/components/ui/BottomSheet';
@@ -31,15 +32,13 @@ export function AddAssetSheet({
   onAdded,
 }: {
   overview: DiagramOverview;
-  initialType?: TickerType;
+  initialType?: AssetType;
   onClose: () => void;
   onAdded: (asset: DiagramAsset) => Promise<void>;
 }) {
   const { showToast } = useToast();
-  const types = typesInUse(overview.settings.targets).filter(
-    (key): key is TickerType => !isFixedIncomeType(key),
-  );
-  const [type, setType] = useState<TickerType | null>(
+  const types = typesInUse(overview.settings.targets);
+  const [type, setType] = useState<AssetType | null>(
     initialType && types.includes(initialType) ? initialType : (types[0] ?? null),
   );
   const [ticker, setTicker] = useState('');
@@ -51,7 +50,7 @@ export function AddAssetSheet({
   const [saving, setSaving] = useState(false);
   const request = useRef(0);
 
-  const market = type ? (assetType(type).market ?? 'b3') : 'b3';
+  const market = type ? (assetType(type).market) : 'b3';
   const normalized = type ? normalizeAssetTicker(market, ticker) : '';
 
   useEffect(() => {
@@ -88,8 +87,7 @@ export function AddAssetSheet({
     return (
       <BottomSheet open title="Adicionar ativo" onClose={onClose}>
         <p className="text-muted text-sm">
-          Primeiro escolha os tipos da sua carteira na engrenagem (Tipos e metas). A renda fixa não precisa de
-          ativo: ela é um valor total, atualizado no aporte.
+          Primeiro escolha os tipos da sua carteira na engrenagem (Tipos e metas).
         </p>
       </BottomSheet>
     );
@@ -211,13 +209,16 @@ export function AddAssetSheet({
           )}
         </label>
 
-        <div className="flex items-center justify-between gap-3">
-          <span className="flex flex-col">
-            <span className="text-foreground text-sm font-medium">É um ETF</span>
-            <span className="text-muted text-xs">ETF não responde perguntas: recebe uma nota direta.</span>
-          </span>
-          <Switch checked={isEtf} onChange={setIsEtf} label="É um ETF" />
-        </div>
+        {type && isFixedIncomeType(type) ? (
+          <p className="text-muted text-xs">
+            Aqui entram fundos com código (DEBB11, IMAB11…). Tesouro, CDB e LCI ficam em {UNQUOTED_LABEL}.
+          </p>
+        ) : (
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-foreground text-sm font-medium">É um ETF (nota direta)</span>
+            <Switch checked={isEtf} onChange={setIsEtf} label="É um ETF" />
+          </div>
+        )}
 
         <button
           type="submit"

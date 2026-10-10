@@ -61,17 +61,9 @@ function leftoverText(plan: Plan): string {
   }
 }
 
-/** "1,2% → 1,8% · meta 2%" of a line, on the portfolio before and after. */
-function lineShares(line: PlanLine, plan: Plan): string {
-  const before = plan.invested > 0 ? line.value / plan.invested : 0;
-  const after = plan.invested + plan.spent > 0 ? (line.value + line.amount) / (plan.invested + plan.spent) : 0;
-  const target = plan.invested + plan.amount > 0 ? line.target / (plan.invested + plan.amount) : 0;
-  return `${pct(before)} → ${pct(after)} · meta ${pct(target)}`;
-}
-
-/** What a line buys, in words. */
-function lineQuantity(line: PlanLine): string {
-  if (line.unit === 'money') return 'valor em reais';
+/** What a line buys, in words ("3 cotas × R$ 51,77"); nothing for a total in R$. */
+function lineQuantity(line: PlanLine): string | null {
+  if (line.unit === 'money') return null;
   return `${quotasLabel(line.quantity, line.type)} × ${formatBRL(line.price ?? 0)}`;
 }
 
@@ -219,9 +211,8 @@ export function ContributionResult({
                 <li key={line.id} className="border-border bg-card flex flex-col gap-2 rounded-xl border px-4 py-3 shadow-sm">
                   <div className="flex items-start gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="text-foreground font-semibold">{line.unit === 'money' ? 'Valor total' : line.label}</p>
-                      <p className="text-muted text-xs">{lineQuantity(line)}</p>
-                      <p className="text-muted text-xs tabular-nums">{lineShares(line, plan)}</p>
+                      <p className="text-foreground font-semibold">{line.label}</p>
+                      {lineQuantity(line) && <p className="text-muted text-xs">{lineQuantity(line)}</p>}
                     </div>
                     <p className="text-foreground font-semibold tabular-nums">{formatBRL(line.amount)}</p>
                   </div>
@@ -273,7 +264,7 @@ export function ContributionResult({
                     stepQuantity(line, 1, plan.leftover) !== line.quantity;
                   return (
                     <li key={line.id} className="text-muted flex min-h-[32px] items-center gap-2 text-xs">
-                      <span className="text-foreground font-medium">{line.unit === 'money' ? 'Valor total' : line.label}</span>
+                      <span className="text-foreground font-medium">{line.label}</span>
                       <span className="min-w-0 flex-1 truncate">{line.blocked ? BLOCK_TEXT[line.blocked] : ''}</span>
                       {canAdd && (
                         <button
@@ -392,7 +383,7 @@ function ContributeSheet({
   return (
     <BottomSheet
       open
-      title={single ? `Aportar em ${first.unit === 'money' ? assetType(first.type).label : first.label}` : 'Aportar tudo'}
+      title={single ? `Aportar em ${first.label}` : 'Aportar tudo'}
       onClose={onClose}
       confirmDiscard={false}
     >
@@ -450,7 +441,7 @@ function ContributeSheet({
             {edited.map((line) => (
               <li key={line.id} className="flex items-center gap-2 px-3 py-2 text-sm">
                 <span className="text-foreground min-w-0 flex-1 truncate font-medium">
-                  {line.unit === 'money' ? assetType(line.type).label : line.label}
+                  {line.unit === 'money' ? `${line.label} (${assetType(line.type).shortLabel})` : line.label}
                 </span>
                 <span className="text-muted text-xs">
                   {line.unit === 'money' ? '' : quotasLabel(line.quantity, line.type)}

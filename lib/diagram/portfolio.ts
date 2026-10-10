@@ -1,4 +1,4 @@
-import { assetFractionDigits, assetType, isFixedIncomeType, typesInUse } from './assetTypes';
+import { assetFractionDigits, isFixedIncomeType, typesInUse } from './assetTypes';
 import type { PlanPosition } from './plan';
 import { assetScore, type AssetScore } from './score';
 import type { AssetType, DiagramAsset, DiagramOverview, DiagramQuestion, FixedIncomeType } from './types';
@@ -41,6 +41,9 @@ export function fixedIncomeAmount(source: Pick<DiagramOverview, 'fixedIncome'>, 
   return source.fixedIncome.find((total) => total.type === type)?.amount ?? 0;
 }
 
+/** How the fixed-income total is called: what the person holds that has no quote. */
+export const UNQUOTED_LABEL = 'Títulos sem cotação';
+
 /** Every position of the types in the portfolio, as the aporte calculation takes them. */
 export function planPositions(source: Source): PlanPosition[] {
   const inUse = new Set(typesInUse(source.settings.targets));
@@ -50,12 +53,12 @@ export function planPositions(source: Source): PlanPosition[] {
     positions.push({
       id: type,
       type,
-      label: assetType(type).label,
+      label: UNQUOTED_LABEL,
       value: fixedIncomeAmount(source, type),
       price: null,
       fractionDigits: 2,
       unit: 'money',
-      score: null,
+      score: source.fixedIncome.find((total) => total.type === type)?.score ?? 1,
       stopBuying: false,
     });
   }

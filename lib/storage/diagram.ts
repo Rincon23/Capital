@@ -1,5 +1,6 @@
 import type {
   Answer,
+  AssetType,
   AssetInput,
   AutoQuestionKind,
   ContributeInput,
@@ -10,7 +11,7 @@ import type {
   DiagramTargets,
   FixedIncomeType,
   QuestionInput,
-  TickerType,
+  QuestionType,
 } from '../diagram/types';
 import { apiRequest, seg } from './apiClient';
 
@@ -29,7 +30,7 @@ export interface DiagramRepository {
   getOverview(): Promise<DiagramOverview>;
   saveTargets(targets: DiagramTargets): Promise<void>;
   saveLastAmount(amount: number): Promise<void>;
-  setFixedIncome(type: FixedIncomeType, amount: number, date: string): Promise<void>;
+  setFixedIncome(type: FixedIncomeType, amount: number, date: string, score?: number): Promise<void>;
   addAsset(input: AssetInput, date: string): Promise<DiagramAsset>;
   updateAsset(id: string, input: AssetInput, date: string): Promise<void>;
   setStopBuying(id: string, stopBuying: boolean): Promise<void>;
@@ -39,10 +40,10 @@ export interface DiagramRepository {
   updateQuestion(id: string, input: QuestionUpdate): Promise<void>;
   enableAutoQuestion(kind: AutoQuestionKind): Promise<DiagramQuestion>;
   deleteQuestion(id: string): Promise<void>;
-  reorderQuestions(type: TickerType, ids: string[]): Promise<void>;
-  useRecommended(type: TickerType): Promise<{ added: number }>;
+  reorderQuestions(type: QuestionType, ids: string[]): Promise<void>;
+  useRecommended(type: QuestionType): Promise<{ added: number }>;
   refreshQuotes(): Promise<{ updated: number; missing: string[] }>;
-  searchTickers(type: TickerType, query: string): Promise<TickerSuggestion[]>;
+  searchTickers(type: AssetType, query: string): Promise<TickerSuggestion[]>;
   contribute(input: ContributeInput): Promise<DiagramContribution>;
 }
 
@@ -59,8 +60,8 @@ export class HttpDiagramRepository implements DiagramRepository {
     return apiRequest('PUT', '/diagram/last-amount', { amount });
   }
 
-  setFixedIncome(type: FixedIncomeType, amount: number, date: string): Promise<void> {
-    return apiRequest('PUT', `/diagram/fixed-income/${seg(type)}`, { amount, date });
+  setFixedIncome(type: FixedIncomeType, amount: number, date: string, score?: number): Promise<void> {
+    return apiRequest('PUT', `/diagram/fixed-income/${seg(type)}`, { amount, date, score });
   }
 
   addAsset(input: AssetInput, date: string): Promise<DiagramAsset> {
@@ -99,11 +100,11 @@ export class HttpDiagramRepository implements DiagramRepository {
     return apiRequest('DELETE', `/diagram/questions/${seg(id)}`);
   }
 
-  reorderQuestions(type: TickerType, ids: string[]): Promise<void> {
+  reorderQuestions(type: QuestionType, ids: string[]): Promise<void> {
     return apiRequest('PUT', '/diagram/questions/order', { type, ids });
   }
 
-  useRecommended(type: TickerType): Promise<{ added: number }> {
+  useRecommended(type: QuestionType): Promise<{ added: number }> {
     return apiRequest('POST', '/diagram/questions/recommended', { type });
   }
 
@@ -111,7 +112,7 @@ export class HttpDiagramRepository implements DiagramRepository {
     return apiRequest('POST', '/diagram/quotes');
   }
 
-  searchTickers(type: TickerType, query: string): Promise<TickerSuggestion[]> {
+  searchTickers(type: AssetType, query: string): Promise<TickerSuggestion[]> {
     const params = new URLSearchParams({ tipo: type, q: query });
     return apiRequest('GET', `/diagram/search?${params.toString()}`);
   }

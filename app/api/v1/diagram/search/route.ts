@@ -1,9 +1,9 @@
 import { z } from 'zod';
-import { TICKER_TYPES, type TickerType } from '@/lib/diagram';
+import { ASSET_TYPE_KEYS, type AssetType } from '@/lib/diagram';
 import { apiRoute } from '@/lib/server/http';
 
 const searchSchema = z.object({
-  type: z.enum(TICKER_TYPES as [TickerType, ...TickerType[]]),
+  type: z.enum(ASSET_TYPE_KEYS as [AssetType, ...AssetType[]]),
   q: z.string().trim().min(1).max(30),
 });
 

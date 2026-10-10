@@ -273,6 +273,44 @@ describe('suggestContribution', () => {
     expect(stepQuantity(line, 1, plan.leftover)).toBe(10);
   });
 
+  describe('renda fixa com fundos (DEBB11) além dos títulos sem cotação', () => {
+    it('a fund with "Não compro mais" fills the type and the rest goes to the titles without a quote', () => {
+      const { plan } = suggestContribution({
+        amount: 1_000,
+        targets: { brStocks: 0.75, fixedIncome: 0.25 },
+        positions: [
+          stock('WEGE3', 10, 300, 1),
+          { ...fixed('fixedIncome', 500), score: 1 },
+          stock('DEBB11', 17.22, 26, 0.1, { type: 'fixedIncome', stopBuying: true }),
+        ],
+      });
+      const debb = plan.lines.find((line) => line.id === 'DEBB11')!;
+      expect(debb.blocked).toBe('stopped');
+      expect(debb.amount).toBe(0);
+      // Type target: 25% of (3000 + 447.72 + 500 + 1000) = 1236.93; DEBB11 holds 447.72 of it.
+      const titles = plan.lines.find((line) => line.id === 'fixedIncome')!;
+      expect(titles.target).toBeCloseTo(0.25 * (3_000 + 447.72 + 500 + 1_000) - 447.72, 2);
+      expect(plan.spent).toBeLessThanOrEqual(1_000);
+    });
+
+    it('splits the type by score between the titles and a fund, and a total with score 0 receives nothing', () => {
+      const input = (titlesScore: number) => ({
+        amount: 1_000,
+        targets: { fixedIncome: 1 } as DiagramTargets,
+        positions: [
+          { ...fixed('fixedIncome', 0), score: titlesScore },
+          stock('IMAB11', 10, 0, 1, { type: 'fixedIncome' as AssetType }),
+        ],
+      });
+      const even = suggestContribution(input(1)).plan;
+      expect(even.lines.find((line) => line.id === 'fixedIncome')!.amount).toBeCloseTo(500, 2);
+      expect(even.lines.find((line) => line.id === 'IMAB11')!.quantity).toBe(50);
+      const off = suggestContribution(input(0)).plan;
+      expect(off.lines.find((line) => line.id === 'fixedIncome')!.blocked).toBe('lowScore');
+      expect(off.lines.find((line) => line.id === 'IMAB11')!.quantity).toBe(100);
+    });
+  });
+
   it('leaves out the types that are not in the portfolio', () => {
     const { plan } = suggestContribution({
       amount: 100,

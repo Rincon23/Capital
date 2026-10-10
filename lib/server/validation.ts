@@ -3,11 +3,11 @@ import type { HomeWidgetKey, ModuleKey, NavKey, QuickCategoryKey } from '@/lib/b
 import { HOME_WIDGET_KEYS, MAX_HOME_PAGES, MAX_WIDGETS_PER_HOME_PAGE, MODULE_KEYS } from '@/lib/modules';
 import {
   ASSET_TYPE_KEYS,
-  TICKER_TYPES,
+  QUESTION_TYPES,
   type AssetType,
   type DiagramBackup,
   type DiagramTargets,
-  type TickerType,
+  type QuestionType,
 } from '@/lib/diagram';
 import { isAllowedPushEndpoint, type NotificationCategory } from '@/lib/notifications';
 import { QUOTAS } from './quotas';
@@ -348,8 +348,9 @@ export const closeMonthSchema = z.object({ openNext: z.boolean().optional() });
 // Diagrama
 // ---------------------------------------------------------------------------
 
-const tickerTypeSchema = z.enum(TICKER_TYPES as [TickerType, ...TickerType[]]);
+const questionTypeSchema = z.enum(QUESTION_TYPES as [QuestionType, ...QuestionType[]]);
 const fixedIncomeTypeSchema = z.enum(['fixedIncome', 'intlFixedIncome']);
+const assetTypeSchema = z.enum(ASSET_TYPE_KEYS as [AssetType, ...AssetType[]]);
 const ratio = z.number().min(0).max(1);
 const diagramAmount = z.number().min(0).max(1_000_000_000_000);
 const optionalLabel = (max: number) => z.string().max(max).nullable().optional();
@@ -361,10 +362,14 @@ export const diagramTargetsSchema = z.object({
 
 export const diagramLastAmountSchema = z.object({ amount: diagramAmount });
 
-export const diagramFixedIncomeSchema = z.object({ amount: diagramAmount, date: isoDate });
+export const diagramFixedIncomeSchema = z.object({
+  amount: diagramAmount,
+  date: isoDate,
+  score: z.number().min(-1).max(1).optional(),
+});
 
 export const diagramAssetSchema = z.object({
-  type: tickerTypeSchema,
+  type: assetTypeSchema,
   ticker: z.string().trim().min(1).max(30),
   quantity: diagramAmount,
   sector: optionalLabel(100),
@@ -393,14 +398,14 @@ const questionFields = {
 
 const autoKindSchema = z.enum(['graham', 'pvp']);
 
-export const diagramQuestionSchema = z.object({ type: tickerTypeSchema, ...questionFields });
+export const diagramQuestionSchema = z.object({ type: questionTypeSchema, ...questionFields });
 export const diagramQuestionUpdateSchema = z.object({ ...questionFields, auto: autoKindSchema.nullable().optional() });
 export const diagramAutoQuestionSchema = z.object({ kind: autoKindSchema });
 export const diagramReorderSchema = z.object({
-  type: tickerTypeSchema,
+  type: questionTypeSchema,
   ids: z.array(z.string().min(1).max(100)).max(QUOTAS.diagramQuestions),
 });
-export const diagramRecommendedSchema = z.object({ type: tickerTypeSchema });
+export const diagramRecommendedSchema = z.object({ type: questionTypeSchema });
 
 export const diagramContributeSchema = z.object({
   date: isoDate,
@@ -427,7 +432,7 @@ const diagramBackupSchema = z.object({
     .array(
       z.object({
         id: z.string().min(1).max(100),
-        type: tickerTypeSchema,
+        type: assetTypeSchema,
         ticker: z.string().min(1).max(30),
         quantity: diagramAmount,
         quantityUpdatedOn: isoDate.nullable(),
@@ -442,13 +447,21 @@ const diagramBackupSchema = z.object({
     )
     .max(QUOTAS.diagramAssets),
   fixedIncome: z
-    .array(z.object({ type: fixedIncomeTypeSchema, amount: diagramAmount, updatedOn: isoDate.nullable() }))
+    .array(
+      z.object({
+        type: fixedIncomeTypeSchema,
+        amount: diagramAmount,
+        updatedOn: isoDate.nullable(),
+        // Backups from before fixed income had funds: the total weighed 1.
+        score: z.number().min(-1).max(1).default(1),
+      }),
+    )
     .max(2),
   questions: z
     .array(
       z.object({
         id: z.string().min(1).max(100),
-        type: tickerTypeSchema,
+        type: questionTypeSchema,
         criterion: z.string().max(40),
         text: z.string().max(300),
         help: z.string().max(600).optional(),
