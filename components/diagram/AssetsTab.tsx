@@ -22,7 +22,7 @@ import { AmountInput } from '@/components/ui/AmountInput';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { useToast } from '@/components/ui/Toast';
 import { DirectScoreField } from './AssetSheet';
-import { formatDate, formatQuantity, formatWhen, pct } from './format';
+import { formatDate, formatWhen, pct, quotasLabel } from './format';
 import { PortfolioChart } from './PortfolioCard';
 import { TypeChips } from './TypeChips';
 
@@ -241,7 +241,7 @@ export function AssetsTab({
                     const quote = overview.quotes[asset.id];
                     const value = assetValue(asset, overview);
                     const parts = [
-                      asset.quantity > 0 ? `${formatQuantity(asset.quantity, asset.type)} cotas` : '',
+                      asset.quantity > 0 ? quotasLabel(asset.quantity, asset.type) : '',
                       value > 0 && inType > 0 ? `${pct(value / inType)} do tipo` : '',
                       quote ? '' : 'sem cotação',
                     ].filter(Boolean);
