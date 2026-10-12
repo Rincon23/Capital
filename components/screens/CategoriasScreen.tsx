@@ -14,6 +14,7 @@ import { ClosedMonthBanner } from '@/components/month/ClosedMonthBanner';
 import { CloseMonthSheet } from '@/components/month/CloseMonthSheet';
 import { FixedCostsCard } from '@/components/month/FixedCostsCard';
 import { useMonthContext } from '@/components/month/MonthContext';
+import { MonthSwipe } from '@/components/month/MonthSwipe';
 import { MonthSwitcher } from '@/components/month/MonthSwitcher';
 import { SummaryHeader } from '@/components/month/SummaryHeader';
 import { TopicCard } from '@/components/month/TopicCard';
@@ -78,7 +79,11 @@ function Categorias() {
         }
       />
 
-      <div className="flex flex-col gap-4 px-4">
+      <MonthSwipe
+        month={month}
+        onMonth={(next) => router.replace(`/mes/${next}/categorias`)}
+        className="flex flex-col gap-4 px-4"
+      >
         <MonthSwitcher month={month} path="/categorias" />
 
         {error && <p className="bg-danger-bg text-danger rounded-lg px-3 py-2 text-sm">{error}</p>}
@@ -137,7 +142,7 @@ function Categorias() {
             )}
           </>
         )}
-      </div>
+      </MonthSwipe>
 
       {closing && summary && (
         <CloseMonthSheet

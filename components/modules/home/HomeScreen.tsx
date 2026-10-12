@@ -60,7 +60,6 @@ import { subscribeHomeReveal } from '@/components/modules/tour/homeReveal';
 import { GreetingHeader } from '@/components/month/GreetingHeader';
 import { MonthActions } from '@/components/month/MonthActions';
 import { useMonthContext } from '@/components/month/MonthContext';
-import { MonthSwitcher } from '@/components/month/MonthSwitcher';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { BottomSheet } from '@/components/ui/BottomSheet';
@@ -670,7 +669,6 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
               <NotificationBell />
             </div>
           </div>
-          <MonthSwitcher month={month} />
         </header>
 
         <DndContext

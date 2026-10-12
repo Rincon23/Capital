@@ -48,7 +48,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: entries,
       anchor: 'lancamentos-mes',
       title: 'Cada mês separado',
-      description: 'Use as setas para ver os lançamentos de outro mês.',
+      description: 'Arraste a tela para o lado, ou use as setas, para ver os lançamentos de outro mês.',
       side: 'bottom',
     },
     {
@@ -130,7 +130,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       anchor: 'cartao-fatura',
       title: 'A fatura do mês',
       description:
-        'Quanto vem nesta competência e o dia em que ela vence. Use as setas para ver as faturas anteriores; vencimento em sábado ou domingo passa para a segunda, como no banco.',
+        'Quanto vem nesta competência e o dia em que ela vence. Arraste para o lado, ou use as setas, para ver as outras faturas; vencimento em sábado ou domingo passa para a segunda, como no banco.',
       side: 'bottom',
     },
     {

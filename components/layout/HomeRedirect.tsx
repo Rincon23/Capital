@@ -4,18 +4,18 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { currentMonthKey } from '@/lib/budget';
 import { OPEN_APPS_PARAM, homeHref } from '@/lib/modules';
-import { getLastViewedMonth } from '@/lib/storage/preferences';
 
 /**
- * Sends the person to the Início of the month they last looked at: what "/" does, and where the
- * old addresses of the bottom-bar era land (`/rodape`, and `/mais`, with the app drawer open).
- * The month lives on this device (localStorage), so this can only happen in the browser.
+ * Sends the person to the Início, which is always the month of today (another month is seen
+ * inside the screens that have one, like Lançamentos): what "/" does, and where the old addresses
+ * of the bottom-bar era land (`/rodape`, and `/mais`, with the app drawer open). Done in the
+ * browser, so "today" is the person's own.
  */
 export function HomeRedirect({ openApps = false }: { openApps?: boolean }) {
   const router = useRouter();
 
   useEffect(() => {
-    const href = homeHref(getLastViewedMonth() ?? currentMonthKey());
+    const href = homeHref(currentMonthKey());
     router.replace(openApps ? `${href}?${OPEN_APPS_PARAM}=1` : href);
   }, [router, openApps]);
 

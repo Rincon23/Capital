@@ -12,6 +12,7 @@ import { useHomeHref } from '@/components/modules/useHomeHref';
 import { ClosedMonthBanner } from '@/components/month/ClosedMonthBanner';
 import { MONTH_ACTIONS_PADDING, MonthActions } from '@/components/month/MonthActions';
 import { useMonthContext } from '@/components/month/MonthContext';
+import { MonthSwipe } from '@/components/month/MonthSwipe';
 import { MonthSwitcher } from '@/components/month/MonthSwitcher';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useSettings } from '@/components/providers/SettingsProvider';
@@ -149,8 +150,41 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
       .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
   }, [monthData, search]);
 
+  const header = (
+    <PageHeader
+      title="Lançamentos"
+      subtitle={formatMonthLabel(month)}
+      backHref={backHref}
+      action={
+        <>
+          <ModuleHelpButton module="expenses" />
+          <ModuleSettingsButton
+            module="expenses"
+            tourAnchor="lancamentos-config"
+            onClick={() => setConfiguring(true)}
+          />
+        </>
+      }
+    />
+  );
+  const switcher = (
+    <div data-tour="lancamentos-mes">
+      <MonthSwitcher month={month} path="/lancamentos" />
+    </div>
+  );
+  /** Swiping sideways (or the ‹ ›) goes to the same list of the other month. */
+  const changeMonth = (next: Month) => router.replace(`/mes/${next}/lancamentos`);
+
   if (loading || !monthData || !settings) {
-    return <div className="text-muted flex flex-1 items-center justify-center px-4 py-16">Carregando…</div>;
+    return (
+      <div className={`flex flex-1 flex-col gap-3 ${MONTH_ACTIONS_PADDING}`}>
+        {header}
+        <MonthSwipe month={month} onMonth={changeMonth} className="flex flex-col gap-3">
+          <div className="px-4">{switcher}</div>
+          <p className="text-muted py-16 text-center">Carregando…</p>
+        </MonthSwipe>
+      </div>
+    );
   }
 
   async function handleDeleteMonth() {
@@ -243,226 +277,212 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
 
   return (
     <div className={`flex flex-1 flex-col gap-3 ${MONTH_ACTIONS_PADDING}`}>
-      <PageHeader
-        title="Lançamentos"
-        subtitle={formatMonthLabel(month)}
-        backHref={backHref}
-        action={
-          <>
-            <ModuleHelpButton module="expenses" />
-            <ModuleSettingsButton
-              module="expenses"
-              tourAnchor="lancamentos-config"
-              onClick={() => setConfiguring(true)}
-            />
-          </>
-        }
-      />
+      {header}
 
-      <div className="flex flex-col gap-3 px-4">
-        <div data-tour="lancamentos-mes">
-          <MonthSwitcher month={month} path="/lancamentos" />
+      <MonthSwipe month={month} onMonth={changeMonth} className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 px-4">
+          {switcher}
+          {error && <p className="bg-danger-bg text-danger rounded-lg px-3 py-2 text-sm">{error}</p>}
+          <ClosedMonthBanner />
         </div>
-        {error && <p className="bg-danger-bg text-danger rounded-lg px-3 py-2 text-sm">{error}</p>}
-        <ClosedMonthBanner />
-      </div>
 
-      <div className="px-4" data-tour="lancamentos-abas">
-        <div role="tablist" className="bg-card border-border grid grid-cols-2 gap-1 rounded-xl border p-1">
-          {(
-            [
-              ['expenses', 'Gastos'],
-              ['income', 'Renda'],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={tab === key}
-              onClick={() => setTab(key)}
-              className={`min-h-[40px] rounded-lg text-sm font-semibold transition-colors ${
-                tab === key ? 'bg-primary text-primary-foreground' : 'text-muted hover:text-foreground'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex gap-2 px-4" data-tour="lancamentos-busca">
-        <input
-          type="search"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={tab === 'income' ? 'Buscar pela fonte...' : 'Buscar pela descrição...'}
-          className="border-border bg-card text-foreground focus:ring-primary min-h-[44px] min-w-0 flex-1 rounded-lg border px-3 py-2 text-base outline-none focus:ring-2"
-        />
-        {tab === 'expenses' && (
-          <button
-            type="button"
-            onClick={() => setFiltering(true)}
-            aria-label={
-              filter.length > 0
-                ? `Filtrar por categoria (${filter.length} escolhidas)`
-                : 'Filtrar por categoria'
-            }
-            data-tour="lancamentos-filtro"
-            className={`relative flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg border px-3 text-sm font-semibold ${
-              filter.length > 0
-                ? 'border-primary bg-primary/10 text-primary'
-                : 'border-border bg-card text-foreground'
-            }`}
-          >
-            <ListFilter aria-hidden className="h-5 w-5" />
-            Filtrar
-            {filter.length > 0 && (
-              <span className="bg-primary text-primary-foreground flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs">
-                {filter.length}
-              </span>
-            )}
-          </button>
-        )}
-      </div>
-
-      {tab === 'expenses' && filter.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 px-4" data-no-swipe-nav>
-          {filter.map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => toggleFilter(key)}
-              aria-label={`Tirar ${filterLabel(key)} do filtro`}
-              data-tour={key === 'reimbursable' ? 'aba-a-receber' : undefined}
-              className="bg-primary text-primary-foreground flex min-h-[32px] items-center gap-1 rounded-full pr-2 pl-3 text-sm font-medium"
-            >
-              {filterLabel(key)}
-              <X aria-hidden className="h-4 w-4" />
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => setFilter([])}
-            className="text-muted hover:text-foreground min-h-[32px] px-1 text-sm font-medium underline underline-offset-2"
-          >
-            Ver todos
-          </button>
-        </div>
-      )}
-
-      {tab === 'expenses' && onlyReimbursable && (
-        <div className="bg-card border-border mx-4 flex flex-col gap-1 rounded-xl border px-4 py-3">
-          <p className="text-muted text-sm">{REIMBURSABLE_EXPLANATION}</p>
-          <div>
-            <ModuleHelpButton module="reimbursable" variant="link" label="Como funciona A receber?" />
+        <div className="px-4" data-tour="lancamentos-abas">
+          <div role="tablist" className="bg-card border-border grid grid-cols-2 gap-1 rounded-xl border p-1">
+            {(
+              [
+                ['expenses', 'Gastos'],
+                ['income', 'Renda'],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={tab === key}
+                onClick={() => setTab(key)}
+                className={`min-h-[40px] rounded-lg text-sm font-semibold transition-colors ${
+                  tab === key ? 'bg-primary text-primary-foreground' : 'text-muted hover:text-foreground'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
-      )}
 
-      {tab === 'expenses' && onlyUncounted && (
-        <div className="bg-warning-bg mx-4 flex flex-col gap-1 rounded-xl px-4 py-3">
-          <p className="text-warning text-sm font-semibold">{UNCOUNTED_ADVICE}</p>
-          <p className="text-muted text-sm">{UNCOUNTED_EXPLANATION}</p>
-        </div>
-      )}
-
-      {shownCount > 0 && !(tab === 'expenses' && onlyReimbursable) && (
-        <p className="text-muted flex items-baseline justify-between px-4 text-sm">
-          <span>
-            {shownCount}{' '}
-            {tab === 'income'
-              ? shownCount === 1
-                ? 'renda'
-                : 'rendas'
-              : shownCount === 1
-                ? 'gasto'
-                : 'gastos'}
-          </span>
-          <span className="text-foreground font-semibold tabular-nums">{formatBRL(shownTotal)}</span>
-        </p>
-      )}
-
-      {tab === 'expenses' && onlyReimbursable && owed.error && (
-        <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{owed.error}</p>
-      )}
-
-      {tab === 'expenses' && onlyReimbursable && owedEntries.length + paidEntries.length > 0 ? (
-        <ReimbursableList
-          month={month}
-          owed={owedEntries}
-          paid={paidEntries}
-          onEdit={(entry) =>
-            entry.month === month
-              ? handleEditExpense(entry.expense)
-              : router.push(`/mes/${entry.month}/lancamentos?aba=a-receber`)
-          }
-          onToggle={(entry) => void toggleReimbursed(entry.month, entry.expense)}
-        />
-      ) : (
-        <ul className="flex flex-col gap-2 px-4">
-          {tab === 'income'
-            ? filteredIncomes.map((income) => (
-                <li key={income.id}>
-                  <button
-                    type="button"
-                    onClick={() => handleEditIncome(income)}
-                    className="border-border bg-card flex min-h-[56px] w-full items-center justify-between gap-2 rounded-xl border px-4 py-3 text-left shadow-sm"
-                  >
-                    <span className="min-w-0">
-                      <span className="text-foreground block truncate font-medium">{income.source}</span>
-                      {(income.date || income.topicId) && (
-                        <span className="text-muted block text-xs">
-                          {[
-                            income.date && formatDate(income.date),
-                            income.topicId && `Só ${topicName(settings.topics, income.topicId)}`,
-                          ]
-                            .filter(Boolean)
-                            .join(' · ')}
-                        </span>
-                      )}
-                    </span>
-                    <span className="text-success font-semibold">{formatBRL(income.amount)}</span>
-                  </button>
-                </li>
-              ))
-            : filteredExpenses.map((expense) => (
-                <li key={expense.id}>
-                  <button
-                    type="button"
-                    onClick={() => handleEditExpense(expense)}
-                    className="border-border bg-card flex min-h-[56px] w-full items-center justify-between gap-2 rounded-xl border px-4 py-3 text-left shadow-sm"
-                  >
-                    <span className="min-w-0">
-                      <span className="text-foreground block truncate font-medium">
-                        {expense.description}
-                      </span>
-                      <span className="text-muted block text-xs">
-                        {expenseDayLabel(expense)} · {expenseCategory(expense)}
-                      </span>
-                    </span>
-                    <span className="text-foreground font-semibold">{formatBRL(expense.amount)}</span>
-                  </button>
-                </li>
-              ))}
-
-          {(tab === 'income' ? filteredIncomes.length : filteredExpenses.length) === 0 && (
-            <p className="text-muted py-10 text-center text-sm">Nenhum lançamento encontrado.</p>
+        <div className="flex gap-2 px-4" data-tour="lancamentos-busca">
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={tab === 'income' ? 'Buscar pela fonte...' : 'Buscar pela descrição...'}
+            className="border-border bg-card text-foreground focus:ring-primary min-h-[44px] min-w-0 flex-1 rounded-lg border px-3 py-2 text-base outline-none focus:ring-2"
+          />
+          {tab === 'expenses' && (
+            <button
+              type="button"
+              onClick={() => setFiltering(true)}
+              aria-label={
+                filter.length > 0
+                  ? `Filtrar por categoria (${filter.length} escolhidas)`
+                  : 'Filtrar por categoria'
+              }
+              data-tour="lancamentos-filtro"
+              className={`relative flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg border px-3 text-sm font-semibold ${
+                filter.length > 0
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-border bg-card text-foreground'
+              }`}
+            >
+              <ListFilter aria-hidden className="h-5 w-5" />
+              Filtrar
+              {filter.length > 0 && (
+                <span className="bg-primary text-primary-foreground flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs">
+                  {filter.length}
+                </span>
+              )}
+            </button>
           )}
-        </ul>
-      )}
-
-      {(monthData.expenses.length > 0 || monthData.incomes.length > 0) && (
-        <div className="px-4 pt-4">
-          <button
-            type="button"
-            onClick={() => void handleDeleteMonth()}
-            className="border-danger text-danger min-h-[44px] w-full rounded-lg border px-4 text-sm font-semibold"
-          >
-            Apagar dados de {formatMonthLabel(month)}
-          </button>
         </div>
-      )}
+
+        {tab === 'expenses' && filter.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 px-4" data-no-swipe-nav>
+            {filter.map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => toggleFilter(key)}
+                aria-label={`Tirar ${filterLabel(key)} do filtro`}
+                data-tour={key === 'reimbursable' ? 'aba-a-receber' : undefined}
+                className="bg-primary text-primary-foreground flex min-h-[32px] items-center gap-1 rounded-full pr-2 pl-3 text-sm font-medium"
+              >
+                {filterLabel(key)}
+                <X aria-hidden className="h-4 w-4" />
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setFilter([])}
+              className="text-muted hover:text-foreground min-h-[32px] px-1 text-sm font-medium underline underline-offset-2"
+            >
+              Ver todos
+            </button>
+          </div>
+        )}
+
+        {tab === 'expenses' && onlyReimbursable && (
+          <div className="bg-card border-border mx-4 flex flex-col gap-1 rounded-xl border px-4 py-3">
+            <p className="text-muted text-sm">{REIMBURSABLE_EXPLANATION}</p>
+            <div>
+              <ModuleHelpButton module="reimbursable" variant="link" label="Como funciona A receber?" />
+            </div>
+          </div>
+        )}
+
+        {tab === 'expenses' && onlyUncounted && (
+          <div className="bg-warning-bg mx-4 flex flex-col gap-1 rounded-xl px-4 py-3">
+            <p className="text-warning text-sm font-semibold">{UNCOUNTED_ADVICE}</p>
+            <p className="text-muted text-sm">{UNCOUNTED_EXPLANATION}</p>
+          </div>
+        )}
+
+        {shownCount > 0 && !(tab === 'expenses' && onlyReimbursable) && (
+          <p className="text-muted flex items-baseline justify-between px-4 text-sm">
+            <span>
+              {shownCount}{' '}
+              {tab === 'income'
+                ? shownCount === 1
+                  ? 'renda'
+                  : 'rendas'
+                : shownCount === 1
+                  ? 'gasto'
+                  : 'gastos'}
+            </span>
+            <span className="text-foreground font-semibold tabular-nums">{formatBRL(shownTotal)}</span>
+          </p>
+        )}
+
+        {tab === 'expenses' && onlyReimbursable && owed.error && (
+          <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{owed.error}</p>
+        )}
+
+        {tab === 'expenses' && onlyReimbursable && owedEntries.length + paidEntries.length > 0 ? (
+          <ReimbursableList
+            month={month}
+            owed={owedEntries}
+            paid={paidEntries}
+            onEdit={(entry) =>
+              entry.month === month
+                ? handleEditExpense(entry.expense)
+                : router.push(`/mes/${entry.month}/lancamentos?aba=a-receber`)
+            }
+            onToggle={(entry) => void toggleReimbursed(entry.month, entry.expense)}
+          />
+        ) : (
+          <ul className="flex flex-col gap-2 px-4">
+            {tab === 'income'
+              ? filteredIncomes.map((income) => (
+                  <li key={income.id}>
+                    <button
+                      type="button"
+                      onClick={() => handleEditIncome(income)}
+                      className="border-border bg-card flex min-h-[56px] w-full items-center justify-between gap-2 rounded-xl border px-4 py-3 text-left shadow-sm"
+                    >
+                      <span className="min-w-0">
+                        <span className="text-foreground block truncate font-medium">{income.source}</span>
+                        {(income.date || income.topicId) && (
+                          <span className="text-muted block text-xs">
+                            {[
+                              income.date && formatDate(income.date),
+                              income.topicId && `Só ${topicName(settings.topics, income.topicId)}`,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-success font-semibold">{formatBRL(income.amount)}</span>
+                    </button>
+                  </li>
+                ))
+              : filteredExpenses.map((expense) => (
+                  <li key={expense.id}>
+                    <button
+                      type="button"
+                      onClick={() => handleEditExpense(expense)}
+                      className="border-border bg-card flex min-h-[56px] w-full items-center justify-between gap-2 rounded-xl border px-4 py-3 text-left shadow-sm"
+                    >
+                      <span className="min-w-0">
+                        <span className="text-foreground block truncate font-medium">
+                          {expense.description}
+                        </span>
+                        <span className="text-muted block text-xs">
+                          {expenseDayLabel(expense)} · {expenseCategory(expense)}
+                        </span>
+                      </span>
+                      <span className="text-foreground font-semibold">{formatBRL(expense.amount)}</span>
+                    </button>
+                  </li>
+                ))}
+
+            {(tab === 'income' ? filteredIncomes.length : filteredExpenses.length) === 0 && (
+              <p className="text-muted py-10 text-center text-sm">Nenhum lançamento encontrado.</p>
+            )}
+          </ul>
+        )}
+
+        {(monthData.expenses.length > 0 || monthData.incomes.length > 0) && (
+          <div className="px-4 pt-4">
+            <button
+              type="button"
+              onClick={() => void handleDeleteMonth()}
+              className="border-danger text-danger min-h-[44px] w-full rounded-lg border px-4 text-sm font-semibold"
+            >
+              Apagar dados de {formatMonthLabel(month)}
+            </button>
+          </div>
+        )}
+      </MonthSwipe>
 
       <MonthActions defaultCategoryKind={defaultKind} />
 

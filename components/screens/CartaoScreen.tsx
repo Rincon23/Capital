@@ -46,6 +46,7 @@ import { InstallmentEditor, type InstallmentEditRequest } from '@/components/car
 import { InstallmentFormSheet } from '@/components/card/InstallmentFormSheet';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ExpenseFormSheet } from '@/components/month/ExpenseFormSheet';
+import { MonthSwipe, useMonthSwipe } from '@/components/month/MonthSwipe';
 import { ModuleGate } from '@/components/modules/ModuleGate';
 import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
 import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
@@ -138,7 +139,11 @@ function Cartao({ initialTab }: { initialTab?: CardTab }) {
         action={
           <>
             <ModuleHelpButton module="card" />
-            <ModuleSettingsButton module="card" onClick={() => setSettingsOpen(true)} tourAnchor="cartao-config" />
+            <ModuleSettingsButton
+              module="card"
+              onClick={() => setSettingsOpen(true)}
+              tourAnchor="cartao-config"
+            />
           </>
         }
       />
@@ -152,7 +157,9 @@ function Cartao({ initialTab }: { initialTab?: CardTab }) {
             type="button"
             onClick={() => setTab(item.key)}
             className={`min-h-[40px] shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium ${
-              tab === item.key ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted'
+              tab === item.key
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border text-muted'
             }`}
           >
             {item.label}
@@ -161,21 +168,21 @@ function Cartao({ initialTab }: { initialTab?: CardTab }) {
       </div>
 
       {tab === 'fatura' && (
-        <BillTab
-          snapshot={snapshot}
-          month={month}
-          onMonth={setMonth}
-          monthData={monthData}
-          topics={settings.topics}
-          specialCategories={settings.specialCategories}
-          reimbursableEnabled={isModuleOn(settings, 'reimbursable')}
-          onChanged={reload}
-        />
+        <MonthSwipe month={month} onMonth={setMonth}>
+          <BillTab
+            snapshot={snapshot}
+            month={month}
+            onMonth={setMonth}
+            monthData={monthData}
+            topics={settings.topics}
+            specialCategories={settings.specialCategories}
+            reimbursableEnabled={isModuleOn(settings, 'reimbursable')}
+            onChanged={reload}
+          />
+        </MonthSwipe>
       )}
 
-      {tab === 'parcelados' && (
-        <InstallmentsTab snapshot={snapshot} settings={settings} onChanged={reload} />
-      )}
+      {tab === 'parcelados' && <InstallmentsTab snapshot={snapshot} settings={settings} onChanged={reload} />}
 
       {tab === 'cartoes' && <CardsTab snapshot={snapshot} onChanged={reload} />}
 
@@ -218,6 +225,8 @@ function BillTab({
   const [editing, setEditing] = useState<Expense | null>(null);
   const [installmentEdit, setInstallmentEdit] = useState<InstallmentEditRequest | null>(null);
   const { showToast } = useToast();
+  // Inside the MonthSwipe of the Cartão, the ‹ › slide the bill like a swipe does.
+  const slide = useMonthSwipe();
 
   // Só as linhas do mês que está na tela: trocando de competência, a anterior não pisca aqui.
   const lines =
@@ -241,7 +250,9 @@ function BillTab({
   // não parecer que o limite vale também para o que está fora dele.
   const card =
     selected === 'all'
-      ? (snapshot.cards.length === 1 && !hasUnassigned ? snapshot.cards[0] : undefined)
+      ? snapshot.cards.length === 1 && !hasUnassigned
+        ? snapshot.cards[0]
+        : undefined
       : snapshot.cards.find((item) => item.id === selected);
 
   function openLine(line: BillLine) {
@@ -265,7 +276,7 @@ function BillTab({
       <div className="flex items-center justify-between gap-2 px-4" data-tour="cartao-fatura">
         <button
           type="button"
-          onClick={() => onMonth(previousMonth(month))}
+          onClick={() => (slide ? slide(-1) : onMonth(previousMonth(month)))}
           aria-label="Fatura anterior"
           className="text-foreground hover:bg-card flex h-11 w-11 items-center justify-center rounded-full text-xl"
         >
@@ -274,7 +285,7 @@ function BillTab({
         <span className="text-foreground text-lg font-semibold">{formatMonthLabel(month)}</span>
         <button
           type="button"
-          onClick={() => onMonth(nextMonth(month))}
+          onClick={() => (slide ? slide(1) : onMonth(nextMonth(month)))}
           aria-label="Próxima fatura"
           className="text-foreground hover:bg-card flex h-11 w-11 items-center justify-center rounded-full text-xl"
         >
@@ -299,11 +310,11 @@ function BillTab({
       <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm">
         <div>
           <p className="text-muted text-sm">
-            {selected === 'all' ? 'Fatura do mês' : `Fatura · ${options.find((o) => o.id === selected)?.name}`}
+            {selected === 'all'
+              ? 'Fatura do mês'
+              : `Fatura · ${options.find((o) => o.id === selected)?.name}`}
           </p>
-          <p className="text-foreground text-3xl font-bold tracking-tight tabular-nums">
-            {formatBRL(total)}
-          </p>
+          <p className="text-foreground text-3xl font-bold tracking-tight tabular-nums">{formatBRL(total)}</p>
         </div>
 
         {card?.limit !== undefined && <LimitBar card={card} snapshot={snapshot} />}
@@ -498,7 +509,11 @@ function LimitBar({ card, snapshot }: { card: CreditCard; snapshot: Snapshot }) 
   const open = snapshot.bills
     .filter((bill) => bill.cardId === card.id && !bill.paid && !bill.future)
     .reduce((sum, bill) => sum + bill.total, 0);
-  const use = cardLimitUse(card.limit ?? 0, open, futureInstallmentTotal(snapshot.installments, month, card.id));
+  const use = cardLimitUse(
+    card.limit ?? 0,
+    open,
+    futureInstallmentTotal(snapshot.installments, month, card.id),
+  );
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -538,7 +553,9 @@ function InstallmentsTab({
   const today = snapshot.today;
   const month = currentMonthKey();
   const plans = [...snapshot.installments].sort(
-    (a, b) => remainingInstallments(a, today) - remainingInstallments(b, today) || a.name.localeCompare(b.name, 'pt-BR'),
+    (a, b) =>
+      remainingInstallments(a, today) - remainingInstallments(b, today) ||
+      a.name.localeCompare(b.name, 'pt-BR'),
   );
   const active = plans.filter((plan) => !isInstallmentFinished(plan, today));
   const finished = plans.filter((plan) => isInstallmentFinished(plan, today));
@@ -583,7 +600,9 @@ function InstallmentsTab({
             {(paid > 0 || advanced > 0) && (
               <p className="text-muted text-xs">
                 {[
-                  paid > 0 ? `${paid} ${paid === 1 ? 'parcela paga' : 'parcelas pagas'} antes do cadastro` : null,
+                  paid > 0
+                    ? `${paid} ${paid === 1 ? 'parcela paga' : 'parcelas pagas'} antes do cadastro`
+                    : null,
                   advanced > 0
                     ? `${advanced} ${advanced === 1 ? 'parcela adiantada' : 'parcelas adiantadas'}`
                     : null,
@@ -645,8 +664,8 @@ function InstallmentsTab({
           <div className="border-border text-muted flex flex-col gap-3 rounded-xl border border-dashed px-4 py-6 text-center text-sm">
             <p>
               Nenhuma compra parcelada em andamento. Ao lançar um gasto no cartão, escolha
-              &ldquo;Parcelado&rdquo; para criar uma — ou cadastre aqui uma compra que você já vinha
-              pagando antes de usar o Capital.
+              &ldquo;Parcelado&rdquo; para criar uma — ou cadastre aqui uma compra que você já vinha pagando
+              antes de usar o Capital.
             </p>
             <button
               type="button"
@@ -764,8 +783,8 @@ function CardsTab({ snapshot, onChanged }: { snapshot: Snapshot; onChanged: () =
       title: 'Excluir cartão',
       message: (
         <>
-          Excluir <strong>{card.name}</strong>? As compras já lançadas continuam onde estão: elas
-          só deixam de pertencer a este cartão e passam para a fatura &ldquo;{UNASSIGNED_CARD_LABEL}
+          Excluir <strong>{card.name}</strong>? As compras já lançadas continuam onde estão: elas só deixam de
+          pertencer a este cartão e passam para a fatura &ldquo;{UNASSIGNED_CARD_LABEL}
           &rdquo;, que você marca como paga quando quiser.
         </>
       ),
@@ -799,8 +818,8 @@ function CardsTab({ snapshot, onChanged }: { snapshot: Snapshot; onChanged: () =
         {cards.length === 0 ? (
           <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4 text-sm shadow-sm">
             <p className="text-muted">
-              Cadastre um cartão para dizer quando a fatura vence, ser avisado antes e acompanhar o
-              limite. Sem nenhum cartão, as compras no cartão entram na fatura &ldquo;
+              Cadastre um cartão para dizer quando a fatura vence, ser avisado antes e acompanhar o limite.
+              Sem nenhum cartão, as compras no cartão entram na fatura &ldquo;
               {UNASSIGNED_CARD_LABEL}&rdquo;, que também só sai quando você marcar como paga.
             </p>
             <button
@@ -829,7 +848,9 @@ function CardsTab({ snapshot, onChanged }: { snapshot: Snapshot; onChanged: () =
                     </p>
                     <p className="text-muted text-xs">
                       Vence dia {card.dueDay} {card.dueMonth === 'next' ? 'do mês seguinte' : 'do mês'} ·{' '}
-                      {card.notifyEnabled ? notifyBeforeLabel(card.notifyBeforeDays).toLowerCase() : 'sem aviso'}
+                      {card.notifyEnabled
+                        ? notifyBeforeLabel(card.notifyBeforeDays).toLowerCase()
+                        : 'sem aviso'}
                       {card.limit !== undefined && ` · limite de ${formatBRL(card.limit)}`}
                     </p>
                   </div>
@@ -842,8 +863,8 @@ function CardsTab({ snapshot, onChanged }: { snapshot: Snapshot; onChanged: () =
       </section>
 
       <p className="text-muted px-4 text-xs">
-        A fatura &ldquo;{UNASSIGNED_CARD_LABEL}&rdquo; junta as compras em que você preferiu não
-        dizer o cartão. Ela funciona como qualquer outra: fica na dívida até você marcar como paga.
+        A fatura &ldquo;{UNASSIGNED_CARD_LABEL}&rdquo; junta as compras em que você preferiu não dizer o
+        cartão. Ela funciona como qualquer outra: fica na dívida até você marcar como paga.
       </p>
 
       {editing && (
@@ -898,8 +919,7 @@ function CardSettingsSection({
           <div className="min-w-0">
             <p className="text-foreground text-sm font-medium">Insistir até marcar como paga</p>
             <p className="text-muted text-xs">
-              Um aviso por dia, por até uma semana depois do vencimento, enquanto a fatura estiver em
-              aberto.
+              Um aviso por dia, por até uma semana depois do vencimento, enquanto a fatura estiver em aberto.
             </p>
           </div>
           <Switch
