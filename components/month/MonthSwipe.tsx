@@ -72,9 +72,10 @@ function visibleTop(): number {
  * before. The ‹ › of the switcher inside slide the same way (`useMonthSwipe`).
  *
  * The month coming in shows its name and "Carregando…" — what its screen shows while it loads —
- * until `onMonth` has put it on screen. Up and down stay the browser's (`touch-action: pan-y`);
- * strips that scroll sideways, text fields and anything with `data-no-swipe-nav` keep their own
- * gesture, and nothing swipes while a sheet or the tour is open.
+ * until `onMonth` has put it on screen. The whole screen swipes, header and empty space included.
+ * Up and down stay the browser's (`touch-action: pan-y`, on the body too); strips that scroll
+ * sideways, text fields and anything with `data-no-swipe-nav` keep their own gesture, and nothing
+ * swipes while a sheet or the tour is open.
  */
 export function MonthSwipe({
   month,
@@ -188,6 +189,8 @@ export function MonthSwipe({
      */
     let swallowUntil = 0;
 
+    // Anywhere on the screen, not only over the month's content: a month with little in it
+    // leaves empty space below, and the finger there swipes too.
     function onPointerDown(event: PointerEvent) {
       if (event.pointerType === 'mouse' && event.button !== 0) return;
       if (drag || busy.current || insideExcludedArea(event.target) || screenCovered()) return;
@@ -253,19 +256,26 @@ export function MonthSwipe({
       event.stopPropagation();
     }
 
+    /** A link dragged with the mouse would start the browser's own drag and end the swipe. */
+    function onDragStart(event: DragEvent) {
+      if (drag) event.preventDefault();
+    }
+
     /** A new gesture anywhere: whatever the last one left behind is over. */
     function onAnyPointerDown() {
       swallowUntil = 0;
     }
 
-    el.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('dragstart', onDragStart);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerCancel);
     window.addEventListener('click', onClickCapture, true);
     window.addEventListener('pointerdown', onAnyPointerDown, true);
     return () => {
-      el.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('dragstart', onDragStart);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerCancel);
@@ -281,12 +291,7 @@ export function MonthSwipe({
   return (
     // Only sideways is clipped: the months waiting at the sides never widen the page.
     <div className="overflow-x-clip">
-      <div
-        ref={wrapper}
-        // A link dragged with the mouse would start the browser's own drag and end the swipe.
-        onDragStart={(event) => event.preventDefault()}
-        className={`relative touch-pan-y ${className}`}
-      >
+      <div ref={wrapper} className={`relative touch-pan-y ${className}`}>
         <MonthSwipeContext.Provider value={go}>{children}</MonthSwipeContext.Provider>
         <MonthGhost month={shiftMonth(month, -1)} side={-1} />
         <MonthGhost month={shiftMonth(month, 1)} side={1} />
