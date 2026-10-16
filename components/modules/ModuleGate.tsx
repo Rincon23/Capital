@@ -4,22 +4,22 @@ import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Lock } from 'lucide-react';
 import type { ModuleKey } from '@/lib/budget';
-import { isModuleOn, moduleDefinition, moduleNames, nearestMissing } from '@/lib/modules';
+import { isModuleOn, moduleDefinition, moduleNames, modulesToTurnOnFirst } from '@/lib/modules';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { IconTile } from '@/components/ui/IconTile';
 import { useHomeHref } from './useHomeHref';
 import { MODULE_VISUALS } from './visuals';
-import { useModuleSwitch } from './useModuleSwitch';
+import { turnOnTogetherLabel, useModuleSwitch } from './useModuleSwitch';
 
 /**
  * Guards a module's screen. Reaching it with the module off (an old link, a bookmark) explains
- * what it is and offers to turn it on right here — or, when a module it depends on is off,
- * says which one has to be turned on first.
+ * what it is and offers to turn it on right here — or, when a module it depends on is off, to turn
+ * it on together with what it needs ("Ligar os dois").
  */
 export function ModuleGate({ module, children }: { module: ModuleKey; children: ReactNode }) {
   const { settings, loading } = useSettings();
-  const { turnOn, busy } = useModuleSwitch();
+  const { turnOn, turnOnWithParents, busy } = useModuleSwitch();
   const [turning, setTurning] = useState(false);
   const homeHref = useHomeHref();
 
@@ -30,12 +30,12 @@ export function ModuleGate({ module, children }: { module: ModuleKey; children: 
   if (isModuleOn(settings, module)) return <>{children}</>;
 
   const info = moduleDefinition(module);
-  const missing = nearestMissing(settings, module);
+  const missing = modulesToTurnOnFirst(settings, module);
 
   async function handleTurnOn() {
     setTurning(true);
     try {
-      await turnOn(module);
+      await (missing.length > 0 ? turnOnWithParents(module) : turnOn(module));
     } finally {
       setTurning(false);
     }
@@ -55,39 +55,30 @@ export function ModuleGate({ module, children }: { module: ModuleKey; children: 
         <p className="text-muted text-sm">{info.description}</p>
 
         {missing.length > 0 ? (
-          <>
-            <p className="bg-background text-foreground flex items-start gap-2 rounded-xl px-3 py-2 text-sm">
-              <Lock aria-hidden className="text-muted mt-0.5 h-4 w-4 shrink-0" />
-              <span>
-                Ele precisa de <strong>{moduleNames(missing)}</strong>. Ligue{' '}
-                {missing.length === 1 ? 'esse módulo' : 'esses módulos'} antes.
-              </span>
-            </p>
-            <Link
-              href="/modulos"
-              className="bg-primary text-primary-foreground flex min-h-[44px] items-center justify-center rounded-lg px-4 text-sm font-semibold"
-            >
-              Abrir Módulos
-            </Link>
-          </>
+          <p className="bg-background text-foreground flex items-start gap-2 rounded-xl px-3 py-2 text-sm">
+            <Lock aria-hidden className="text-muted mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Para usar {info.name}, ligue também <strong>{moduleNames(missing)}</strong>.
+            </span>
+          </p>
         ) : (
-          <>
-            <p className="text-muted text-xs">
-              Ligar não cria nenhum dado, e desligar depois não apaga nada.
-            </p>
-            <button
-              type="button"
-              onClick={() => void handleTurnOn()}
-              disabled={busy || turning}
-              className="bg-primary text-primary-foreground flex min-h-[44px] items-center justify-center rounded-lg px-4 text-sm font-semibold disabled:opacity-50"
-            >
-              {turning ? 'Ligando…' : `Ligar ${info.name}`}
-            </button>
-            <Link href="/modulos" className="text-primary text-center text-sm font-semibold">
-              Ver todos os módulos
-            </Link>
-          </>
+          <p className="text-muted text-xs">Ligar não cria nenhum dado, e desligar depois não apaga nada.</p>
         )}
+        <button
+          type="button"
+          onClick={() => void handleTurnOn()}
+          disabled={busy || turning}
+          className="bg-primary text-primary-foreground flex min-h-[44px] items-center justify-center rounded-lg px-4 text-sm font-semibold disabled:opacity-50"
+        >
+          {turning
+            ? 'Ligando…'
+            : missing.length > 0
+              ? turnOnTogetherLabel(missing.length + 1)
+              : `Ligar ${info.name}`}
+        </button>
+        <Link href="/modulos" className="text-primary text-center text-sm font-semibold">
+          Ver todos os módulos
+        </Link>
       </div>
     </div>
   );

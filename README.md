@@ -33,8 +33,12 @@ A ficha de cada módulo (nome, explicação, grupo, dependências, tela e card d
 uma vez em `lib/modules/catalog.ts`. A bandeja de apps, a Início e a tela Módulos leem dela. Os
 ícones e os cards ficam em `components/modules`.
 
-**Dependências.** Alguns módulos precisam de outro para funcionar. A tela Módulos mostra os
-módulos como uma árvore, cada um embaixo do módulo de que depende:
+**Tela Módulos.** Um card por módulo, nos grupos da bandeja de apps (Dinheiro do mês, Carteira,
+Investimentos, Assistente): ícone, nome, o que é em poucas palavras (`tagline`) e o switch; tocar no
+card mostra a descrição inteira. No topo, uma linha só: "Ligue só o que você usa. Desligar não
+apaga nada."
+
+**Dependências.** Alguns módulos precisam de outro para funcionar:
 
 - Lançamentos
   - Gastos por categoria
@@ -46,11 +50,12 @@ módulos como uma árvore, cada um embaixo do módulo de que depende:
   - Lançar por voz ou texto
 - Reserva de emergência, Lembretes e Monitor de Gmail funcionam sozinhos.
 
-Um módulo cujo pai está desligado aparece com **cadeado** e "Precisa de …". Tentar ligá-lo não
-liga nada, e **o app nunca liga o pai sozinho**: a linha balança, o que falta ligar se acende e um
-aviso diz a ordem. A única exceção é quando a própria pessoa escolhe o conjunto inteiro, como nos
-kits do primeiro acesso. Desligar um módulo de que outros dependem pede confirmação e desliga os filhos
-junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no servidor:
+Um módulo cujo pai está desligado aparece com **cadeado** e o selo "Precisa de …". Tocar nele
+abre uma janelinha: "Para usar Histórico e gráficos, ligue também Gastos por categoria", com
+**"Ligar os dois"** (ou "os três", na corrente inteira) e "Agora não". **O app nunca liga o pai
+sozinho**: só quando a própria pessoa pede o conjunto, nessa janelinha, na tela de um módulo
+desligado (`ModuleGate`) ou nos kits do primeiro acesso. Desligar um módulo de que outros dependem
+pede confirmação e desliga os filhos junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no servidor:
 `resolveModules` só considera ligado um módulo cujos pais estão ligados.
 
 **Dinheiro do mês**

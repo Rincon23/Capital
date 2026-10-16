@@ -2,17 +2,31 @@
 
 import { useCallback, useState } from 'react';
 import type { ModuleFlags, ModuleKey } from '@/lib/budget';
-import { moduleDefinition, moduleNames, storedModules, turnModuleOff, turnModuleOn } from '@/lib/modules';
+import {
+  moduleDefinition,
+  moduleNames,
+  modulesToTurnOnFirst,
+  storedModules,
+  turnModuleOff,
+  turnModuleOn,
+  turnModulesOn,
+} from '@/lib/modules';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { useToast } from '@/components/ui/Toast';
 
 export type TurnOnOutcome = { ok: true } | { ok: false; missing: ModuleKey[] };
 
+/** "Ligar os dois", "Ligar os três"…: the button that turns a locked module on with what it needs. */
+export function turnOnTogetherLabel(count: number): string {
+  return count === 2 ? 'Ligar os dois' : count === 3 ? 'Ligar os três' : `Ligar os ${count}`;
+}
+
 /**
  * Turning modules on and off, saved right away with a toast and "Desfazer". A module whose
- * parent is off is never turned on (nor is the parent turned on for it): the caller gets the
- * missing modules back to explain it. Turning off a module others depend on asks first and
+ * parent is off is never turned on by `turnOn` (nor is the parent turned on for it): the caller
+ * gets the missing modules back to explain it, and may offer `turnOnWithParents` — the person
+ * asking for both, with "Ligar os dois". Turning off a module others depend on asks first and
  * turns them off too. Nothing here touches the user's data.
  */
 export function useModuleSwitch() {
@@ -59,6 +73,17 @@ export function useModuleSwitch() {
     [settings, save],
   );
 
+  /** Turns a locked module on together with what it needs, after the person asked for all of them. */
+  const turnOnWithParents = useCallback(
+    async (key: ModuleKey): Promise<boolean> => {
+      const keys = [...modulesToTurnOnFirst(settings, key), key];
+      const result = turnModulesOn(settings, keys);
+      if (!result.ok) return false;
+      return save(result.modules, `${moduleNames(keys)} ligados.`);
+    },
+    [settings, save],
+  );
+
   const turnOff = useCallback(
     async (key: ModuleKey): Promise<boolean> => {
       const { modules, alsoOff } = turnModuleOff(settings, key);
@@ -81,5 +106,5 @@ export function useModuleSwitch() {
     [settings, save, confirm],
   );
 
-  return { turnOn, turnOff, busy };
+  return { turnOn, turnOnWithParents, turnOff, busy };
 }
