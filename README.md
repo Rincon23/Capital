@@ -331,9 +331,10 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   render), **Metas** (casa, carro, casamento, aniversário, viagem) e **Conhecimentos** (tudo que
   agrega conhecimento). Toda categoria tem descrição, que a pessoa escreve ao criar e pode editar.
   Cada padrão guarda um `preset`, para ser reconhecida mesmo renomeada.
-- **Custos Fixos**: um gasto que se repete todo mês e é maior do que a categoria recebe vai para
-  custos fixos (uma faculdade de R$ 1.000 por mês, por exemplo). A tela Categorias explica renda,
-  custos fixos, imprevistos e cada categoria. O nome padrão está no plural — é uma categoria que
+- **Custos Fixos**: um gasto de todo mês que é maior do que o limite médio mensal da categoria vai
+  para custos fixos, e não para a categoria (sem exemplo de valor: depende de quanto cada categoria
+  recebe). A tela Categorias explica renda, custos fixos, imprevistos e cada categoria. O nome
+  padrão está no plural — é uma categoria que
   guarda vários custos, e no singular parecia uma conta só; quem já tinha a conta criada foi
   renomeado uma vez só (`lib/server/fixedCostLabelMigration.ts`), e só quem ainda estava no nome
   padrão: um nome escolhido pela pessoa nunca é tocado.

@@ -207,7 +207,7 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
             <InfoTip
               info={FIXED_COST_TIP}
               label="Quando um gasto é custo fixo?"
-              hint="Aluguel, contas, assinaturas, faculdade."
+              hint="Aluguel, contas, assinaturas, plano de saúde."
             >
               <span className="text-foreground font-semibold">Custos fixos por mês</span>
             </InfoTip>

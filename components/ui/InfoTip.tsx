@@ -46,7 +46,7 @@ export function InfoTip({
       <p
         id={id}
         hidden={!open}
-        className="bg-primary/10 text-foreground mt-1.5 rounded-lg px-3 py-2 text-xs leading-relaxed"
+        className="bg-card text-muted mt-2 rounded-xl px-3 py-2.5 text-sm leading-snug shadow-sm"
       >
         {info}
       </p>

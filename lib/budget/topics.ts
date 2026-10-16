@@ -45,14 +45,17 @@ export const DEFAULT_TOPICS: readonly DefaultTopic[] = [
 export const BUDGET_EXPLANATIONS = {
   income: 'Tudo que entrou no mês. Cada categoria recebe a sua % dessa renda.',
   fixedCost:
-    'O que você paga todo mês e não dá pra cortar: aluguel, contas, assinaturas, faculdade. O total sai de cada categoria, na proporção da % dela.',
+    'O que você paga todo mês e não dá pra cortar: aluguel, contas, assinaturas, plano de saúde. O total sai de cada categoria, na proporção da % dela.',
   unforeseen:
     'O que não dava pra evitar: celular quebrado, óculos, consulta de última hora. Também sai de cada categoria, na proporção da % dela.',
 } as const;
 
-/** When a monthly expense is better filed as a fixed cost than under a category. */
+/**
+ * When a monthly expense is better filed as a fixed cost than under a category. No example on
+ * purpose: whether something fits depends on how much each person's category gets.
+ */
 export const FIXED_COST_TIP =
-  'Um gasto que se repete todo mês e é maior do que a categoria recebe fica melhor em custo fixo. Uma faculdade de R$ 1.000 por mês, por exemplo, é custo fixo, não Conhecimentos.';
+  'Um gasto de todo mês que é maior do que o limite médio mensal da categoria entra em Custos Fixos, e não na categoria.';
 
 /** Shown next to every way of creating a category. */
 export const KEEP_DEFAULT_TOPICS_ADVICE =
