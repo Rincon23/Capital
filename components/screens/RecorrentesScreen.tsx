@@ -89,7 +89,7 @@ function Recorrentes() {
   async function handleDelete(item: RecurringExpense) {
     const confirmed = await confirm({
       title: 'Excluir recorrente',
-      message: `Excluir o modelo "${item.description}" (${formatBRL(item.amount)})? Os gastos que você já lançou a partir dele continuam nos meses.`,
+      message: `"${item.description}" (${formatBRL(item.amount)}) sai; os gastos já lançados continuam.`,
       confirmLabel: 'Excluir',
       cancelLabel: 'Manter',
       destructive: true,

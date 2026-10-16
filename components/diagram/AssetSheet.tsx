@@ -312,7 +312,7 @@ export function AssetSheet({
   async function handleDelete() {
     const ok = await confirm({
       title: `Remover ${asset.ticker}?`,
-      message: `${asset.ticker} sai do Diagrama, com as respostas das perguntas dele. Os aportes que você já registrou continuam no histórico.`,
+      message: `${asset.ticker} sai do Diagrama com as respostas dele; os aportes registrados continuam.`,
       confirmLabel: 'Remover',
       cancelLabel: 'Manter',
       destructive: true,

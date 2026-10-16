@@ -84,7 +84,7 @@ function Reserva() {
   async function handleDeleteBucket(bucket: InvestmentBucket) {
     const confirmed = await confirm({
       title: 'Excluir categoria da reserva',
-      message: `Excluir a categoria "${bucket.name}" da reserva? As ${formatQuotas(bucket.quotas)} cotas dela ficam sem categoria. Os gastos já lançados continuam nos meses.`,
+      message: `As ${formatQuotas(bucket.quotas)} cotas de "${bucket.name}" ficam sem categoria; os gastos lançados continuam.`,
       confirmLabel: 'Excluir',
       cancelLabel: 'Manter',
       destructive: true,

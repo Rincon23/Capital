@@ -22,9 +22,10 @@ const categories = (month: Month) => `/mes/${month}/categorias`;
 const card = () => '/cartao';
 
 /**
- * The tour of every module (a `Record`, so a module without a tour does not compile). Steps point
- * at the module's own screen (or its widget on the Início, which the Início brings into view),
- * never at the up-arrow or the trays of the Início, which are not the module's.
+ * The tour of every module (a `Record`, so a module without a tour does not compile): at most four
+ * steps, each with a one-line description (a test holds both). Steps point at the module's own
+ * screen (or its widget on the Início, which the Início brings into view), never at the up-arrow
+ * or the trays of the Início, which are not the module's. Every tour then ends on its help button.
  */
 export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
   expenses: [
@@ -32,46 +33,29 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: entries,
       anchor: 'lancamentos-abas',
       title: 'Tudo o que entrou e saiu',
-      description:
-        'Em Gastos ficam todos os gastos do mês numa lista só; em Renda, o que entrou. Toque num lançamento para editar ou excluir.',
+      description: 'Gastos e Renda do mês. Toque num lançamento para editar ou excluir.',
       side: 'bottom',
     },
     {
       route: entries,
       anchor: 'lancamentos-busca',
       title: 'Busca e filtro',
-      description:
-        'Procure pelo que você escreveu na descrição. Em Filtrar, escolha as categorias que quer ver — só Diversos, por exemplo.',
-      side: 'bottom',
-    },
-    {
-      route: entries,
-      anchor: 'lancamentos-mes',
-      title: 'Cada mês separado',
-      description: 'Arraste a tela para o lado, ou use as setas, para ver os lançamentos de outro mês.',
+      description: 'Procure pela descrição ou filtre por categoria.',
       side: 'bottom',
     },
     {
       route: entries,
       anchor: 'fab-lancar-gasto',
       title: 'Lançar gasto',
-      description: 'Toque aqui sempre que gastar: valor, categoria, descrição e data.',
+      description: 'Toque aqui sempre que gastar: valor, categoria e pronto.',
       side: 'top',
     },
     {
       route: entries,
       anchor: 'fab-renda',
       title: 'Registrar renda',
-      description: 'Salário, freela ou qualquer dinheiro que entrou no mês.',
+      description: 'Salário, freela ou qualquer dinheiro que entrou.',
       side: 'top',
-    },
-    {
-      route: entries,
-      anchor: 'lancamentos-config',
-      title: 'Suas categorias',
-      description:
-        'Na engrenagem você muda o nome, a descrição e a cor das categorias em que os gastos são lançados.',
-      side: 'bottom',
     },
   ],
   budget: [
@@ -79,49 +63,29 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: categories,
       anchor: 'posso-gastar',
       title: 'Ainda posso gastar',
-      description:
-        'Quanto ainda dá para gastar neste mês, somando as categorias. Embaixo: a renda, o que vai para as categorias e o total gasto.',
+      description: 'Quanto ainda dá para gastar neste mês, somando as categorias.',
       side: 'bottom',
     },
     {
       route: categories,
       anchor: 'categorias',
       title: 'Suas categorias',
-      description:
-        'Cada categoria recebe uma % da renda e diz para que serve. A barra mostra quanto já foi usado; toque numa categoria para ver a conta e os gastos dela.',
+      description: 'Cada uma recebe uma % da renda. Toque numa para ver a conta e os gastos.',
       side: 'top',
-    },
-    {
-      route: categories,
-      anchor: 'categorias-porcentagens',
-      title: 'Na dúvida sobre as %?',
-      description:
-        'Aqui eu te ajudo a decidir quanto da renda vai para cada categoria: você conta quanto ganha e seus custos, e vê na hora quanto cada % deixa para gastar.',
-      side: 'bottom',
     },
     {
       route: categories,
       anchor: 'custos-fixos',
       title: 'Custos fixos e imprevistos',
-      description:
-        'Eles não têm meta própria: o total é dividido entre as categorias, na proporção da % de cada uma. Um gasto que se repete todo mês e é maior que a categoria entra aqui, como custo fixo.',
+      description: 'Não têm limite próprio: saem de cada categoria, na proporção da %.',
       side: 'top',
     },
     {
       route: categories,
       anchor: 'fechar-mes',
       title: 'Fechar o mês',
-      description:
-        'No fim do mês, feche para levar a sobra (ou o que passou da meta) de cada categoria para o mês seguinte.',
+      description: 'Leva a sobra (ou o que passou) de cada categoria para o mês seguinte.',
       side: 'top',
-    },
-    {
-      route: categories,
-      anchor: 'categorias-config',
-      title: 'Ajustar as categorias',
-      description:
-        'Na engrenagem você ajusta nome, descrição, cor e a % de cada categoria (juntas, fecham 100% da renda), e pode voltar às categorias padrão quando quiser.',
-      side: 'bottom',
     },
   ],
   card: [
@@ -129,65 +93,29 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: card,
       anchor: 'cartao-fatura',
       title: 'A fatura do mês',
-      description:
-        'Quanto vem nesta fatura e o dia em que ela vence. Arraste para o lado, ou use as setas, para ver as outras faturas; vencimento em sábado ou domingo passa para a segunda, como no banco.',
-      side: 'bottom',
-    },
-    {
-      route: card,
-      anchor: 'cartao-lancamentos',
-      title: 'O que entrou nela',
-      description:
-        'As compras à vista e as parcelas que caem neste mês, por data. Toque em uma para editar — numa parcela, você escolhe se muda a compra toda ou só aquele mês.',
-      side: 'top',
-    },
-    {
-      route: card,
-      anchor: 'cartao-pagar',
-      title: 'Fatura paga',
-      description:
-        'Nenhuma fatura sai sozinha: ela continua na dívida da Reserva de emergência até você tocar aqui — inclusive a de "Não informado", que junta as compras sem cartão escolhido.',
+      description: 'Quanto vem e quando vence. Ela só sai quando você tocar em Fatura paga.',
       side: 'bottom',
     },
     {
       route: () => `${card()}?aba=parcelados`,
       anchor: 'cartao-aba-parcelados',
-      title: 'O que já está comprometido',
-      description:
-        'Aqui ficam as compras parceladas: quanto falta, quantas parcelas restam e quanto cada um dos próximos meses já tem reservado. Pagou parcelas antes da hora? Use "Adiantar parcelas" — o app pergunta se teve desconto e encurta a compra.',
-      side: 'bottom',
-    },
-    {
-      route: () => `${card()}?aba=parcelados`,
-      anchor: 'cartao-parcelado-novo',
-      title: 'Uma compra que já vinha pagando',
-      description:
-        'Aqui você cadastra um parcelamento de antes do Capital: diga quantas parcelas já foram pagas e os meses que já passaram ficam como estão — só o que falta entra na fatura e na dívida.',
+      title: 'Parcelados',
+      description: 'O que falta de cada compra parcelada, e "Adiantar parcelas".',
       side: 'bottom',
     },
     {
       route: () => `${card()}?aba=cartoes`,
       anchor: 'cartao-aba-cartoes',
       title: 'Seus cartões',
-      description:
-        'Cadastre o nome, o dia do vencimento, com quanta antecedência quer ser avisado e, se quiser acompanhar, o limite.',
-      side: 'bottom',
-    },
-    {
-      route: card,
-      anchor: 'cartao-config',
-      title: 'Avisos no celular',
-      description:
-        'Na engrenagem você escolhe o horário do aviso, se ele deve insistir até a fatura ser paga e ativa as notificações neste aparelho.',
+      description: 'Nome, dia do vencimento, aviso e, se quiser, o limite de cada cartão.',
       side: 'bottom',
     },
     {
       route: home,
       anchor: 'cartao-pergunta',
       title: 'Foi no cartão?',
-      description:
-        'Ao lançar um gasto, toque no cartãozinho ao lado do valor quando pagar no crédito — ele fica verde. Aí você escolhe o cartão (ou "Não informar") e, se quiser, parcela a compra.',
-      side: 'top',
+      description: 'Ao lançar um gasto, toque em Cartão quando pagar no crédito.',
+      side: 'bottom',
       sheet: 'expense-form',
     },
   ],
@@ -196,8 +124,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: home,
       anchor: 'categoria-a-receber',
       title: 'Uma compra para outra pessoa',
-      description:
-        'No formulário de gasto, escolha esta opção quando pagar no seu cartão algo que alguém vai te devolver. Não gasta nenhuma categoria.',
+      description: 'Escolha A receber quando alguém vai te devolver: não gasta categoria.',
       side: 'top',
       sheet: 'expense-form-reimbursable',
     },
@@ -205,17 +132,15 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: (month) => `${entries(month)}?aba=a-receber`,
       anchor: 'aba-a-receber',
       title: 'O filtro A receber',
-      description:
-        'Em Lançamentos, filtrando por A receber, ficam todas essas compras do mês, para você saber quem ainda precisa te pagar.',
+      description: 'Em Lançamentos, veja quem ainda precisa te pagar.',
       side: 'bottom',
     },
     {
       route: home,
       anchor: 'card-reimbursable',
       title: 'Quanto volta para você',
-      description:
-        'O total a receber no mês. Ele entra na fatura do cartão, mas não é dinheiro que você gastou.',
-      side: 'bottom',
+      description: 'O total a receber. Entra na fatura, mas não é gasto seu.',
+      side: 'top',
     },
   ],
   history: [
@@ -223,22 +148,21 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: () => '/historico',
       anchor: 'historico-aderencia',
       title: 'Dentro do planejado',
-      description: 'Quanto você gastou de cada categoria em comparação com a meta, no mês mais recente.',
+      description: 'Quanto do limite de cada categoria você usou no último mês.',
       side: 'bottom',
     },
     {
       route: () => '/historico',
       anchor: 'historico-graficos',
       title: 'Gráficos',
-      description:
-        'A evolução do gasto por categoria, a composição de cada mês e a sobra que passou de um mês para o outro.',
+      description: 'Gasto por categoria, composição do mês e sobra de um mês para o outro.',
       side: 'top',
     },
     {
       route: () => '/historico',
       anchor: 'historico-tabela',
       title: 'Mês a mês',
-      description: 'A tabela com os números de cada categoria. Use as setas para trocar de mês.',
+      description: 'Os números de cada categoria. Use as setas para trocar de mês.',
       side: 'top',
     },
   ],
@@ -247,16 +171,15 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: () => '/carteira/recorrentes',
       anchor: 'recorrentes-lista',
       title: 'Seus gastos de todo mês',
-      description:
-        'Aluguel, internet, assinaturas: cada um vira um modelo. O botão Lançar abre o gasto já preenchido, com a data de hoje.',
+      description: 'Cada um vira um modelo. Lançar abre o gasto já preenchido.',
       side: 'bottom',
     },
     {
       route: () => '/carteira/recorrentes',
       anchor: 'recorrentes-novo',
       title: 'Novo modelo',
-      description: 'Crie um modelo com valor, categoria e se é pago no cartão.',
-      side: 'bottom',
+      description: 'Valor, categoria e se é pago no cartão.',
+      side: 'top',
     },
   ],
   investments: [
@@ -264,31 +187,28 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: () => '/carteira/reserva',
       anchor: 'reserva-valor',
       title: 'O valor da reserva',
-      description:
-        'Suas cotas, o valor total e o que está sem categoria da reserva.',
+      description: 'Suas cotas, o valor total e o que está sem categoria.',
       side: 'bottom',
     },
     {
       route: () => '/carteira/reserva',
       anchor: 'reserva-cotacao',
       title: 'Cotação',
-      description:
-        'A cotação vem de graça da B3 e se atualiza sozinha. Toque em Atualizar para buscar a mais recente.',
+      description: 'Vem de graça da B3. Toque em Atualizar para a mais recente.',
       side: 'bottom',
     },
     {
       route: () => '/carteira/reserva',
       anchor: 'reserva-categorias',
       title: 'Categorias da reserva',
-      description:
-        'Separe parte das cotas para uma categoria do orçamento. Guardar compra cotas para ela e lança o gasto nessa categoria.',
+      description: 'Guardar numa categoria compra cotas e lança o gasto no orçamento.',
       side: 'top',
     },
     {
       route: () => '/carteira/reserva',
       anchor: 'reserva-config',
       title: 'O ativo da reserva',
-      description: 'Na engrenagem você troca o código do ativo na bolsa (AUPO11 por padrão).',
+      description: 'Na engrenagem você troca o código do ativo (AUPO11 por padrão).',
       side: 'bottom',
     },
   ],
@@ -304,71 +224,51 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: () => '/carteira/caixa',
       anchor: 'caixa-dividas',
       title: 'Dívidas',
-      description: 'A fatura do cartão do mês aberto e o que ainda falta pagar dos parcelados.',
+      description: 'A fatura do mês aberto e o que falta dos parcelados.',
       side: 'bottom',
     },
     {
       route: () => '/carteira/caixa',
       anchor: 'caixa-gap',
       title: 'Falta para a reserva',
-      description: 'Quanto falta (ou quanto sobra) para a reserva de emergência que você definiu.',
+      description: 'Quanto falta (ou sobra) para a reserva que você definiu.',
       side: 'top',
     },
     {
       route: () => '/carteira/caixa',
       anchor: 'caixa-config',
       title: 'Sua reserva de emergência',
-      description:
-        'Na engrenagem você informa quanto tem em conta, quanto gastaria por mês sem renda e quantos meses a reserva deve cobrir.',
+      description: 'Na engrenagem: quanto tem em conta e quantos meses a reserva cobre.',
       side: 'bottom',
     },
   ],
   diagram: [
     {
       route: () => '/diagrama',
-      anchor: 'diagrama-abas',
-      title: 'Aporte e Ativos e notas',
-      description:
-        'Em Aporte você diz quanto quer investir. Em Ativos e notas ficam os seus ativos, a nota de cada um e as perguntas.',
-      side: 'bottom',
-    },
-    {
-      route: () => '/diagrama',
       anchor: 'diagrama-carteira',
       title: 'Sua carteira por tipo',
-      description: 'Quanto cada tipo pesa hoje na carteira e a meta que você escolheu para ele.',
+      description: 'Quanto cada tipo pesa hoje e a meta dele.',
       side: 'bottom',
     },
     {
       route: () => '/diagrama',
       anchor: 'diagrama-valor',
       title: 'Quanto você quer investir?',
-      description:
-        'Digite o valor e toque em Calcular. O app manda primeiro para quem está mais longe da meta, em reais e em cotas, e explica o que sobrar.',
-      side: 'top',
+      description: 'Digite e toque em Calcular: vai primeiro para quem está mais longe da meta.',
+      side: 'bottom',
     },
     {
       route: () => '/diagrama?aba=ativos',
       anchor: 'diagrama-ativos',
       title: 'Ativos e notas',
-      description:
-        'Cada ativo tem uma nota de −10 a 10, dada pelas perguntas do tipo dele: quanto maior, mais ele recebe. "Não compro mais" faz o ativo nunca ser sugerido.',
+      description: 'Nota de −10 a 10 pelas perguntas: quanto maior, mais o ativo recebe.',
       side: 'top',
-    },
-    {
-      route: () => '/diagrama?aba=ativos',
-      anchor: 'diagrama-perguntas',
-      title: 'Perguntas',
-      description:
-        'Cada tipo tem a sua própria lista de perguntas, cada uma com um peso. Crie as suas ou comece pelas recomendadas.',
-      side: 'bottom',
     },
     {
       route: () => '/diagrama',
       anchor: 'diagrama-config',
       title: 'Tipos e metas',
-      description:
-        'Na engrenagem você escolhe os tipos da sua carteira e quanto cada um deve pesar. Os perfis prontos ajudam a começar.',
+      description: 'Na engrenagem, os tipos da carteira e quanto cada um deve pesar.',
       side: 'bottom',
     },
   ],
@@ -377,24 +277,21 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: () => '/lembretes',
       anchor: 'lembretes-abas',
       title: 'Hoje, Todos e Calendário',
-      description:
-        'Hoje mostra o que está atrasado, o que vence hoje e as tarefas do dia. Toque no círculo para marcar como feito.',
+      description: 'O atrasado e o que vence hoje. Toque no círculo para marcar como feito.',
       side: 'bottom',
     },
     {
       route: () => '/lembretes',
       anchor: 'lembretes-novo',
       title: 'Novo lembrete',
-      description:
-        'Uma vez, tarefa do dia, toda semana ou todo mês, com o horário do aviso que você escolher.',
-      side: 'bottom',
+      description: 'Uma vez, todo dia, toda semana ou todo mês, no horário que quiser.',
+      side: 'top',
     },
     {
       route: () => '/lembretes',
       anchor: 'lembretes-config',
       title: 'Avisos no celular',
-      description:
-        'Na engrenagem você ativa as notificações neste aparelho e escolhe os horários para lembrar de novo o que ficou para trás.',
+      description: 'Na engrenagem você ativa as notificações neste aparelho.',
       side: 'bottom',
     },
   ],
@@ -410,16 +307,15 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: home,
       anchor: 'voz-gravar',
       title: 'Fale o gasto',
-      description: 'Diga a categoria, o valor e o que foi. Se não foi hoje ou foi no cartão, diga também.',
-      side: 'bottom',
+      description: 'Diga a categoria, o valor e o que foi.',
+      side: 'top',
       sheet: 'voice',
     },
     {
       route: home,
       anchor: 'voz-escrever',
       title: 'Ou escreva',
-      description:
-        'A IA monta o gasto e mostra para você conferir. O lápis abre o formulário para corrigir; nada é salvo sem você confirmar.',
+      description: 'A IA monta o gasto para você conferir; nada é salvo sem confirmar.',
       side: 'top',
       sheet: 'voice',
     },
@@ -429,31 +325,28 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: () => '/gmail',
       anchor: 'gmail-conta',
       title: 'Sua conta',
-      description:
-        'Conecte o seu Gmail com permissão só de leitura. Depois dá para verificar agora ou desconectar por aqui.',
+      description: 'Conecte seu Gmail só com permissão de leitura.',
       side: 'bottom',
     },
     {
       route: () => '/gmail',
       anchor: 'gmail-palavras',
       title: 'Palavras-chave',
-      description:
-        'Quando chegar um e-mail com uma delas no assunto, no remetente ou na prévia, o celular avisa.',
+      description: 'Chegou e-mail com uma delas? O celular avisa.',
       side: 'top',
     },
     {
       route: () => '/gmail',
       anchor: 'gmail-alertas',
       title: 'Alertas',
-      description: 'Os e-mails encontrados ficam aqui. Toque em um para abrir no Gmail.',
+      description: 'Os e-mails encontrados. Toque em um para abrir no Gmail.',
       side: 'top',
     },
     {
       route: () => '/gmail',
       anchor: 'gmail-config',
       title: 'Avisos no celular',
-      description:
-        'Na engrenagem você ativa as notificações neste aparelho, para os alertas chegarem na hora.',
+      description: 'Na engrenagem você ativa as notificações neste aparelho.',
       side: 'bottom',
     },
   ],

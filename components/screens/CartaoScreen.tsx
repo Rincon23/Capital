@@ -452,9 +452,8 @@ function BillRow({
       title: 'Fatura paga',
       message: (
         <>
-          Marcar a fatura de <strong>{bill.cardName}</strong> ({formatMonthLabel(bill.month)}),{' '}
-          {formatBRL(bill.total)}, como paga? Ela sai da dívida na Reserva de emergência
-          {isUnassignedCard(bill.cardId) ? '.' : ' e os avisos param.'}
+          <strong>{bill.cardName}</strong> ({formatMonthLabel(bill.month)}), {formatBRL(bill.total)}: sai da
+          dívida{isUnassignedCard(bill.cardId) ? '.' : ' e os avisos param.'}
         </>
       ),
       confirmLabel: 'Fatura paga',
@@ -787,9 +786,7 @@ function CardsTab({ snapshot, onChanged }: { snapshot: Snapshot; onChanged: () =
       title: 'Excluir cartão',
       message: (
         <>
-          Excluir <strong>{card.name}</strong>? As compras já lançadas continuam onde estão: elas só deixam de
-          pertencer a este cartão e passam para a fatura &ldquo;{UNASSIGNED_CARD_LABEL}
-          &rdquo;, que você marca como paga quando quiser.
+          As compras de <strong>{card.name}</strong> passam para a fatura &ldquo;{UNASSIGNED_CARD_LABEL}&rdquo;.
         </>
       ),
       confirmLabel: 'Excluir',

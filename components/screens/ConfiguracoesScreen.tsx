@@ -60,7 +60,7 @@ export function ConfiguracoesScreen() {
     const confirmed = await confirm({
       title: 'Apagar todos os dados',
       message:
-        'Isso apaga tudo o que você guardou no Capital, em todos os módulos: categorias, meses, rendas, gastos, cartões, parcelados, reservas, lembretes, a conexão com o Gmail e as notificações. A conta continua existindo. Essa ação não pode ser desfeita.',
+        'Apaga tudo o que você guardou, em todos os módulos; a conta continua. Não dá para desfazer.',
       confirmLabel: 'Apagar tudo',
       cancelLabel: 'Manter',
       destructive: true,
@@ -306,7 +306,7 @@ function LocalDataSection() {
     const confirmed = await confirm({
       title: 'Importar dados deste dispositivo',
       message:
-        'Importar os dados salvos neste dispositivo substitui os dados atuais da sua conta. Essa ação não pode ser desfeita.',
+        'Substitui os dados atuais da sua conta. Não dá para desfazer.',
       confirmLabel: 'Importar',
       destructive: true,
     });

@@ -128,7 +128,7 @@ function CategoriesForm({
         message: (
           <>
             <span className="block">{KEEP_DEFAULT_TOPICS_ADVICE}</span>
-            <span className="mt-2 block">Se criar, ela não poderá ser excluída depois, só arquivada.</span>
+            <span className="mt-2 block">Depois ela só pode ser arquivada.</span>
           </>
         ),
         confirmLabel: 'Criar mesmo assim',
@@ -158,7 +158,7 @@ function CategoriesForm({
     }
     const confirmed = await confirm({
       title: 'Arquivar categoria',
-      message: `"${topic.name}" sai das suas categorias a partir deste mês e não aparece mais. Nada é apagado: os meses anteriores continuam exatamente como estão. A mudança vale quando você salvar.`,
+      message: `"${topic.name}" sai a partir deste mês, quando você salvar; os meses anteriores não mudam.`,
       confirmLabel: 'Arquivar',
       cancelLabel: 'Manter',
     });
@@ -193,7 +193,7 @@ function CategoriesForm({
     const confirmed = await confirm({
       title: 'Restaurar categorias padrão',
       message:
-        'Voltam as quatro categorias padrão (Diversos, Investimentos, Metas e Conhecimentos), com nome, descrição, cor e porcentagem originais. As categorias que você criou saem da lista. Os meses anteriores não mudam.',
+        'Voltam as quatro padrão, como vieram; as que você criou saem da lista e os meses anteriores não mudam.',
       confirmLabel: 'Restaurar',
       cancelLabel: 'Cancelar',
     });

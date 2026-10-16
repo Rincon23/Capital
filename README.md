@@ -342,7 +342,7 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   escurece a tela, destaca uma parte por vez e explica para que serve. Fica no topo da tela do
   módulo; nos módulos sem tela, no card do Cartão no Início, na aba A receber de Lançamentos e na
   janela de voz. Os passos ficam em `lib/modules/tours.ts` (um `Record` por módulo, então módulo sem
-  tour não compila) e apontam só para a tela do módulo (ou para o widget dele, e a Início troca
+  tour não compila), **no máximo 4 por módulo, cada um com uma linha** (um teste confere) e apontam só para a tela do módulo (ou para o widget dele, e a Início troca
   para a área em que ele está), nunca para a setinha ou as bandejas. Todo tour termina no
   próprio botão de ajuda. O motor (`components/modules/tour/TourProvider.tsx`) navega entre as
   telas, espera cada elemento aparecer, abre e fecha o formulário de gasto ou a janela de voz quando
@@ -361,6 +361,9 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   (veja abaixo), a menos que ela já tenha sido feita no primeiro acesso. Fica guardado por conta,
   então acontece uma vez só, no aparelho que chegar primeiro. Não existe
   mais um tour geral do app nem uma "Ajuda" geral: a ajuda de cada coisa fica na tela dela.
+
+- **Confirmações** (`useConfirm`): título e uma frase só, com o que importa para decidir ("As compras
+  de Nubank passam para a fatura Não informado.").
 
 ### Categorias
 

@@ -342,8 +342,8 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
         title: `Excluir a tela ${index + 1}?`,
         message:
           widgets.length === 1
-            ? `${widgetName(widgets[0])} vai para o fim da tela ${neighbour}. Nenhum widget sai da Início.`
-            : `Os ${widgets.length} widgets dela vão para o fim da tela ${neighbour}. Nenhum widget sai da Início.`,
+            ? `${widgetName(widgets[0])} vai para a tela ${neighbour}.`
+            : `Os ${widgets.length} widgets dela vão para a tela ${neighbour}.`,
         confirmLabel: 'Excluir tela',
         destructive: true,
       });
@@ -362,7 +362,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     const confirmed = await confirm({
       title: 'Voltar ao padrão?',
       message:
-        'Todas as telas voltam a ser uma só, com todos os widgets nela, na ordem padrão — nenhum fica guardado na bandeja.',
+        'Tudo volta para uma tela só, com todos os widgets, na ordem padrão.',
       confirmLabel: 'Voltar ao padrão',
     });
     if (!confirmed) return;

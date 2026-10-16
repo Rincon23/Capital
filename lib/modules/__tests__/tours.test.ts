@@ -26,6 +26,13 @@ describe('tours dos módulos', () => {
     for (const key of MODULE_KEYS) expect(MODULE_TOURS[key].length).toBeGreaterThan(0);
   });
 
+  it('é curto: até 4 passos por módulo, cada um com uma linha', () => {
+    for (const key of MODULE_KEYS) {
+      expect(MODULE_TOURS[key].length).toBeLessThanOrEqual(4);
+      for (const step of MODULE_TOURS[key]) expect(step.description.length).toBeLessThanOrEqual(90);
+    }
+  });
+
   it('cada passo aponta para uma âncora que existe nas telas', () => {
     const sources = componentSources();
     const missing: string[] = [];
@@ -66,12 +73,8 @@ describe('tours dos módulos', () => {
     const steps = tourSteps(['card', 'reimbursable'], '2026-09');
     expect(steps.map((step) => [step.module, step.href, step.anchor])).toEqual([
       ['card', '/cartao', 'cartao-fatura'],
-      ['card', '/cartao', 'cartao-lancamentos'],
-      ['card', '/cartao', 'cartao-pagar'],
       ['card', '/cartao?aba=parcelados', 'cartao-aba-parcelados'],
-      ['card', '/cartao?aba=parcelados', 'cartao-parcelado-novo'],
       ['card', '/cartao?aba=cartoes', 'cartao-aba-cartoes'],
-      ['card', '/cartao', 'cartao-config'],
       ['card', '/mes/2026-09', 'cartao-pergunta'],
       ['card', '/cartao', 'ajuda-card'],
       ['reimbursable', '/mes/2026-09', 'categoria-a-receber'],
@@ -80,8 +83,8 @@ describe('tours dos módulos', () => {
       ['reimbursable', '/mes/2026-09/lancamentos?aba=a-receber', 'ajuda-reimbursable'],
     ]);
     // The card question is inside the expense form; the help button is not, so it closes first.
-    expect(steps[7].sheet).toBe('expense-form');
-    expect(steps[8].sheet).toBeUndefined();
+    expect(steps[3].sheet).toBe('expense-form');
+    expect(steps[4].sheet).toBeUndefined();
   });
 
   it('o tour do Cartão é um só, curto, e passa pelas três abas', () => {
@@ -89,6 +92,6 @@ describe('tours dos módulos', () => {
     expect(anchors).toContain('cartao-fatura');
     expect(anchors).toContain('cartao-aba-parcelados');
     expect(anchors).toContain('cartao-aba-cartoes');
-    expect(anchors.length).toBeLessThanOrEqual(8);
+    expect(anchors.length).toBeLessThanOrEqual(4);
   });
 });

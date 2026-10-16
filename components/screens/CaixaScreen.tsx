@@ -346,7 +346,7 @@ function ReservePlanSheet({
     const confirmed = await confirm({
       title: 'Desistir do plano',
       message:
-        'O plano sai da tela. As parcelas que você já lançou continuam nos meses — o dinheiro voltou mesmo para a reserva.',
+        'O plano sai da tela; as parcelas já lançadas continuam nos meses.',
       confirmLabel: 'Desistir',
       cancelLabel: 'Manter',
       destructive: true,
