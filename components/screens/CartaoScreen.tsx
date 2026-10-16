@@ -665,17 +665,13 @@ function InstallmentsTab({
         </div>
         {active.length === 0 ? (
           <div className="border-border text-muted flex flex-col gap-3 rounded-xl border border-dashed px-4 py-6 text-center text-sm">
-            <p>
-              Nenhuma compra parcelada em andamento. Ao lançar um gasto no cartão, escolha
-              &ldquo;Parcelado&rdquo; para criar uma — ou cadastre aqui uma compra que você já vinha pagando
-              antes de usar o Capital.
-            </p>
+            <p>Nenhuma compra parcelada.</p>
             <button
               type="button"
               onClick={() => setCreating(true)}
               className="bg-primary text-primary-foreground mx-auto min-h-[44px] rounded-lg px-4 text-sm font-semibold"
             >
-              Cadastrar compra parcelada
+              Cadastrar uma que já vinha pagando
             </button>
           </div>
         ) : (
