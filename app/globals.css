@@ -97,10 +97,41 @@
   --font-mono: var(--font-geist-mono);
 }
 
-/* Short motions for the module list: a locked module shakes, the module it needs calls for attention. */
+/* Short motions for the module list: a locked module shakes, the module it needs calls for attention.
+   The navigation hints: the up-arrow of the Início hops a few times until the drawer is opened once,
+   and the sideways arrows of a one-time "deslize" hint sway. */
 @theme {
   --animate-shake: capital-shake 0.45s ease-in-out;
   --animate-attention: capital-attention 1.8s ease-out;
+  --animate-apps-hop: capital-apps-hop 2.4s ease-in-out 0.8s 3;
+  --animate-sway: capital-sway 1.4s ease-in-out infinite;
+
+  @keyframes capital-apps-hop {
+    0%,
+    55%,
+    100% {
+      transform: translateY(0);
+    }
+    68% {
+      transform: translateY(-7px);
+    }
+    80% {
+      transform: translateY(0);
+    }
+    90% {
+      transform: translateY(-3px);
+    }
+  }
+
+  @keyframes capital-sway {
+    0%,
+    100% {
+      transform: translateX(-3px);
+    }
+    50% {
+      transform: translateX(3px);
+    }
+  }
 
   @keyframes capital-shake {
     0%,

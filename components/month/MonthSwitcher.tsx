@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { MouseEvent } from 'react';
 import { formatMonthLabel, nextMonth, previousMonth, type Month } from '@/lib/budget';
 import { useMonthSwipe } from './MonthSwipe';
+import { MonthSwipeHint } from './MonthSwipeHint';
 
 /**
  * ‹ Setembro de 2026 › — stays on the same screen (`path`, e.g. "/categorias") of the other month.
@@ -32,7 +33,10 @@ export function MonthSwitcher({ month, path = '' }: { month: Month; path?: strin
       >
         ‹
       </Link>
-      <span className="text-foreground text-lg font-semibold">{formatMonthLabel(month)}</span>
+      <span className="flex flex-col items-center">
+        <span className="text-foreground text-lg font-semibold">{formatMonthLabel(month)}</span>
+        <MonthSwipeHint month={month} />
+      </span>
       <Link
         href={`/mes/${nextMonth(month)}${path}`}
         replace

@@ -47,6 +47,7 @@ import { InstallmentFormSheet } from '@/components/card/InstallmentFormSheet';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ExpenseFormSheet } from '@/components/month/ExpenseFormSheet';
 import { MonthSwipe, useMonthSwipe } from '@/components/month/MonthSwipe';
+import { MonthSwipeHint } from '@/components/month/MonthSwipeHint';
 import { ModuleGate } from '@/components/modules/ModuleGate';
 import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
 import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
@@ -282,7 +283,10 @@ function BillTab({
         >
           ‹
         </button>
-        <span className="text-foreground text-lg font-semibold">{formatMonthLabel(month)}</span>
+        <span className="flex flex-col items-center">
+          <span className="text-foreground text-lg font-semibold">{formatMonthLabel(month)}</span>
+          <MonthSwipeHint month={month} />
+        </span>
         <button
           type="button"
           onClick={() => (slide ? slide(1) : onMonth(nextMonth(month)))}

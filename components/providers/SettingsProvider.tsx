@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { normalizeSettings, type BudgetSettings } from '@/lib/budget';
 import { budgetRepository } from '@/lib/storage';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
@@ -19,12 +19,20 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<BudgetSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * The one-time notices saved or being saved. They only ever grow, so a save built from settings
+   * read a moment earlier (a hint and a first-visit question saving together) never drops one.
+   */
+  const notices = useRef<string[]>([]);
+  /** Saves go one after the other, so the last one sent is the one that stays. */
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await budgetRepository.getSettings();
+      notices.current = data.dismissedNotices ?? [];
       // Backfill any missing category colors (older data) so the UI is stable.
       setSettings(normalizeSettings(data));
     } catch (err) {
@@ -41,10 +49,17 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
-  const saveSettings = useCallback(async (next: BudgetSettings) => {
-    const normalized = normalizeSettings(next);
-    await budgetRepository.saveSettings(normalized);
-    setSettings(normalized);
+  const saveSettings = useCallback((next: BudgetSettings) => {
+    const seen = [...new Set([...notices.current, ...(next.dismissedNotices ?? [])])];
+    notices.current = seen;
+    const run = async () => {
+      const normalized = normalizeSettings(seen.length > 0 ? { ...next, dismissedNotices: seen } : next);
+      await budgetRepository.saveSettings(normalized);
+      setSettings(normalized);
+    };
+    const saved = queue.current.then(run, run);
+    queue.current = saved.catch(() => {});
+    return saved;
   }, []);
 
   // A failure here blocks every screen (they all need settings), so surface it

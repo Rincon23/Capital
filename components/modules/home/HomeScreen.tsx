@@ -32,7 +32,7 @@ import {
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { getEventCoordinates } from '@dnd-kit/utilities';
 import { usePathname } from 'next/navigation';
-import { Check, ChevronUp, LayoutGrid, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowLeftRight, Check, ChevronUp, LayoutGrid, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import type { BudgetSettings, HomeWidgetKey } from '@/lib/budget';
 import {
   MAX_HOME_PAGES,
@@ -67,6 +67,7 @@ import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { IconTile } from '@/components/ui/IconTile';
 import { popSheetEntry, pushSheetEntry, registerSheet } from '@/components/ui/sheetHistory';
 import { useToast } from '@/components/ui/Toast';
+import { useOneTimeHint } from '@/components/ui/useOneTimeHint';
 import { widgetVisual } from '../visuals';
 import { EditableWidget } from './EditableWidget';
 import { HomeDesk, type HomeDeskHandle } from './HomeDesk';
@@ -74,6 +75,11 @@ import { Card, HomeCards, HomeCardsData, RESIZABLE_HOME_CARDS, effectiveSize } f
 import { HOME_FOOTER_HEIGHT } from './homeLayout';
 import { UsageChooser } from './UsageChooser';
 import { TRAY_BAR_HEIGHT, TRAY_ID, WidgetTray, widgetOfTrayDrag } from './WidgetTray';
+
+/** Saved once the app drawer was opened: from then on the up-arrow stops hopping. */
+const APPS_HINT = 'hint:apps';
+/** The one-time "deslize" hint of an Início with more than one área. */
+const AREAS_HINT = 'hint:swipe-areas';
 
 /** How long a widget has to be held before it comes loose, the way a phone picks up a widget. */
 const HOLD_MS = 240;
@@ -169,6 +175,15 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
   const canAddPage = editing && pages.length < MAX_HOME_PAGES;
   const count = pages.length + (canAddPage ? 1 : 0);
   const shown = Math.max(0, Math.min(current, count - 1));
+  const areasHint = useOneTimeHint(AREAS_HINT, { when: !editing && !settingUp && pages.length > 1 });
+  // Swiping to another área is the thing the hint explains: done, it goes.
+  const dismissAreasHint = areasHint.dismiss;
+  const firstPage = useRef(shown);
+  useEffect(() => {
+    if (shown !== firstPage.current) dismissAreasHint();
+  }, [shown, dismissAreasHint]);
+  const appsLearned = settings.dismissedNotices?.includes(APPS_HINT) ?? false;
+
   const hidden = hiddenHomeCards({
     modules: settings.modules,
     dismissedNotices: settings.dismissedNotices,
@@ -571,6 +586,15 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     [],
   );
 
+  /** The drawer was found: the up-arrow can stop hopping, for good. */
+  const learnApps = useCallback(() => {
+    const current = settingsRef.current;
+    if (current.dismissedNotices?.includes(APPS_HINT)) return;
+    void saveSettings({ ...current, dismissedNotices: [...(current.dismissedNotices ?? []), APPS_HINT] }).catch(
+      () => {},
+    );
+  }, [saveSettings]);
+
   // An old link to /mais: the drawer comes up straight away, and the address loses the "?apps".
   useEffect(() => {
     if (!openApps) return;
@@ -636,7 +660,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
   return (
     <HomeCardsData keys={available}>
       <div className="relative flex h-dvh flex-col overflow-hidden">
-        <header className="flex shrink-0 flex-col gap-2 px-4 pt-3 pb-2">
+        <header className="relative z-20 flex shrink-0 flex-col gap-2 px-4 pt-3 pb-2">
           <div className="flex items-center justify-between gap-2">
             {editing ? (
               <button
@@ -673,6 +697,15 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
               <NotificationBell />
             </div>
           </div>
+          {areasHint.visible && (
+            <p
+              role="status"
+              className="bg-card text-foreground border-border pointer-events-none absolute top-full left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium whitespace-nowrap shadow-lg"
+            >
+              <ArrowLeftRight aria-hidden className="text-primary motion-safe:animate-sway h-4 w-4" />
+              Deslize para o lado para ver a outra tela
+            </p>
+          )}
         </header>
 
         <DndContext
@@ -715,7 +748,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
             }}
           >
             <PageDots pages={pages.length} current={shown} withNewPage={canAddPage} onSelect={setCurrent} />
-            {!editing && <AppsHandle drawer={drawer} buttonRef={appsButton} />}
+            {!editing && <AppsHandle drawer={drawer} buttonRef={appsButton} hop={!appsLearned} />}
           </div>
 
           {editing && (
@@ -752,6 +785,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
       <AppDrawer
         ref={drawer}
         month={month}
+        onOpened={learnApps}
         onClosed={() => appsButton.current?.focus({ preventScroll: true })}
       />
 
@@ -972,15 +1006,19 @@ function PageDots({
 }
 
 /**
- * The up-arrow: a tap (or Enter) opens the app drawer, and a drag up from anywhere on its strip
- * brings the drawer up with the finger — it opens past a quarter of the screen or on a flick.
+ * The up-arrow, with "Apps" under it: a tap (or Enter) opens the app drawer, and a drag up from
+ * anywhere on its strip brings the drawer up with the finger — it opens past a quarter of the
+ * screen or on a flick. Until the drawer has been opened once (`hop`), it hops a few times each
+ * time the Início shows, so a new person sees there is something there.
  */
 function AppsHandle({
   drawer,
   buttonRef,
+  hop,
 }: {
   drawer: RefObject<AppDrawerHandle | null>;
   buttonRef: RefObject<HTMLButtonElement | null>;
+  hop: boolean;
 }) {
   const strip = useRef<HTMLDivElement>(null);
   const { wasDragged } = useVerticalDrag(strip, {
@@ -1006,9 +1044,14 @@ function AppsHandle({
         aria-label="Abrir todos os apps"
         aria-haspopup="dialog"
         title="Todos os apps"
-        className="text-muted hover:text-foreground flex h-11 w-24 items-center justify-center rounded-full transition-colors"
+        className="text-muted hover:text-foreground flex h-12 w-24 items-center justify-center rounded-full transition-colors"
       >
-        <ChevronUp aria-hidden className="h-7 w-7" />
+        <span className={`flex flex-col items-center ${hop ? 'motion-safe:animate-apps-hop' : ''}`}>
+          <ChevronUp aria-hidden className="h-6 w-6" />
+          <span aria-hidden className="text-[11px] leading-none font-semibold">
+            Apps
+          </span>
+        </span>
       </button>
     </div>
   );

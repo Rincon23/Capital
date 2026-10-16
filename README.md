@@ -275,6 +275,15 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   (com o selo de lembretes não lidos no ícone), Módulos, Privacidade, Configurações e, para o dono,
   Administração. Em grade ou lista. Fecha com o botão voltar do celular, Esc, o "⌄" ou arrastando
   para baixo. Links antigos para `/mais` abrem a Início com ela aberta; `/rodape` leva à Início.
+- **Gestos que se mostram** (dicas de uma vez só, nunca um tour): a setinha tem o rótulo "Apps" e,
+  até a bandeja ser aberta uma vez, dá uns pulinhos discretos quando a Início aparece
+  (`hint:apps`). Com mais de uma área, a primeira vez mostra "Deslize para o lado para ver a outra
+  tela" (`hint:swipe-areas`); nas telas com mês (Lançamentos, Categorias e a fatura do Cartão),
+  "Deslize para trocar o mês" aparece embaixo do mês (`hint:swipe-month`, uma vez para todas). Cada
+  dica (`useOneTimeHint`) fica salva nos avisos vistos assim que aparece, some sozinha em 6 segundos
+  ou quando a pessoa faz o gesto, e as setas ‹ › continuam. Os avisos vistos só crescem: o
+  `SettingsProvider` junta os de saves feitos ao mesmo tempo e salva um de cada vez, para nenhum se
+  perder.
 - **Telas de módulo**: toda tela tem a seta de voltar para a Início (como fechar um app), e a de uma
   categoria volta para Categorias.
 - **Modo de edição** (o lápis, ou segurar num espaço vazio): as áreas encolhem e mostram a borda das

@@ -67,11 +67,14 @@ export interface AppDrawerHandle {
 export function AppDrawer({
   ref,
   month,
+  onOpened,
   onClosed,
 }: {
   ref?: Ref<AppDrawerHandle>;
   /** The month the module screens open on: the one the Início is showing. */
   month: Month;
+  /** It finished opening (the up-arrow stops hopping once the person has found it). */
+  onOpened?: () => void;
   /** It finished closing: the focus goes back to the up-arrow. */
   onClosed?: () => void;
 }) {
@@ -112,8 +115,11 @@ export function AppDrawer({
 
   const slideOpen = useCallback(() => {
     place(0, IN_MS);
-    later(IN_MS, () => setSettled(true));
-  }, [place, later]);
+    later(IN_MS, () => {
+      setSettled(true);
+      onOpened?.();
+    });
+  }, [place, later, onOpened]);
 
   /** Slides away. `popEntry: false` when its history entry is already gone (the back button took it). */
   const close = useCallback(
