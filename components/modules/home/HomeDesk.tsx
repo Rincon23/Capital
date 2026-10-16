@@ -54,7 +54,7 @@ function onEmptySpace(target: EventTarget | null): boolean {
 }
 
 /**
- * The áreas de trabalho of the Início, side by side on one track — all of them in the page at
+ * The telas of the Início, side by side on one track — all of them in the page at
  * once, so the neighbour is already there while the finger drags. Swiping sideways pages between
  * them with the physics of a phone's home screen (`swipePhysics.ts`): the track follows the finger,
  * gives a little and springs back at the first and the last, and changes page past 30% of the
@@ -79,11 +79,11 @@ export function HomeDesk({
   renderPage,
 }: {
   ref?: Ref<HomeDeskHandle>;
-  /** How many pages the track has (in edit mode, with the "new área" one at the end). */
+  /** How many pages the track has (in edit mode, with the "new tela" one at the end). */
   count: number;
   current: number;
   editing: boolean;
-  /** The accessible name of each page ("Área 1 de 3"). */
+  /** The accessible name of each page ("Tela 1 de 3"). */
   label: (index: number) => string;
   onChange: (index: number) => void;
   isBlocked: () => boolean;
@@ -337,7 +337,7 @@ export function HomeDesk({
     <div
       ref={viewport}
       role="region"
-      aria-label="Áreas de trabalho"
+      aria-label="Telas"
       onKeyDown={handleKeyDown}
       // A link dragged with the mouse would start the browser's own drag and cancel the swipe.
       onDragStart={(event) => event.preventDefault()}

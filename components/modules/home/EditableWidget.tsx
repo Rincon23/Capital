@@ -10,7 +10,7 @@ import { Card } from './HomeCards';
 /**
  * A widget in edit mode. The whole card is the handle (held, then dragged — see the sensors in
  * `HomeScreen`), with the dashed outline; the "−" takes it off the Início (it waits in the widget
- * tray), "Mover" sends it to another área without dragging, and a tile can be stretched to the
+ * tray), "Mover" sends it to another tela without dragging, and a tile can be stretched to the
  * whole row or split again.
  */
 export function EditableWidget({
@@ -73,8 +73,8 @@ export function EditableWidget({
       <button
         type="button"
         onClick={onMove}
-        aria-label={`Mover ${name} para outra área`}
-        title="Mover para outra área"
+        aria-label={`Mover ${name} para outra tela`}
+        title="Mover para outra tela"
         className="border-border bg-card text-foreground absolute -top-2 left-1/2 z-10 flex h-7 -translate-x-1/2 items-center gap-1 rounded-full border px-2.5 text-xs font-semibold shadow-md"
       >
         <ArrowLeftRight aria-hidden className="h-3.5 w-3.5" />

@@ -57,7 +57,7 @@ function CategoryDetail({ topicId }: { topicId: string }) {
         <div className="border-border bg-card rounded-xl border p-4 shadow-sm">
           <div className="mb-2 flex items-baseline justify-between text-sm">
             <span className="text-muted">Gasto {formatBRL(topic.spent)}</span>
-            <span className="text-foreground font-semibold">Posso gastar {formatBRL(topic.available)}</span>
+            <span className="text-foreground font-semibold">Limite {formatBRL(topic.available)}</span>
           </div>
           <ProgressBar usedPct={topic.usedPct} state={state} color={topic.color} />
           <div className="mt-2 flex items-baseline justify-between text-sm">
@@ -86,7 +86,7 @@ function CategoryDetail({ topicId }: { topicId: string }) {
               </div>
             )}
             <div className="flex justify-between">
-              <dt className="text-muted">− Rateio (fixos + imprevistos)</dt>
+              <dt className="text-muted">− Custos fixos e imprevistos (divididos)</dt>
               <dd className="text-foreground">{formatBRL(topic.proportionalFixed)}</dd>
             </div>
             <div className="flex justify-between">
@@ -96,7 +96,7 @@ function CategoryDetail({ topicId }: { topicId: string }) {
               </dd>
             </div>
             <div className="border-border flex justify-between border-t pt-1.5 font-semibold">
-              <dt className="text-foreground">= Posso gastar</dt>
+              <dt className="text-foreground">= Limite do mês</dt>
               <dd className="text-foreground">{formatBRL(topic.available)}</dd>
             </div>
           </dl>

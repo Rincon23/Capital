@@ -87,7 +87,7 @@ export function ExpensesHomeCard() {
   );
 }
 
-/** Gastos por categoria: "posso gastar", the overall balance and a thin bar per category. */
+/** Gastos por categoria: how much can still be spent this month, big, and a thin bar per category. */
 export function BudgetHomeCard() {
   const { month, summary, error } = useMonthContext();
 
@@ -97,13 +97,20 @@ export function BudgetHomeCard() {
         <CardNote tone="danger">{error}</CardNote>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-2">
-            <Stat label="Posso gastar" value={summary ? formatBRL(summary.availableTotal) : null} />
-            <Stat
-              label="Saldo geral"
-              value={summary ? formatBRL(summary.balance) : null}
-              tone={summary ? (summary.balance < 0 ? 'danger' : 'success') : undefined}
-            />
+          <div className="bg-background rounded-xl px-3 py-2">
+            <p className="text-muted text-xs">Ainda posso gastar</p>
+            {summary ? (
+              <p
+                className={`text-2xl font-bold tabular-nums ${summary.balance < 0 ? 'text-danger' : 'text-success'}`}
+              >
+                {formatBRL(summary.balance)}
+              </p>
+            ) : (
+              <Skeleton className="mt-1 h-7 w-32" />
+            )}
+            {summary && (
+              <p className="text-muted text-xs">de {formatBRL(summary.availableTotal)} para as categorias</p>
+            )}
           </div>
           {!summary ? (
             <Skeleton className="h-2 w-full" />

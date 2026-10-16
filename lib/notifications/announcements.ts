@@ -50,7 +50,7 @@ export const FEATURE_ANNOUNCEMENTS: FeatureAnnouncement[] = [
   {
     key: 'home-screen-pages',
     title: '📱 A Início virou a tela do celular',
-    body: 'O rodapé saiu: a Início agora tem áreas de trabalho com widgets — deslize para o lado para trocar de área e puxe a setinha de baixo para ver todos os apps. No lápis você cria áreas, leva widgets de uma para outra e põe ou tira widgets pela bandeja.',
+    body: 'O rodapé saiu: a Início agora tem telas com widgets — deslize para o lado para trocar de tela e puxe a setinha de baixo para ver todos os apps. No lápis você cria áreas, leva widgets de uma para outra e põe ou tira widgets pela bandeja.',
     href: '/',
     publishedAt: '2026-10-06T21:00:00Z',
   },

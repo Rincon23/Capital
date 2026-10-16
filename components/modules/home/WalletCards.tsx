@@ -162,8 +162,8 @@ export function CashHomeCard() {
           tone={report && report.totalDebt < 0 ? 'danger' : undefined}
         />
         <Stat
-          label="Gap da reserva"
-          value={report ? formatBRL(report.gap) : null}
+          label={report && report.gap >= 0 ? 'Reserva completa ✓' : 'Falta para a reserva'}
+          value={report ? formatBRL(Math.abs(report.gap)) : null}
           tone={report ? (report.gap >= 0 ? 'success' : 'danger') : undefined}
         />
       </div>
@@ -171,7 +171,7 @@ export function CashHomeCard() {
         <div className="flex flex-col gap-1.5">
           <div
             role="progressbar"
-            aria-label="Reserva prevista coberta"
+            aria-label="Meta da reserva coberta"
             aria-valuenow={Math.round(covered * 100)}
             aria-valuemin={0}
             aria-valuemax={100}
@@ -183,7 +183,7 @@ export function CashHomeCard() {
             />
           </div>
           <p className="text-muted text-xs">
-            {Math.round(covered * 100)}% da reserva prevista de {formatBRL(report.expectedReserve)}, já
+            {Math.round(covered * 100)}% da meta da reserva de {formatBRL(report.expectedReserve)}, já
             descontadas as dívidas
           </p>
         </div>

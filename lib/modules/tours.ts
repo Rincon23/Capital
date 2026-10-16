@@ -78,9 +78,9 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
     {
       route: categories,
       anchor: 'posso-gastar',
-      title: 'Quanto dá para gastar',
+      title: 'Ainda posso gastar',
       description:
-        'O que as categorias recebem da renda neste mês, já sem os custos fixos e os imprevistos. O Saldo geral, ao lado, é o que ainda sobra depois dos gastos.',
+        'Quanto ainda dá para gastar neste mês, somando as categorias. Embaixo: a renda, o que vai para as categorias e o total gasto.',
       side: 'bottom',
     },
     {
@@ -130,7 +130,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       anchor: 'cartao-fatura',
       title: 'A fatura do mês',
       description:
-        'Quanto vem nesta competência e o dia em que ela vence. Arraste para o lado, ou use as setas, para ver as outras faturas; vencimento em sábado ou domingo passa para a segunda, como no banco.',
+        'Quanto vem nesta fatura e o dia em que ela vence. Arraste para o lado, ou use as setas, para ver as outras faturas; vencimento em sábado ou domingo passa para a segunda, como no banco.',
       side: 'bottom',
     },
     {
@@ -222,7 +222,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
     {
       route: () => '/historico',
       anchor: 'historico-aderencia',
-      title: 'Aderência à meta',
+      title: 'Dentro do planejado',
       description: 'Quanto você gastou de cada categoria em comparação com a meta, no mês mais recente.',
       side: 'bottom',
     },
@@ -265,7 +265,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       anchor: 'reserva-valor',
       title: 'O valor da reserva',
       description:
-        'Suas cotas, o valor total e a reserva livre (a parte que não está em nenhuma categoria da reserva).',
+        'Suas cotas, o valor total e o que está sem categoria da reserva.',
       side: 'bottom',
     },
     {
@@ -281,7 +281,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       anchor: 'reserva-categorias',
       title: 'Categorias da reserva',
       description:
-        'Separe parte das cotas para uma categoria do orçamento. Remanejar compra cotas para ela e lança o gasto nessa categoria.',
+        'Separe parte das cotas para uma categoria do orçamento. Guardar compra cotas para ela e lança o gasto nessa categoria.',
       side: 'top',
     },
     {
@@ -297,7 +297,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: () => '/carteira/caixa',
       anchor: 'caixa-reserva',
       title: 'Sua reserva',
-      description: 'O dinheiro em conta mais a reserva investida livre.',
+      description: 'O dinheiro em conta mais a reserva investida sem categoria.',
       side: 'bottom',
     },
     {
@@ -310,7 +310,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
     {
       route: () => '/carteira/caixa',
       anchor: 'caixa-gap',
-      title: 'Gap da reserva',
+      title: 'Falta para a reserva',
       description: 'Quanto falta (ou quanto sobra) para a reserva de emergência que você definiu.',
       side: 'top',
     },

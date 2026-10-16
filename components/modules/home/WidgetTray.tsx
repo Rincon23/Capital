@@ -40,8 +40,8 @@ const REST_TRANSITION = `transform ${BACK_MS}ms ${EASE}`;
  * The widget tray of edit mode, at the bottom of the Início where the up-arrow was. Closed, it is
  * a bar saying how many widgets wait in it; a tap or a drag up opens it to half the screen.
  *
- * It lists the widgets that are on no área (the ones taken off) — a tap puts one at the end of
- * the área on screen, a hold-and-drag drops it exactly where it goes — and, below, the widgets of
+ * It lists the widgets that are on no tela (the ones taken off) — a tap puts one at the end of
+ * the tela on screen, a hold-and-drag drops it exactly where it goes — and, below, the widgets of
  * modules that are still off, which point to Módulos (with the VIP mark and the padlock of a
  * module that needs another first). A widget only comes here by its "−": dragging one onto the
  * tray never takes it off the Início. (The back button closes the tray before it leaves edit
@@ -172,7 +172,7 @@ export function WidgetTray({
           ) : (
             <section className="flex flex-col gap-2">
               <p className="text-muted text-xs">
-                Toque para pôr na área que está na tela, ou segure e arraste até o lugar.
+                Toque para pôr na tela que está na tela, ou segure e arraste até o lugar.
               </p>
               <ul className="flex flex-col gap-2">
                 {hidden.map((key) => (
@@ -224,7 +224,7 @@ export function WidgetTray({
 
 const sizeLabel = (size: 'half' | 'full') => (size === 'full' ? 'Linha inteira' : 'Meia linha');
 
-/** A widget waiting in the tray: a tap adds it to the área on screen, a hold picks it up. */
+/** A widget waiting in the tray: a tap adds it to the tela on screen, a hold picks it up. */
 function TrayWidget({
   widget,
   size,

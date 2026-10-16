@@ -84,7 +84,7 @@ function Reserva() {
   async function handleDeleteBucket(bucket: InvestmentBucket) {
     const confirmed = await confirm({
       title: 'Excluir categoria da reserva',
-      message: `Excluir a categoria "${bucket.name}" da reserva? As ${formatQuotas(bucket.quotas)} cotas dela voltam para a reserva livre. Os gastos que você já lançou continuam nos meses.`,
+      message: `Excluir a categoria "${bucket.name}" da reserva? As ${formatQuotas(bucket.quotas)} cotas dela ficam sem categoria. Os gastos já lançados continuam nos meses.`,
       confirmLabel: 'Excluir',
       cancelLabel: 'Manter',
       destructive: true,
@@ -101,7 +101,7 @@ function Reserva() {
     <div className="flex flex-1 flex-col gap-3 pb-10">
       <PageHeader
         title="Reserva investida"
-        subtitle={`Competência: ${formatMonthLabel(month)}`}
+        subtitle={formatMonthLabel(month)}
         backHref={backHref}
         action={
           <>
@@ -147,7 +147,7 @@ function Reserva() {
 
         {investments.stale && investments.price !== null && (
           <p className="bg-warning-bg text-warning rounded-lg px-3 py-2 text-xs">
-            Essa cotação está velha. Atualize antes de remanejar.
+            Essa cotação está velha. Atualize antes de guardar ou retirar.
           </p>
         )}
 
@@ -156,7 +156,7 @@ function Reserva() {
           <span className="text-foreground font-semibold">{formatBRL(investments.totalValue)}</span>
         </div>
         <div className="flex items-center justify-between text-sm">
-          <span className="text-muted">Reserva livre ({formatQuotas(investments.freeQuotas)} cotas)</span>
+          <span className="text-muted">Sem categoria ({formatQuotas(investments.freeQuotas)} cotas)</span>
           <span className="text-foreground font-semibold">{formatBRL(investments.freeValue)}</span>
         </div>
 
@@ -174,11 +174,11 @@ function Reserva() {
             disabled={investments.price === null || investments.buckets.length === 0}
             className="bg-primary text-primary-foreground min-h-[44px] flex-1 rounded-lg px-3 text-sm font-semibold disabled:opacity-50"
           >
-            Remanejar
+            Guardar / Retirar
           </button>
         </div>
         {investments.price === null && (
-          <p className="text-muted text-xs">Sem cotação não dá para remanejar: atualize primeiro.</p>
+          <p className="text-muted text-xs">Sem cotação não dá para guardar nem retirar: atualize primeiro.</p>
         )}
       </section>
 
@@ -225,8 +225,8 @@ function Reserva() {
 
         {investments.buckets.length === 0 && (
           <p className="text-muted py-6 text-center text-sm">
-            Nenhuma categoria ainda. Cada uma guarda parte da reserva para uma categoria do orçamento — Metas,
-            Conhecimento — e o que sobra é a reserva livre.
+            Nenhuma categoria ainda. Cada uma guarda parte da reserva para uma categoria do orçamento (Metas,
+            Conhecimentos); o resto fica sem categoria.
           </p>
         )}
       </section>
@@ -268,11 +268,11 @@ function Reserva() {
               setAllocating(false);
               showToast(
                 direction === 'out'
-                  ? 'Retirada feita! O valor voltou para a reserva livre e saiu da categoria do mês.'
-                  : 'Operação realizada! Um gasto com esse valor entrou no seu controle.',
+                  ? 'Retirada feita: o valor ficou sem categoria e saiu da categoria do mês.'
+                  : 'Guardado: um gasto com esse valor entrou na categoria do mês.',
               );
             } catch (err) {
-              showToast(err instanceof Error ? err.message : 'Não foi possível remanejar.', 'error');
+              showToast(err instanceof Error ? err.message : 'Não foi possível salvar. Tente de novo.', 'error');
             }
           }}
         />
@@ -456,7 +456,7 @@ function AllocateSheet({
   const tooMuch = out && !!bucket && quotasForAmount(parsed, price) > bucket.quotas;
 
   return (
-    <BottomSheet open title="Remanejar" onClose={onClose}>
+    <BottomSheet open title="Guardar ou retirar" onClose={onClose}>
       <form
         className="flex flex-col gap-5"
         onSubmit={async (event) => {
@@ -519,8 +519,8 @@ function AllocateSheet({
             ? `São ${formatQuotas(quotasForAmount(parsed, price))} cotas a ${formatBRL(price)}. `
             : ''}
           {out
-            ? `As cotas voltam para a reserva livre, e a categoria do orçamento ligada a ela recebe um estorno desse valor na competência de ${formatMonthLabel(month)}.`
-            : `O valor também vira um gasto na categoria do orçamento ligada a ela, na competência de ${formatMonthLabel(month)}.`}
+            ? `As cotas ficam sem categoria, e a categoria do orçamento ligada a ela recebe a devolução desse valor em ${formatMonthLabel(month)}.`
+            : `O valor também vira um gasto na categoria do orçamento ligada a ela, em ${formatMonthLabel(month)}.`}
         </p>
 
         {tooMuch && bucket && (
@@ -605,7 +605,7 @@ function BucketFormSheet({
             ))}
           </select>
           <span className="text-muted text-xs">
-            Remanejar para esta categoria da reserva lança o gasto nessa categoria do orçamento.
+            Guardar nesta categoria da reserva lança o gasto nessa categoria do orçamento.
           </span>
         </label>
 

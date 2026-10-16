@@ -13,6 +13,17 @@ Orange Pi**, sem serviço de banco na nuvem: o navegador só fala com a API do p
 grava no banco sempre em nome do usuário logado. Cada conta só enxerga os próprios dados. Sem
 conexão o app abre, mas as telas ficam carregando até a rede voltar.
 
+### Palavras da interface
+
+A interface usa palavras do dia a dia (só o texto muda; código, colunas e rotas continuam como
+estavam): **"Ainda posso gastar"** é o número principal das Categorias e do card da Início (o que
+sobra somando as categorias, `balance`), com **"Para as categorias"** (a renda sem custos fixos e
+imprevistos, `availableTotal`) pequeno embaixo; cada categoria tem o seu **Limite** e a **Sobra**.
+Também: "na fatura de"/"no mês de" (nunca "competência"), **Falta para a reserva** (ou "Reserva
+completa ✓"), **Meta da reserva**, **Dentro do planejado**, **Guardar / Retirar** (reserva
+investida), **devolução**, **sem categoria** (a parte da reserva investida fora das categorias da
+reserva), **dividido entre as categorias** e **telas** (as áreas de trabalho da Início).
+
 ### Módulos: cada pessoa monta o seu Capital
 
 **Tudo o que o app faz é um módulo**, e todos **começam desligados** numa conta nova. Cada pessoa

@@ -53,7 +53,7 @@ export function FixedCostsCard({
       </div>
       <p className="bg-background text-muted mb-4 rounded-lg px-3 py-2 text-xs">{FIXED_COST_TIP}</p>
 
-      <p className="text-muted mb-2 text-xs font-medium tracking-wide uppercase">Rateio por categoria</p>
+      <p className="text-muted mb-2 text-xs font-medium tracking-wide uppercase">Dividido entre as categorias</p>
       <ul className="space-y-1.5">
         {summary.topics.map((topic) => (
           <li key={topic.topicId} className="flex items-center justify-between text-sm">

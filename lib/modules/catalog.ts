@@ -109,7 +109,7 @@ export const MODULES: ModuleDefinition[] = [
     key: 'history',
     name: 'Histórico e gráficos',
     description:
-      'Sua evolução mês a mês: aderência à meta, gráficos de gasto e sobra e a tabela de cada mês.',
+      'Sua evolução mês a mês: quanto ficou dentro do planejado, gráficos de gasto e sobra e a tabela de cada mês.',
     tagline: 'Sua evolução mês a mês',
     group: 'month',
     dependsOn: ['budget'],
@@ -138,7 +138,7 @@ export const MODULES: ModuleDefinition[] = [
     key: 'investments',
     name: 'Reserva investida',
     description:
-      'Sua reserva em cotas, separada em categorias da reserva. Remanejar para uma delas lança o gasto na categoria do orçamento.',
+      'Sua reserva em cotas, separada em categorias da reserva. Guardar numa delas lança o gasto na categoria do orçamento.',
     tagline: 'Cotas, cotação e categorias da reserva',
     group: 'wallet',
     dependsOn: ['expenses'],

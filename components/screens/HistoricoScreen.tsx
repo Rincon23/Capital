@@ -83,7 +83,7 @@ function Historico() {
       <div className="flex flex-1 flex-col gap-6 pb-10">
         {header}
         <section className="flex flex-col gap-2 px-4" data-tour="historico-aderencia">
-          <h2 className="text-muted text-sm font-semibold">Aderência à meta</h2>
+          <h2 className="text-muted text-sm font-semibold">Dentro do planejado</h2>
           {empty('Aparece quando o primeiro mês tiver lançamentos.')}
         </section>
         <section className="flex flex-col gap-2 px-4" data-tour="historico-graficos">
@@ -104,7 +104,7 @@ function Historico() {
 
       <section className="flex flex-col gap-2 px-4" data-tour="historico-aderencia">
         <h2 className="text-muted text-sm font-semibold">
-          Aderência à meta ({latest ? formatMonthLabel(latest.month) : ''})
+          Dentro do planejado ({latest ? formatMonthLabel(latest.month) : ''})
         </h2>
         <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
           {latest?.topics.map((topic) => (
@@ -135,7 +135,7 @@ function Historico() {
         </section>
 
         <section className="flex flex-col gap-2 px-4">
-          <h2 className="text-muted text-sm font-semibold">Sobra acumulada (rollover) por categoria</h2>
+          <h2 className="text-muted text-sm font-semibold">Sobra acumulada por categoria</h2>
           <div className="border-border bg-card rounded-xl border p-3 shadow-sm">
             <RemainingLineChart summaries={summaries} topics={topics} />
           </div>
@@ -174,7 +174,7 @@ function Historico() {
                 <tr className="border-border text-muted border-b text-left">
                   <th className="px-3 py-2 font-medium">Categoria</th>
                   <th className="px-3 py-2 text-right font-medium">Gasto</th>
-                  <th className="px-3 py-2 text-right font-medium">Posso gastar</th>
+                  <th className="px-3 py-2 text-right font-medium">Limite</th>
                   <th className="px-3 py-2 text-right font-medium">Sobra</th>
                   <th className="px-3 py-2 text-right font-medium">% Utilizada</th>
                 </tr>

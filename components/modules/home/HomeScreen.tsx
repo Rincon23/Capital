@@ -78,7 +78,7 @@ import { TRAY_BAR_HEIGHT, TRAY_ID, WidgetTray, widgetOfTrayDrag } from './Widget
 
 /** Saved once the app drawer was opened: from then on the up-arrow stops hopping. */
 const APPS_HINT = 'hint:apps';
-/** The one-time "deslize" hint of an Início with more than one área. */
+/** The one-time "deslize" hint of an Início with more than one tela. */
 const AREAS_HINT = 'hint:swipe-areas';
 
 /** How long a widget has to be held before it comes loose, the way a phone picks up a widget. */
@@ -87,7 +87,7 @@ const HOLD_MS = 240;
 const HOLD_TOLERANCE = 8;
 /** A widget held this close (px) to the left or right edge… */
 const EDGE_ZONE = 32;
-/** …for this long goes to the área on that side (past the last one, a new área). */
+/** …for this long goes to the tela on that side (past the last one, a new tela). */
 const EDGE_HOLD_MS = 600;
 
 /**
@@ -107,7 +107,7 @@ interface HomeLayout {
 
 interface ActiveDrag {
   widget: HomeWidgetKey;
-  /** Picked up from the widget tray (not yet on any área until it is dropped). */
+  /** Picked up from the widget tray (not yet on any tela until it is dropped). */
   fromTray: boolean;
 }
 
@@ -123,13 +123,13 @@ function pageAfterCleanup(pages: HomePages, index: number): number {
 }
 
 /**
- * The Início as the home screen of a phone: áreas de trabalho of widgets side by side (swipe
+ * The Início as the home screen of a phone: telas of widgets side by side (swipe
  * between them; the dots say which one is open), an up-arrow at the bottom that brings up the app
  * drawer (what used to be the "Mais" tab), and the floating buttons of the month right above it.
  *
- * Edit mode (the pencil, or a long press on empty space) works like a phone's: the áreas shrink so
+ * Edit mode (the pencil, or a long press on empty space) works like a phone's: the telas shrink so
  * the neighbours show; a widget is held and then dragged — to another place, to the edge to go to
- * the área next door (past the last one, a new área), or onto the widget tray to leave the Início;
+ * the tela next door (past the last one, a new tela), or onto the widget tray to leave the Início;
  * the tray, where the up-arrow was, puts widgets back; and every change is saved straight away
  * (on screen first, undone with an error message if the save fails).
  */
@@ -159,11 +159,11 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
   const appsButton = useRef<HTMLButtonElement>(null);
   const trayBar = useRef<HTMLButtonElement>(null);
 
-  // Every widget the modules that are on can show — on an área or in the tray. One `HomeCardsData`
-  // for all of them: one read of the wallet and of the reminders for every área.
+  // Every widget the modules that are on can show — on an tela or in the tray. One `HomeCardsData`
+  // for all of them: one read of the wallet and of the reminders for every tela.
   const available = homeCards(settings);
   // Shown: the pages as arranged, kept in step with the modules (a widget of a module just turned
-  // on comes in, one turned off goes). In edit mode, exactly what is being edited, empty áreas too.
+  // on comes in, one turned off goes). In edit mode, exactly what is being edited, empty telas too.
   const pages = editing
     ? layout.pages
     : resolveHomePages({
@@ -176,7 +176,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
   const count = pages.length + (canAddPage ? 1 : 0);
   const shown = Math.max(0, Math.min(current, count - 1));
   const areasHint = useOneTimeHint(AREAS_HINT, { when: !editing && !settingUp && pages.length > 1 });
-  // Swiping to another área is the thing the hint explains: done, it goes.
+  // Swiping to another tela is the thing the hint explains: done, it goes.
   const dismissAreasHint = areasHint.dismiss;
   const firstPage = useRef(shown);
   useEffect(() => {
@@ -252,7 +252,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     if (withTray) setTrayOpen(true);
   }
 
-  /** Leaves edit mode; the empty áreas go (and the page on screen follows what is left). */
+  /** Leaves edit mode; the empty telas go (and the page on screen follows what is left). */
   const finishEdit = useCallback(() => {
     const now = layoutRef.current;
     setEditing(false);
@@ -302,7 +302,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     );
   }
 
-  /** Puts a widget at the end of área `page` (one past the last: a new área) and says where. */
+  /** Puts a widget at the end of tela `page` (one past the last: a new tela) and says where. */
   function placeWidget(key: HomeWidgetKey, page: number) {
     const previous = layoutRef.current;
     const pagesNext = addWidget(previous.pages, key, page);
@@ -312,7 +312,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
       { ...previous, pages: pagesNext, hidden: previous.hidden.filter((item) => item !== key) },
       previous,
     );
-    showToast(`${widgetName(key)} foi para a área ${landed + 1}.`);
+    showToast(`${widgetName(key)} foi para a tela ${landed + 1}.`);
   }
 
   function toggleSize(key: HomeWidgetKey) {
@@ -325,26 +325,26 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     const previous = layout;
     const next = addHomePage(previous.pages);
     if (!next) {
-      showToast(`Dá para ter até ${MAX_HOME_PAGES} áreas de trabalho.`, 'info');
+      showToast(`Dá para ter até ${MAX_HOME_PAGES} telas.`, 'info');
       return;
     }
     setCurrent(next.length - 1);
     void save({ ...previous, pages: next }, previous);
   }
 
-  /** Deletes an área; its widgets go to the área next to it (only the "−" takes one off). */
+  /** Deletes a tela; its widgets go to the tela next to it (only the "−" takes one off). */
   async function deletePage(index: number) {
     const widgets = layout.pages[index] ?? [];
     if (widgets.length > 0) {
-      // Where they go, numbered as the áreas are now: the one before, or the next for the first.
+      // Where they go, numbered as the telas are now: the one before, or the next for the first.
       const neighbour = (index > 0 ? index - 1 : index + 1) + 1;
       const confirmed = await confirm({
-        title: `Excluir a área ${index + 1}?`,
+        title: `Excluir a tela ${index + 1}?`,
         message:
           widgets.length === 1
-            ? `${widgetName(widgets[0])} vai para o fim da área ${neighbour}. Nenhum widget sai da Início.`
-            : `Os ${widgets.length} widgets dela vão para o fim da área ${neighbour}. Nenhum widget sai da Início.`,
-        confirmLabel: 'Excluir área',
+            ? `${widgetName(widgets[0])} vai para o fim da tela ${neighbour}. Nenhum widget sai da Início.`
+            : `Os ${widgets.length} widgets dela vão para o fim da tela ${neighbour}. Nenhum widget sai da Início.`,
+        confirmLabel: 'Excluir tela',
         destructive: true,
       });
       if (!confirmed) return;
@@ -362,7 +362,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     const confirmed = await confirm({
       title: 'Voltar ao padrão?',
       message:
-        'Todas as áreas voltam a ser uma só, com todos os widgets nela, na ordem padrão — nenhum fica guardado na bandeja.',
+        'Todas as telas voltam a ser uma só, com todos os widgets nela, na ordem padrão — nenhum fica guardado na bandeja.',
       confirmLabel: 'Voltar ao padrão',
     });
     if (!confirmed) return;
@@ -381,7 +381,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
 
   // Hold, then drag — never drag straight away: a widget only comes loose after the finger has
   // stayed on it, so brushing past one never moves anything, and until then the finger scrolls
-  // the área (or swipes to the next one) as usual.
+  // the tela (or swipes to the next one) as usual.
   //
   // The touch half is deliberately the `TouchSensor` and not the `PointerSensor`: the pointer one
   // can only stop the page from scrolling under the finger with `touch-action: none`, which would
@@ -402,7 +402,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     edge.current = { side: 0, timer: null };
   };
 
-  // Only what is on the área on screen can be under the widget: the neighbours, offscreen or
+  // Only what is on the tela on screen can be under the widget: the neighbours, offscreen or
   // peeking at the edges, never are. Dropping never takes a widget off the Início — only its "−"
   // does —, so the tray's bar only matters to a widget picked up from the tray itself: let go
   // there, it stays in the tray. The bar is checked where it is right now (it slides down when the
@@ -434,7 +434,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     beforeDrag.current = layoutRef.current;
     dragRef.current = next;
     setDrag(next);
-    // Out of the way: the áreas are where the widget goes.
+    // Out of the way: the telas are where the widget goes.
     setTrayOpen(false);
   }
 
@@ -448,8 +448,8 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
       const page = overPage ?? pageOfWidget(previous.pages, over.id as HomeWidgetKey);
       if (page < 0) return previous;
       const from = pageOfWidget(previous.pages, widget);
-      // Within its own área a widget of the área is sorted by dnd-kit itself (see `handleDragEnd`);
-      // one coming from the tray, or from another área, is moved here so it shows where it would land.
+      // Within its own tela a widget of the tela is sorted by dnd-kit itself (see `handleDragEnd`);
+      // one coming from the tray, or from another tela, is moved here so it shows where it would land.
       if (!fromTray && from === page) return previous;
       const target = previous.pages[page];
       const index = overPage !== null ? target.length : target.indexOf(over.id as HomeWidgetKey);
@@ -458,15 +458,15 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     });
   }
 
-  /** Held at an edge: the widget goes to the área on that side (past the last, a new one). */
+  /** Held at an edge: the widget goes to the tela on that side (past the last, a new one). */
   function flipPage(side: -1 | 1): boolean {
     const active = dragRef.current;
     const now = layoutRef.current;
-    // From the "new área" slot (one past the last), going on creates the área right there.
+    // From the "new tela" slot (one past the last), going on creates the tela right there.
     const target = Math.min(shownRef.current + side, now.pages.length);
     if (!active || target < 0) return false;
     if (target >= now.pages.length && now.pages.length >= MAX_HOME_PAGES) {
-      showToast(`Dá para ter até ${MAX_HOME_PAGES} áreas de trabalho.`, 'info');
+      showToast(`Dá para ter até ${MAX_HOME_PAGES} telas.`, 'info');
       return false;
     }
     const length =
@@ -513,11 +513,11 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
       }
       next = { ...next, hidden: next.hidden.filter((key) => key !== widget) };
       void save(next, before);
-      showToast(`${widgetName(widget)} foi para a área ${pageOfWidget(next.pages, widget) + 1}.`);
+      showToast(`${widgetName(widget)} foi para a tela ${pageOfWidget(next.pages, widget) + 1}.`);
       return;
     }
 
-    // Wherever it is let go, a widget of an área stays on the Início (only its "−" takes it off).
+    // Wherever it is let go, a widget of an tela stays on the Início (only its "−" takes it off).
     if (over && over.id !== widget && over.id !== TRAY_ID && pageOfId(over.id) === null) {
       const page = pageOfWidget(next.pages, widget);
       const to = page === -1 ? -1 : next.pages[page].indexOf(over.id as HomeWidgetKey);
@@ -535,17 +535,17 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
 
   const nameOf = (id: UniqueIdentifier) => {
     const page = pageOfId(id);
-    return page !== null ? `a área ${page + 1}` : widgetName(widgetOfId(id));
+    return page !== null ? `a tela ${page + 1}` : widgetName(widgetOfId(id));
   };
   const whereIs = (id: UniqueIdentifier) => {
     const page = pageOfId(id) ?? pageOfWidget(layoutRef.current.pages, widgetOfId(id));
-    return page >= 0 ? `na área ${page + 1}` : 'na bandeja de widgets';
+    return page >= 0 ? `na tela ${page + 1}` : 'na bandeja de widgets';
   };
   const announcements: Announcements = {
     onDragStart: ({ active }) => `Você pegou ${nameOf(active.id)}, ${whereIs(active.id)}.`,
     onDragOver: ({ active, over }) =>
       !over
-        ? `${nameOf(active.id)} está fora das áreas.`
+        ? `${nameOf(active.id)} está fora das telas.`
         : over.id === TRAY_ID
           ? `${nameOf(active.id)} está sobre a bandeja de widgets. Solte para deixar lá.`
           : pageOfId(over.id) !== null
@@ -564,7 +564,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
   // The tour and old links
   // ---------------------------------------------------------------------------------------------
 
-  // A tour step on a widget: switch to the área that has it, and scroll it into view — right
+  // A tour step on a widget: switch to the tela that has it, and scroll it into view — right
   // now, so the spotlight that comes next measures it in place.
   useLayoutEffect(
     () =>
@@ -614,7 +614,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
             className="border-primary/50 text-primary hover:bg-primary/5 flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed font-semibold"
           >
             <Plus aria-hidden className="h-8 w-8" />
-            Nova área de trabalho
+            Nova tela
           </button>
         </div>
       );
@@ -721,7 +721,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
             announcements,
             screenReaderInstructions: {
               draggable:
-                'Para pegar um widget, aperte espaço ou Enter. Com ele pego, use as setas para mudar de lugar, espaço ou Enter para soltar e Esc para cancelar. O botão Mover leva para outra área.',
+                'Para pegar um widget, aperte espaço ou Enter. Com ele pego, use as setas para mudar de lugar, espaço ou Enter para soltar e Esc para cancelar. O botão Mover leva para outra tela.',
             },
           }}
         >
@@ -731,7 +731,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
             current={shown}
             editing={editing}
             label={(index) =>
-              index === pages.length ? 'Nova área de trabalho' : `Área ${index + 1} de ${pages.length}`
+              index === pages.length ? 'Nova tela' : `Tela ${index + 1} de ${pages.length}`
             }
             onChange={setCurrent}
             isBlocked={() => dragRef.current !== null}
@@ -841,7 +841,7 @@ function EmptyState({
   );
 }
 
-/** One área in edit mode: its name and the button to delete it, then its widgets, sortable. */
+/** One tela in edit mode: its name and the button to delete it, then its widgets, sortable. */
 function EditablePage({
   index,
   widgets,
@@ -869,16 +869,16 @@ function EditablePage({
   return (
     <div className="flex min-h-full flex-col gap-3 px-4 pt-3 pb-6">
       <div className="flex min-h-9 items-center justify-between gap-2">
-        <p className="text-muted text-xs font-semibold tracking-wide uppercase">Área {index + 1}</p>
+        <p className="text-muted text-xs font-semibold tracking-wide uppercase">Tela {index + 1}</p>
         {pageCount > 1 && (
           <button
             type="button"
             onClick={onDelete}
-            aria-label={`Excluir a área ${index + 1}`}
+            aria-label={`Excluir a tela ${index + 1}`}
             className="text-muted hover:text-danger hover:bg-danger-bg flex min-h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition-colors"
           >
             <Trash2 aria-hidden className="h-4 w-4" />
-            Excluir área
+            Excluir tela
           </button>
         )}
       </div>
@@ -898,13 +898,13 @@ function EditablePage({
           ))}
           {widgets.length === 0 && (
             <p className="border-border text-muted col-span-2 rounded-2xl border-2 border-dashed p-6 text-center text-sm">
-              Área vazia. Arraste um widget para cá, ou toque num da bandeja de widgets.
+              Tela vazia. Arraste um widget para cá, ou toque num da bandeja de widgets.
             </p>
           )}
         </div>
       </SortableContext>
       <p className="text-muted pt-2 text-center text-xs">
-        Segure um widget e arraste para mudar de lugar; até a borda, ele vai para a área do lado. Para tirar
+        Segure um widget e arraste para mudar de lugar; até a borda, ele vai para a tela do lado. Para tirar
         da Início, toque no −. Toque em <Check aria-hidden className="inline h-3.5 w-3.5 align-text-bottom" />{' '}
         quando terminar.
       </p>
@@ -912,7 +912,7 @@ function EditablePage({
   );
 }
 
-/** "Mover para": the áreas (and a new one), for moving a widget without dragging it. */
+/** "Mover para": the telas (and a new one), for moving a widget without dragging it. */
 function MoveOptions({
   pages,
   widget,
@@ -936,7 +936,7 @@ function MoveOptions({
           onClick={() => onPick(index)}
           className={option}
         >
-          <span className="text-foreground">Área {index + 1}</span>
+          <span className="text-foreground">Tela {index + 1}</span>
           <span className="text-muted text-xs">
             {index === here ? 'Está aqui' : `${page.length} ${page.length === 1 ? 'widget' : 'widgets'}`}
           </span>
@@ -946,7 +946,7 @@ function MoveOptions({
         <button type="button" onClick={() => onPick(pages.length)} className={option}>
           <span className="text-primary flex items-center gap-2 font-semibold">
             <Plus aria-hidden className="h-4 w-4" />
-            Nova área
+            Nova tela
           </span>
         </button>
       )}
@@ -954,7 +954,7 @@ function MoveOptions({
   );
 }
 
-/** The dots under the áreas: which one is open, and a tap to go to another. */
+/** The dots under the telas: which one is open, and a tap to go to another. */
 function PageDots({
   pages,
   current,
@@ -970,7 +970,7 @@ function PageDots({
   return (
     <div
       role="group"
-      aria-label="Áreas de trabalho"
+      aria-label="Telas"
       className="flex h-4 shrink-0 items-center justify-center gap-0.5"
     >
       {Array.from({ length: pages }, (_, index) => (
@@ -978,7 +978,7 @@ function PageDots({
           key={index}
           type="button"
           onClick={() => onSelect(index)}
-          aria-label={`Área ${index + 1} de ${pages}`}
+          aria-label={`Tela ${index + 1} de ${pages}`}
           aria-current={index === current ? 'true' : undefined}
           className="flex h-6 w-6 items-center justify-center"
         >
@@ -994,7 +994,7 @@ function PageDots({
         <button
           type="button"
           onClick={() => onSelect(pages)}
-          aria-label="Nova área de trabalho"
+          aria-label="Nova tela"
           aria-current={current === pages ? 'true' : undefined}
           className={`flex h-6 w-6 items-center justify-center ${current === pages ? 'text-foreground' : 'text-muted'}`}
         >
@@ -1069,7 +1069,7 @@ function TrayChip({ widget }: { widget: HomeWidgetKey }) {
 }
 
 /**
- * After the track slides to another área mid-drag, dnd-kit's measurements of where everything is
+ * After the track slides to another tela mid-drag, dnd-kit's measurements of where everything is
  * are stale (the widgets moved without being re-rendered): measure again once it has arrived.
  */
 function RemeasureAfterSlide({ page }: { page: number }) {

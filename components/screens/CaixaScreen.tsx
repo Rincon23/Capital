@@ -147,12 +147,12 @@ function Caixa() {
 
         <div data-tour="caixa-gap" className="flex flex-col gap-3">
         <Row
-          label="Reserva prevista"
+          label="Meta da reserva"
           value={report.expectedReserve}
           hint={`${report.multiplier}× o custo mensal de ${formatBRL(report.monthlyCost)}`}
         />
         <Row
-          label="Gap da reserva"
+          label={report.gap >= 0 ? 'Reserva completa ✓' : 'Falta para a reserva'}
           value={report.gap}
           hint={report.gap >= 0 ? 'Você já tem o que precisa' : 'Quanto falta juntar'}
           strong
@@ -531,7 +531,7 @@ function ReserveContributionSheet({
         </label>
 
         <p className="text-muted text-sm">
-          Entra como &ldquo;Recompor a reserva&rdquo; na competência de {formatMonthLabel(month)}. Depois
+          Entra como &ldquo;Recompor a reserva&rdquo; no mês de {formatMonthLabel(month)}. Depois
           desta parcela, faltam {formatBRL(Math.max(0, plan.remaining - parsed))} do plano.{' '}
           {RESERVE_CONTRIBUTION_NOTE}
         </p>

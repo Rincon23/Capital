@@ -37,7 +37,7 @@ export function TopicCard({ month, topic }: { month: Month; topic: TopicResult }
       <div className="mb-2 flex items-baseline justify-between gap-2 text-sm">
         <span className="text-muted">Gasto {formatBRL(topic.spent)}</span>
         <span className={`font-semibold ${state === 'danger' ? 'text-danger' : 'text-foreground'}`}>
-          Posso gastar {formatBRL(topic.available)}
+          Limite {formatBRL(topic.available)}
         </span>
       </div>
 
