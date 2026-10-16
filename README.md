@@ -118,8 +118,10 @@ pede confirmação e desliga os filhos junto. Cada mudança é salva na hora, co
     cache e se atualiza sozinha ao abrir a Carteira quando tem mais de 15 min. Nenhuma das duas é
     uma API documentada com garantia, por isso há duas e o app nunca depende de uma resposta ao
     vivo para abrir a tela.
-  - **Reserva de emergência** — reserva em conta + reserva investida livre, dívida do cartão e dos
-    parcelados, reserva prevista e gap. A dívida do cartão é a soma das faturas **em aberto** (de
+  - **Reserva de emergência** — no topo, o número da tela: "R$ 8.000 de R$ 12.000" (a reserva já
+    sem as dívidas, contra a meta), com barra e "Faltam R$ 4.000" ou "Reserva completa ✓"; reserva
+    em conta, investida sem categoria, dívidas e meta ficam em "Ver detalhes", e o texto do plano
+    vira uma linha com ⓘ. A dívida do cartão é a soma das faturas **em aberto** (de
     todos os cartões e competências, inclusive a "Não informado"); a dos parcelados é só o que cai
     **depois** da competência corrente, então cada real é contado uma vez.
     **O plano da reserva** (`lib/budget/reserve.ts`) mora nesta tela, que é onde aparece o quanto

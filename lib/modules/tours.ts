@@ -215,24 +215,17 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
   cash: [
     {
       route: () => '/carteira/caixa',
-      anchor: 'caixa-reserva',
-      title: 'Sua reserva',
-      description: 'O dinheiro em conta mais a reserva investida sem categoria.',
-      side: 'bottom',
-    },
-    {
-      route: () => '/carteira/caixa',
-      anchor: 'caixa-dividas',
-      title: 'Dívidas',
-      description: 'A fatura do mês aberto e o que falta dos parcelados.',
-      side: 'bottom',
-    },
-    {
-      route: () => '/carteira/caixa',
       anchor: 'caixa-gap',
-      title: 'Falta para a reserva',
-      description: 'Quanto falta (ou sobra) para a reserva que você definiu.',
-      side: 'top',
+      title: 'Sua reserva',
+      description: 'Quanto você tem, já sem as dívidas, e quanto falta para a meta.',
+      side: 'bottom',
+    },
+    {
+      route: () => '/carteira/caixa',
+      anchor: 'caixa-detalhes',
+      title: 'Ver detalhes',
+      description: 'Reserva em conta, investida e as dívidas do cartão e dos parcelados.',
+      side: 'bottom',
     },
     {
       route: () => '/carteira/caixa',

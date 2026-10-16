@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import {
   RESERVE_CONTRIBUTION_NOTE,
   RESERVE_PLAN_EXPLANATION,
@@ -25,6 +26,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { AmountInput } from '@/components/ui/AmountInput';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { CategoryPicker, type CategoryValue } from '@/components/ui/CategoryPicker';
+import { InfoTip } from '@/components/ui/InfoTip';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { useToast } from '@/components/ui/Toast';
@@ -40,6 +42,33 @@ export function CaixaScreen() {
     <ModuleGate module="cash">
       <Caixa />
     </ModuleGate>
+  );
+}
+
+/**
+ * The number the screen is for: what the reserve has, debts already taken out, against its target,
+ * with a bar and what is still missing (or "Reserva completa ✓").
+ */
+function ReserveHero({ available, target, gap }: { available: number; target: number; gap: number }) {
+  // Without a target yet, the bar only fills when there is something and nothing is missing.
+  const covered = target > 0 ? Math.min(Math.max(available / target, 0), 1) : gap >= 0 && available > 0 ? 1 : 0;
+  return (
+    <div data-tour="caixa-gap" className="flex flex-col gap-2">
+      <p className="text-muted text-sm">Sua reserva, já sem as dívidas</p>
+      <p className="text-foreground text-2xl font-bold tabular-nums">
+        {formatBRL(available)}{' '}
+        {target > 0 && <span className="text-muted text-base font-medium">de {formatBRL(target)}</span>}
+      </p>
+      <div className="bg-border h-2.5 overflow-hidden rounded-full" aria-hidden>
+        <div
+          className={`h-full rounded-full ${covered >= 1 ? 'bg-success-fill' : 'bg-primary'}`}
+          style={{ width: `${covered * 100}%` }}
+        />
+      </div>
+      <p className={`text-sm font-semibold ${gap >= 0 ? 'text-success' : 'text-danger'}`}>
+        {gap >= 0 ? 'Reserva completa ✓' : `Faltam ${formatBRL(-gap)}`}
+      </p>
+    </div>
   );
 }
 
@@ -78,6 +107,8 @@ function Caixa() {
   const { snapshot, loading, error } = useWallet();
   const { settings } = useSettings();
   const [configuring, setConfiguring] = useState(false);
+  /** Reserve in the account, invested, debts and the target: behind "Ver detalhes". */
+  const [details, setDetails] = useState(false);
   /** O formulário do plano, criando ou ajustando. */
   const [planning, setPlanning] = useState(false);
   /** O lançamento de uma parcela do plano. */
@@ -115,12 +146,25 @@ function Caixa() {
       {error && <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{error}</p>}
 
       <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
+        <ReserveHero available={report.totalReserve + report.totalDebt} target={report.expectedReserve} gap={report.gap} />
+        <button
+          type="button"
+          onClick={() => setDetails((open) => !open)}
+          aria-expanded={details}
+          aria-controls="caixa-detalhes"
+          data-tour="caixa-detalhes"
+          className="text-primary flex min-h-[40px] items-center gap-1 self-start text-sm font-semibold"
+        >
+          {details ? 'Esconder detalhes' : 'Ver detalhes'}
+          <ChevronDown aria-hidden className={`h-4 w-4 transition-transform ${details ? 'rotate-180' : ''}`} />
+        </button>
+        <div id="caixa-detalhes" hidden={!details} className="flex flex-col gap-3">
         <div data-tour="caixa-reserva" className="flex flex-col gap-3">
           <Row label="Reserva em conta" value={report.reserveAccount} />
           <Row
             label="Reserva investida"
             value={report.investedReserve}
-            hint="Só a parte livre, fora das categorias da reserva"
+            hint="Só a parte sem categoria da reserva"
           />
           <Row label="Valor total de reserva" value={report.totalReserve} strong />
         </div>
@@ -145,7 +189,7 @@ function Caixa() {
 
         <hr className="border-border" />
 
-        <div data-tour="caixa-gap" className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3">
         <Row
           label="Meta da reserva"
           value={report.expectedReserve}
@@ -158,6 +202,7 @@ function Caixa() {
           strong
           tone={report.gap >= 0 ? 'success' : 'danger'}
         />
+        </div>
         </div>
       </section>
 
@@ -231,7 +276,11 @@ function ReservePlanSection({
               <p className="text-foreground font-semibold">
                 Faltam {formatBRL(Math.abs(gap))} para a sua reserva
               </p>
-              <p className="text-muted mt-1 text-sm">{RESERVE_PLAN_EXPLANATION}</p>
+              <div className="mt-1">
+                <InfoTip info={RESERVE_PLAN_EXPLANATION} label="Como funciona o plano?">
+                  <span className="text-muted text-sm">Um plano devolve o que falta aos poucos, como imprevisto.</span>
+                </InfoTip>
+              </div>
             </div>
             <button
               type="button"
