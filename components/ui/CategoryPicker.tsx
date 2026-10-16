@@ -14,6 +14,7 @@ import {
   type TopicConfig,
 } from '@/lib/budget';
 import { Chip } from './Chip';
+import { InfoTip } from './InfoTip';
 
 export interface CategoryValue {
   categoryKind: CategoryKind;
@@ -261,12 +262,24 @@ export function CategoryPicker({
       </div>
 
       {value.categoryKind === 'reimbursable' && (
-        <p className="text-muted mt-2 text-xs">{REIMBURSABLE_EXPLANATION}</p>
+        <div className="mt-2">
+          <InfoTip info={REIMBURSABLE_EXPLANATION} label="Como funciona o A receber?">
+            <span className="text-muted text-xs">Não gasta nenhuma categoria.</span>
+          </InfoTip>
+        </div>
       )}
       {value.categoryKind === 'uncounted' && (
-        <div className="bg-warning-bg mt-2 flex flex-col gap-1 rounded-lg px-3 py-2">
-          <p className="text-warning text-xs font-semibold">{UNCOUNTED_ADVICE}</p>
-          <p className="text-muted text-xs">{UNCOUNTED_EXPLANATION}</p>
+        <div className="bg-warning-bg mt-2 rounded-lg px-3 py-2">
+          <InfoTip
+            info={
+              <>
+                {UNCOUNTED_EXPLANATION} {UNCOUNTED_ADVICE}
+              </>
+            }
+            label="Por que não é recomendado?"
+          >
+            <span className="text-warning text-xs font-semibold">Não recomendado: nenhuma categoria mostra.</span>
+          </InfoTip>
         </div>
       )}
     </div>

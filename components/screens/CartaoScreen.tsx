@@ -598,8 +598,8 @@ function InstallmentsTab({
             </p>
             <p className="text-muted text-xs">
               {plan.accounting === 'upfront'
-                ? `à vista · o gasto já entrou em ${formatMonthShort((plan.purchaseDate ?? plan.firstDebitDate).slice(0, 7))}`
-                : `em parcelas · ${formatBRL(installmentAmount(plan))} por mês${topic ? ` em ${topic}` : ''}`}
+                ? `contou tudo em ${formatMonthShort((plan.purchaseDate ?? plan.firstDebitDate).slice(0, 7))}`
+                : `conta ${formatBRL(installmentAmount(plan))} por mês`}
             </p>
             {(paid > 0 || advanced > 0) && (
               <p className="text-muted text-xs">

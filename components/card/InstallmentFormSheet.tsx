@@ -32,7 +32,7 @@ const INPUT =
 type PastMode = 'skip' | 'retro';
 
 const LOCKED_ACCOUNTING =
-  'Como parte da compra já foi paga antes do cadastro, o que falta entra mês a mês: a parcela de cada mês conta na categoria daquele mês. "À vista" teria de lançar a compra inteira no mês em que ela foi feita, que é justamente o passado que você pediu para não mexer.';
+  'Parte já foi paga antes do cadastro: conta uma parcela por mês, sem mexer no passado.';
 
 /**
  * The whole purchase: what it was, how much it cost, in how many times, on which card, in which
@@ -110,7 +110,7 @@ export function InstallmentFormSheet({
   const typedPaid = paid.trim() === '' ? alreadyFell : Number.parseInt(paid, 10);
   const paidCount =
     startedInThePast && pastMode === 'skip' ? Math.min(Math.max(0, typedPaid || 0), count) : 0;
-  // A purchase that starts mid-way can only be "em parcelas" (see LOCKED_ACCOUNTING).
+  // A purchase that starts mid-way can only count one instalment a month (see LOCKED_ACCOUNTING).
   const accounting: InstallmentAccounting = paidCount > 0 ? 'installment' : installment.accounting;
 
   const categoryLabel =
@@ -264,10 +264,7 @@ export function InstallmentFormSheet({
         ) : null}
 
         {plan && (
-          <p className="text-muted text-xs">
-            Salvar refaz os meses desta compra: se você tinha ajustado uma parcela na mão, ela volta
-            ao valor do parcelamento.
-          </p>
+          <p className="text-muted text-xs">Salvar refaz os meses: parcela ajustada na mão volta ao normal.</p>
         )}
 
         {closed && <ClosedMonthsNotice months={closed} onNavigate={onClose} />}
@@ -328,8 +325,8 @@ function AdvanceUndoSection({
         </p>
         <p className="text-muted mt-0.5 text-xs">
           {undo
-            ? `Ao salvar, essas ${advanced === 1 ? 'parcela volta' : 'parcelas voltam'} para o fim do parcelamento. O lançamento "Adiantamento · ${name}" continua no mês em que você pagou — exclua-o em Lançamentos se ele não deveria estar lá.`
-            : 'Elas saíram do fim do parcelamento e não aparecem em nenhuma fatura.'}
+            ? `Ao salvar, ${advanced === 1 ? 'ela volta' : 'elas voltam'} para o fim. "Adiantamento · ${name}" fica no mês em que você pagou.`
+            : 'Saíram do fim do parcelamento e não aparecem em nenhuma fatura.'}
         </p>
       </div>
       <button
@@ -373,9 +370,8 @@ function PastChargesSection({
       <div>
         <p className="text-foreground text-sm font-semibold">Essa compra já começou</p>
         <p className="text-muted mt-0.5 text-xs">
-          A primeira cobrança foi em {formatDayMonth(firstDebitDate)}, então{' '}
-          {alreadyFell === 1 ? 'uma parcela já caiu' : `${alreadyFell} parcelas já caíram`}. Diga o que
-          fazer com elas.
+          Primeira cobrança em {formatDayMonth(firstDebitDate)}:{' '}
+          {alreadyFell === 1 ? 'uma parcela já caiu' : `${alreadyFell} parcelas já caíram`}.
         </p>
       </div>
 
@@ -385,13 +381,13 @@ function PastChargesSection({
           onClick={() => onMode('skip')}
           title="Começar a contar de agora"
           recommended
-          description="As parcelas já pagas não entram em lugar nenhum: o orçamento e as faturas dos meses que já passaram ficam exatamente como estão. Só o que ainda falta aparece na fatura e na dívida."
+          description="Os meses que passaram ficam como estão; só o que falta entra na fatura."
         />
         <PastOption
           selected={mode === 'retro'}
           onClick={() => onMode('retro')}
           title="Lançar tudo retroativo"
-          description="Todas as parcelas entram nos meses em que caíram, nos meses que já existem no app. Muda o orçamento e as faturas desses meses, e um mês fechado impede o cadastro."
+          description="Cada parcela entra no mês em que caiu. Um mês fechado no caminho impede."
         />
       </div>
 
@@ -407,10 +403,7 @@ function PastChargesSection({
             onChange={(event) => onPaid(event.target.value)}
             className={`${INPUT} w-28`}
           />
-          <span className="text-muted text-xs">
-            Contadas do começo. Ajuste se você pagou mais (ou menos) do que as {alreadyFell} que já
-            venceram.
-          </span>
+          <span className="text-muted text-xs">Contadas do começo; já venceram {alreadyFell}.</span>
         </label>
       )}
     </div>

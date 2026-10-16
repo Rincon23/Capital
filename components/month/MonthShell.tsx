@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   currentMonthKey,
+  expenseFeedback,
+  resolveSpecialCategoryLabels,
   withCurrentTopicDisplay,
   type CategoryKind,
   type Expense,
@@ -16,6 +18,7 @@ import { setLastViewedMonth } from '@/lib/storage/preferences';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { subscribeTourSheets } from '@/components/modules/tour/tourSheets';
 import { InstallmentEditor, type InstallmentEditRequest } from '@/components/card/InstallmentEditor';
+import { useToast } from '@/components/ui/Toast';
 import { VoiceEntrySheet } from '@/components/voice/VoiceEntrySheet';
 import { MonthContext } from './MonthContext';
 import { ExpenseFormSheet } from './ExpenseFormSheet';
@@ -42,6 +45,7 @@ const SINGLE_INSTALLMENT_NOTE =
 export function MonthShell({ month, children }: { month: Month; children: ReactNode }) {
   const { settings } = useSettings();
   const monthData = useMonthData(month, settings?.topics);
+  const { showToast } = useToast();
 
   const [expenseForm, setExpenseForm] = useState<ExpenseFormState>({ open: false });
   const [incomeForm, setIncomeForm] = useState<IncomeFormState>({ open: false });
@@ -123,6 +127,33 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
     );
   }
 
+  /**
+   * A new expense (the form, a voice entry): saved, then a toast with what it did to its category,
+   * with "Desfazer" — how the envelope is learned by using it. Editing one says nothing.
+   */
+  async function saveNewExpense(expense: Expense) {
+    await monthData.saveExpense(expense);
+    if (!settings) return;
+    const message = expenseFeedback({
+      expense,
+      summary: isModuleOn(settings, 'budget') ? monthData.summary : null,
+      labels: resolveSpecialCategoryLabels(settings.specialCategories),
+      month,
+      currentMonth: currentMonthKey(),
+    });
+    showToast(message, 'success', {
+      action: {
+        label: 'Desfazer',
+        onClick: () => {
+          void monthData
+            .deleteExpense(expense.id)
+            .then(() => showToast('Gasto desfeito.', 'info'))
+            .catch(() => showToast('Não foi possível desfazer. Tente de novo.', 'error'));
+        },
+      },
+    });
+  }
+
   return (
     <MonthContext.Provider
       value={{
@@ -168,7 +199,7 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
           autoFocusAmount={!expenseForm.forTour}
           note={expenseForm.singleInstallment ? SINGLE_INSTALLMENT_NOTE : undefined}
           onClose={() => setExpenseForm({ open: false })}
-          onSave={monthData.saveExpense}
+          onSave={expenseForm.initial ? monthData.saveExpense : saveNewExpense}
           onDelete={monthData.deleteExpense}
           onSaveInstallment={
             isModuleOn(settings, 'card')
@@ -187,7 +218,7 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
           month={month}
           settings={settings}
           onClose={() => setVoiceOpen(false)}
-          onSave={monthData.saveExpense}
+          onSave={saveNewExpense}
           onEdit={(draft) => {
             setVoiceOpen(false);
             setExpenseForm({ open: true, draft });

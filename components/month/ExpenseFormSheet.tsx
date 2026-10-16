@@ -182,7 +182,8 @@ export function ExpenseFormSheet({
       return;
     }
 
-    const name = description.trim() || specialCategoryLabel(categoryKind, labels);
+    // Without a description the entry is named after its category, never left blank.
+    const name = description.trim() || categoryLabel;
     const plan: InstallmentPlan | null = asPlan
       ? {
           id: crypto.randomUUID(),
@@ -292,7 +293,7 @@ export function ExpenseFormSheet({
                 className={`flex shrink-0 flex-col items-center gap-0.5 rounded-xl border px-2 py-1 transition-colors ${
                   singleInstallmentCard
                     ? 'border-success bg-success-bg text-success'
-                    : 'text-muted border-transparent opacity-50 hover:opacity-80'
+                    : 'border-border text-foreground hover:border-primary/50'
                 }`}
               >
                 <CreditCard aria-hidden className="h-6 w-6" />

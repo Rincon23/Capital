@@ -140,16 +140,28 @@ Tudo o que é cartão vive em `/cartao`, em três abas — a **Fatura** olha um 
   (mês que ninguém abriu, ou parcelamento "à vista"), menos o gasto único de um "à vista".
 - **Orçamento** é o que consome categoria, e quem manda nisso é a forma de contabilizar a compra.
 
+**Lançar um gasto.** O botão "Cartão" ao lado do valor (rótulo acessível "A compra foi no
+cartão?") tem borda e cor normais, para não passar despercebido. Salvar um gasto novo mostra o que
+ele fez com a categoria, com **Desfazer** (`expenseFeedback` em `lib/budget/feedback.ts`): "R$ 45,00
+em Diversos · ainda dá R$ 320,00 este mês", ou "passou R$ 30,00 da meta"; custos fixos e
+imprevistos falam do total, e A receber e Fora do orçamento dizem que não mexem em categoria. Um
+gasto sem descrição leva o nome da categoria. A receber e Fora do orçamento, ao serem escolhidos,
+mostram uma linha curta (com o "Não recomendado") e o resto atrás de um ⓘ.
+
 **Parcelar ao lançar o gasto.** Marcando "A compra foi no cartão?" e escolhendo o cartão, o
 formulário pergunta como você pagou: `À vista` ou `Parcelado`. Parcelado pede em quantas vezes
-(2 a 120, com a prévia "10× de R$ 87,24") e a primeira cobrança (já preenchida com o próximo
-vencimento do cartão), usa **a categoria que você escolheu no formulário** e oferece as duas
-formas de entrar no orçamento:
+(2 a 120) e a primeira cobrança (já preenchida com o próximo vencimento do cartão), usa **a
+categoria que você escolheu no formulário** e oferece as duas formas de entrar no orçamento — que
+nunca se chamam "à vista", palavra que fica só para o pagamento:
 
-- **À vista (recomendado)** — o gasto inteiro conta na categoria no mês da compra; nos meses
-  seguintes só a parcela aparece na fatura.
-- **Em parcelas** — a parcela de cada mês conta na categoria daquele mês e aparece nos
-  lançamentos dela, inclusive nos meses que ainda não foram abertos.
+- **Contar tudo neste mês (recomendado)** — o gasto inteiro conta na categoria no mês da compra;
+  nos meses seguintes só a parcela aparece na fatura.
+- **Contar uma parcela por mês** — a parcela de cada mês conta na categoria daquele mês e aparece
+  nos lançamentos dela, inclusive nos meses que ainda não foram abertos.
+
+Em vez de frases, uma prévia mostra o resultado: "Na fatura 10× R$ 87,24", a faixa dos meses
+("out/26 ▸ nov ▸ dez ▸ … ▸ jul/27") e o que a categoria recebe ("R$ 872,40 em out/26" ou "R$ 87,24
+por mês"). Internamente os modos continuam `upfront` e `installment`.
 
 `1 vez` não cria parcelamento: vira um gasto comum.
 
@@ -161,8 +173,9 @@ que fazer com ela:
 - **Começar a contar de agora (recomendado)** — as parcelas já pagas ficam **fora de tudo**:
   nenhum gasto, nenhuma fatura e nenhuma dívida nos meses que já passaram, que continuam com os
   números que têm. Só o que falta aparece. Como parte da compra já foi paga, a forma de
-  contabilizar fica travada em **em parcelas**: "à vista" teria de lançar a compra inteira no mês
-  em que ela foi feita, que é justamente o passado que a pessoa pediu para não mexer.
+  contabilizar fica travada em **contar uma parcela por mês**: contar tudo de uma vez teria de
+  lançar a compra inteira no mês em que ela foi feita, que é o passado que a pessoa pediu para não
+  mexer.
 - **Lançar tudo retroativo** — todas as parcelas entram nos meses em que caíram, **nos meses que
   já existem no app**; um mês fechado impede o cadastro, como em qualquer outra edição.
 
@@ -181,8 +194,9 @@ as duas metades numa transação só:
   faturas em que iam cair, da dívida e dos próximos meses; adiantando todas, a compra vai para os
   encerrados;
 - o que foi realmente pago vira **um lançamento** na competência do pagamento, "Adiantamento ·
-  *nome da compra*", na fatura do mesmo cartão. Em **em parcelas** ele conta na categoria da
-  compra, no lugar das parcelas que iam cair; em **à vista** ele entra como **Fora do orçamento**,
+  *nome da compra*", na fatura do mesmo cartão. Contando **uma parcela por mês**, ele conta na
+  categoria da compra, no lugar das parcelas que iam cair; contando **tudo no mês da compra**, ele
+  entra como **Fora do orçamento**,
   porque a compra inteira já contou no mês em que foi feita e contar de novo seria cobrar duas
   vezes da mesma categoria.
 

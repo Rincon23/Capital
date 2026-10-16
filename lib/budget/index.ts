@@ -16,3 +16,4 @@ export * from './topics';
 export * from './seed';
 export * from './id';
 export * from './date';
+export * from './feedback';
