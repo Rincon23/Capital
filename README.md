@@ -19,6 +19,16 @@ conexão o app abre, mas as telas ficam carregando até a rede voltar.
 liga os seus em **Módulos** (`/modulos`, na bandeja de apps). Desligar um módulo nunca apaga dados:
 ele só some da bandeja, da Início e dos formulários. Religou, está tudo lá.
 
+**Primeiro acesso.** Sem nenhum módulo ligado, a Início pergunta **"Como você quer usar o
+Capital?"** com três cartões (`MODULE_KITS` em `lib/modules/kits.ts`): **Controlar meus gastos**
+(Lançamentos + Gastos por categoria), **Gastos e cartão de crédito** (os dois + Cartão) e
+**Escolher do meu jeito** (abre Módulos). Um kit liga o conjunto num toque (`turnModulesOn`) e abre
+na hora a configuração das categorias, em 3 passos. Depois, o widget **Primeiros passos** fica no
+topo da Início até a pessoa registrar a renda, lançar o primeiro gasto e abrir Categorias ("Ver
+quanto ainda posso gastar"). Cada passo é um botão que abre o lugar certo e se marca sozinho (fica
+salvo nos avisos já vistos). O widget some quando os três estão feitos e, como qualquer widget,
+sai antes pelo "−". Contas de antes dessa tela nunca recebem o widget.
+
 A ficha de cada módulo (nome, explicação, grupo, dependências, tela e card do Início) fica escrita
 uma vez em `lib/modules/catalog.ts`. A bandeja de apps, a Início e a tela Módulos leem dela. Os
 ícones e os cards ficam em `components/modules`.
@@ -38,7 +48,8 @@ módulos como uma árvore, cada um embaixo do módulo de que depende:
 
 Um módulo cujo pai está desligado aparece com **cadeado** e "Precisa de …". Tentar ligá-lo não
 liga nada, e **o app nunca liga o pai sozinho**: a linha balança, o que falta ligar se acende e um
-aviso diz a ordem. Desligar um módulo de que outros dependem pede confirmação e desliga os filhos
+aviso diz a ordem. A única exceção é quando a própria pessoa escolhe o conjunto inteiro, como nos
+kits do primeiro acesso. Desligar um módulo de que outros dependem pede confirmação e desliga os filhos
 junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no servidor:
 `resolveModules` só considera ligado um módulo cujos pais estão ligados.
 
@@ -257,7 +268,8 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   e com as setas, e as bolinhas embaixo dizem em qual você está. Cada área rola sozinha e guarda a
   própria posição; a área aberta fica guardada na sessão. Um módulo ligado traz o widget dele para
   o fim da última área; um widget extra (o Calendário dos Lembretes) entra logo depois do card do
-  seu módulo. Um Início salvo antes das áreas (`home_order`) vira a área 1.
+  seu módulo, e o Primeiros passos entra no topo da primeira área. Um Início salvo antes das áreas
+  (`home_order`) vira a área 1.
 - **Bandeja de apps** (`components/layout/AppDrawer.tsx`): a setinha embaixo da Início (toque, Enter
   ou arrastar para cima) abre o que era o Mais: a conta, **todo** módulo ligado com tela, agrupado
   (com o selo de lembretes não lidos no ícone), Módulos, Privacidade, Configurações e, para o dono,
@@ -277,11 +289,13 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
 - **Widgets** (`components/modules/home`): tocar num widget abre a tela do módulo. Cada um carrega
   os próprios dados, mostra esqueleto enquanto carrega e, se falhar, não derruba os outros; a
   carteira e os lembretes são lidos uma vez para todas as áreas. Sem nenhum módulo, a Início mostra
-  "Escolha o que o seu Capital vai ter".
+  "Como você quer usar o Capital?" (veja Primeiro acesso, acima).
 - **Tela de módulo desligado** (`ModuleGate`): explica o módulo e oferece ligar ali mesmo, ou diz
   qual módulo precisa ser ligado antes.
 - **Avisos já vistos**: `budget_settings.dismissed_notices` guarda, por conta, as chaves dos avisos
-  de uma vez só (a apresentação de cada módulo, `intro:<módulo>`, e futuros cards de novidade).
+  de uma vez só: as perguntas da primeira visita de um módulo (`intro:<módulo>`), o Primeiros passos
+  (`first-steps` quando a conta passou pelo primeiro acesso, e `first-steps:<passo>` para cada
+  passo feito) e futuros cards de novidade.
 
 ### Ajuda, configurações e primeira visita de cada módulo
 
@@ -303,9 +317,10 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   conta e custos de emergência. Reserva investida: o ativo. **Configurações** fica só com o que é
   geral: conta, tema, backup, dados locais e apagar tudo (Módulos e Privacidade ficam na bandeja de
   apps).
-- **Primeira visita** (`useModuleIntro`): a primeira vez que a pessoa abre a tela de um módulo, o
-  tour dele começa sozinho. Nas Categorias vêm antes as perguntas das porcentagens (veja abaixo).
-  Fica guardado por conta, então acontece uma vez só, no aparelho que chegar primeiro. Não existe
+- **Primeira visita** (`useModuleIntro`): o tour nunca começa sozinho, só pelo "?". O único módulo
+  que pergunta algo sozinho na primeira visita é Categorias, com a configuração das categorias
+  (veja abaixo), a menos que ela já tenha sido feita no primeiro acesso. Fica guardado por conta,
+  então acontece uma vez só, no aparelho que chegar primeiro. Não existe
   mais um tour geral do app nem uma "Ajuda" geral: a ajuda de cada coisa fica na tela dela.
 
 ### Categorias
@@ -331,9 +346,11 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   categoria de fora a guarda arquivada (`keepEveryTopic`).
 - **Restaurar categorias padrão** (na engrenagem): as quatro padrão voltam como vieram (nome,
   descrição, cor e %) e todas as outras são arquivadas, com "Desfazer".
-- **"Me ajude com as %"** (botão na tela Categorias, e na primeira visita): perguntas de renda,
-  custos fixos e imprevistos, para que serve cada categoria e as porcentagens, com a prévia de
-  quanto cada % deixa para gastar. Dá para criar uma categoria ali também, com o mesmo aviso.
+- **Configuração das categorias** (`OnboardingWizard`: no primeiro acesso, na primeira visita a
+  Categorias e no botão "Me ajude com as %"), em 3 passos, sempre com "Pular": a renda; os custos
+  fixos e os imprevistos na mesma tela (só para a prévia, nada é lançado; a regra do custo fixo fica
+  no ⓘ); e as porcentagens, cada categoria com a descrição dela embaixo do nome e a prévia de quanto
+  a % deixa para gastar. Dá para criar uma categoria ali também, com o mesmo aviso.
 - **"Fora do orçamento"** (`categoryKind: 'uncounted'`): ao lado das categorias, no formulário de
   gasto, fica a saída de emergência — marcada **"Não recomendado"** ali mesmo, e explicada em duas
   linhas sempre que é escolhida. O gasto fica registrado e, se foi no cartão, entra na fatura, mas
@@ -677,14 +694,17 @@ Os demais testes:
   repetido, e-mails enviados e spam ignorados, `historyId` expirado, conexão recusada (avisa uma
   vez e para), token cifrado e o `state` do OAuth, com o Gmail simulado.
 - **`lib/modules/__tests__`:** o catálogo, as dependências (filho travado sem o pai, o que ligar
-  antes e em que ordem, desligar em cascata, a árvore), a bandeja de apps, as áreas da Início
+  antes e em que ordem, desligar em cascata, a árvore), os kits do primeiro acesso, o Primeiros
+  passos (quem recebe, como cada passo se marca, quando some), a bandeja de apps, as áreas da Início
   (padrão, a ordem antiga, widget novo, repetidos, áreas vazias, mover, pôr, tirar, criar e excluir
   área) e os tours (todo módulo tem tour e botão de ajuda, e toda âncora existe nas telas).
+- **`components/modules/home/__tests__`:** "Como você quer usar o Capital?" (cada cartão liga o seu
+  conjunto ou abre Módulos) e o widget Primeiros passos.
 - **`lib/budget/__tests__/topics.test.ts`, `components/settings/__tests__` e
   `components/onboarding/__tests__`:** as categorias padrão e suas descrições, restaurar o padrão
   (inclusive com dados antigos, sem `preset`), nunca apagar uma categoria, a arquivada no mês atual,
-  nos próximos e nos passados, o editor sem "Excluir" e com os avisos, e o "Me ajude com as %"
-  criando uma categoria com descrição.
+  nos próximos e nos passados, o editor sem "Excluir" e com os avisos, e a configuração das
+  categorias em 3 passos (inclusive criando uma categoria com descrição).
 - **Repositório HTTP** (`lib/storage/__tests__`).
 - O **limitador de tentativas** de login.
 

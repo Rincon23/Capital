@@ -58,6 +58,9 @@ export const FIXED_COST_TIP =
 export const KEEP_DEFAULT_TOPICS_ADVICE =
   'A maioria das pessoas fica satisfeita com as quatro categorias padrão. Sugerimos fortemente não criar outras: ajuste só as porcentagens.';
 
+/** The same advice in one line, under a button that creates a category (the full one comes before creating). */
+export const KEEP_DEFAULT_TOPICS_SHORT = 'A maioria fica bem com as quatro padrão: ajuste só as %.';
+
 export function createDefaultTopics(): TopicConfig[] {
   return DEFAULT_TOPICS.map((topic, index) => ({
     id: createId(),

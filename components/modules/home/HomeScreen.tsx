@@ -31,9 +31,8 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { getEventCoordinates } from '@dnd-kit/utilities';
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Blocks, Check, ChevronUp, LayoutGrid, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { Check, ChevronUp, LayoutGrid, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import type { BudgetSettings, HomeWidgetKey } from '@/lib/budget';
 import {
   MAX_HOME_PAGES,
@@ -61,6 +60,7 @@ import { GreetingHeader } from '@/components/month/GreetingHeader';
 import { MonthActions } from '@/components/month/MonthActions';
 import { useMonthContext } from '@/components/month/MonthContext';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
@@ -72,6 +72,7 @@ import { EditableWidget } from './EditableWidget';
 import { HomeDesk, type HomeDeskHandle } from './HomeDesk';
 import { Card, HomeCards, HomeCardsData, RESIZABLE_HOME_CARDS, effectiveSize } from './HomeCards';
 import { HOME_FOOTER_HEIGHT } from './homeLayout';
+import { UsageChooser } from './UsageChooser';
 import { TRAY_BAR_HEIGHT, TRAY_ID, WidgetTray, widgetOfTrayDrag } from './WidgetTray';
 
 /** How long a widget has to be held before it comes loose, the way a phone picks up a widget. */
@@ -127,7 +128,7 @@ function pageAfterCleanup(pages: HomePages, index: number): number {
  * (on screen first, undone with an error message if the save fails).
  */
 export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; openApps: boolean }) {
-  const { month } = useMonthContext();
+  const { month, refresh } = useMonthContext();
   const { saveSettings } = useSettings();
   const { showToast } = useToast();
   const confirm = useConfirm();
@@ -144,6 +145,8 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
   const [drag, setDrag] = useState<ActiveDrag | null>(null);
   /** The widget whose "Mover" sheet is open. */
   const [moving, setMoving] = useState<HomeWidgetKey | null>(null);
+  /** The categories being set up, right after a new account picked how to use the app. */
+  const [settingUp, setSettingUp] = useState(false);
 
   const desk = useRef<HomeDeskHandle>(null);
   const drawer = useRef<AppDrawerHandle>(null);
@@ -157,11 +160,20 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
   // on comes in, one turned off goes). In edit mode, exactly what is being edited, empty áreas too.
   const pages = editing
     ? layout.pages
-    : resolveHomePages({ modules: settings.modules, homePages: layout.pages, homeHidden: layout.hidden });
+    : resolveHomePages({
+        modules: settings.modules,
+        dismissedNotices: settings.dismissedNotices,
+        homePages: layout.pages,
+        homeHidden: layout.hidden,
+      });
   const canAddPage = editing && pages.length < MAX_HOME_PAGES;
   const count = pages.length + (canAddPage ? 1 : 0);
   const shown = Math.max(0, Math.min(current, count - 1));
-  const hidden = hiddenHomeCards({ modules: settings.modules, homeHidden: layout.hidden });
+  const hidden = hiddenHomeCards({
+    modules: settings.modules,
+    dismissedNotices: settings.dismissedNotices,
+    homeHidden: layout.hidden,
+  });
   const withActions = isModuleOn(settings, 'expenses');
 
   // What the window listeners and dnd-kit's callbacks read between renders.
@@ -216,6 +228,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
       ...previous,
       pages: resolveHomePages({
         modules: settings.modules,
+        dismissedNotices: settings.dismissedNotices,
         homePages: previous.pages,
         homeHidden: previous.hidden,
       }),
@@ -601,16 +614,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     return (
       <div className={`flex flex-col gap-4 px-4 pt-3 ${withActions ? 'pb-32' : 'pb-6'}`}>
         {available.length === 0 ? (
-          <EmptyState
-            icon={<IconTile icon={Blocks} tone="blue" size="lg" />}
-            title="Escolha o que o seu Capital vai ter"
-            text="Cada recurso do app é um módulo: lançamentos, metas por categoria, cartão, lembretes e mais. Ligue os que você quer usar e o resumo de cada um aparece aqui."
-            action={
-              <Link href="/modulos" className={EMPTY_ACTION}>
-                Escolher módulos
-              </Link>
-            }
-          />
+          <UsageChooser onKit={() => setSettingUp(true)} />
         ) : widgets.length === 0 ? (
           <EmptyState
             icon={<IconTile icon={LayoutGrid} tone="neutral" size="lg" />}
@@ -750,6 +754,18 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
         month={month}
         onClosed={() => appsButton.current?.focus({ preventScroll: true })}
       />
+
+      {settingUp && (
+        <OnboardingWizard
+          settings={settings}
+          saveSettings={saveSettings}
+          onSkip={() => setSettingUp(false)}
+          onComplete={() => {
+            setSettingUp(false);
+            void refresh();
+          }}
+        />
+      )}
 
       {moving && (
         <BottomSheet open title={`Mover ${widgetName(moving)}`} onClose={() => setMoving(null)}>

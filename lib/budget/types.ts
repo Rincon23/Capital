@@ -104,9 +104,10 @@ export type NavKey = 'inicio' | ModuleKey;
 
 /**
  * A widget of the Início: the card of a module (keyed by the module itself) or one of the extra
- * widgets a module brings besides its card — `calendar`, the next 30 days of Lembretes.
+ * widgets a module brings besides its card — `calendar`, the next 30 days of Lembretes, and
+ * `firstSteps`, the "Primeiros passos" of a new account.
  */
-export type HomeWidgetKey = ModuleKey | 'calendar';
+export type HomeWidgetKey = ModuleKey | 'calendar' | 'firstSteps';
 
 /**
  * A category as the expense form lists it: `topic:<id>` for a category of the budget, or the

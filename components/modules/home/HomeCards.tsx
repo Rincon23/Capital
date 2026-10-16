@@ -8,6 +8,7 @@ import { RemindersProvider } from '@/components/reminders/RemindersProvider';
 import { WalletProvider } from '@/components/wallet/WalletProvider';
 import { CalendarHomeCard } from './CalendarHomeCard';
 import { DiagramHomeCard } from './DiagramHomeCard';
+import { FirstStepsHomeCard } from './FirstStepsHomeCard';
 import { GmailHomeCard } from './GmailHomeCard';
 import { HistoryHomeCard } from './HistoryHomeCard';
 import { HomeCardBoundary } from './HomeCard';
@@ -34,6 +35,7 @@ const CARDS: Partial<Record<HomeWidgetKey, CardSpec>> = {
   reminders: { size: 'full', Component: TodayRemindersCard },
   calendar: { size: 'full', Component: CalendarHomeCard },
   gmail: { size: 'full', Component: GmailHomeCard },
+  firstSteps: { size: 'full', Component: FirstStepsHomeCard },
 };
 
 /** The cards that read the wallet: they share one snapshot of it. */

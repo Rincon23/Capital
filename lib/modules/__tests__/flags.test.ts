@@ -14,6 +14,7 @@ import {
   storedModules,
   turnModuleOff,
   turnModuleOn,
+  turnModulesOn,
   VIP_ONLY_MODULES,
   withAccessRules,
 } from '../flags';
@@ -116,6 +117,21 @@ describe('dependências', () => {
       expect(allowed.modules.reimbursable).toBe(true);
       expect(allowed.modules.budget).toBe(false);
     }
+  });
+
+  it('liga um conjunto escolhido de uma vez, pai junto com o filho, e nada se faltar alguém de fora', () => {
+    const kit = turnModulesOn({}, ['expenses', 'budget', 'card']);
+    expect(kit.ok).toBe(true);
+    if (kit.ok) {
+      expect(MODULE_KEYS.filter((key) => kit.modules[key])).toEqual(['expenses', 'budget', 'card']);
+    }
+
+    // Keeps what was already on.
+    const more = turnModulesOn({ modules: on('reminders') }, ['expenses', 'budget']);
+    expect(more.ok && MODULE_KEYS.filter((key) => more.modules[key])).toEqual(['expenses', 'budget', 'reminders']);
+
+    // History needs Gastos por categoria, which is neither on nor in the set.
+    expect(turnModulesOn({}, ['expenses', 'history'])).toEqual({ ok: false, missing: ['budget'] });
   });
 
   it('lista quem depende de um módulo, direta ou indiretamente', () => {

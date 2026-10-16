@@ -130,6 +130,23 @@ export function turnModuleOn(source: FlagsSource, key: ModuleKey): TurnOnResult 
 }
 
 /**
+ * Turns several modules on at once: a set the person picked as a whole (a kit of "Como você quer
+ * usar o Capital?"), so a parent comes on together with its child — both were asked for. Nothing
+ * changes if one of them needs a module that is off and not in the set.
+ */
+export function turnModulesOn(source: FlagsSource, keys: ModuleKey[]): TurnOnResult {
+  const modules = resolveModules(source);
+  // Catalog order puts every module after its dependencies, so a parent in the set comes on first.
+  for (const definition of MODULES) {
+    if (!keys.includes(definition.key)) continue;
+    const missing = definition.dependsOn.filter((dep) => !modules[dep]);
+    if (missing.length > 0) return { ok: false, missing };
+    modules[definition.key] = true;
+  }
+  return { ok: true, modules };
+}
+
+/**
  * Turns a module off together with every module that depends on it (they could not work without
  * it). `alsoOff` lists those that were on, for the confirmation and the toast. No data is touched.
  */

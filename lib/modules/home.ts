@@ -1,5 +1,6 @@
 import type { BudgetSettings, HomeWidgetKey, ModuleKey } from '../budget/types';
 import { MODULES, MODULE_KEYS, moduleDefinition } from './catalog';
+import { wantsFirstSteps } from './firstSteps';
 import { parentOf, resolveModules } from './flags';
 
 /** How many áreas de trabalho the Início can have, side by side like a phone's home screen. */
@@ -10,9 +11,14 @@ export const MAX_WIDGETS_PER_HOME_PAGE = 50;
 /** The áreas de trabalho, in order, each with its widgets in order. */
 export type HomePages = HomeWidgetKey[][];
 
-/** The widgets a module brings to the Início besides its own card. */
-export const EXTRA_HOME_WIDGETS: { key: Exclude<HomeWidgetKey, ModuleKey>; module: ModuleKey }[] = [
+/**
+ * The widgets a module brings to the Início besides its own card. They come right after the card,
+ * except a `first` one, which goes at the top of the first área.
+ */
+export const EXTRA_HOME_WIDGETS: { key: Exclude<HomeWidgetKey, ModuleKey>; module: ModuleKey; first?: boolean }[] = [
   { key: 'calendar', module: 'reminders' },
+  // A new account's "Primeiros passos", only until the three are done (see `wantsFirstSteps`).
+  { key: 'firstSteps', module: 'budget', first: true },
 ];
 
 /** Every widget the Início knows: the card of each module, then the extra ones. */
@@ -30,6 +36,7 @@ export function widgetModule(key: HomeWidgetKey): ModuleKey {
 const WIDGET_TEXT: Partial<Record<HomeWidgetKey, { name: string; description: string }>> = {
   reminders: { name: 'Lembretes de hoje', description: 'O que falta fazer hoje, com o botão de feito.' },
   calendar: { name: 'Calendário', description: 'Hoje e os próximos 30 dias, com os compromissos marcados.' },
+  firstSteps: { name: 'Primeiros passos', description: 'Renda, primeiro gasto e quanto ainda dá para gastar.' },
 };
 
 export function widgetName(key: HomeWidgetKey): string {
@@ -40,17 +47,26 @@ export function widgetDescription(key: HomeWidgetKey): string {
   return WIDGET_TEXT[key]?.description ?? moduleDefinition(widgetModule(key)).tagline;
 }
 
-type ModulesSource = Pick<BudgetSettings, 'modules'> | null | undefined;
+type ModulesSource =
+  | (Pick<BudgetSettings, 'modules'> & Partial<Pick<BudgetSettings, 'dismissedNotices'>>)
+  | null
+  | undefined;
 
-/** A module's card and, right after it, the extra widgets it brings. */
+/** A module's card and, right after it, the extra widgets it brings (not the `first` ones). */
 function withExtras(key: ModuleKey): HomeWidgetKey[] {
-  return [key, ...EXTRA_HOME_WIDGETS.filter((widget) => widget.module === key).map(({ key }) => key)];
+  return [
+    key,
+    ...EXTRA_HOME_WIDGETS.filter((widget) => widget.module === key && !widget.first).map(({ key }) => key),
+  ];
 }
+
+const isFirstWidget = (key: HomeWidgetKey) => EXTRA_HOME_WIDGETS.some((widget) => widget.key === key && widget.first);
 
 /**
  * Every widget the Início can have right now, in the default order: catalog order. A module
  * without a screen (the card bill, "A receber") comes right after the module it hangs from, and a
- * module's extra widgets (the calendar) right after its card.
+ * module's extra widgets (the calendar) right after its card. "Primeiros passos" comes before
+ * everything, while the account has it.
  */
 export function homeCards(source: ModulesSource): HomeWidgetKey[] {
   const modules = resolveModules(source);
@@ -66,12 +82,15 @@ export function homeCards(source: ModulesSource): HomeWidgetKey[] {
   for (const m of MODULES) {
     if (!m.screen && m.homeCard && modules[m.key] && !order.includes(m.key)) place(m.key);
   }
-  return order.filter((key) => moduleDefinition(key).homeCard).flatMap(withExtras);
+  const first = EXTRA_HOME_WIDGETS.filter(
+    (widget) => widget.first && modules[widget.module] && (widget.key !== 'firstSteps' || wantsFirstSteps(source)),
+  ).map(({ key }) => key);
+  return [...first, ...order.filter((key) => moduleDefinition(key).homeCard).flatMap(withExtras)];
 }
 
 type HomeSource =
   | (Pick<BudgetSettings, 'modules'> &
-      Partial<Pick<BudgetSettings, 'homePages' | 'homeOrder' | 'homeHidden'>>)
+      Partial<Pick<BudgetSettings, 'homePages' | 'homeOrder' | 'homeHidden' | 'dismissedNotices'>>)
   | null
   | undefined;
 
@@ -87,7 +106,8 @@ export function withoutEmptyPages(pages: HomePages): HomePages {
  * are actually on. A widget that is no longer available drops out, a repeat stays only where it
  * first appears, whatever was taken off (`homeHidden`) is left out, and empty pages go. Anything
  * new comes in by itself: an extra widget right after the card of its module, in whichever page
- * that card is, anything else at the end of the last page. Nothing saved: one page, default order.
+ * that card is, a `first` one at the top of the first page, anything else at the end of the last
+ * page. Nothing saved: one page, default order.
  */
 export function resolveHomePages(source: HomeSource): HomePages {
   const base = homeCards(source);
@@ -109,6 +129,10 @@ export function resolveHomePages(source: HomeSource): HomePages {
   for (const key of base) {
     if (placed.has(key) || hidden.has(key)) continue;
     placed.add(key);
+    if (isFirstWidget(key)) {
+      pages[0].unshift(key);
+      continue;
+    }
     const owner = widgetModule(key);
     const ownerPage = key === owner ? -1 : pages.findIndex((page) => page.includes(owner));
     if (ownerPage === -1) pages[pages.length - 1].push(key);

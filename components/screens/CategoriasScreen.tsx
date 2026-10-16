@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Percent } from 'lucide-react';
 import { formatMonthLabel, nextMonth } from '@/lib/budget';
@@ -9,7 +9,8 @@ import { ModuleGate } from '@/components/modules/ModuleGate';
 import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
 import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
 import { useHomeHref } from '@/components/modules/useHomeHref';
-import { useModuleIntro } from '@/components/modules/useModuleIntro';
+import { useMarkFirstSteps } from '@/components/modules/useFirstSteps';
+import { introNotice, useModuleIntro } from '@/components/modules/useModuleIntro';
 import { ClosedMonthBanner } from '@/components/month/ClosedMonthBanner';
 import { CloseMonthSheet } from '@/components/month/CloseMonthSheet';
 import { FixedCostsCard } from '@/components/month/FixedCostsCard';
@@ -42,12 +43,20 @@ function Categorias() {
   const [configuring, setConfiguring] = useState(false);
   /** "Me ajude com as %": the same questions as the first visit, without the tour after. */
   const [helping, setHelping] = useState(false);
-  // First visit: the questions (income, fixed costs, unforeseen, what each category is for and the
-  // percentages), then the tour.
+  // First visit: the questions (income, fixed and unforeseen costs, and the percentages).
   const { setupOpen, finishSetup } = useModuleIntro('budget', {
     ready: !loading && !!summary && !!settings,
     withSetup: true,
   });
+
+  // "Ver quanto ainda posso gastar", of "Primeiros passos": done once the numbers are on screen —
+  // after the first-visit questions were saved and closed, so the two saves never cross.
+  const markFirstSteps = useMarkFirstSteps();
+  const introSaved = settings?.dismissedNotices?.includes(introNotice('budget')) ?? false;
+  const numbersShown = !loading && !!summary && introSaved && !setupOpen && !helping;
+  useEffect(() => {
+    if (numbersShown) markFirstSteps(['budget']);
+  }, [numbersShown, markFirstSteps]);
 
   /** Closes the month and opens the next one carrying the leftovers, then goes to it. */
   async function handleCloseMonth() {
@@ -165,11 +174,6 @@ function Categorias() {
         <OnboardingWizard
           settings={settings}
           saveSettings={saveSettings}
-          intro={{
-            title: 'Vamos montar suas categorias',
-            text: 'Algumas perguntas rápidas: quanto você ganha, seus custos fixos e imprevistos, para que serve cada categoria e quanto da renda vai para cada uma. Depois eu te mostro como a tela funciona.',
-            start: 'Vamos lá',
-          }}
           onSkip={finishSetup}
           onComplete={() => {
             void refresh();
@@ -182,11 +186,6 @@ function Categorias() {
         <OnboardingWizard
           settings={settings}
           saveSettings={saveSettings}
-          intro={{
-            title: 'Quanto vai para cada categoria?',
-            text: 'Conte quanto você ganha e seus custos fixos e imprevistos. Eu explico para que serve cada categoria e mostro, na hora, quanto cada % deixa para gastar.',
-            start: 'Vamos lá',
-          }}
           onSkip={() => setHelping(false)}
           onComplete={() => {
             setHelping(false);

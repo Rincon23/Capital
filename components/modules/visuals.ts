@@ -5,6 +5,7 @@ import {
   Clock,
   CreditCard,
   HandCoins,
+  ListChecks,
   Mail,
   Mic,
   PiggyBank,
@@ -40,5 +41,7 @@ export const MODULE_VISUALS: Record<ModuleKey, ModuleVisual> = {
 
 /** The icon of an Início widget: its module's, except for the extra widgets, which have their own. */
 export function widgetVisual(key: HomeWidgetKey): ModuleVisual {
-  return key === 'calendar' ? { icon: CalendarDays, tone: 'blue' } : MODULE_VISUALS[key];
+  if (key === 'calendar') return { icon: CalendarDays, tone: 'blue' };
+  if (key === 'firstSteps') return { icon: ListChecks, tone: 'green' };
+  return MODULE_VISUALS[key];
 }

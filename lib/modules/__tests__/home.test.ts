@@ -86,6 +86,37 @@ describe('widgets do Início', () => {
   });
 });
 
+describe('Primeiros passos', () => {
+  const kit = on('expenses', 'budget', 'card');
+  const started = ['first-steps'];
+
+  it('só numa conta nova, com Gastos por categoria ligado, e em primeiro', () => {
+    expect(homeCards({ modules: kit, dismissedNotices: started })).toEqual(['firstSteps', 'expenses', 'budget', 'card']);
+    // An account from before "Como você quer usar o Capital?" never gets it.
+    expect(homeCards({ modules: kit })).toEqual(['expenses', 'budget', 'card']);
+    expect(homeCards({ modules: on('expenses'), dismissedNotices: started })).toEqual(['expenses']);
+  });
+
+  it('some quando os três passos estão feitos, e nunca aparece entre os de módulos desligados', () => {
+    const done = [...started, 'first-steps:income', 'first-steps:expense', 'first-steps:budget'];
+    expect(homeCards({ modules: kit, dismissedNotices: done })).toEqual(['expenses', 'budget', 'card']);
+    expect(offModuleWidgets({ modules: on('expenses'), dismissedNotices: started })).not.toContain('firstSteps');
+  });
+
+  it('entra no topo da primeira área de um Início já arrumado, e fica onde a pessoa puser', () => {
+    const homePages: HomeWidgetKey[][] = [['budget'], ['expenses', 'card']];
+    expect(resolveHomePages({ modules: kit, dismissedNotices: started, homePages })).toEqual([
+      ['firstSteps', 'budget'],
+      ['expenses', 'card'],
+    ]);
+    const moved: HomeWidgetKey[][] = [['budget'], ['expenses', 'firstSteps', 'card']];
+    expect(resolveHomePages({ modules: kit, dismissedNotices: started, homePages: moved })).toEqual(moved);
+    expect(
+      resolveHomePages({ modules: kit, dismissedNotices: started, homePages, homeHidden: ['firstSteps'] }),
+    ).toEqual(homePages);
+  });
+});
+
 describe('áreas de trabalho', () => {
   const modules = on('expenses', 'budget', 'reminders', 'gmail');
 
