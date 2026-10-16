@@ -3,15 +3,23 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ChevronRight, Plus } from 'lucide-react';
-import type { DiagramOverview } from '@/lib/diagram';
+import { formatBRL } from '@/lib/budget';
+import { assetType, portfolioByType, type DiagramOverview } from '@/lib/diagram';
 import { diagramRepository } from '@/lib/storage';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
 import { IconTile } from '@/components/ui/IconTile';
+import { formatDate, pct } from '@/components/diagram/format';
 import { PortfolioChart } from '@/components/diagram/PortfolioCard';
 import { MODULE_VISUALS } from '../visuals';
 import { CardNote, Skeleton } from './HomeCard';
 
-/** Diagrama: the portfolio by type (today × target) and a shortcut to a new aporte. */
+/** Below this many percentage points, a type counts as on its target. */
+const ON_TARGET = 0.005;
+
+/**
+ * Diagrama on the Início: the portfolio by type (today and target), the type furthest below its
+ * target — where the next aporte will go first — the last aporte, and "Novo aporte".
+ */
 export function DiagramHomeCard() {
   const [overview, setOverview] = useState<DiagramOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +39,15 @@ export function DiagramHomeCard() {
       active = false;
     };
   }, []);
+
+  const slices = overview ? portfolioByType(overview).slices : [];
+  const furthest = slices
+    .filter((slice) => slice.target > 0)
+    .reduce<(typeof slices)[number] | null>(
+      (worst, slice) => (!worst || slice.share - slice.target < worst.share - worst.target ? slice : worst),
+      null,
+    );
+  const last = overview?.contributions[0];
 
   return (
     <section
@@ -53,9 +70,25 @@ export function DiagramHomeCard() {
           </div>
         </div>
       ) : (
-        <Link href="/diagrama" className="block">
-          <PortfolioChart overview={overview} compact />
-        </Link>
+        <>
+          <Link href="/diagrama" className="block">
+            <PortfolioChart overview={overview} compact />
+          </Link>
+          {furthest && (
+            <p className="bg-background text-muted rounded-xl px-3 py-2 text-xs">
+              {furthest.target - furthest.share > ON_TARGET ? (
+                <>
+                  Mais abaixo da meta:{' '}
+                  <span className="text-foreground font-semibold">{assetType(furthest.type).label}</span> (
+                  {pct(furthest.share)} de {pct(furthest.target)})
+                </>
+              ) : (
+                'Todos os tipos estão na meta.'
+              )}
+              {last ? ` · Último aporte: ${formatBRL(last.amount)} em ${formatDate(last.date).slice(0, 5)}` : ''}
+            </p>
+          )}
+        </>
       )}
       <Link
         href="/diagrama?aba=aporte"

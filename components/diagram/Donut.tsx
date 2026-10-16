@@ -43,19 +43,14 @@ function Ring({ slices, radius, width }: { slices: DonutSlice[]; radius: number;
   );
 }
 
-/**
- * A donut drawn with plain SVG (it follows the theme's colours). With `inner`, a thinner second
- * ring inside shows another split of the same things — the targets inside the portfolio of today.
- */
+/** A donut drawn with plain SVG (it follows the theme's colours), with a label in the middle. */
 export function Donut({
   slices,
-  inner,
   size = 132,
   label,
   children,
 }: {
   slices: DonutSlice[];
-  inner?: DonutSlice[];
   size?: number;
   /** Accessible description of what the chart shows. */
   label: string;
@@ -66,7 +61,6 @@ export function Donut({
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg viewBox="0 0 120 120" width={size} height={size} role="img" aria-label={label}>
         <Ring slices={slices} radius={52} width={13} />
-        {inner && <Ring slices={inner} radius={38} width={7} />}
       </svg>
       {children && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center leading-tight">

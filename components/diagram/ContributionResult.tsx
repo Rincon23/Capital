@@ -142,9 +142,8 @@ export function ContributionResult({
             </Donut>
           ) : (
             <Donut
-              label="Carteira depois do aporte: anel de fora é depois, anel de dentro é a meta"
+              label="Carteira depois do aporte, por tipo"
               slices={after.map((item) => ({ key: item.type, value: item.share, color: assetType(item.type).color }))}
-              inner={plan.types.map((type) => ({ key: type.type, value: type.target, color: assetType(type.type).color }))}
               size={112}
             >
               <span className="text-muted text-[10px]">Depois</span>

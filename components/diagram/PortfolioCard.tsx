@@ -6,8 +6,8 @@ import { Donut } from './Donut';
 import { pct } from './format';
 
 /**
- * The portfolio by type: the outer ring is today, the thin inner ring the targets, and the legend
- * says both for each type. The same picture on both tabs and, smaller, on the Início.
+ * The portfolio by type: the donut is today, and the legend says today and the target of each
+ * type. The same picture on both tabs and, smaller, on the Início.
  */
 export function PortfolioChart({ overview, compact = false }: { overview: DiagramOverview; compact?: boolean }) {
   const { total, slices } = portfolioByType(overview);
@@ -17,9 +17,8 @@ export function PortfolioChart({ overview, compact = false }: { overview: Diagra
   return (
     <div className="flex items-center gap-4">
       <Donut
-        label="Carteira por tipo: anel de fora é hoje, anel de dentro é a meta"
+        label="Carteira por tipo, hoje"
         slices={slices.map((slice) => ({ key: slice.type, value: slice.value, color: assetType(slice.type).color }))}
-        inner={slices.map((slice) => ({ key: slice.type, value: slice.target, color: assetType(slice.type).color }))}
         size={compact ? 104 : 128}
       >
         <span className="text-muted text-[10px]">Carteira</span>
