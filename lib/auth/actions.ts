@@ -9,6 +9,7 @@ import { clientIp } from '@/lib/server/clientIp';
 import { forgetGmailToken } from '@/lib/server/gmail/job';
 import { isPasswordPwned } from '@/lib/server/pwnedPasswords';
 import { allowAttempt } from '@/lib/server/rateLimit';
+import { ensureTestAccount, resetTestAccount, testAccountEmail } from '@/lib/server/testAccount';
 
 export interface AuthActionState {
   error?: string;
@@ -81,11 +82,15 @@ export async function signIn(_prev: AuthActionState, formData: FormData): Promis
     return { error: TOO_MANY_ATTEMPTS, email };
   }
 
+  // The first-access test account (see lib/server/testAccount.ts) opens as a brand-new account every time.
+  const testAccount = account === testAccountEmail();
   try {
+    if (testAccount) await ensureTestAccount(account, password);
     await getAuth().api.signInEmail({
       body: { email, password, rememberMe: true },
       headers: requestHeaders,
     });
+    if (testAccount) await resetTestAccount(account);
   } catch (err) {
     if (errorCode(err) === 'EMAIL_NOT_VERIFIED') {
       return {

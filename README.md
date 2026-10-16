@@ -393,6 +393,12 @@ npm run db:migrate    # aplica as migrações pendentes na DATABASE_URL (o servi
 Sem `SMTP_HOST` no `.env.local`, os e-mails de confirmação de conta e de redefinição de senha não
 são enviados: o conteúdo, com o link, aparece no terminal do `npm run dev`.
 
+**Conta de teste do primeiro acesso.** Com `TEST_ACCOUNT_EMAIL` (terminado em `.test`) e
+`TEST_ACCOUNT_PASSWORD` no `.env.local`, entrar com esse e-mail e essa senha cria a conta (já
+confirmada) e apaga todos os dados dela **a cada login** (`lib/server/testAccount.ts`): ela sempre
+abre como uma conta nova, para testar o que aparece primeiro. Um e-mail que não termine em `.test`,
+ou o `OWNER_EMAIL`, é ignorado, então nenhuma conta de verdade é apagada por engano.
+
 Ao entrar pela primeira vez, uma conta nova recebe as 4 categorias padrão e as categorias
 especiais, sem mês de exemplo. Se o dispositivo tiver dados da versão local anterior, o app
 oferece importá-los para a conta.
@@ -706,7 +712,8 @@ Os demais testes:
   nos próximos e nos passados, o editor sem "Excluir" e com os avisos, e a configuração das
   categorias em 3 passos (inclusive criando uma categoria com descrição).
 - **Repositório HTTP** (`lib/storage/__tests__`).
-- O **limitador de tentativas** de login.
+- O **limitador de tentativas** de login, e a conta de teste do primeiro acesso, que só vale para
+  e-mail `.test`.
 
 ## Checklist de aderência
 
