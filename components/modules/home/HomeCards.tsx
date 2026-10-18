@@ -89,6 +89,9 @@ export function HomeCards({
     else blocks.push([key]);
   }
 
+  // Each widget sits in a one-column grid (so a half tile stretches to its neighbour's height).
+  // `grid-cols-1` is minmax(0, 1fr): with the default auto column, a long one-line text inside a
+  // card (an e-mail subject, a reminder) widened the column and pushed the card off the screen.
   return (
     <div className="flex flex-col gap-3">
       {blocks.map((block) =>
@@ -98,14 +101,14 @@ export function HomeCards({
               <div
                 key={key}
                 data-home-widget
-                className={`grid min-w-0 ${block.length % 2 === 1 && index === block.length - 1 ? 'col-span-2' : ''}`}
+                className={`grid min-w-0 grid-cols-1 ${block.length % 2 === 1 && index === block.length - 1 ? 'col-span-2' : ''}`}
               >
                 <Card moduleKey={key} />
               </div>
             ))}
           </div>
         ) : (
-          <div key={block[0]} data-home-widget className="grid min-w-0">
+          <div key={block[0]} data-home-widget className="grid min-w-0 grid-cols-1">
             <Card moduleKey={block[0]} />
           </div>
         ),

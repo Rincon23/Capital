@@ -32,15 +32,27 @@ import {
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { getEventCoordinates } from '@dnd-kit/utilities';
 import { usePathname } from 'next/navigation';
-import { ArrowLeftRight, Check, ChevronUp, LayoutGrid, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import {
+  ArrowLeftRight,
+  Check,
+  ChevronUp,
+  CircleHelp,
+  LayoutGrid,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Trash2,
+} from 'lucide-react';
 import type { BudgetSettings, HomeWidgetKey } from '@/lib/budget';
 import {
+  HOME_HELP_ANCHOR,
   MAX_HOME_PAGES,
   addHomePage,
   addWidget,
   deleteHomePage,
   hiddenHomeCards,
   homeCards,
+  homeEditTourSteps,
   isModuleOn,
   moveWidget,
   offModuleWidgets,
@@ -56,6 +68,7 @@ import { AppDrawer, drawerCommits, type AppDrawerHandle } from '@/components/lay
 import { IN_MS } from '@/components/layout/swipePhysics';
 import { useVerticalDrag } from '@/components/layout/useVerticalDrag';
 import { subscribeHomeReveal } from '@/components/modules/tour/homeReveal';
+import { useTour } from '@/components/modules/tour/TourProvider';
 import { GreetingHeader } from '@/components/month/GreetingHeader';
 import { MonthActions } from '@/components/month/MonthActions';
 import { useMonthContext } from '@/components/month/MonthContext';
@@ -138,6 +151,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
   const { saveSettings } = useSettings();
   const { showToast } = useToast();
   const confirm = useConfirm();
+  const { startSteps } = useTour();
   const pathname = usePathname();
 
   const [layout, setLayout] = useState<HomeLayout>(() => ({
@@ -175,6 +189,9 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
   const canAddPage = editing && pages.length < MAX_HOME_PAGES;
   const count = pages.length + (canAddPage ? 1 : 0);
   const shown = Math.max(0, Math.min(current, count - 1));
+  // The widget the "Como organizar" tour points at: the first of the tela on screen, or of the
+  // first tela that has any.
+  const tourPage = pages[shown]?.length ? shown : pages.findIndex((page) => page.length > 0);
   const areasHint = useOneTimeHint(AREAS_HINT, { when: !editing && !settingUp && pages.length > 1 });
   // Swiping to another tela is the thing the hint explains: done, it goes.
   const dismissAreasHint = areasHint.dismiss;
@@ -262,6 +279,27 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     const cleaned = withoutEmptyPages(now.pages);
     if (cleaned.length !== now.pages.length) void save({ ...now, pages: cleaned }, now);
   }, [save]);
+
+  /** "Como organizar a Início" (the ? by the pencil): edit mode first, then the tour over its controls. */
+  const organizeTourPending = useRef(false);
+  const startOrganizeTour = useCallback(
+    () => startSteps(homeEditTourSteps(`${window.location.pathname}${window.location.search}`)),
+    [startSteps],
+  );
+
+  function showHowToOrganize() {
+    setTrayOpen(false);
+    if (editing) return startOrganizeTour();
+    organizeTourPending.current = true;
+    enterEdit();
+  }
+
+  // Once the edit-mode controls are on screen, the spotlight can find them.
+  useEffect(() => {
+    if (!editing || !organizeTourPending.current) return;
+    organizeTourPending.current = false;
+    startOrganizeTour();
+  }, [editing, startOrganizeTour]);
 
   function doneEditing() {
     if (editEntry.current) popSheetEntry(editEntry.current);
@@ -361,8 +399,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
   async function restoreDefault() {
     const confirmed = await confirm({
       title: 'Voltar ao padrão?',
-      message:
-        'Tudo volta para uma tela só, com todos os widgets, na ordem padrão.',
+      message: 'Tudo volta para uma tela só, com todos os widgets, na ordem padrão.',
       confirmLabel: 'Voltar ao padrão',
     });
     if (!confirmed) return;
@@ -590,9 +627,10 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
   const learnApps = useCallback(() => {
     const current = settingsRef.current;
     if (current.dismissedNotices?.includes(APPS_HINT)) return;
-    void saveSettings({ ...current, dismissedNotices: [...(current.dismissedNotices ?? []), APPS_HINT] }).catch(
-      () => {},
-    );
+    void saveSettings({
+      ...current,
+      dismissedNotices: [...(current.dismissedNotices ?? []), APPS_HINT],
+    }).catch(() => {});
   }, [saveSettings]);
 
   // An old link to /mais: the drawer comes up straight away, and the address loses the "?apps".
@@ -627,6 +665,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
           widgets={widgets}
           pageCount={pages.length}
           sizes={layout.sizes}
+          tourAnchor={index === tourPage}
           ghost={drag?.fromTray ? drag.widget : null}
           onRemove={removeFromHome}
           onToggleSize={toggleSize}
@@ -659,7 +698,14 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
 
   return (
     <HomeCardsData keys={available}>
-      <div className="relative flex h-dvh flex-col overflow-hidden">
+      <div
+        // Nothing may scroll the screen itself (a tour spotlight bringing something into view could,
+        // and it would stay shifted up): only the telas inside scroll.
+        onScroll={(event) => {
+          if (event.currentTarget.scrollTop !== 0) event.currentTarget.scrollTop = 0;
+        }}
+        className="relative flex h-dvh flex-col overflow-hidden"
+      >
         <header className="relative z-20 flex shrink-0 flex-col gap-2 px-4 pt-3 pb-2">
           <div className="flex items-center justify-between gap-2">
             {editing ? (
@@ -678,7 +724,20 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
               {available.length > 0 && (
                 <button
                   type="button"
+                  onClick={showHowToOrganize}
+                  data-tour={HOME_HELP_ANCHOR}
+                  aria-label="Como organizar a Início"
+                  title="Como organizar a Início"
+                  className="text-muted hover:text-foreground hover:bg-card flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors"
+                >
+                  <CircleHelp aria-hidden className="h-5 w-5" />
+                </button>
+              )}
+              {available.length > 0 && (
+                <button
+                  type="button"
                   onClick={() => (editing ? doneEditing() : enterEdit())}
+                  data-tour={editing ? 'inicio-concluir' : undefined}
                   aria-label={editing ? 'Concluir a edição da Início' : 'Editar a Início'}
                   title={editing ? 'Concluído' : 'Editar a Início'}
                   className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-colors ${
@@ -730,9 +789,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
             count={count}
             current={shown}
             editing={editing}
-            label={(index) =>
-              index === pages.length ? 'Nova tela' : `Tela ${index + 1} de ${pages.length}`
-            }
+            label={(index) => (index === pages.length ? 'Nova tela' : `Tela ${index + 1} de ${pages.length}`)}
             onChange={setCurrent}
             isBlocked={() => dragRef.current !== null}
             onLongPress={available.length > 0 ? () => enterEdit() : undefined}
@@ -847,6 +904,7 @@ function EditablePage({
   widgets,
   pageCount,
   sizes,
+  tourAnchor,
   ghost,
   onRemove,
   onToggleSize,
@@ -857,6 +915,8 @@ function EditablePage({
   widgets: HomeWidgetKey[];
   pageCount: number;
   sizes: Sizes;
+  /** Its first widget is the one the "Como organizar" tour points at. */
+  tourAnchor: boolean;
   /** A widget from the tray, shown faded where it would land. */
   ghost: HomeWidgetKey | null;
   onRemove: (key: HomeWidgetKey) => void;
@@ -884,10 +944,11 @@ function EditablePage({
       </div>
       <SortableContext id={pageId(index)} items={widgets} strategy={rectSortingStrategy}>
         <div ref={setNodeRef} className="grid flex-1 grid-cols-2 content-start gap-3">
-          {widgets.map((key) => (
+          {widgets.map((key, position) => (
             <EditableWidget
               key={key}
               widget={key}
+              tourAnchor={tourAnchor && position === 0}
               size={effectiveSize(key, sizes) ?? 'half'}
               resizable={RESIZABLE_HOME_CARDS.includes(key)}
               ghost={ghost === key}
@@ -968,11 +1029,7 @@ function PageDots({
 }) {
   if (pages < 2 && !withNewPage) return <div className="h-4 shrink-0" />;
   return (
-    <div
-      role="group"
-      aria-label="Telas"
-      className="flex h-4 shrink-0 items-center justify-center gap-0.5"
-    >
+    <div role="group" aria-label="Telas" className="flex h-4 shrink-0 items-center justify-center gap-0.5">
       {Array.from({ length: pages }, (_, index) => (
         <button
           key={index}

@@ -14,6 +14,8 @@ import { requestTourSheet } from './tourSheets';
 interface TourContextValue {
   /** Runs the tour of these modules, on the real screens, and comes back to where it started. */
   startTour: (modules: ModuleKey[]) => void;
+  /** Runs these steps (a tour that is not a module's, like organizing the Início). */
+  startSteps: (steps: TourStep[]) => void;
   /** Whether a tour is on screen right now. */
   isTourActive: () => boolean;
 }
@@ -34,12 +36,9 @@ export function TourProvider({ children }: { children: ReactNode }) {
   const active = useRef<Driver | null>(null);
   useEffect(() => () => active.current?.destroy(), []);
 
-  const startTour = useCallback(
-    (modules: ModuleKey[]) => {
+  const startSteps = useCallback(
+    (steps: TourStep[]) => {
       active.current?.destroy();
-      // Month screens carry the month in the URL; the tour uses the one on screen, if any.
-      const monthOnScreen = window.location.pathname.match(/^\/mes\/([\d-]+)/)?.[1] ?? month;
-      const steps = tourSteps(modules, monthOnScreen);
       if (steps.length === 0) return;
 
       const origin = `${window.location.pathname}${window.location.search}`;
@@ -107,12 +106,24 @@ export function TourProvider({ children }: { children: ReactNode }) {
       prepare(0);
       tour.drive(0);
     },
-    [month, router],
+    [router],
+  );
+
+  const startTour = useCallback(
+    (modules: ModuleKey[]) => {
+      // Month screens carry the month in the URL; the tour uses the one on screen, if any.
+      const monthOnScreen = window.location.pathname.match(/^\/mes\/([\d-]+)/)?.[1] ?? month;
+      startSteps(tourSteps(modules, monthOnScreen));
+    },
+    [month, startSteps],
   );
 
   const isTourActive = useCallback(() => active.current !== null, []);
 
-  const value = useMemo(() => ({ startTour, isTourActive }), [startTour, isTourActive]);
+  const value = useMemo(
+    () => ({ startTour, startSteps, isTourActive }),
+    [startTour, startSteps, isTourActive],
+  );
   return <TourContext.Provider value={value}>{children}</TourContext.Provider>;
 }
 

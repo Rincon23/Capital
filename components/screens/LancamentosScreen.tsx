@@ -135,9 +135,12 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
   const [paidHere, setPaidHere] = useState<{ month: Month; expense: Expense; seenIn: Month }[]>([]);
   const onlyUncounted = filter.length === 1 && filter[0] === 'uncounted';
 
+  // Newest first, also within a day: the month keeps entries in the order they were made, so
+  // reversed before the (stable) sort by day, the last one made tops its day.
   const filteredExpenses = useMemo(() => {
     if (!monthData) return [];
-    return monthData.expenses
+    return [...monthData.expenses]
+      .reverse()
       .filter((e) => filter.length === 0 || filter.includes(quickCategoryKey(e)))
       .filter((e) => e.description.toLowerCase().includes(search.toLowerCase()))
       .sort((a, b) => expenseListDate(b).localeCompare(expenseListDate(a)));
@@ -145,7 +148,8 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
 
   const filteredIncomes = useMemo(() => {
     if (!monthData) return [];
-    return monthData.incomes
+    return [...monthData.incomes]
+      .reverse()
       .filter((i) => i.source.toLowerCase().includes(search.toLowerCase()))
       .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
   }, [monthData, search]);

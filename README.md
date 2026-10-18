@@ -16,9 +16,10 @@ conexão o app abre, mas as telas ficam carregando até a rede voltar.
 ### Palavras da interface
 
 A interface usa palavras do dia a dia (só o texto muda; código, colunas e rotas continuam como
-estavam): **"Ainda posso gastar"** é o número principal das Categorias e do card da Início (o que
-sobra somando as categorias, `balance`), com **"Para as categorias"** (a renda sem custos fixos e
-imprevistos, `availableTotal`) pequeno embaixo; cada categoria tem o seu **Limite** e a **Sobra**.
+estavam): nem a tela Categorias nem o card da Início somam as categorias num "Ainda posso
+gastar" ou num total "Para as categorias" — um total parecia dinheiro livre para gastar com tudo;
+o topo das Categorias mostra só **Renda** e **Total gasto**, e cada categoria tem o seu **Limite**
+e a **Sobra**.
 Também: "na fatura de"/"no mês de" (nunca "competência"), **Falta para a reserva** (ou "Reserva
 completa ✓"), **Meta da reserva**, **Dentro do planejado**, **Guardar / Retirar** (reserva
 investida), **devolução**, **sem categoria** (a parte da reserva investida fora das categorias da

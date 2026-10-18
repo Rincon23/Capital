@@ -32,10 +32,12 @@ function entryDate(entry: Entry): string {
 export function ExpensesHomeCard() {
   const { month, summary, monthData, error } = useMonthContext();
 
+  // The month keeps entries in the order they were made: reversed before the (stable) sort by
+  // day, the last one made comes first within its day too, like in Lançamentos.
   const latest: Entry[] = monthData
     ? [
-        ...monthData.expenses.map((item) => ({ kind: 'expense' as const, item })),
-        ...monthData.incomes.map((item) => ({ kind: 'income' as const, item })),
+        ...[...monthData.expenses].reverse().map((item) => ({ kind: 'expense' as const, item })),
+        ...[...monthData.incomes].reverse().map((item) => ({ kind: 'income' as const, item })),
       ]
         .sort((a, b) => entryDate(b).localeCompare(entryDate(a)))
         .slice(0, 3)
@@ -87,7 +89,10 @@ export function ExpensesHomeCard() {
   );
 }
 
-/** Gastos por categoria: how much can still be spent this month, big, and a thin bar per category. */
+/**
+ * Gastos por categoria: a thin bar and what is left for each category. No total of all of them
+ * together — it read as if the whole sum could go to anything (the owner asked it out).
+ */
 export function BudgetHomeCard() {
   const { month, summary, error } = useMonthContext();
 
@@ -97,21 +102,6 @@ export function BudgetHomeCard() {
         <CardNote tone="danger">{error}</CardNote>
       ) : (
         <>
-          <div className="bg-background rounded-xl px-3 py-2">
-            <p className="text-muted text-xs">Ainda posso gastar</p>
-            {summary ? (
-              <p
-                className={`text-2xl font-bold tabular-nums ${summary.balance < 0 ? 'text-danger' : 'text-success'}`}
-              >
-                {formatBRL(summary.balance)}
-              </p>
-            ) : (
-              <Skeleton className="mt-1 h-7 w-32" />
-            )}
-            {summary && (
-              <p className="text-muted text-xs">de {formatBRL(summary.availableTotal)} para as categorias</p>
-            )}
-          </div>
           {!summary ? (
             <Skeleton className="h-2 w-full" />
           ) : (

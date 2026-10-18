@@ -264,7 +264,8 @@ export class PostgresBudgetRepository implements BudgetRepository {
           lte(expenses.month, until),
         ),
       )
-      .orderBy(desc(expenses.date), asc(expenses.position));
+      // Newest first, and within a day the last one made first (like the Lançamentos list).
+      .orderBy(desc(expenses.date), desc(expenses.position));
     return rows.map((row) => ({ month: row.month, expense: toExpense(row) }));
   }
 

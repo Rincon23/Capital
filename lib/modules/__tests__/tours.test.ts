@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { MODULE_KEYS } from '../catalog';
-import { MODULE_TOURS, tourSteps } from '../tours';
+import { HOME_EDIT_TOUR, HOME_HELP_ANCHOR, MODULE_TOURS, homeEditTourSteps, tourSteps } from '../tours';
 
 /** Every .tsx under components/, as one string, to look for the tour anchors. */
 function componentSources(): string {
@@ -57,16 +57,33 @@ describe('tours dos módulos', () => {
   it('nunca aponta para a setinha nem para as bandejas da Início, que não são do módulo', () => {
     const anchors = MODULE_KEYS.flatMap((key) => MODULE_TOURS[key].map((step) => step.anchor));
     expect(anchors.filter((anchor) => anchor.startsWith('nav-'))).toEqual([]);
-    // The up-arrow (in HomeScreen), the app drawer and the widget tray carry no anchor at all.
-    const chrome = [
-      'components/modules/home/HomeScreen.tsx',
-      'components/modules/home/WidgetTray.tsx',
-      'components/layout/AppDrawer.tsx',
-      'components/layout/MoreMenu.tsx',
-    ]
-      .map((file) => readFileSync(path.join(process.cwd(), file), 'utf8'))
-      .join('\n');
-    expect(chrome).not.toMatch(/\sdata-tour=/);
+    const read = (file: string) => readFileSync(path.join(process.cwd(), file), 'utf8');
+    // The up-arrow's drawer carries no anchor at all.
+    expect(read('components/layout/AppDrawer.tsx') + read('components/layout/MoreMenu.tsx')).not.toMatch(
+      /\sdata-tour=/,
+    );
+    // The Início and its widget tray only carry the anchors of the Início's own tour (organizing
+    // the telas), and no module's tour points at those.
+    const homeAnchors = new Set([...HOME_EDIT_TOUR.map((step) => step.anchor), HOME_HELP_ANCHOR]);
+    const chrome =
+      read('components/modules/home/HomeScreen.tsx') + read('components/modules/home/WidgetTray.tsx');
+    const literal = [...chrome.matchAll(/data-tour=\{?[^'"\n]*['"]([\w-]+)['"]/g)].map((match) => match[1]);
+    expect(literal.filter((anchor) => !homeAnchors.has(anchor))).toEqual([]);
+    expect(anchors.filter((anchor) => homeAnchors.has(anchor))).toEqual([]);
+  });
+
+  it('o tour de organizar a Início é curto, fica na tela em que está e termina no botão de ajuda', () => {
+    expect(HOME_EDIT_TOUR.length).toBeLessThanOrEqual(4);
+    for (const step of HOME_EDIT_TOUR) expect(step.description.length).toBeLessThanOrEqual(90);
+    const sources = componentSources();
+    const anchors = [...new Set(HOME_EDIT_TOUR.map((step) => step.anchor))];
+    expect(
+      anchors.filter((anchor) => !sources.includes(`'${anchor}'`) && !sources.includes(`"${anchor}"`)),
+    ).toEqual([]);
+    expect(sources).toContain('data-tour={HOME_HELP_ANCHOR}');
+    const steps = homeEditTourSteps('/mes/2026-10');
+    expect(steps.every((step) => step.href === '/mes/2026-10' && step.module === undefined)).toBe(true);
+    expect(steps.at(-1)?.anchor).toBe(HOME_HELP_ANCHOR);
   });
 
   it('monta as rotas do mês e marca de qual módulo é cada passo', () => {

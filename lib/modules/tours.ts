@@ -61,16 +61,9 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
   budget: [
     {
       route: categories,
-      anchor: 'posso-gastar',
-      title: 'Ainda posso gastar',
-      description: 'Quanto ainda dá para gastar neste mês, somando as categorias.',
-      side: 'bottom',
-    },
-    {
-      route: categories,
       anchor: 'categorias',
       title: 'Suas categorias',
-      description: 'Cada uma recebe uma % da renda. Toque numa para ver a conta e os gastos.',
+      description: 'Cada uma recebe uma % da renda e mostra quanto ainda dá nela. Toque para ver.',
       side: 'top',
     },
     {
@@ -369,7 +362,8 @@ export const helpAnchor = (key: ModuleKey) => `ajuda-${key}`;
 
 export interface TourStep extends Omit<TourStepDefinition, 'route'> {
   href: string;
-  module: ModuleKey;
+  /** The module the step explains; none for the Início's own tour (organizing the telas). */
+  module?: ModuleKey;
 }
 
 /**
@@ -389,4 +383,53 @@ export function tourSteps(keys: ModuleKey[], month: Month): TourStep[] {
       module: key,
     },
   ]);
+}
+
+/** The help button next to the pencil of the Início, where its tour ends. */
+export const HOME_HELP_ANCHOR = 'ajuda-inicio';
+
+/**
+ * "Como organizar a Início": the Início is put in edit mode first, then this walks through the
+ * real controls — the widget to hold and drag (and its − and Mover), the widget tray and the ✓.
+ * Same rules as a module's tour: at most four steps, one line each, then the help button.
+ */
+export const HOME_EDIT_TOUR: Omit<TourStepDefinition, 'route'>[] = [
+  {
+    anchor: 'inicio-widget',
+    title: 'Segure e arraste',
+    description: 'Segure um widget e arraste para mudar de lugar. Até a borda, ele vai para a outra tela.',
+    side: 'bottom',
+  },
+  {
+    anchor: 'inicio-widget',
+    title: 'Tirar ou mover',
+    description: 'O − tira o widget da Início e o Mover leva para outra tela, sem arrastar.',
+    side: 'bottom',
+  },
+  {
+    anchor: 'inicio-bandeja',
+    title: 'Bandeja de widgets',
+    description: 'Os que você tirou ficam aqui. Toque num para pôr de volta na tela.',
+    side: 'top',
+  },
+  {
+    anchor: 'inicio-concluir',
+    title: 'Pronto',
+    description: 'Deslize até o fim para criar uma tela nova. Toque aqui quando terminar.',
+    side: 'bottom',
+  },
+];
+
+/** The Início's tour on the screen it is on (`href`, the Início's own address), ending on its help. */
+export function homeEditTourSteps(href: string): TourStep[] {
+  return [
+    ...HOME_EDIT_TOUR.map((step) => ({ ...step, href })),
+    {
+      href,
+      anchor: HOME_HELP_ANCHOR,
+      title: 'Ficou alguma dúvida?',
+      description: 'Toque aqui quando quiser ver esta explicação de novo.',
+      side: 'bottom' as const,
+    },
+  ];
 }

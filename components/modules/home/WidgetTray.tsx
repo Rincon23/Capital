@@ -137,7 +137,9 @@ export function WidgetTray({
         ) : (
           <>
             <span aria-hidden className="bg-border mb-1 h-1 w-10 rounded-full" />
-            <span className="flex items-center gap-2 text-sm font-semibold">
+            {/* The tour's spotlight goes on the label, not the bar: the bar ends right at the bottom
+                edge, and a spotlight on what is not fully in view scrolls the screen to it. */}
+            <span data-tour="inicio-bandeja" className="flex items-center gap-2 text-sm font-semibold">
               {open ? (
                 <ChevronDown aria-hidden className="h-4 w-4" />
               ) : (

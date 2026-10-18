@@ -17,6 +17,7 @@ export function EditableWidget({
   widget,
   size,
   resizable,
+  tourAnchor,
   ghost,
   onToggleSize,
   onRemove,
@@ -25,6 +26,8 @@ export function EditableWidget({
   widget: HomeWidgetKey;
   size: 'half' | 'full';
   resizable: boolean;
+  /** The widget the "Como organizar a Início" tour points at. */
+  tourAnchor?: boolean;
   /** Being placed from the widget tray: shown faded until it is dropped. */
   ghost?: boolean;
   onToggleSize: () => void;
@@ -40,6 +43,7 @@ export function EditableWidget({
     <div
       ref={setNodeRef}
       data-home-widget
+      data-tour={tourAnchor ? 'inicio-widget' : undefined}
       // `CSS.Translate`, not `CSS.Transform`: the sortable transform of a grid with cards of two
       // widths also carries a scale, which is what stretched a card out of shape mid-move before
       // it snapped back on landing. Only the movement is wanted; every card keeps its own size.
