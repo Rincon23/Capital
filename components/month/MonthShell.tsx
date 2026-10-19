@@ -39,8 +39,7 @@ type ExpenseFormState =
 type IncomeFormState = { open: true; initial?: Income } | { open: false };
 
 /** The line shown while a single instalment is being edited, so the scope stays clear. */
-const SINGLE_INSTALLMENT_NOTE =
-  'Você está editando só a parcela deste mês. Se depois editar a compra toda, este ajuste é desfeito.';
+const SINGLE_INSTALLMENT_NOTE = 'Só a parcela deste mês. Editar a compra toda depois desfaz este ajuste.';
 
 export function MonthShell({ month, children }: { month: Month; children: ReactNode }) {
   const { settings } = useSettings();

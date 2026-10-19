@@ -118,7 +118,11 @@ export function CardFormSheet({
         <div>
           <p className="text-muted mb-2 text-sm font-medium">A fatura de um mês vence</p>
           <div className="flex flex-wrap gap-2">
-            <Chip label="No mês seguinte" selected={dueMonth === 'next'} onClick={() => setDueMonth('next')} />
+            <Chip
+              label="No mês seguinte"
+              selected={dueMonth === 'next'}
+              onClick={() => setDueMonth('next')}
+            />
             <Chip label="No mesmo mês" selected={dueMonth === 'same'} onClick={() => setDueMonth('same')} />
           </div>
           {preview && <p className="text-muted mt-2 text-xs">{preview}</p>}
@@ -207,7 +211,5 @@ function previewLine(card: Pick<CreditCard, 'dueDay' | 'dueMonth'>, month: strin
   const nominal = nominalDueDate(card, month);
   const due = billDueDate(card, month);
   const base = `A fatura de ${formatMonthLabel(month)} vence em ${formatDayMonth(due)}`;
-  return due === nominal
-    ? `${base}.`
-    : `${base} — o dia ${formatDayMonth(nominal)} cai num fim de semana, então o pagamento passa para a segunda.`;
+  return due === nominal ? `${base}.` : `${base} (o dia ${formatDayMonth(nominal)} cai no fim de semana).`;
 }

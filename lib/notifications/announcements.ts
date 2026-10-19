@@ -54,4 +54,11 @@ export const FEATURE_ANNOUNCEMENTS: FeatureAnnouncement[] = [
     href: '/',
     publishedAt: '2026-10-06T21:00:00Z',
   },
+  {
+    key: 'contas-do-mes',
+    title: '🧾 Contas do mês',
+    body: 'Os gastos recorrentes viraram Contas do mês: veja o que falta lançar, ponha o dia do vencimento e receba um aviso com o botão Lançar. E as duas reservas agora são um módulo só, Reserva.',
+    href: '/carteira/recorrentes',
+    publishedAt: '2026-10-19T04:00:00Z',
+  },
 ];

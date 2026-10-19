@@ -364,6 +364,12 @@ export const expenses = pgTable(
     installmentNumber: integer('installment_number'),
     /** When an "A receber" purchase was paid back; null means it still has not been. */
     reimbursedAt: timestamp('reimbursed_at', { withTimezone: true }),
+    /**
+     * The recurring template it was launched from ("Contas do mês"): what marks that bill as
+     * launched in this competence. Not a foreign key, like `card_id`: deleting a template keeps
+     * its expenses, which simply stop pointing anywhere.
+     */
+    recurringId: text('recurring_id'),
     position: integer('position').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -376,6 +382,7 @@ export const expenses = pgTable(
     }).onDelete('cascade'),
     index('expenses_user_month_idx').on(t.userId, t.month),
     index('expenses_user_card_idx').on(t.userId, t.cardId),
+    index('expenses_user_recurring_idx').on(t.userId, t.recurringId),
     // One expense per instalment, ever: launching the same charge twice is impossible.
     // (Rows with no instalment are unaffected — NULLs never collide in Postgres.)
     unique('expenses_installment_unique').on(t.userId, t.installmentId, t.installmentNumber),
@@ -404,6 +411,8 @@ export const recurringExpenses = pgTable(
     /** In how many times a launch of this template is split; null means à vista. */
     installmentCount: integer('installment_count'),
     installmentAccounting: text('installment_accounting').$type<InstallmentAccounting>(),
+    /** The day of the month it falls due (1–31); null when the person did not say. */
+    dueDay: integer('due_day'),
     position: integer('position').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -419,6 +428,45 @@ export const recurringExpenses = pgTable(
       'recurring_expenses_installment_count',
       sql`${t.installmentCount} is null or (${t.installmentCount} >= 2 and ${t.installmentCount} <= 120)`,
     ),
+    check('recurring_expenses_due_day', sql`${t.dueDay} is null or (${t.dueDay} >= 1 and ${t.dueDay} <= 31)`),
+  ],
+);
+
+/**
+ * The notice of "Contas do mês": the time of day it goes out and whether it keeps reminding,
+ * once a day for a few days, while a bill that fell due is not launched. One row per user, created
+ * on the first save; until then the defaults apply.
+ */
+export const recurringSettings = pgTable('recurring_settings', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  notifyEnabled: boolean('notify_enabled').notNull().default(true),
+  notifyTime: text('notify_time').$type<TimeOfDay>().notNull().default('09:00'),
+  /** Keep warning once a day, for a few days, while the bill is not launched. */
+  repeatUntilLaunched: boolean('repeat_until_launched').notNull().default(true),
+  updatedAt: updatedAt(),
+});
+
+/**
+ * Every "Contas do mês" notice already delivered, like `card_bill_deliveries`: a slot is sent only
+ * by whoever records it first, so a restart never notifies twice. Old rows are pruned.
+ */
+export const recurringDeliveries = pgTable(
+  'recurring_deliveries',
+  {
+    userId: uuid('user_id').notNull(),
+    recurringId: text('recurring_id').notNull(),
+    month: text('month').notNull(),
+    slotAt: timestamp('slot_at', { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.recurringId, t.month, t.slotAt] }),
+    foreignKey({
+      columns: [t.userId, t.recurringId],
+      foreignColumns: [recurringExpenses.userId, recurringExpenses.id],
+    }).onDelete('cascade'),
   ],
 );
 
@@ -447,6 +495,8 @@ export const installments = pgTable(
     paidCount: integer('paid_count').notNull().default(0),
     /** Charges paid ahead of time ("adiantar parcelas"); they leave the bill the same way. */
     advancedCount: integer('advanced_count').notNull().default(0),
+    /** The recurring template it was launched from, when it was (see `expenses.recurring_id`). */
+    recurringId: text('recurring_id'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

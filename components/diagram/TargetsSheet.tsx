@@ -60,8 +60,8 @@ export function TargetsSheet({
         title: `Tirar ${assetType(type).label} da carteira?`,
         message:
           assets > 0
-            ? `${assets === 1 ? 'O ativo desse tipo fica guardado' : `Os ${assets} ativos desse tipo ficam guardados`}, com as notas, e ${assets === 1 ? 'volta' : 'voltam'} quando você adicionar o tipo de novo. Enquanto isso, não ${assets === 1 ? 'entra' : 'entram'} no aporte nem na conta da carteira.`
-            : 'O valor guardado desse tipo fica salvo e volta quando você adicionar o tipo de novo. Enquanto isso, não entra no aporte nem na conta da carteira.',
+            ? `${assets === 1 ? 'O ativo fica guardado' : `Os ${assets} ativos ficam guardados`}, com as notas, para quando o tipo voltar.`
+            : 'O valor desse tipo fica guardado para quando o tipo voltar.',
         confirmLabel: 'Tirar da carteira',
       });
       if (!ok) return;
@@ -117,10 +117,16 @@ export function TargetsSheet({
         <section className="flex items-center gap-4">
           <Donut
             label="Metas por tipo"
-            slices={inUse.map((type) => ({ key: type, value: targets[type] ?? 0, color: assetType(type).color }))}
+            slices={inUse.map((type) => ({
+              key: type,
+              value: targets[type] ?? 0,
+              color: assetType(type).color,
+            }))}
             size={112}
           >
-            <span className={`text-lg font-semibold tabular-nums ${ready || inUse.length === 0 ? 'text-foreground' : 'text-danger'}`}>
+            <span
+              className={`text-lg font-semibold tabular-nums ${ready || inUse.length === 0 ? 'text-foreground' : 'text-danger'}`}
+            >
               {pct(total)}
             </span>
             <span className="text-muted text-[11px]">do total</span>
@@ -144,9 +150,19 @@ export function TargetsSheet({
               return (
                 <li key={key} className="flex flex-col gap-1.5">
                   <div className="flex items-center gap-2">
-                    <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: type.color }} />
-                    <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">{type.label}</span>
-                    <PercentInput value={value} onChange={(next) => setTarget(key, next)} ariaLabel={`Meta de ${type.label}`} />
+                    <span
+                      aria-hidden
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ background: type.color }}
+                    />
+                    <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">
+                      {type.label}
+                    </span>
+                    <PercentInput
+                      value={value}
+                      onChange={(next) => setTarget(key, next)}
+                      ariaLabel={`Meta de ${type.label}`}
+                    />
                     <button
                       type="button"
                       onClick={() => void removeType(key)}

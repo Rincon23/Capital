@@ -32,9 +32,8 @@ export function CloseMonthSheet({ summary, onConfirm, onCancel }: CloseMonthShee
     <BottomSheet open title={`Fechar ${formatMonthLabel(summary.month)}`} onClose={onCancel}>
       <div className="flex flex-col gap-5">
         <p className="text-muted text-sm leading-relaxed">
-          Depois de fechado, este mês não aceita mais lançamentos (dá para reabrir). As sobras
-          abaixo viram o &ldquo;mês passado&rdquo; de {formatMonthLabel(next)}, que será aberto
-          para você.
+          Depois de fechado, este mês não aceita mais lançamentos (dá para reabrir). As sobras abaixo viram o
+          &ldquo;mês passado&rdquo; de {formatMonthLabel(next)}, que será aberto para você.
         </p>
 
         <ul className="border-border divide-border divide-y rounded-xl border">
@@ -63,8 +62,7 @@ export function CloseMonthSheet({ summary, onConfirm, onCancel }: CloseMonthShee
 
         {summary.topics.some((topic) => topic.remaining < 0) && (
           <p className="bg-warning-bg text-warning rounded-lg px-3 py-2 text-xs">
-            As sobras negativas também são carregadas: no mês que vem essas categorias começam
-            devendo.
+            Sobra negativa também passa: essas categorias começam o mês devendo.
           </p>
         )}
 

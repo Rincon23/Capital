@@ -83,9 +83,11 @@ export interface ModuleFlags {
   history: boolean;
   /** Recurring-expense templates. */
   recurring: boolean;
-  /** Invested reserve (ETF split into buckets). */
-  investments: boolean;
-  /** Cash report (card/installment debt vs. reserve). */
+  /**
+   * The Reserva: the emergency reserve (card and instalment debt vs. reserve) and, in its
+   * "Investida" tab, the reserve in quotas split into buckets. It used to be two modules; the
+   * old key `investments` is gone (lib/modules/migration.ts).
+   */
   cash: boolean;
   /** Reminders and daily tasks, with push notifications. */
   reminders: boolean;
@@ -207,6 +209,8 @@ export interface Expense {
    * only how the person keeps track of who already paid them.
    */
   reimbursedAt?: string;
+  /** The recurring template ("Contas do mês") this expense was launched from. */
+  recurringId?: string;
 }
 
 /** An "A receber" expense still not paid back, with the month it was recorded in. */
@@ -255,6 +259,8 @@ export interface InstallmentPlan {
    * expense of its own, in the competence the person paid it.
    */
   advancedCount?: number;
+  /** The recurring template ("Contas do mês") this purchase was launched from, when it was. */
+  recurringId?: string;
 }
 
 /** A template for an expense that repeats every month (the bot's "custos fixos"). */
@@ -277,6 +283,11 @@ export interface RecurringExpense {
   installmentCount?: number;
   /** How a split launch enters the budget; only meaningful with `installmentCount`. */
   installmentAccounting?: InstallmentAccounting;
+  /**
+   * The day of the month it falls due (1–31; 29–31 fall on the last day of shorter months), for
+   * the "Contas do mês" checklist and the notice on the day. Absent: the person did not say.
+   */
+  dueDay?: number;
 }
 
 /** Whether a card's bill for a competence falls due in that same month or in the next one. */
@@ -326,6 +337,16 @@ export interface CardSettings {
   notifyTime: string;
   /** Keep warning once a day while a bill is not marked as paid. */
   repeatUntilPaid: boolean;
+}
+
+/** Each person's own settings for the notices of "Contas do mês". */
+export interface RecurringSettings {
+  /** Warn on the day a bill falls due, while it is not launched. */
+  notifyEnabled: boolean;
+  /** "HH:MM" the notices go out at. */
+  notifyTime: string;
+  /** Keep warning once a day, for a few days, while a bill that fell due is not launched. */
+  repeatUntilLaunched: boolean;
 }
 
 /** The invested reserve: an ETF position (quotas of `ticker`) used as an emergency fund. */

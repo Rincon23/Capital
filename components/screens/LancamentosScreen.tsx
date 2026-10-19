@@ -194,7 +194,7 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
   async function handleDeleteMonth() {
     const confirmed = await confirm({
       title: `Apagar ${formatMonthLabel(month)}`,
-      message: `Apaga os lançamentos de ${formatMonthLabel(month)} e recalcula as sobras seguintes. Não dá para desfazer.`,
+      message: `Apaga os lançamentos de ${formatMonthLabel(month)}. Não dá para desfazer.`,
       confirmLabel: 'Apagar',
       cancelLabel: 'Manter',
       destructive: true,

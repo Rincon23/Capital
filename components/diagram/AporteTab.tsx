@@ -15,6 +15,7 @@ import {
   fixedIncomeAmount,
   isFixedIncomeType,
   planPositions,
+  portfolioByType,
   typesWithTarget,
   UNQUOTED_LABEL,
   type DiagramOverview,
@@ -40,7 +41,8 @@ interface Basis {
 }
 
 /**
- * "Aporte": the portfolio by type, "Quanto você quer investir?", the fixed-income totals brought
+ * "Aporte": "Quanto você quer investir?" on top, with what the portfolio is worth today (the
+ * screen's question and its action), then the portfolio by type, the fixed-income totals brought
  * up to date (there is no quote for them), and the result.
  */
 export function AporteTab({
@@ -67,6 +69,7 @@ export function AporteTab({
   const withTarget = typesWithTarget(overview.settings.targets);
   const fixedTypes = withTarget.filter((type): type is FixedIncomeType => isFixedIncomeType(type));
   const budgetOn = isModuleOn(settings, 'budget');
+  const portfolioTotal = portfolioByType(overview).total;
 
   // "Usar o que sobrou em Investimentos": what the category still has this month.
   useEffect(() => {
@@ -77,7 +80,9 @@ export function AporteTab({
     void budgetRepository
       .peekMonth(currentMonthKey())
       .then((month) => {
-        const result = computeMonthSummary(month, settings.topics).topics.find((item) => item.topicId === topic.id);
+        const result = computeMonthSummary(month, settings.topics).topics.find(
+          (item) => item.topicId === topic.id,
+        );
         if (!cancelled) setInvestmentsLeft(result ? result.remaining : null);
       })
       .catch(() => undefined);
@@ -119,18 +124,18 @@ export function AporteTab({
   return (
     <div className="flex flex-col gap-3">
       <section
-        data-tour="diagrama-carteira"
-        className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm"
-      >
-        <h2 className="text-muted text-sm font-semibold">Sua carteira: hoje × meta</h2>
-        <PortfolioChart overview={overview} />
-      </section>
-
-      <section
         data-tour="diagrama-valor"
         className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm"
       >
-        <h2 className="text-foreground font-semibold">Quanto você quer investir?</h2>
+        <div>
+          <h2 className="text-foreground font-semibold">Quanto você quer investir?</h2>
+          {portfolioTotal > 0 && (
+            <p className="text-muted text-sm">
+              Carteira hoje:{' '}
+              <span className="text-foreground font-semibold tabular-nums">{formatBRL(portfolioTotal)}</span>
+            </p>
+          )}
+        </div>
         {withTarget.length === 0 ? (
           <>
             <p className="text-muted text-sm">
@@ -178,6 +183,14 @@ export function AporteTab({
         )}
       </section>
 
+      <section
+        data-tour="diagrama-carteira"
+        className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm"
+      >
+        <h2 className="text-muted text-sm font-semibold">Sua carteira: hoje × meta</h2>
+        <PortfolioChart overview={overview} />
+      </section>
+
       {step === 'fixed' && (
         <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm">
           <h2 className="text-foreground font-semibold">Atualize a renda fixa</h2>
@@ -216,7 +229,9 @@ export function AporteTab({
                     .map((item) => item.ticker ?? assetType(item.type).shortLabel)
                     .join(', ')}
                 </span>
-                <span className="text-foreground font-semibold tabular-nums">{formatBRL(contribution.amount)}</span>
+                <span className="text-foreground font-semibold tabular-nums">
+                  {formatBRL(contribution.amount)}
+                </span>
               </li>
             ))}
           </ul>
@@ -257,18 +272,29 @@ function FixedIncomeCheck({
   return (
     <div className="bg-background flex flex-col gap-2 rounded-xl p-3">
       <div className="flex items-center gap-2">
-        <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: assetType(type).color }} />
+        <span
+          aria-hidden
+          className="h-2.5 w-2.5 rounded-full"
+          style={{ background: assetType(type).color }}
+        />
         <span className="text-foreground min-w-0 flex-1 text-sm font-medium">
           {UNQUOTED_LABEL} · {assetType(type).shortLabel}
         </span>
         {done && <span className="text-success text-xs font-semibold">Conferido ✓</span>}
       </div>
       <p className="text-muted text-xs">
-        {updatedOn ? `Último valor: ${formatBRL(amount)}, em ${formatDate(updatedOn)}.` : 'Ainda não informado.'}
+        {updatedOn
+          ? `Último valor: ${formatBRL(amount)}, em ${formatDate(updatedOn)}.`
+          : 'Ainda não informado.'}
       </p>
       {editing ? (
         <div className="flex flex-col gap-2">
-          <AmountInput value={value} onChange={setValue} autoFocus label={`Total de ${assetType(type).label}`} />
+          <AmountInput
+            value={value}
+            onChange={setValue}
+            autoFocus
+            label={`Total de ${assetType(type).label}`}
+          />
           <button
             type="button"
             disabled={busy}

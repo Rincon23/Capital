@@ -782,7 +782,8 @@ function CardsTab({ snapshot, onChanged }: { snapshot: Snapshot; onChanged: () =
       title: 'Excluir cartão',
       message: (
         <>
-          As compras de <strong>{card.name}</strong> passam para a fatura &ldquo;{UNASSIGNED_CARD_LABEL}&rdquo;.
+          As compras de <strong>{card.name}</strong> passam para a fatura &ldquo;{UNASSIGNED_CARD_LABEL}
+          &rdquo;.
         </>
       ),
       confirmLabel: 'Excluir',
@@ -916,7 +917,7 @@ function CardSettingsSection({
           <div className="min-w-0">
             <p className="text-foreground text-sm font-medium">Insistir até marcar como paga</p>
             <p className="text-muted text-xs">
-              Um aviso por dia, por até uma semana depois do vencimento, enquanto a fatura estiver em aberto.
+              Um aviso por dia, por até uma semana, enquanto a fatura estiver em aberto.
             </p>
           </div>
           <Switch

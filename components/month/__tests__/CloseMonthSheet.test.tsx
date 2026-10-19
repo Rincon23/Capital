@@ -46,14 +46,14 @@ describe('CloseMonthSheet', () => {
     render(
       <CloseMonthSheet summary={computeMonthSummary(september())} onConfirm={vi.fn()} onCancel={vi.fn()} />,
     );
-    expect(screen.getByText(/começam devendo/i)).toBeInTheDocument();
+    expect(screen.getByText(/começam o mês devendo/i)).toBeInTheDocument();
   });
 
   it('não avisa nada quando todas as sobras são positivas', () => {
     const month = september();
     month.expenses = [];
     render(<CloseMonthSheet summary={computeMonthSummary(month)} onConfirm={vi.fn()} onCancel={vi.fn()} />);
-    expect(screen.queryByText(/começam devendo/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/começam o mês devendo/i)).not.toBeInTheDocument();
   });
 
   it('só fecha o mês quando o usuário confirma', async () => {

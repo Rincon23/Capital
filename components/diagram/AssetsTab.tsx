@@ -44,7 +44,9 @@ function ScorePill({ score, muted }: { score: number | null; muted?: boolean }) 
         ? 'bg-success-bg text-success'
         : 'bg-danger-bg text-danger';
   return (
-    <span className={`min-w-[2.75rem] shrink-0 rounded-full px-2 py-1 text-center text-sm font-semibold tabular-nums ${tone}`}>
+    <span
+      className={`min-w-[2.75rem] shrink-0 rounded-full px-2 py-1 text-center text-sm font-semibold tabular-nums ${tone}`}
+    >
       {formatScore(score)}
     </span>
   );
@@ -70,11 +72,21 @@ function Row({
 }) {
   return (
     <li>
-      <button type="button" onClick={onClick} className="flex min-h-[56px] w-full items-center gap-3 px-4 py-2 text-left">
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex min-h-[56px] w-full items-center gap-3 px-4 py-2 text-left"
+      >
         <span className="min-w-0 flex-1">
-          <span className={`flex items-center gap-1.5 font-semibold ${stopped ? 'text-muted' : 'text-foreground'}`}>
+          <span
+            className={`flex items-center gap-1.5 font-semibold ${stopped ? 'text-muted' : 'text-foreground'}`}
+          >
             <span className="truncate">{title}</span>
-            {badge && <span className="bg-background text-muted rounded px-1.5 py-0.5 text-[10px] font-semibold">{badge}</span>}
+            {badge && (
+              <span className="bg-background text-muted rounded px-1.5 py-0.5 text-[10px] font-semibold">
+                {badge}
+              </span>
+            )}
           </span>
           {(subtitle || stopped) && (
             <span className="text-muted block truncate text-xs">
@@ -127,7 +139,10 @@ export function AssetsTab({
     try {
       const { missing } = await diagramRepository.refreshQuotes();
       await onChanged();
-      showToast(missing.length > 0 ? `Sem cotação agora: ${missing.join(', ')}.` : 'Cotações atualizadas.', missing.length > 0 ? 'info' : 'success');
+      showToast(
+        missing.length > 0 ? `Sem cotação agora: ${missing.join(', ')}.` : 'Cotações atualizadas.',
+        missing.length > 0 ? 'info' : 'success',
+      );
     } catch {
       showToast('Não foi possível atualizar as cotações.', 'error');
     } finally {
@@ -140,7 +155,11 @@ export function AssetsTab({
       <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm">
         <PortfolioChart overview={overview} />
         {inUse.length === 0 && (
-          <button type="button" onClick={onOpenTargets} className="text-primary self-start text-sm font-semibold">
+          <button
+            type="button"
+            onClick={onOpenTargets}
+            className="text-primary self-start text-sm font-semibold"
+          >
             Escolher tipos e metas
           </button>
         )}
@@ -179,7 +198,12 @@ export function AssetsTab({
 
       {inUse.length > 1 && (
         <div className="px-4">
-          <TypeChips types={inUse} selected={filter} onSelect={setFilter} all={{ label: 'Todos', onSelect: () => setFilter(null) }} />
+          <TypeChips
+            types={inUse}
+            selected={filter}
+            onSelect={setFilter}
+            all={{ label: 'Todos', onSelect: () => setFilter(null) }}
+          />
         </div>
       )}
 
@@ -213,15 +237,25 @@ export function AssetsTab({
 
           const unquoted = fixed ? fixedIncomeAmount(overview, type as FixedIncomeType) : 0;
           const inType =
-            unquoted + overview.assets.filter((asset) => asset.type === type).reduce((sum, asset) => sum + assetValue(asset, overview), 0);
+            unquoted +
+            overview.assets
+              .filter((asset) => asset.type === type)
+              .reduce((sum, asset) => sum + assetValue(asset, overview), 0);
           const total = overview.fixedIncome.find((item) => item.type === type);
           return (
             <div key={type} className="flex flex-col gap-1.5">
               <div className="flex items-center gap-2 px-1">
-                <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: definition.color }} />
-                <h3 className="text-foreground min-w-0 flex-1 truncate text-sm font-semibold">{definition.label}</h3>
+                <span
+                  aria-hidden
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ background: definition.color }}
+                />
+                <h3 className="text-foreground min-w-0 flex-1 truncate text-sm font-semibold">
+                  {definition.label}
+                </h3>
                 <span className="text-muted text-xs tabular-nums">
-                  {inType > 0 ? `${formatBRL(inType)} · ` : ''}meta {pct(overview.settings.targets[type] ?? 0)}
+                  {inType > 0 ? `${formatBRL(inType)} · ` : ''}meta{' '}
+                  {pct(overview.settings.targets[type] ?? 0)}
                 </span>
               </div>
               {assets.length === 0 && !showUnquoted ? (
@@ -231,7 +265,11 @@ export function AssetsTab({
                   {showUnquoted && (
                     <Row
                       title={UNQUOTED_LABEL}
-                      subtitle={total?.updatedOn ? `Tesouro, CDB, LCI… · ${formatDate(total.updatedOn)}` : 'Tesouro, CDB, LCI…'}
+                      subtitle={
+                        total?.updatedOn
+                          ? `Tesouro, CDB, LCI… · ${formatDate(total.updatedOn)}`
+                          : 'Tesouro, CDB, LCI…'
+                      }
                       value={formatBRL(unquoted)}
                       score={total?.score ?? 1}
                       onClick={() => setEditingFixed(type as FixedIncomeType)}
@@ -321,7 +359,12 @@ export function FixedIncomeSheet({
           event.preventDefault();
           setSaving(true);
           try {
-            await diagramRepository.setFixedIncome(type, Math.max(0, parseAmountInput(amount)), todayISO(), score);
+            await diagramRepository.setFixedIncome(
+              type,
+              Math.max(0, parseAmountInput(amount)),
+              todayISO(),
+              score,
+            );
             await onSaved();
             showToast('Salvo.');
           } catch {
@@ -332,11 +375,12 @@ export function FixedIncomeSheet({
         }}
       >
         <p className="text-muted text-sm">
-          A soma do que não tem cotação: Tesouro Direto, CDB, LCI, LCA… Fundos com código, como o DEBB11, entram
-          como ativo.
+          Tesouro, CDB, LCI, LCA: o que não tem cotação. Fundo com código (DEBB11) entra como ativo.
         </p>
         <AmountInput value={amount} onChange={setAmount} autoFocus label="Valor total" />
-        {current?.updatedOn && <p className="text-muted -mt-2 text-xs">Atualizado em {formatDate(current.updatedOn)}.</p>}
+        {current?.updatedOn && (
+          <p className="text-muted -mt-2 text-xs">Atualizado em {formatDate(current.updatedOn)}.</p>
+        )}
         <DirectScoreField value={score} onChange={(value) => setScore(Math.round(value * 100) / 100)} />
         <button
           type="submit"

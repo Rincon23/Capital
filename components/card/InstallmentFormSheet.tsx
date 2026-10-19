@@ -84,8 +84,7 @@ export function InstallmentFormSheet({
   });
   const [installment, setInstallment] = useState({
     count: String(plan?.count ?? 10),
-    firstDebitDate:
-      plan?.firstDebitDate ?? (defaultCard ? nextChargeDate(defaultCard) : today),
+    firstDebitDate: plan?.firstDebitDate ?? (defaultCard ? nextChargeDate(defaultCard) : today),
     accounting: (plan?.accounting ?? 'upfront') as InstallmentAccounting,
   });
   const [pastMode, setPastMode] = useState<PastMode>('skip');
@@ -102,9 +101,8 @@ export function InstallmentFormSheet({
   // The charges that already fell, by the schedule the person typed: the number the "já pagas"
   // field starts from, and what says whether this purchase started before the app knew about it.
   const alreadyFell = validCount
-    ? installmentDueDates({ firstDebitDate: installment.firstDebitDate, count }).filter(
-        (due) => due <= today,
-      ).length
+    ? installmentDueDates({ firstDebitDate: installment.firstDebitDate, count }).filter((due) => due <= today)
+        .length
     : 0;
   const startedInThePast = alreadyFell > 0;
   const typedPaid = paid.trim() === '' ? alreadyFell : Number.parseInt(paid, 10);
@@ -146,7 +144,9 @@ export function InstallmentFormSheet({
     if (category.categoryKind === 'topic' && !category.topicId) problems.push('Selecione uma categoria.');
     const advanced = undoAdvance ? 0 : (plan?.advancedCount ?? 0);
     if (validCount && paidCount + advanced >= count) {
-      problems.push('Deixe pelo menos uma parcela por pagar: uma compra já quitada não tem o que acompanhar.');
+      problems.push(
+        'Deixe pelo menos uma parcela por pagar: uma compra já quitada não tem o que acompanhar.',
+      );
     }
     if (problems.length > 0) {
       setErrors(problems);
@@ -264,7 +264,9 @@ export function InstallmentFormSheet({
         ) : null}
 
         {plan && (
-          <p className="text-muted text-xs">Salvar refaz os meses: parcela ajustada na mão volta ao normal.</p>
+          <p className="text-muted text-xs">
+            Salvar refaz os meses: parcela ajustada na mão volta ao normal.
+          </p>
         )}
 
         {closed && <ClosedMonthsNotice months={closed} onNavigate={onClose} />}
@@ -325,7 +327,7 @@ function AdvanceUndoSection({
         </p>
         <p className="text-muted mt-0.5 text-xs">
           {undo
-            ? `Ao salvar, ${advanced === 1 ? 'ela volta' : 'elas voltam'} para o fim. "Adiantamento · ${name}" fica no mês em que você pagou.`
+            ? `Ao salvar, ${advanced === 1 ? 'ela volta' : 'elas voltam'} para o fim; "Adiantamento · ${name}" continua lançado.`
             : 'Saíram do fim do parcelamento e não aparecem em nenhuma fatura.'}
         </p>
       </div>

@@ -40,10 +40,14 @@ export function QuestionsSheet({
 }) {
   const { showToast } = useToast();
   const confirm = useConfirm();
-  const inUse = typesInUse(overview.settings.targets).filter((key): key is QuestionType => !isFixedIncomeType(key));
+  const inUse = typesInUse(overview.settings.targets).filter(
+    (key): key is QuestionType => !isFixedIncomeType(key),
+  );
   // The types of the portfolio; with none yet, every type that has questions.
   const types = inUse.length > 0 ? inUse : QUESTION_TYPES;
-  const [type, setType] = useState<QuestionType>(initialType && types.includes(initialType) ? initialType : types[0]);
+  const [type, setType] = useState<QuestionType>(
+    initialType && types.includes(initialType) ? initialType : types[0],
+  );
   const [editing, setEditing] = useState<DiagramQuestion | 'new' | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -76,7 +80,9 @@ export function QuestionsSheet({
   }
 
   async function handleDelete(question: DiagramQuestion) {
-    const answered = Object.values(overview.answers).filter((answers) => answers[question.id] !== undefined).length;
+    const answered = Object.values(overview.answers).filter(
+      (answers) => answers[question.id] !== undefined,
+    ).length;
     const ok = await confirm({
       title: 'Remover pergunta?',
       message:
@@ -102,8 +108,8 @@ export function QuestionsSheet({
             <p className="text-foreground text-sm">{label} ainda não tem perguntas.</p>
             <p className="text-muted text-xs">
               {recommended.length > 0
-                ? `Crie as suas ou comece pelas ${recommended.length} recomendadas — a cópia é sua, dá para mudar tudo depois.`
-                : 'Não há uma lista recomendada para esse tipo: crie as suas, ou use a nota direta em cada ativo.'}
+                ? `Crie as suas ou comece pelas ${recommended.length} recomendadas — dá para mudar depois.`
+                : 'Sem lista recomendada para esse tipo: crie as suas ou dê a nota direto no ativo.'}
             </p>
           </div>
         ) : (
@@ -115,7 +121,11 @@ export function QuestionsSheet({
                   question.weight <= 0 ? 'opacity-60' : ''
                 }`}
               >
-                <button type="button" onClick={() => setEditing(question)} className="min-w-0 flex-1 text-left">
+                <button
+                  type="button"
+                  onClick={() => setEditing(question)}
+                  className="min-w-0 flex-1 text-left"
+                >
                   <span className="text-muted flex flex-wrap items-center gap-1.5 text-[11px] font-semibold tracking-wide uppercase">
                     {question.criterion}
                     {question.auto && (
@@ -160,13 +170,17 @@ export function QuestionsSheet({
           <div className="border-border flex flex-col gap-2 rounded-xl border p-3">
             <p className="text-foreground flex items-center gap-2 text-sm font-semibold">
               Pergunta automática: {automatic.criterion}
-              <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-[11px] font-semibold">VIP</span>
+              <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-[11px] font-semibold">
+                VIP
+              </span>
             </p>
             <p className="text-muted text-xs">
               {automatic.kind === 'graham'
-                ? 'O app calcula o preço justo de Graham com o LPA e o VPA de cada ação e responde sozinho, todo dia.'
+                ? 'O app calcula o preço justo de Graham e responde sozinho, todo dia.'
                 : 'O app busca o P/VP de cada fundo e responde sozinho, todo dia: abaixo de 1 é Sim.'}
-              {questions.some((question) => question.criterion.trim().toLowerCase() === automatic.criterion.toLowerCase())
+              {questions.some(
+                (question) => question.criterion.trim().toLowerCase() === automatic.criterion.toLowerCase(),
+              )
                 ? ` A sua pergunta "${automatic.criterion}" passa a ser respondida sozinha.`
                 : ''}
             </p>
@@ -175,7 +189,10 @@ export function QuestionsSheet({
                 type="button"
                 disabled={busy}
                 onClick={() =>
-                  void act(() => diagramRepository.enableAutoQuestion(automatic.kind), `${automatic.criterion} automático ligado.`)
+                  void act(
+                    () => diagramRepository.enableAutoQuestion(automatic.kind),
+                    `${automatic.criterion} automático ligado.`,
+                  )
                 }
                 className="bg-primary text-primary-foreground min-h-[40px] self-start rounded-lg px-4 text-sm font-semibold disabled:opacity-50"
               >
@@ -203,11 +220,17 @@ export function QuestionsSheet({
               onClick={() =>
                 void act(async () => {
                   const { added } = await diagramRepository.useRecommended(type);
-                  showToast(added > 0 ? `${added} perguntas recomendadas entraram em ${label}.` : 'As recomendadas já estão todas aqui.');
+                  showToast(
+                    added > 0
+                      ? `${added} perguntas recomendadas entraram em ${label}.`
+                      : 'As recomendadas já estão todas aqui.',
+                  );
                 })
               }
               className={`flex min-h-[44px] items-center rounded-lg px-4 text-sm font-semibold disabled:opacity-50 ${
-                questions.length === 0 ? 'bg-primary text-primary-foreground' : 'border-border text-foreground border'
+                questions.length === 0
+                  ? 'bg-primary text-primary-foreground'
+                  : 'border-border text-foreground border'
               }`}
             >
               {questions.length === 0 ? 'Usar as recomendadas' : 'Adicionar as recomendadas que faltam'}
@@ -215,7 +238,7 @@ export function QuestionsSheet({
           )}
         </div>
         <p className="text-muted text-xs">
-          Sim vale +1, Não −1 e sem resposta 0, vezes o peso; a nota vai de −10 a 10. Peso 0 desliga a pergunta.
+          Sim +1, Não −1, sem resposta 0, vezes o peso; a nota vai de −10 a 10.
         </p>
       </div>
 
@@ -301,7 +324,7 @@ function QuestionFormSheet({
               <span className="text-muted text-xs">
                 {vip
                   ? 'Com os dados do mercado (VIP). Desligada, vira uma pergunta normal, respondida à mão.'
-                  : 'Só para contas VIP: enquanto isso, não entra na nota. Desligada, vira uma pergunta normal.'}
+                  : 'Só para contas VIP: por enquanto, não entra na nota.'}
               </span>
             </span>
             <Switch checked={automatic} onChange={setAutomatic} label="Responder sozinha" />
@@ -329,7 +352,9 @@ function QuestionFormSheet({
             placeholder="Ex.: O ROE é maior que 10%?"
             className={field}
           />
-          <span className="text-muted text-xs font-normal">Escreva de um jeito que &quot;Sim&quot; seja o bom.</span>
+          <span className="text-muted text-xs font-normal">
+            Escreva de um jeito que &quot;Sim&quot; seja o bom.
+          </span>
         </label>
         <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
           Ajuda (opcional)
@@ -369,7 +394,8 @@ function QuestionFormSheet({
 /** The weight, 0 to 100: typed, or one step at a time with − and +. */
 function WeightInput({ value, onChange }: { value: number; onChange: (value: number) => void }) {
   const set = (next: number) => onChange(Math.min(100, Math.max(0, Math.round(next * 10) / 10)));
-  const button = 'border-border text-foreground flex h-10 w-10 items-center justify-center rounded-lg border text-lg';
+  const button =
+    'border-border text-foreground flex h-10 w-10 items-center justify-center rounded-lg border text-lg';
   return (
     <div className="flex shrink-0 items-center gap-1.5">
       <button type="button" onClick={() => set(value - 1)} aria-label="Diminuir o peso" className={button}>

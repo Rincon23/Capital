@@ -10,7 +10,6 @@ const everything = on(
   'reimbursable',
   'history',
   'recurring',
-  'investments',
   'cash',
   'reminders',
   'voice',
@@ -24,7 +23,7 @@ describe('bandeja de apps', () => {
       {
         group: 'wallet',
         label: 'Carteira',
-        keys: ['recurring', 'investments', 'cash'],
+        keys: ['recurring', 'cash'],
       },
       { group: 'assistant', label: 'Assistente', keys: ['reminders', 'gmail'] },
     ]);

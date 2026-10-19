@@ -52,7 +52,7 @@ function leftoverText(plan: Plan): string {
     case 'none':
       return 'Todo o valor tem destino.';
     case 'quotaTooExpensive':
-      return `${left} não compram uma cota de ${reason.label} (${formatBRL(reason.price)}). Fica para o próximo aporte.`;
+      return `${left} não compram uma cota de ${reason.label} (${formatBRL(reason.price)}): fica para o próximo.`;
     case 'allAtTarget':
       return `Todos os ativos que podem receber chegaram na meta: ${left} ficam para o próximo aporte.`;
     case 'noReceivers':
@@ -101,7 +101,8 @@ export function ContributionResult({
   // after a "−"; everything else — and why — is in the report below.
   const buying = plan.lines.filter(
     (line) =>
-      line.blocked !== 'stopped' && ((suggested[line.id] ?? 0) > 0 || line.quantity > 0 || done.includes(line.id)),
+      line.blocked !== 'stopped' &&
+      ((suggested[line.id] ?? 0) > 0 || line.quantity > 0 || done.includes(line.id)),
   );
   const buyingTypes = plan.types.filter((type) => buying.some((line) => line.type === type.type));
 
@@ -134,16 +135,26 @@ export function ContributionResult({
           {view === 'aporte' ? (
             <Donut
               label="Distribuição do aporte por tipo"
-              slices={plan.types.map((type) => ({ key: type.type, value: type.amount, color: assetType(type.type).color }))}
+              slices={plan.types.map((type) => ({
+                key: type.type,
+                value: type.amount,
+                color: assetType(type.type).color,
+              }))}
               size={112}
             >
               <span className="text-muted text-[10px]">Aporte</span>
-              <span className="text-foreground text-xs font-semibold tabular-nums">{formatBRL(plan.spent)}</span>
+              <span className="text-foreground text-xs font-semibold tabular-nums">
+                {formatBRL(plan.spent)}
+              </span>
             </Donut>
           ) : (
             <Donut
               label="Carteira depois do aporte, por tipo"
-              slices={after.map((item) => ({ key: item.type, value: item.share, color: assetType(item.type).color }))}
+              slices={after.map((item) => ({
+                key: item.type,
+                value: item.share,
+                color: assetType(item.type).color,
+              }))}
               size={112}
             >
               <span className="text-muted text-[10px]">Depois</span>
@@ -159,10 +170,18 @@ export function ContributionResult({
                 const share = after.find((item) => item.type === type.type)?.share ?? 0;
                 return (
                   <li key={type.type} className="flex items-center gap-2">
-                    <span aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ background: assetType(type.type).color }} />
-                    <span className="text-foreground min-w-0 flex-1 truncate">{assetType(type.type).shortLabel}</span>
+                    <span
+                      aria-hidden
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ background: assetType(type.type).color }}
+                    />
+                    <span className="text-foreground min-w-0 flex-1 truncate">
+                      {assetType(type.type).shortLabel}
+                    </span>
                     <span className="text-foreground tabular-nums">
-                      {view === 'aporte' ? formatBRL(type.amount) : `${pct(share)} · meta ${pct(type.target)}`}
+                      {view === 'aporte'
+                        ? formatBRL(type.amount)
+                        : `${pct(share)} · meta ${pct(type.target)}`}
                     </span>
                   </li>
                 );
@@ -177,7 +196,11 @@ export function ContributionResult({
           {buyingTypes.map((type) => (
             <div key={type.type} className="flex flex-col">
               <div className="flex items-center gap-2 px-4 pt-3 pb-1">
-                <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: assetType(type.type).color }} />
+                <span
+                  aria-hidden
+                  className="h-2 w-2 rounded-full"
+                  style={{ background: assetType(type.type).color }}
+                />
                 <h3 className="text-muted min-w-0 flex-1 truncate text-xs font-semibold uppercase">
                   {assetType(type.type).label}
                 </h3>
@@ -331,7 +354,11 @@ function Report({
             return (
               <div key={type.type} className="flex flex-col gap-1.5 px-4 py-3">
                 <p className="flex items-center gap-2">
-                  <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: assetType(type.type).color }} />
+                  <span
+                    aria-hidden
+                    className="h-2 w-2 rounded-full"
+                    style={{ background: assetType(type.type).color }}
+                  />
                   <span className="text-foreground flex-1 font-semibold">{assetType(type.type).label}</span>
                   <span className="text-muted tabular-nums">
                     {pct(before)} → {pct(share)} · meta {pct(type.effectiveTarget)}
@@ -339,12 +366,14 @@ function Report({
                 </p>
                 {type.orphan && (
                   <p className="text-muted">
-                    Não recebe: {ORPHAN_TEXT[type.orphan]}. A meta dele ({pct(type.target)}) foi dividida entre os outros
-                    tipos.
+                    Não recebe: {ORPHAN_TEXT[type.orphan]}. A meta dele ({pct(type.target)}) foi dividida
+                    entre os outros tipos.
                   </p>
                 )}
                 {!type.orphan && Math.abs(type.effectiveTarget - type.target) > 0.0001 && (
-                  <p className="text-muted">Sua meta é {pct(type.target)}; recebeu a parte de um tipo que não recebe.</p>
+                  <p className="text-muted">
+                    Sua meta é {pct(type.target)}; recebeu a parte de um tipo que não recebe.
+                  </p>
                 )}
                 <ul className="flex flex-col gap-0.5">
                   {lines.map((line) => {
@@ -355,14 +384,18 @@ function Report({
                       stepQuantity(line, 1, plan.leftover) !== line.quantity;
                     return (
                       <li key={line.id} className="flex min-h-[28px] items-center gap-2">
-                        <span className="text-foreground w-24 shrink-0 truncate font-medium">{line.label}</span>
+                        <span className="text-foreground w-24 shrink-0 truncate font-medium">
+                          {line.label}
+                        </span>
                         <span className={`min-w-0 flex-1 truncate ${bought ? 'text-success' : 'text-muted'}`}>
                           {bought
                             ? `${lineQuantity(line) ?? 'em reais'} = ${formatBRL(line.amount)}`
                             : line.blocked
                               ? BLOCK_TEXT[line.blocked]
                               : 'Nada neste aporte'}
-                          {line.blocked === 'stopped' && plan.invested > 0 ? ` · hoje ${pct(line.value / plan.invested)}` : ''}
+                          {line.blocked === 'stopped' && plan.invested > 0
+                            ? ` · hoje ${pct(line.value / plan.invested)}`
+                            : ''}
                         </span>
                         {canAdd && (
                           <button

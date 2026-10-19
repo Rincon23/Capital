@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import {
   RESERVE_CONTRIBUTION_NOTE,
@@ -35,12 +35,21 @@ import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/Mod
 import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
 import { useHomeHref } from '@/components/modules/useHomeHref';
 import { useModuleIntro } from '@/components/modules/useModuleIntro';
+import { InvestedReserve, TickerSection } from '@/components/wallet/InvestedReserve';
 import { useWallet } from '@/components/wallet/WalletProvider';
 
-export function CaixaScreen() {
+/** The two halves of the Reserva: the emergency reserve and the reserve in quotas. */
+export type ReserveTab = 'emergencia' | 'investida';
+
+const TABS: { key: ReserveTab; label: string }[] = [
+  { key: 'emergencia', label: 'Emergência' },
+  { key: 'investida', label: 'Investida' },
+];
+
+export function CaixaScreen({ initialTab }: { initialTab?: ReserveTab }) {
   return (
     <ModuleGate module="cash">
-      <Caixa />
+      <Caixa initialTab={initialTab} />
     </ModuleGate>
   );
 }
@@ -51,7 +60,8 @@ export function CaixaScreen() {
  */
 function ReserveHero({ available, target, gap }: { available: number; target: number; gap: number }) {
   // Without a target yet, the bar only fills when there is something and nothing is missing.
-  const covered = target > 0 ? Math.min(Math.max(available / target, 0), 1) : gap >= 0 && available > 0 ? 1 : 0;
+  const covered =
+    target > 0 ? Math.min(Math.max(available / target, 0), 1) : gap >= 0 && available > 0 ? 1 : 0;
   return (
     <div data-tour="caixa-gap" className="flex flex-col gap-2">
       <p className="text-muted text-sm">Sua reserva, já sem as dívidas</p>
@@ -102,10 +112,15 @@ function Row({
   );
 }
 
-function Caixa() {
+/**
+ * The Reserva, one module for what used to be two ("Reserva de emergência" and "Reserva
+ * investida"): the emergency reserve against its target, and the quotas it keeps invested.
+ */
+function Caixa({ initialTab }: { initialTab?: ReserveTab }) {
   const backHref = useHomeHref();
   const { snapshot, loading, error } = useWallet();
   const { settings } = useSettings();
+  const [tab, setTab] = useState<ReserveTab>(initialTab ?? 'emergencia');
   const [configuring, setConfiguring] = useState(false);
   /** Reserve in the account, invested, debts and the target: behind "Ver detalhes". */
   const [details, setDetails] = useState(false);
@@ -115,12 +130,16 @@ function Caixa() {
   const [contributing, setContributing] = useState(false);
   useModuleIntro('cash', { ready: !!snapshot });
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (initialTab) setTab(initialTab);
+  }, [initialTab]);
+
   if ((loading && !snapshot) || !snapshot) {
     return <div className="text-muted flex flex-1 items-center justify-center px-4 py-16">Carregando…</div>;
   }
 
   const { report } = snapshot.cash;
-  const { buckets } = snapshot.investments;
   // The debt is every bill still waiting for "Fatura paga" — which can be more than one
   // competence, and includes the "Não informado" one, since no bill leaves on its own.
   const open = isModuleOn(settings, 'card') ? openBills(snapshot.bills) : null;
@@ -133,114 +152,136 @@ function Caixa() {
   return (
     <div className="flex flex-1 flex-col gap-4 pb-10">
       <PageHeader
-        title="Reserva de emergência"
+        title="Reserva"
         backHref={backHref}
         action={
           <>
             <ModuleHelpButton module="cash" />
-            <ModuleSettingsButton module="cash" tourAnchor="caixa-config" onClick={() => setConfiguring(true)} />
+            <ModuleSettingsButton
+              module="cash"
+              tourAnchor="caixa-config"
+              onClick={() => setConfiguring(true)}
+            />
           </>
         }
       />
 
       {error && <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{error}</p>}
 
-      <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
-        <ReserveHero available={report.totalReserve + report.totalDebt} target={report.expectedReserve} gap={report.gap} />
-        <button
-          type="button"
-          onClick={() => setDetails((open) => !open)}
-          aria-expanded={details}
-          aria-controls="caixa-detalhes"
-          data-tour="caixa-detalhes"
-          className="text-primary flex min-h-[40px] items-center gap-1 self-start text-sm font-semibold"
-        >
-          {details ? 'Esconder detalhes' : 'Ver detalhes'}
-          <ChevronDown aria-hidden className={`h-4 w-4 transition-transform ${details ? 'rotate-180' : ''}`} />
-        </button>
-        <div id="caixa-detalhes" hidden={!details} className="flex flex-col gap-3">
-        <div data-tour="caixa-reserva" className="flex flex-col gap-3">
-          <Row label="Reserva em conta" value={report.reserveAccount} />
-          <Row
-            label="Reserva investida"
-            value={report.investedReserve}
-            hint="Só a parte sem categoria da reserva"
+      <div className="flex gap-2 overflow-x-auto px-4" data-no-swipe-nav>
+        {TABS.map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => setTab(item.key)}
+            data-tour={`reserva-aba-${item.key}`}
+            className={`min-h-[40px] shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium ${
+              tab === item.key
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border text-muted'
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'investida' && <InvestedReserve />}
+
+      {tab === 'emergencia' && (
+        <>
+          <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
+            <ReserveHero
+              available={report.totalReserve + report.totalDebt}
+              target={report.expectedReserve}
+              gap={report.gap}
+            />
+            <button
+              type="button"
+              onClick={() => setDetails((open) => !open)}
+              aria-expanded={details}
+              aria-controls="caixa-detalhes"
+              data-tour="caixa-detalhes"
+              className="text-primary flex min-h-[40px] items-center gap-1 self-start text-sm font-semibold"
+            >
+              {details ? 'Esconder detalhes' : 'Ver detalhes'}
+              <ChevronDown
+                aria-hidden
+                className={`h-4 w-4 transition-transform ${details ? 'rotate-180' : ''}`}
+              />
+            </button>
+            <div id="caixa-detalhes" hidden={!details} className="flex flex-col gap-3">
+              <div data-tour="caixa-reserva" className="flex flex-col gap-3">
+                <Row label="Reserva em conta" value={report.reserveAccount} />
+                <Row
+                  label="Reserva investida"
+                  value={report.investedReserve}
+                  hint="Só a parte sem categoria da reserva"
+                />
+                <Row label="Valor total de reserva" value={report.totalReserve} strong />
+              </div>
+
+              <hr className="border-border" />
+
+              <div data-tour="caixa-dividas" className="flex flex-col gap-3">
+                <Row
+                  label="Dívida do cartão"
+                  value={report.cardDebt}
+                  hint={cardDebtHint}
+                  tone={report.cardDebt < 0 ? 'danger' : undefined}
+                />
+                <Row
+                  label="Dívida dos parcelados"
+                  value={report.installmentDebt}
+                  hint="Parcelas que ainda vão ser cobradas"
+                  tone={report.installmentDebt < 0 ? 'danger' : undefined}
+                />
+                <Row
+                  label="Dívida total"
+                  value={report.totalDebt}
+                  strong
+                  tone={report.totalDebt < 0 ? 'danger' : undefined}
+                />
+              </div>
+
+              <hr className="border-border" />
+
+              <div className="flex flex-col gap-3">
+                <Row
+                  label="Meta da reserva"
+                  value={report.expectedReserve}
+                  hint={`${report.multiplier}× o custo mensal de ${formatBRL(report.monthlyCost)}`}
+                />
+                <Row
+                  label={report.gap >= 0 ? 'Reserva completa ✓' : 'Falta para a reserva'}
+                  value={report.gap}
+                  hint={report.gap >= 0 ? 'Você já tem o que precisa' : 'Quanto falta juntar'}
+                  strong
+                  tone={report.gap >= 0 ? 'success' : 'danger'}
+                />
+              </div>
+            </div>
+          </section>
+
+          <ReservePlanSection
+            plan={snapshot.cash.plan}
+            gap={report.gap}
+            onCreate={() => setPlanning(true)}
+            onEdit={() => setPlanning(true)}
+            onContribute={() => setContributing(true)}
           />
-          <Row label="Valor total de reserva" value={report.totalReserve} strong />
-        </div>
-
-        <hr className="border-border" />
-
-        <div data-tour="caixa-dividas" className="flex flex-col gap-3">
-        <Row
-          label="Dívida do cartão"
-          value={report.cardDebt}
-          hint={cardDebtHint}
-          tone={report.cardDebt < 0 ? 'danger' : undefined}
-        />
-        <Row
-          label="Dívida dos parcelados"
-          value={report.installmentDebt}
-          hint="Parcelas que ainda vão ser cobradas"
-          tone={report.installmentDebt < 0 ? 'danger' : undefined}
-        />
-        <Row label="Dívida total" value={report.totalDebt} strong tone={report.totalDebt < 0 ? 'danger' : undefined} />
-        </div>
-
-        <hr className="border-border" />
-
-        <div className="flex flex-col gap-3">
-        <Row
-          label="Meta da reserva"
-          value={report.expectedReserve}
-          hint={`${report.multiplier}× o custo mensal de ${formatBRL(report.monthlyCost)}`}
-        />
-        <Row
-          label={report.gap >= 0 ? 'Reserva completa ✓' : 'Falta para a reserva'}
-          value={report.gap}
-          hint={report.gap >= 0 ? 'Você já tem o que precisa' : 'Quanto falta juntar'}
-          strong
-          tone={report.gap >= 0 ? 'success' : 'danger'}
-        />
-        </div>
-        </div>
-      </section>
-
-      <ReservePlanSection
-        plan={snapshot.cash.plan}
-        gap={report.gap}
-        onCreate={() => setPlanning(true)}
-        onEdit={() => setPlanning(true)}
-        onContribute={() => setContributing(true)}
-      />
-
-      {buckets.length > 0 && (
-        <section className="flex flex-col gap-2 px-4">
-          <h2 className="text-muted text-sm font-semibold">Categorias da reserva (fora do total)</h2>
-          <div className="border-border bg-card flex flex-col gap-2 rounded-xl border p-4 shadow-sm">
-            {buckets.map((bucket) => (
-              <Row key={bucket.id} label={bucket.name} value={bucket.value} />
-            ))}
-            <p className="text-muted text-xs">
-              Essas cotas já estão reservadas para uma categoria, então não contam como reserva de
-              emergência.
-            </p>
-          </div>
-        </section>
+        </>
       )}
 
       {configuring && (
         <ModuleSettingsSheet module="cash" onClose={() => setConfiguring(false)}>
           <CashSettingsForm settings={snapshot.cash.settings} />
+          <TickerSection ticker={snapshot.investments.ticker} />
         </ModuleSettingsSheet>
       )}
 
       {planning && (
-        <ReservePlanSheet
-          plan={snapshot.cash.plan}
-          gap={report.gap}
-          onClose={() => setPlanning(false)}
-        />
+        <ReservePlanSheet plan={snapshot.cash.plan} gap={report.gap} onClose={() => setPlanning(false)} />
       )}
 
       {contributing && snapshot.cash.plan && (
@@ -278,7 +319,9 @@ function ReservePlanSection({
               </p>
               <div className="mt-1">
                 <InfoTip info={RESERVE_PLAN_EXPLANATION} label="Como funciona o plano?">
-                  <span className="text-muted text-sm">Um plano devolve o que falta aos poucos, como imprevisto.</span>
+                  <span className="text-muted text-sm">
+                    Um plano devolve o que falta aos poucos, como imprevisto.
+                  </span>
                 </InfoTip>
               </div>
             </div>
@@ -322,9 +365,7 @@ function ReservePlanSection({
           <span className="text-muted">
             {formatBRL(plan.contributed)} de {formatBRL(plan.plan.targetAmount)}
           </span>
-          <span className="text-foreground font-semibold">
-            {Math.round(plan.progress * 100)}%
-          </span>
+          <span className="text-foreground font-semibold">{Math.round(plan.progress * 100)}%</span>
         </div>
         <ProgressBar usedPct={plan.progress} state={plan.done ? 'ok' : 'warning'} />
       </div>
@@ -394,8 +435,7 @@ function ReservePlanSheet({
   async function handleDelete() {
     const confirmed = await confirm({
       title: 'Desistir do plano',
-      message:
-        'O plano sai da tela; as parcelas já lançadas continuam nos meses.',
+      message: 'O plano sai da tela; as parcelas já lançadas continuam nos meses.',
       confirmLabel: 'Desistir',
       cancelLabel: 'Manter',
       destructive: true,
@@ -503,13 +543,7 @@ function ReservePlanSheet({
  * dinheiro vai ficar — na conta ou em cotas — porque isso não muda nada aqui e continua sendo a
  * pessoa quem diz, na reserva em conta e nas cotas.
  */
-function ReserveContributionSheet({
-  plan,
-  onClose,
-}: {
-  plan: ReservePlanSummary;
-  onClose: () => void;
-}) {
+function ReserveContributionSheet({ plan, onClose }: { plan: ReservePlanSummary; onClose: () => void }) {
   const { run, month } = useWallet();
   const { settings } = useSettings();
   const { showToast } = useToast();
@@ -564,9 +598,7 @@ function ReserveContributionSheet({
           recommended="unforeseen"
         />
         <p className="text-muted -mt-3 text-xs">
-          Recompor a reserva é um imprevisto, não um investimento: o dinheiro está fechando um
-          buraco, não rendendo a longo prazo. Se para você faz mais sentido em outra categoria,
-          troque aqui.
+          Recompor é um imprevisto: fecha um buraco, não rende. Se preferir, troque a categoria.
         </p>
 
         <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
@@ -580,8 +612,8 @@ function ReserveContributionSheet({
         </label>
 
         <p className="text-muted text-sm">
-          Entra como &ldquo;Recompor a reserva&rdquo; no mês de {formatMonthLabel(month)}. Depois
-          desta parcela, faltam {formatBRL(Math.max(0, plan.remaining - parsed))} do plano.{' '}
+          Entra como &ldquo;Recompor a reserva&rdquo; no mês de {formatMonthLabel(month)}. Depois desta
+          parcela, faltam {formatBRL(Math.max(0, plan.remaining - parsed))} do plano.{' '}
           {RESERVE_CONTRIBUTION_NOTE}
         </p>
 

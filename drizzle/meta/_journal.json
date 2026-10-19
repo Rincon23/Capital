@@ -162,6 +162,13 @@
       "when": 1791673787158,
       "tag": "0022_renda_fixa_ativos",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792383923813,
+      "tag": "0023_contas_do_mes",
+      "breakpoints": true
     }
   ]
 }

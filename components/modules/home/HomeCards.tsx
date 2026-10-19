@@ -13,7 +13,7 @@ import { GmailHomeCard } from './GmailHomeCard';
 import { HistoryHomeCard } from './HistoryHomeCard';
 import { HomeCardBoundary } from './HomeCard';
 import { BudgetHomeCard, ExpensesHomeCard, ReimbursableHomeTile } from './MonthCards';
-import { CardHomeCard, CashHomeCard, InvestmentsHomeTile, RecurringHomeTile } from './WalletCards';
+import { CardHomeCard, CashHomeCard, RecurringHomeTile } from './WalletCards';
 
 interface CardSpec {
   /** A tile takes half the width and sits next to the tiles around it. */
@@ -29,7 +29,6 @@ const CARDS: Partial<Record<HomeWidgetKey, CardSpec>> = {
   reimbursable: { size: 'half', Component: ReimbursableHomeTile },
   history: { size: 'full', Component: HistoryHomeCard },
   recurring: { size: 'half', Component: RecurringHomeTile },
-  investments: { size: 'half', Component: InvestmentsHomeTile },
   cash: { size: 'full', Component: CashHomeCard },
   diagram: { size: 'full', Component: DiagramHomeCard },
   reminders: { size: 'full', Component: TodayRemindersCard },
@@ -39,7 +38,7 @@ const CARDS: Partial<Record<HomeWidgetKey, CardSpec>> = {
 };
 
 /** The cards that read the wallet: they share one snapshot of it. */
-const WALLET: HomeWidgetKey[] = ['card', 'recurring', 'investments', 'cash'];
+const WALLET: HomeWidgetKey[] = ['card', 'recurring', 'cash'];
 /** The cards that read the reminders: they share one snapshot of them too. */
 const REMINDERS: HomeWidgetKey[] = ['reminders', 'calendar'];
 

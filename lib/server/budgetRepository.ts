@@ -75,6 +75,7 @@ function toExpense(row: ExpenseRow): Expense {
   if (row.installmentId) expense.installmentId = row.installmentId;
   if (row.installmentNumber !== null) expense.installmentNumber = row.installmentNumber;
   if (row.reimbursedAt) expense.reimbursedAt = row.reimbursedAt.toISOString();
+  if (row.recurringId) expense.recurringId = row.recurringId;
   return expense;
 }
 
@@ -95,6 +96,7 @@ function expenseValues(month: Month, expense: Expense) {
     // Only an "A receber" purchase can be settled, so moving it to another category clears it.
     reimbursedAt:
       expense.categoryKind === 'reimbursable' && expense.reimbursedAt ? new Date(expense.reimbursedAt) : null,
+    recurringId: expense.recurringId ?? null,
   };
 }
 
@@ -465,6 +467,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
       ...(row.cardId ? { cardId: row.cardId } : {}),
       ...(row.paidCount ? { paidCount: row.paidCount } : {}),
       ...(row.advancedCount ? { advancedCount: row.advancedCount } : {}),
+      ...(row.recurringId ? { recurringId: row.recurringId } : {}),
     }));
   }
 

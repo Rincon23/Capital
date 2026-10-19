@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import type { HomeWidgetKey, ModuleKey, NavKey, QuickCategoryKey } from '@/lib/budget';
-import { HOME_WIDGET_KEYS, MAX_HOME_PAGES, MAX_WIDGETS_PER_HOME_PAGE, MODULE_KEYS } from '@/lib/modules';
+import {
+  HOME_WIDGET_KEYS,
+  MAX_HOME_PAGES,
+  MAX_WIDGETS_PER_HOME_PAGE,
+  MERGED_RESERVE_MODULE,
+  MODULE_KEYS,
+  renameReserveKey,
+} from '@/lib/modules';
 import {
   ASSET_TYPE_KEYS,
   QUESTION_TYPES,
@@ -12,7 +19,14 @@ import {
 import { isAllowedPushEndpoint, type NotificationCategory } from '@/lib/notifications';
 import { QUOTAS } from './quotas';
 
-const NOTIFICATION_CATEGORIES: NotificationCategory[] = ['reminder', 'card', 'gmail', 'feature', 'system'];
+const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
+  'reminder',
+  'card',
+  'recurring',
+  'gmail',
+  'feature',
+  'system',
+];
 
 /** A partial map keyed by every module (or notification category): every key optional, like
  * `Partial<Record<K, V>>` — unlike `z.record` with an enum key, which demands every key present. */
@@ -50,22 +64,40 @@ const topicSchema = z.object({
   preset: z.enum(['diversos', 'investimentos', 'metas', 'conhecimentos']).optional(),
 });
 
-/** Every module, as booleans. Anything absent stays off (see `resolveModules`). */
-const modulesSchema = z.object(
-  Object.fromEntries(MODULE_KEYS.map((key) => [key, z.boolean().optional()])) as Record<
-    ModuleKey,
-    z.ZodOptional<z.ZodBoolean>
-  >,
+/**
+ * Every module, as booleans. Anything absent stays off (see `resolveModules`). An older backup or
+ * a cached client may still send the invested reserve (`investments`), now part of Reserva.
+ */
+const modulesSchema = z.preprocess(
+  (value) => {
+    if (!value || typeof value !== 'object' || !(MERGED_RESERVE_MODULE in value)) return value;
+    const { [MERGED_RESERVE_MODULE]: invested, ...rest } = value as Record<string, unknown>;
+    return invested === true ? { ...rest, cash: true } : rest;
+  },
+  z.object(
+    Object.fromEntries(MODULE_KEYS.map((key) => [key, z.boolean().optional()])) as Record<
+      ModuleKey,
+      z.ZodOptional<z.ZodBoolean>
+    >,
+  ),
 );
+
+/** A key saved before the two reserves merged becomes the Reserva's (`renameReserveKey`). */
+const renamedKey = (value: unknown) => (typeof value === 'string' ? renameReserveKey(value) : value);
 
 /**
  * Obsolete: the bottom bar (Início or a module, at most four). Still accepted, so older backups and
  * cached clients keep working, and ignored.
  */
-const navSchema = z.array(z.enum(['inicio', ...MODULE_KEYS] as [NavKey, ...NavKey[]])).max(4);
+const navSchema = z
+  .array(z.preprocess(renamedKey, z.enum(['inicio', ...MODULE_KEYS] as [NavKey, ...NavKey[]])))
+  .max(4);
 
 /** A widget of the Início: a module's card or one of the extra widgets (lib/modules/home.ts). */
-const homeWidgetSchema = z.enum(HOME_WIDGET_KEYS as [HomeWidgetKey, ...HomeWidgetKey[]]);
+const homeWidgetSchema = z.preprocess(
+  renamedKey,
+  z.enum(HOME_WIDGET_KEYS as [HomeWidgetKey, ...HomeWidgetKey[]]),
+);
 
 /** A category as the expense form lists it: "topic:<id>" or a special kind. */
 const quickCategorySchema = z.union([
@@ -143,6 +175,8 @@ export const expenseSchema = z.object({
   installmentNumber: z.preprocess(absentAsUndefined, z.number().int().min(0).optional()),
   /** When an "A receber" purchase was paid back (ISO instant). */
   reimbursedAt: z.preprocess(absentAsUndefined, z.iso.datetime().optional()),
+  /** The recurring template ("Contas do mês") it was launched from. */
+  recurringId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
 });
 
 export const monthDataSchema = z.object({
@@ -173,6 +207,8 @@ export const recurringExpenseSchema = z.object({
   /** A template launched as a parcelamento (see RecurringExpense). */
   installmentCount: z.preprocess(absentAsUndefined, z.number().int().min(2).max(120).optional()),
   installmentAccounting: z.preprocess(absentAsUndefined, z.enum(['installment', 'upfront']).optional()),
+  /** The day of the month it falls due; absent when the person did not say. */
+  dueDay: z.preprocess(absentAsUndefined, z.number().int().min(1).max(31).optional()),
 });
 
 export const installmentPlanSchema = z.object({
@@ -191,6 +227,8 @@ export const installmentPlanSchema = z.object({
   paidCount: z.preprocess(absentAsUndefined, z.number().int().min(0).max(120).optional()),
   /** Charges paid ahead of time ("adiantar parcelas"). */
   advancedCount: z.preprocess(absentAsUndefined, z.number().int().min(0).max(120).optional()),
+  /** The recurring template it was launched from ("Contas do mês"). */
+  recurringId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
 });
 
 export const creditCardSchema = z.object({
@@ -210,6 +248,12 @@ export const creditCardSchema = z.object({
 export const cardSettingsSchema = z.object({
   notifyTime: timeOfDay,
   repeatUntilPaid: z.boolean(),
+});
+
+export const recurringSettingsSchema = z.object({
+  notifyEnabled: z.boolean(),
+  notifyTime: timeOfDay,
+  repeatUntilLaunched: z.boolean(),
 });
 
 export const investmentBucketSchema = z.object({

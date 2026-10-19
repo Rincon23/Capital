@@ -59,8 +59,7 @@ export function ConfiguracoesScreen() {
   async function handleClearAll() {
     const confirmed = await confirm({
       title: 'Apagar todos os dados',
-      message:
-        'Apaga tudo o que você guardou, em todos os módulos; a conta continua. Não dá para desfazer.',
+      message: 'Apaga tudo o que você guardou; a conta continua. Não dá para desfazer.',
       confirmLabel: 'Apagar tudo',
       cancelLabel: 'Manter',
       destructive: true,
@@ -193,8 +192,7 @@ function NameForm({ current }: { current: string | null }) {
     <form action={action} className="flex flex-col gap-3">
       {!current && (
         <p className="bg-primary/10 text-foreground rounded-lg px-3 py-2 text-xs leading-relaxed">
-          Como podemos te chamar? Com o seu nome aqui, o Capital te chama pelo primeiro nome na Início e nos
-          lembretes.
+          Como podemos te chamar? O Capital usa o seu primeiro nome na Início e nos lembretes.
         </p>
       )}
       <div className="grid grid-cols-2 gap-3">
@@ -246,9 +244,8 @@ function DeleteAccountSheet({ onClose }: { onClose: () => void }) {
     <BottomSheet open onClose={onClose} title="Excluir minha conta" confirmDiscard={false}>
       <form action={action} className="flex flex-col gap-4">
         <p className="text-muted text-sm">
-          A conta e tudo o que ela guarda somem de vez: lançamentos de todos os módulos, lembretes, a conexão
-          com o Gmail e os aparelhos que recebem notificações. Não dá para desfazer. Se quiser guardar uma
-          cópia, use &quot;Exportar dados&quot; antes.
+          A conta e tudo o que ela guarda somem de vez. Para guardar uma cópia, use &quot;Exportar dados&quot;
+          antes.
         </p>
         {state.error && (
           <p className="bg-danger-bg text-danger rounded-lg px-3 py-2 text-sm" role="alert">
@@ -305,8 +302,7 @@ function LocalDataSection() {
   async function handleImport() {
     const confirmed = await confirm({
       title: 'Importar dados deste dispositivo',
-      message:
-        'Substitui os dados atuais da sua conta. Não dá para desfazer.',
+      message: 'Substitui os dados atuais da sua conta. Não dá para desfazer.',
       confirmLabel: 'Importar',
       destructive: true,
     });
@@ -330,8 +326,7 @@ function LocalDataSection() {
       <h2 className="text-muted text-sm font-semibold">Dados locais deste dispositivo</h2>
       <div className="border-border bg-card flex flex-col gap-2 rounded-xl border p-4 shadow-sm">
         <p className="text-muted text-sm">
-          Este dispositivo tem dados da versão anterior (salvos só no navegador). Importe-os para a sua conta
-          para acessá-los em qualquer lugar.
+          Este aparelho tem dados da versão anterior. Importe para vê-los em qualquer lugar.
         </p>
         <button
           type="button"

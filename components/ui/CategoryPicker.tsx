@@ -181,9 +181,7 @@ export function CategoryPicker({
 
         {editing ? (
           <div className="bg-background border-border flex flex-col gap-3 rounded-xl border p-3">
-            <p className="text-muted text-xs">
-              Toque para escolher as categorias que aparecem direto ao lançar. As outras ficam em “Outras”.
-            </p>
+            <p className="text-muted text-xs">Escolha as que aparecem direto; as outras ficam em “Outras”.</p>
             <div className="flex flex-wrap gap-2">
               {options.map((option) => {
                 const on = editing.includes(option.key);
@@ -278,7 +276,9 @@ export function CategoryPicker({
             }
             label="Por que não é recomendado?"
           >
-            <span className="text-warning text-xs font-semibold">Não recomendado: nenhuma categoria mostra.</span>
+            <span className="text-warning text-xs font-semibold">
+              Não recomendado: nenhuma categoria mostra.
+            </span>
           </InfoTip>
         </div>
       )}

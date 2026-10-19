@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   Bell,
   Clock,
+  Repeat,
   CreditCard,
   Mail,
   Settings as SettingsIcon,
@@ -31,6 +32,7 @@ import {
 const CATEGORY_VISUAL: Record<NotificationCategory, { icon: LucideIcon; tone: IconTone }> = {
   reminder: { icon: Clock, tone: 'amber' },
   card: { icon: CreditCard, tone: 'orange' },
+  recurring: { icon: Repeat, tone: 'blue' },
   gmail: { icon: Mail, tone: 'red' },
   feature: { icon: Sparkles, tone: 'purple' },
   system: { icon: Bell, tone: 'neutral' },

@@ -196,6 +196,8 @@ export function ExpenseFormSheet({
           totalAmount: parsedAmount,
           accounting: installment.accounting,
           ...(cardId ? { cardId } : {}),
+          // Launched from a bill of "Contas do mês": that bill counts as launched this month.
+          ...(prefill?.recurringId ? { recurringId: prefill.recurringId } : {}),
         }
       : null;
 
@@ -231,6 +233,8 @@ export function ExpenseFormSheet({
           ...(initial?.installmentNumber !== undefined
             ? { installmentNumber: initial.installmentNumber }
             : {}),
+          // The bill of "Contas do mês" it came from, kept through any edit.
+          ...(prefill?.recurringId ? { recurringId: prefill.recurringId } : {}),
         });
       }
       onClose();

@@ -5,6 +5,7 @@ import type {
   InstallmentPlan,
   InvestmentBucket,
   RecurringExpense,
+  RecurringSettings,
 } from '../budget/types';
 import { apiRequest, seg } from './apiClient';
 import type { ReservePlan } from '../budget/reserve';
@@ -61,6 +62,10 @@ export class HttpWalletRepository implements WalletRepository {
 
   saveCardSettings(settings: CardSettings): Promise<void> {
     return apiRequest('PUT', '/wallet/cards/settings', settings);
+  }
+
+  saveRecurringSettings(settings: RecurringSettings): Promise<void> {
+    return apiRequest('PUT', '/wallet/recurring/settings', settings);
   }
 
   setTicker(ticker: string): Promise<void> {

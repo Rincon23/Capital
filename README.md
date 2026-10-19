@@ -56,11 +56,10 @@ apaga nada."
   - Gastos por categoria
     - Histórico e gráficos
   - Cartão
-    - A receber
-  - Gastos recorrentes
-  - Reserva investida
+  - A receber
+  - Contas do mês
   - Lançar por voz ou texto
-- Reserva de emergência, Lembretes e Monitor de Gmail funcionam sozinhos.
+- Reserva, Diagrama, Lembretes e Monitor de Gmail funcionam sozinhos.
 
 Um módulo cujo pai está desligado aparece com **cadeado** e o selo "Precisa de …". Tocar nele
 abre uma janelinha: "Para usar Histórico e gráficos, ligue também Gastos por categoria", com
@@ -88,7 +87,8 @@ pede confirmação e desliga os filhos junto. Cada mudança é salva na hora, co
   banco, e está detalhada em "O módulo Cartão" logo abaixo.
 - **A receber** — dinheiro que saiu por outra pessoa, que vai devolver. **Não** entra em nenhuma
   categoria, no rateio dos custos fixos nem no gasto do mês, e **não precisa ser no cartão**:
-  emprestar R$ 50 em dinheiro é a mesma coisa, então a pergunta "a compra foi no cartão?" fica
+  emprestar R$ 50 em dinheiro é a mesma coisa — por isso o módulo só precisa de Lançamentos, e não
+  do Cartão —, e a pergunta "a compra foi no cartão?" fica
   livre como em qualquer outro gasto — foi no cartão, entra na fatura (`cardTotal` e
   `reimbursableTotal`); não foi, é só um valor que alguém te deve. Tem uma aba em Lançamentos,
   dividida em **"Ainda devem"** e **"Já me pagaram"**, com o total de cada lado: um toque no
@@ -98,18 +98,46 @@ pede confirmação e desliga os filhos junto. Cada mudança é salva na hora, co
 - **Histórico e gráficos** (`/historico`) — aderência à meta, gráficos e a tabela mês a mês.
 
 **Carteira** (cada um com tela própria; o antigo painel `/carteira` redireciona para o Início):
-  - **Gastos recorrentes** — modelos dos gastos de todo mês; "Lançar" abre o **mesmo formulário de
-    gasto de sempre**, já preenchido e com a data de hoje, na competência que você estava vendo —
-    inclusive com "À vista / Parcelado" quando o modelo é pago no cartão, porque lançar um
-    recorrente é lançar uma compra nova como qualquer outra. **O próprio modelo pode ser
-    parcelado**: marcando "Esse gasto é pago no cartão?", o formulário do recorrente pergunta
-    "Como você paga?" e guarda em quantas vezes e como entra no orçamento
+  - **Contas do mês** (`/carteira/recorrentes`; o antigo "Gastos recorrentes") — as contas de todo
+    mês (aluguel, luz, internet) como uma lista do mês na tela: no topo, **"Falta lançar R$ 640"**
+    com a barra de quantas já foram (ou **"Tudo lançado ✓"**); embaixo, o que falta, a próxima a
+    vencer primeiro ("vence dia 10", "vence hoje", "venceu dia 5" em vermelho), e as **Já
+    lançadas**, com o dia. O mês troca deslizando, como na fatura do Cartão. Cada conta pode ter um
+    **dia do vencimento** (`recurring_expenses.due_day`, 1–31, 29–31 caem no último dia dos meses
+    curtos), opcional como tudo: "Não informar" é a primeira opção.
+    "Lançar" abre o **mesmo formulário de gasto de sempre**, já preenchido e com a data de hoje, no
+    mês que está na tela — inclusive com "À vista / Parcelado" quando a conta é paga no cartão,
+    porque lançar é lançar uma compra nova como qualquer outra. O gasto salvo aponta para a conta
+    (`expenses.recurring_id`; numa compra parcelada, `installments.recurring_id`, contada no mês da
+    compra), e é **só isso** que marca a conta como lançada: nada fica guardado à parte, então
+    apagar o gasto devolve a conta para a lista. Tocar numa conta que falta abre **Lançar**, **Já
+    lancei este mês** (escolhe, entre os gastos do mês, o que foi essa conta — os da mesma categoria
+    primeiro — e liga os dois) e **Editar conta**. Os gastos lançados de um recorrente antes disso
+    existir foram ligados uma vez, na subida (`lib/server/recurringLaunchLink.ts`), só onde não havia
+    dúvida: mesma descrição e mesma categoria de uma conta só.
+    **Aviso no celular** (`lib/server/recurringBills.ts`): no dia do vencimento, no horário escolhido
+    na engrenagem (padrão 09:00), e, com "Lembrar de novo até lançar", uma vez por dia por até 3
+    dias depois, enquanto a conta não for lançada. A notificação traz **Lançar ✅**, que lança a conta
+    como ela é sem abrir o app (token assinado, como o "Fatura paga"; duas vezes é uma só), menos a
+    parcelada, que precisa do formulário. Só avisa das contas com dia do vencimento, e a categoria
+    "Contas do mês" pode ser desligada na Central de notificações.
+    **A própria conta pode ser parcelada**: marcando "Esse gasto é pago no cartão?", o formulário
+    pergunta "Como você paga?" e guarda em quantas vezes e como entra no orçamento
     (`recurring_expenses.installment_count` e `installment_accounting`). Não guarda data: a
     primeira cobrança vem do cartão no dia do lançamento. Aí "Lançar" já abre em "Parcelado", com
-    o número de vezes preenchido, e salvar cria a compra parcelada. Tirar o cartão do modelo
-    apaga o parcelamento dele, porque parcelar só existe no cartão.
-  - **Reserva investida** — cotas de um ativo (AUPO11 por padrão) divididas em categorias da
-    reserva, cada uma ligada a uma categoria do orçamento. **Remanejar vai nos dois sentidos**:
+    o número de vezes preenchido, e salvar cria a compra parcelada. Tirar o cartão da conta
+    apaga o parcelamento dela, porque parcelar só existe no cartão.
+  - **Reserva** (`/carteira/caixa`) — um módulo só para o que eram dois, "Reserva de emergência" e
+    "Reserva investida": para a pessoa é uma coisa só, a reserva dela. A tela tem duas abas,
+    **Emergência** e **Investida** (`?aba=investida`; o antigo `/carteira/reserva` leva para lá), e
+    a engrenagem junta o que era das duas (reserva em conta, custos, meses da meta e o ativo). Quem
+    tinha a investida ligada passou a ter a Reserva ligada, com o widget no mesmo lugar da Início
+    (`migrateReserveModule` em `lib/modules/migration.ts`, uma vez na subida; o servidor também
+    aceita a chave antiga de um backup ou de um app em cache).
+    - **Investida** — no topo, o valor das cotas, com **Guardar / Retirar** em destaque; a cotação e
+    o "Atualizar" ficam embaixo. São cotas de um ativo (AUPO11 por padrão) divididas em categorias da
+    reserva, cada uma ligada a uma categoria do orçamento — guardar lança gasto, então essa parte
+    precisa de Lançamentos; sem ele, a aba mostra as cotas e deixa comprar ou vender. **Remanejar vai nos dois sentidos**:
     *Guardar* compra cotas para a categoria da reserva e lança o gasto na categoria do orçamento;
     *Retirar* faz o caminho de volta — as cotas voltam para a reserva livre e a categoria do
     orçamento recebe um **estorno** (um lançamento negativo, "AUPO11 (retirada)"), para o mês não
@@ -119,7 +147,7 @@ pede confirmação e desliga os filhos junto. Cada mudança é salva na hora, co
     cache e se atualiza sozinha ao abrir a Carteira quando tem mais de 15 min. Nenhuma das duas é
     uma API documentada com garantia, por isso há duas e o app nunca depende de uma resposta ao
     vivo para abrir a tela.
-  - **Reserva de emergência** — no topo, o número da tela: "R$ 8.000 de R$ 12.000" (a reserva já
+    - **Emergência** — no topo, o número da tela: "R$ 8.000 de R$ 12.000" (a reserva já
     sem as dívidas, contra a meta), com barra e "Faltam R$ 4.000" ou "Reserva completa ✓"; reserva
     em conta, investida sem categoria, dívidas e meta ficam em "Ver detalhes", e o texto do plano
     vira uma linha com ⓘ. A dívida do cartão é a soma das faturas **em aberto** (de
@@ -355,8 +383,9 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   descrição, cor, ordem e metas (com a regra dos 100%), e "Restaurar categorias padrão".
   Lançamentos: nome, descrição e cor das categorias, sem metas. Lembretes: notificações deste
   aparelho e horários para lembrar de novo. Gmail: notificações. Cartões: horário do aviso, insistir
-  até a fatura ser paga e notificações deste aparelho. Reserva de emergência: reserva em
-  conta e custos de emergência. Reserva investida: o ativo. **Configurações** fica só com o que é
+  até a fatura ser paga e notificações deste aparelho. Contas do mês: aviso no dia do vencimento,
+  horário, lembrar de novo até lançar e notificações deste aparelho. Reserva: reserva em conta,
+  custos de emergência e o ativo das cotas. **Configurações** fica só com o que é
   geral: conta, tema, backup, dados locais e apagar tudo (Módulos e Privacidade ficam na bandeja de
   apps).
 - **Primeira visita** (`useModuleIntro`): o tour nunca começa sozinho, só pelo "?". O único módulo
@@ -555,8 +584,8 @@ na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de 
 ### Agenda em segundo plano (`lib/server/scheduler.ts`)
 
 Roda dentro do próprio servidor do Capital, sem n8n nem container extra: a cada minuto (5 s
-depois da virada) envia as notificações de lembrete que venceram, confere o Gmail das contas
-conectadas e, no horário da B3 (dias úteis, 10:00–18:30), atualiza a cotação dos ativos que alguém
+depois da virada) envia as notificações de lembrete que venceram, os avisos das faturas e das
+Contas do mês, confere o Gmail das contas conectadas e, no horário da B3 (dias úteis, 10:00–18:30), atualiza a cotação dos ativos que alguém
 tem, a cada 30 min. De hora em hora também avisa, pelo sino, quem já tinha conta quando uma
 novidade do app entrou no ar (`lib/notifications/announcements.ts`). Cada tarefa guarda
 quando rodou (`job_runs`): depois de um deploy ou reinício ela recupera o que ficou para trás, e

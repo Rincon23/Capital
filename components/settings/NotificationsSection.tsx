@@ -103,8 +103,7 @@ export function NotificationsSection() {
   async function disable() {
     const confirmed = await confirm({
       title: 'Desativar neste aparelho',
-      message:
-        'Este aparelho deixa de receber os lembretes. Os outros aparelhos continuam recebendo.',
+      message: 'Este aparelho deixa de receber os lembretes. Os outros aparelhos continuam recebendo.',
       confirmLabel: 'Desativar',
       destructive: true,
     });
@@ -232,10 +231,7 @@ export function NotificationsSection() {
                     );
                   })}
                 </ul>
-                <p className="text-muted text-xs">
-                  Se no celular os avisos chegarem atrasados, libere o Chrome na economia de
-                  bateria do Android.
-                </p>
+                <p className="text-muted text-xs">Avisos atrasados? Tire o Chrome da economia de bateria.</p>
               </div>
             )}
           </>
@@ -265,8 +261,7 @@ function ThisDevice({
   if (state.support === 'ios-install') {
     return (
       <p className="text-muted text-sm">
-        No iPhone, as notificações só funcionam com o Capital instalado: toque em Compartilhar →
-        “Adicionar à Tela de Início” e abra o app por lá.
+        No iPhone, instale antes: Compartilhar → “Adicionar à Tela de Início”.
       </p>
     );
   }
@@ -278,9 +273,7 @@ function ThisDevice({
     );
   }
   if (!state.status.publicKey) {
-    return (
-      <p className="text-muted text-sm">As notificações ainda não foram configuradas no servidor.</p>
-    );
+    return <p className="text-muted text-sm">As notificações ainda não foram configuradas no servidor.</p>;
   }
 
   const subtitle = active
@@ -320,9 +313,7 @@ function ThisDevice({
         </div>
       ) : state.blocked ? (
         <p className="text-muted text-sm">
-          O navegador está bloqueando as notificações do Capital. Para liberar, toque no cadeado
-          ao lado do endereço (ou em ⋮ → Configurações do site) → Notificações → Permitir, e
-          volte aqui.
+          O navegador bloqueou as notificações. Libere no cadeado do endereço → Notificações.
         </p>
       ) : (
         <>

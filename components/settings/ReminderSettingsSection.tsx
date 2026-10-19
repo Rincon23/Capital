@@ -69,8 +69,7 @@ export function ReminderSettingsSection() {
               <div className="min-w-0 flex-1">
                 <p className="text-foreground text-sm font-medium">Lembrar de novo até marcar feito</p>
                 <p className="text-muted mt-0.5 text-xs">
-                  Sem “Realizado”, o lembrete avisa de novo nos horários abaixo — no dia e nos dias seguintes,
-                  como atrasado. Cada lembrete também pode desligar isso.
+                  Sem “Realizado”, avisa de novo nos horários abaixo, até ser feito.
                 </p>
               </div>
               <Switch

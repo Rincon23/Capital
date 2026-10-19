@@ -22,7 +22,7 @@ import {
 const on = (...keys: ModuleKey[]) => Object.fromEntries(keys.map((key) => [key, true]));
 
 describe('catálogo de módulos', () => {
-  it('tem os 12 módulos, cada um depois dos que ele precisa', () => {
+  it('tem os 11 módulos, cada um depois dos que ele precisa', () => {
     expect(MODULE_KEYS).toEqual([
       'expenses',
       'budget',
@@ -30,7 +30,6 @@ describe('catálogo de módulos', () => {
       'reimbursable',
       'history',
       'recurring',
-      'investments',
       'cash',
       'diagram',
       'reminders',
@@ -92,7 +91,7 @@ describe('módulos ligados', () => {
 
 describe('dependências', () => {
   it('diz o que falta ligar antes', () => {
-    expect(missingDependencies({}, 'reimbursable')).toEqual(['card']);
+    expect(missingDependencies({}, 'reimbursable')).toEqual(['expenses']);
     expect(missingDependencies({ modules: on('expenses') }, 'card')).toEqual([]);
     expect(missingDependencies({}, 'card')).toEqual(['expenses']);
     expect(missingDependencies({}, 'history')).toEqual(['budget']);
@@ -100,22 +99,23 @@ describe('dependências', () => {
   });
 
   it('mostra o bloqueio mais próximo e a ordem do que ligar antes', () => {
-    expect(nearestMissing({}, 'reimbursable')).toEqual(['card']);
-    expect(modulesToTurnOnFirst({}, 'reimbursable')).toEqual(['expenses', 'card']);
+    expect(nearestMissing({}, 'history')).toEqual(['budget']);
     expect(modulesToTurnOnFirst({}, 'history')).toEqual(['expenses', 'budget']);
     expect(modulesToTurnOnFirst({ modules: on('expenses') }, 'history')).toEqual(['budget']);
-    expect(nearestMissing({ modules: on('expenses', 'card') }, 'reimbursable')).toEqual([]);
+    expect(nearestMissing({ modules: on('expenses', 'budget') }, 'history')).toEqual([]);
+    // A receber is not only for the card: lending money in cash is the same thing.
+    expect(modulesToTurnOnFirst({}, 'reimbursable')).toEqual(['expenses']);
   });
 
   it('não liga o filho com o pai desligado, e nunca liga o pai sozinho', () => {
-    const result = turnModuleOn({ modules: on('expenses') }, 'reimbursable');
-    expect(result).toEqual({ ok: false, missing: ['card'] });
+    const result = turnModuleOn({ modules: on('expenses') }, 'history');
+    expect(result).toEqual({ ok: false, missing: ['budget'] });
 
-    const allowed = turnModuleOn({ modules: on('expenses', 'card') }, 'reimbursable');
+    const allowed = turnModuleOn({ modules: on('expenses', 'budget') }, 'history');
     expect(allowed.ok).toBe(true);
     if (allowed.ok) {
-      expect(allowed.modules.reimbursable).toBe(true);
-      expect(allowed.modules.budget).toBe(false);
+      expect(allowed.modules.history).toBe(true);
+      expect(allowed.modules.card).toBe(false);
     }
   });
 
@@ -141,26 +141,25 @@ describe('dependências', () => {
       'reimbursable',
       'history',
       'recurring',
-      'investments',
       'voice',
     ]);
-    expect(dependentsOf('card')).toEqual(['reimbursable']);
+    expect(dependentsOf('card')).toEqual([]);
     expect(dependentsOf('budget')).toEqual(['history']);
     expect(dependentsOf('gmail')).toEqual([]);
   });
 
   it('desligar o pai desliga junto os filhos que estavam ligados, e só eles', () => {
-    const settings = { modules: on('expenses', 'card', 'reimbursable', 'reminders') };
-    const { modules, alsoOff } = turnModuleOff(settings, 'card');
-    expect(alsoOff).toEqual(['reimbursable']);
-    expect(modules.card).toBe(false);
-    expect(modules.reimbursable).toBe(false);
-    expect(modules.expenses).toBe(true);
+    const settings = { modules: on('expenses', 'budget', 'history', 'card', 'reminders') };
+    const { modules, alsoOff } = turnModuleOff(settings, 'budget');
+    expect(alsoOff).toEqual(['history']);
+    expect(modules.budget).toBe(false);
+    expect(modules.history).toBe(false);
+    expect(modules.card).toBe(true);
     expect(modules.reminders).toBe(true);
   });
 
   it('monta a árvore com cada módulo embaixo de quem ele precisa', () => {
-    expect(parentOf('reimbursable')).toBe('card');
+    expect(parentOf('reimbursable')).toBe('expenses');
     expect(parentOf('history')).toBe('budget');
     expect(parentOf('cash')).toBeNull();
 
@@ -170,12 +169,12 @@ describe('dependências', () => {
     expect(expenses.children.map((node) => node.key)).toEqual([
       'budget',
       'card',
+      'reimbursable',
       'recurring',
-      'investments',
       'voice',
     ]);
-    const card = expenses.children.find((node) => node.key === 'card');
-    expect(card?.children.map((node) => node.key)).toEqual(['reimbursable']);
+    const budget = expenses.children.find((node) => node.key === 'budget');
+    expect(budget?.children.map((node) => node.key)).toEqual(['history']);
   });
 });
 

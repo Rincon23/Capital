@@ -1,7 +1,6 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { ReservaScreen } from '@/components/screens/ReservaScreen';
-
+/** The Reserva investida is now the "Investida" tab of the Reserva. */
 export default function Page() {
-  return <ReservaScreen />;
+  redirect('/carteira/caixa?aba=investida');
 }

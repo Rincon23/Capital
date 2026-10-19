@@ -12,7 +12,9 @@ import type {
   InvestmentBucket,
   Month,
   RecurringExpense,
+  RecurringSettings,
 } from '../budget/types';
+import type { RecurringLaunch } from '../budget/recurring';
 
 /**
  * The "Carteira" side of the app: recurring expenses, instalment plans, the invested reserve and
@@ -23,6 +25,9 @@ import type {
 /** Everything the Carteira screens need, in one read. */
 export interface WalletSnapshot {
   recurring: RecurringExpense[];
+  /** Every launch of a template ("Contas do mês"): the expenses made from one, by competence. */
+  recurringLaunches: RecurringLaunch[];
+  recurringSettings: RecurringSettings;
   installments: InstallmentPlan[];
   /** The registered credit cards, in the order they were created. */
   cards: CreditCard[];
@@ -80,6 +85,8 @@ export interface WalletRepository {
 
   saveRecurring(item: RecurringExpense): Promise<void>;
   deleteRecurring(id: string): Promise<void>;
+  /** The notices of "Contas do mês": on or off, the time and whether they insist. */
+  saveRecurringSettings(settings: RecurringSettings): Promise<void>;
 
   /** Creates or updates a plan, rebuilding every expense line it owns (see the server's version). */
   saveInstallment(plan: InstallmentPlan): Promise<void>;

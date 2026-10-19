@@ -23,7 +23,6 @@ const everything = on(
   'reimbursable',
   'history',
   'recurring',
-  'investments',
   'cash',
   'diagram',
   'reminders',
@@ -32,15 +31,14 @@ const everything = on(
 );
 
 describe('widgets do Início', () => {
-  it('seguem a ordem do catálogo, com A receber logo depois do Cartão e o calendário depois dos Lembretes', () => {
+  it('seguem a ordem do catálogo, com A receber logo depois de Lançamentos e o calendário depois dos Lembretes', () => {
     expect(homeCards({ modules: everything })).toEqual([
       'expenses',
+      'reimbursable',
       'budget',
       'card',
-      'reimbursable',
       'history',
       'recurring',
-      'investments',
       'cash',
       'diagram',
       'reminders',
@@ -75,7 +73,6 @@ describe('widgets do Início', () => {
     expect(offModuleWidgets({ modules: on('expenses', 'budget', 'card', 'history') })).toEqual([
       'reimbursable',
       'recurring',
-      'investments',
       'cash',
       'diagram',
       'reminders',

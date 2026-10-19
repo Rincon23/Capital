@@ -20,6 +20,7 @@ import {
   months,
   notifications,
   recurringExpenses,
+  recurringSettings,
   reminders,
   reminderSettings,
   reserveContributions,
@@ -45,6 +46,7 @@ export async function clearAccountData(db: Database, userId: string): Promise<vo
     await tx.delete(cards).where(eq(cards.userId, userId));
     await tx.delete(cardSettings).where(eq(cardSettings.userId, userId));
     await tx.delete(recurringExpenses).where(eq(recurringExpenses.userId, userId));
+    await tx.delete(recurringSettings).where(eq(recurringSettings.userId, userId));
     await tx.delete(installments).where(eq(installments.userId, userId));
     await tx.delete(reserveContributions).where(eq(reserveContributions.userId, userId));
     await tx.delete(reservePlans).where(eq(reservePlans.userId, userId));

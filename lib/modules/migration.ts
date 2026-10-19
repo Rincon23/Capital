@@ -63,3 +63,85 @@ export function migrateCardModule(
 
   return { modules, nav, homeOrder, changed };
 }
+
+/**
+ * The two reserves merged into one. "Reserva investida" (`investments`) and "Reserva de
+ * emergência" (`cash`) were two modules side by side, with nearly the same name, for what the
+ * person sees as one thing: their reserve. They are now the module `cash`, "Reserva", whose
+ * screen has the tabs Emergência and Investida.
+ *
+ * Nobody loses anything in the move: whoever had the invested reserve on ends up with Reserva on,
+ * and wherever its widget was on the Início, the Reserva widget takes that place — never twice.
+ */
+export const MERGED_RESERVE_MODULE = 'investments';
+
+/** What an old key becomes wherever a module or a widget is saved. */
+export function renameReserveKey<T extends string>(key: T): T {
+  return (key === MERGED_RESERVE_MODULE ? 'cash' : key) as T;
+}
+
+type ReserveSettings = Pick<
+  BudgetSettings,
+  'modules' | 'nav' | 'homeOrder' | 'homePages' | 'homeHidden' | 'homeCardSizes'
+>;
+
+export interface ReserveModuleMigration {
+  modules: Partial<Record<string, boolean>>;
+  nav: NavKey[] | null;
+  homeOrder: HomeWidgetKey[] | null;
+  homePages: HomeWidgetKey[][] | null;
+  homeHidden: HomeWidgetKey[];
+  homeCardSizes: Partial<Record<HomeWidgetKey, 'half' | 'full'>>;
+  /** False when this account had nothing from before: no write is needed. */
+  changed: boolean;
+}
+
+/** Replaces the old key with `cash`, keeping the first position and dropping the repeats. */
+function renameList<T extends string>(list: T[], seen: Set<string> = new Set()): T[] {
+  const renamed: T[] = [];
+  for (const key of list) {
+    const next = renameReserveKey(key);
+    if (next === 'cash') {
+      if (seen.has('cash')) continue;
+      seen.add('cash');
+    } else if (renamed.includes(next)) continue;
+    renamed.push(next);
+  }
+  return renamed;
+}
+
+/**
+ * What one account's settings become. Idempotent: an account already migrated (or one that
+ * never had the invested reserve) comes back with `changed: false` and nothing touched.
+ */
+export function migrateReserveModule(settings: ReserveSettings): ReserveModuleMigration {
+  const old = MERGED_RESERVE_MODULE as string;
+  const stored: Record<string, boolean | undefined> = { ...(settings.modules ?? {}) };
+  const hidden = (settings.homeHidden ?? []) as string[];
+  const sizes: Record<string, 'half' | 'full' | undefined> = { ...(settings.homeCardSizes ?? {}) };
+  const pages = (settings.homePages ?? null) as string[][] | null;
+  const lists = [settings.nav ?? [], settings.homeOrder ?? [], ...(pages ?? [])] as string[][];
+  const changed =
+    old in stored || hidden.includes(old) || old in sizes || lists.some((list) => list.includes(old));
+
+  const modules: Partial<Record<string, boolean>> = {};
+  for (const [key, value] of Object.entries(stored)) if (key !== old) modules[key] = value;
+  // Whoever used the invested reserve gets the Reserva on: it is where the quotas live now.
+  if (stored[old] === true) modules.cash = true;
+
+  // The invested widget was showing, so the Reserva widget shows (in its place, if it was hidden).
+  const investedShown = stored[old] === true && !hidden.includes(old);
+  const homeHidden = hidden.filter((key) => key !== old && !(key === 'cash' && investedShown));
+  delete sizes[old];
+
+  const seenInPages = new Set<string>();
+  return {
+    modules,
+    nav: settings.nav ? renameList(settings.nav) : null,
+    homeOrder: settings.homeOrder ? renameList(settings.homeOrder) : null,
+    homePages: pages ? (pages.map((page) => renameList(page, seenInPages)) as HomeWidgetKey[][]) : null,
+    homeHidden: homeHidden as HomeWidgetKey[],
+    homeCardSizes: sizes as Partial<Record<HomeWidgetKey, 'half' | 'full'>>,
+    changed,
+  };
+}

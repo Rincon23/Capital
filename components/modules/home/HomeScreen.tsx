@@ -965,9 +965,8 @@ function EditablePage({
         </div>
       </SortableContext>
       <p className="text-muted pt-2 text-center text-xs">
-        Segure um widget e arraste para mudar de lugar; até a borda, ele vai para a tela do lado. Para tirar
-        da Início, toque no −. Toque em <Check aria-hidden className="inline h-3.5 w-3.5 align-text-bottom" />{' '}
-        quando terminar.
+        Segure e arraste para mudar de lugar; o − tira da Início. Toque em{' '}
+        <Check aria-hidden className="inline h-3.5 w-3.5 align-text-bottom" /> quando terminar.
       </p>
     </div>
   );

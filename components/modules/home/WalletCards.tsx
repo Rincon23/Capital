@@ -6,29 +6,44 @@ import {
   formatDayMonth,
   formatMonthShort,
   openBills,
+  recurringChecklist,
 } from '@/lib/budget';
 import { useWallet } from '@/components/wallet/WalletProvider';
 import { CardNote, HomeCard, HomeTile, Skeleton, Stat } from './HomeCard';
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
-/** Recorrentes: how much the templates add up to per month, and how many there are. */
+/** Contas do mês: what is still to launch this month, and how many bills that is. */
 export function RecurringHomeTile() {
   const { snapshot, error } = useWallet();
+  const checklist = snapshot
+    ? recurringChecklist(snapshot.recurring, snapshot.recurringLaunches, currentMonthKey(), snapshot.today)
+    : null;
+  const late = checklist
+    ? checklist.pending.filter((status) => status.daysUntilDue !== null && status.daysUntilDue < 0).length
+    : 0;
   return (
     <HomeTile
       module="recurring"
       href="/carteira/recorrentes"
       value={
-        snapshot
-          ? formatBRL(snapshot.recurring.reduce((total, item) => total + item.amount, 0))
+        checklist
+          ? snapshot && snapshot.recurring.length > 0 && checklist.pending.length === 0
+            ? 'Tudo lançado'
+            : formatBRL(checklist.pendingTotal)
           : error
             ? '—'
             : null
       }
       caption={
-        snapshot
-          ? `${plural(snapshot.recurring.length, 'modelo', 'modelos')} por mês`
+        checklist
+          ? snapshot && snapshot.recurring.length === 0
+            ? 'nenhuma conta'
+            : checklist.pending.length === 0
+              ? `${plural(checklist.done.length, 'conta lançada', 'contas lançadas')} ✓`
+              : late > 0
+                ? `${plural(late, 'conta vencida', 'contas vencidas')}`
+                : `${checklist.pending.length === 1 ? 'falta' : 'faltam'} ${plural(checklist.pending.length, 'conta', 'contas')}`
           : error
             ? 'não foi possível carregar'
             : 'carregando…'
@@ -94,37 +109,10 @@ export function CardHomeCard() {
   );
 }
 
-/** Reserva investida: what the quotas are worth, and the quote. */
-export function InvestmentsHomeTile() {
-  const { snapshot, error } = useWallet();
-  const investments = snapshot?.investments;
-  return (
-    <HomeTile
-      module="investments"
-      href="/carteira/reserva"
-      value={
-        investments
-          ? investments.price === null
-            ? 'Sem cotação'
-            : formatBRL(investments.totalValue)
-          : error
-            ? '—'
-            : null
-      }
-      caption={
-        investments
-          ? investments.price === null
-            ? investments.ticker
-            : `${investments.ticker} · ${formatBRL(investments.price)}`
-          : error
-            ? 'não foi possível carregar'
-            : 'carregando…'
-      }
-    />
-  );
-}
-
-/** Reserva de emergência: total reserve, debts and the gap, with how much of the target reserve is covered. */
+/**
+ * Reserva: total reserve, debts and the gap, with how much of the target reserve is covered, and
+ * what the quotas of the "Investida" tab are worth, when there are any.
+ */
 export function CashHomeCard() {
   const { snapshot, error } = useWallet();
 
@@ -137,6 +125,7 @@ export function CashHomeCard() {
   }
 
   const report = snapshot?.cash.report;
+  const invested = snapshot?.investments;
   const available = report ? report.totalReserve + report.totalDebt : 0;
   const covered =
     report && report.expectedReserve > 0
@@ -187,6 +176,11 @@ export function CashHomeCard() {
             descontadas as dívidas
           </p>
         </div>
+      )}
+      {invested && invested.totalQuotas > 0 && invested.price !== null && (
+        <CardNote>
+          {formatBRL(invested.totalValue)} investidos em {invested.ticker}
+        </CardNote>
       )}
     </HomeCard>
   );

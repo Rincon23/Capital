@@ -158,7 +158,7 @@ function CategoriesForm({
     }
     const confirmed = await confirm({
       title: 'Arquivar categoria',
-      message: `"${topic.name}" sai a partir deste mês, quando você salvar; os meses anteriores não mudam.`,
+      message: `"${topic.name}" sai a partir deste mês; os anteriores não mudam.`,
       confirmLabel: 'Arquivar',
       cancelLabel: 'Manter',
     });
@@ -192,8 +192,7 @@ function CategoriesForm({
     }
     const confirmed = await confirm({
       title: 'Restaurar categorias padrão',
-      message:
-        'Voltam as quatro padrão, como vieram; as que você criou saem da lista e os meses anteriores não mudam.',
+      message: 'Voltam as quatro padrão; as suas saem da lista e os meses anteriores não mudam.',
       confirmLabel: 'Restaurar',
       cancelLabel: 'Cancelar',
     });
@@ -389,10 +388,7 @@ function CategoriesForm({
             Suas categorias já estão no padrão. Não há nada para restaurar.
           </p>
         ) : (
-          <p className="text-muted text-xs">
-            Criou categorias e não funcionou? Volte às quatro categorias padrão. As que você criou saem da
-            lista, e os meses anteriores não mudam.
-          </p>
+          <p className="text-muted text-xs">Criou categorias e não funcionou? Volte às quatro padrão.</p>
         )}
       </section>
     </div>

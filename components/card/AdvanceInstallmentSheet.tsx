@@ -108,9 +108,7 @@ export function AdvanceInstallmentSheet({
             autoFocus
             className={`${INPUT} w-28`}
           />
-          <span className="text-muted text-xs">
-            Saem do fim do parcelamento: a compra termina antes.
-          </span>
+          <span className="text-muted text-xs">Saem do fim do parcelamento: a compra termina antes.</span>
         </label>
 
         <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
@@ -146,8 +144,8 @@ export function AdvanceInstallmentSheet({
             <p className="text-muted text-xs">
               Esse valor entra na fatura de {formatMonthLabel(month)}
               {plan.accounting === 'upfront'
-                ? ' e não consome nenhuma categoria, porque a compra inteira já contou no mês em que foi feita.'
-                : ' e conta na categoria deste mês, no lugar das parcelas que iam cair nos próximos meses.'}
+                ? ' e não gasta categoria: a compra inteira já contou no mês dela.'
+                : ' e conta na categoria deste mês, no lugar das próximas parcelas.'}
             </p>
             <p className="text-muted text-xs">
               {finished

@@ -11,27 +11,14 @@ import {
   type InvestmentBucket,
   type TopicConfig,
 } from '@/lib/budget';
+import { isModuleOn } from '@/lib/modules';
 import { walletRepository } from '@/lib/storage';
-import { PageHeader } from '@/components/layout/PageHeader';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { AmountInput } from '@/components/ui/AmountInput';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { useToast } from '@/components/ui/Toast';
-import { ModuleGate } from '@/components/modules/ModuleGate';
-import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
-import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
-import { useHomeHref } from '@/components/modules/useHomeHref';
-import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { useWallet } from '@/components/wallet/WalletProvider';
-
-export function ReservaScreen() {
-  return (
-    <ModuleGate module="investments">
-      <Reserva />
-    </ModuleGate>
-  );
-}
 
 /** Quotas are fractional; show enough digits to recognise them without a wall of zeros. */
 function formatQuotas(quotas: number): string {
@@ -49,25 +36,26 @@ function formatFetchedAt(iso: string | null): string {
   })}`;
 }
 
-function Reserva() {
-  const backHref = useHomeHref();
+/**
+ * The "Investida" tab of the Reserva: the quotas of one asset, split into categorias da reserva.
+ * "Guardar" buys quotas for one of them and charges the budget category it feeds, so it needs
+ * Lançamentos; without it the tab still shows the quotas and lets the person buy or sell them.
+ */
+export function InvestedReserve() {
   const { settings } = useSettings();
-  const { snapshot, loading, error, month, run } = useWallet();
+  const { snapshot, month, run } = useWallet();
   const confirm = useConfirm();
   const { showToast } = useToast();
   const [trading, setTrading] = useState(false);
   const [allocating, setAllocating] = useState(false);
   const [editingBucket, setEditingBucket] = useState<InvestmentBucket | 'new' | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [configuring, setConfiguring] = useState(false);
-  useModuleIntro('investments', { ready: !!snapshot });
 
-  if ((loading && !snapshot) || !snapshot) {
-    return <div className="text-muted flex flex-1 items-center justify-center px-4 py-16">Carregando…</div>;
-  }
+  if (!snapshot) return null;
 
   const { investments } = snapshot;
   const topics = settings?.topics ?? [];
+  const canAllocate = isModuleOn(settings, 'expenses');
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -98,42 +86,67 @@ function Reserva() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-3 pb-10">
-      <PageHeader
-        title="Reserva investida"
-        subtitle={formatMonthLabel(month)}
-        backHref={backHref}
-        action={
-          <>
-            <ModuleHelpButton module="investments" />
-            <ModuleSettingsButton
-              module="investments"
-              tourAnchor="reserva-config"
-              onClick={() => setConfiguring(true)}
-            />
-          </>
-        }
-      />
-
-      {error && <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{error}</p>}
-
+    <div className="flex flex-col gap-3">
       <section
         data-tour="reserva-valor"
         className="border-border bg-card mx-4 flex flex-col gap-3 rounded-xl border p-4 shadow-sm"
       >
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-foreground text-lg font-semibold">{investments.ticker}</p>
-            {investments.assetName && (
-              <p className="text-muted truncate text-xs">{investments.assetName}</p>
-            )}
-            <p className="text-muted text-xs">
-              {investments.price === null
-                ? 'Sem cotação ainda'
-                : `${formatBRL(investments.price)} por cota · ${formatFetchedAt(investments.fetchedAt)}`}
-              {investments.source && ` · fonte: ${SOURCE_LABELS[investments.source]}`}
-            </p>
-          </div>
+        <div>
+          <p className="text-muted text-sm">Reserva investida</p>
+          <p className="text-foreground text-2xl font-bold tabular-nums">
+            {investments.price === null ? 'Sem cotação' : formatBRL(investments.totalValue)}
+          </p>
+          <p className="text-muted text-sm">
+            {formatQuotas(investments.totalQuotas)} cotas de {investments.ticker}
+            {investments.price !== null && investments.buckets.length > 0
+              ? ` · ${formatBRL(investments.freeValue)} sem categoria`
+              : ''}
+          </p>
+        </div>
+
+        {investments.stale && investments.price !== null && (
+          <p className="bg-warning-bg text-warning rounded-lg px-3 py-2 text-xs">
+            Essa cotação está velha. Atualize antes de guardar ou retirar.
+          </p>
+        )}
+
+        <div className="flex gap-2">
+          {canAllocate && (
+            <button
+              type="button"
+              onClick={() => setAllocating(true)}
+              disabled={investments.price === null || investments.buckets.length === 0}
+              className="bg-primary text-primary-foreground min-h-[44px] flex-1 rounded-lg px-3 text-sm font-semibold disabled:opacity-50"
+            >
+              Guardar / Retirar
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setTrading(true)}
+            className={
+              canAllocate
+                ? 'border-border text-foreground min-h-[44px] flex-1 rounded-lg border px-3 text-sm font-medium'
+                : 'bg-primary text-primary-foreground min-h-[44px] flex-1 rounded-lg px-3 text-sm font-semibold'
+            }
+          >
+            Comprar ou vender
+          </button>
+        </div>
+        {investments.price === null && canAllocate && (
+          <p className="text-muted text-xs">
+            Sem cotação não dá para guardar nem retirar: atualize primeiro.
+          </p>
+        )}
+
+        <div className="border-border flex items-center justify-between gap-2 border-t pt-3">
+          <p className="text-muted min-w-0 text-xs">
+            {investments.assetName && <span className="block truncate">{investments.assetName}</span>}
+            {investments.price === null
+              ? 'Sem cotação ainda'
+              : `${formatBRL(investments.price)} por cota · ${formatFetchedAt(investments.fetchedAt)}`}
+            {investments.source && ` · ${SOURCE_LABELS[investments.source]}`}
+          </p>
           <button
             type="button"
             onClick={() => void handleRefresh()}
@@ -144,54 +157,20 @@ function Reserva() {
             {refreshing ? 'Atualizando…' : 'Atualizar'}
           </button>
         </div>
-
-        {investments.stale && investments.price !== null && (
-          <p className="bg-warning-bg text-warning rounded-lg px-3 py-2 text-xs">
-            Essa cotação está velha. Atualize antes de guardar ou retirar.
-          </p>
-        )}
-
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted">Total ({formatQuotas(investments.totalQuotas)} cotas)</span>
-          <span className="text-foreground font-semibold">{formatBRL(investments.totalValue)}</span>
-        </div>
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted">Sem categoria ({formatQuotas(investments.freeQuotas)} cotas)</span>
-          <span className="text-foreground font-semibold">{formatBRL(investments.freeValue)}</span>
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setTrading(true)}
-            className="border-border text-foreground min-h-[44px] flex-1 rounded-lg border px-3 text-sm font-medium"
-          >
-            Comprar ou vender
-          </button>
-          <button
-            type="button"
-            onClick={() => setAllocating(true)}
-            disabled={investments.price === null || investments.buckets.length === 0}
-            className="bg-primary text-primary-foreground min-h-[44px] flex-1 rounded-lg px-3 text-sm font-semibold disabled:opacity-50"
-          >
-            Guardar / Retirar
-          </button>
-        </div>
-        {investments.price === null && (
-          <p className="text-muted text-xs">Sem cotação não dá para guardar nem retirar: atualize primeiro.</p>
-        )}
       </section>
 
       <section className="flex flex-col gap-2 px-4" data-tour="reserva-categorias">
         <div className="flex items-center justify-between">
           <h2 className="text-muted text-sm font-semibold">Categorias da reserva</h2>
-          <button
-            type="button"
-            onClick={() => setEditingBucket('new')}
-            className="text-primary min-h-[36px] text-sm font-medium"
-          >
-            + Nova categoria
-          </button>
+          {canAllocate && (
+            <button
+              type="button"
+              onClick={() => setEditingBucket('new')}
+              className="text-primary min-h-[36px] text-sm font-medium"
+            >
+              + Nova categoria
+            </button>
+          )}
         </div>
 
         <ul className="flex flex-col gap-2">
@@ -203,6 +182,7 @@ function Reserva() {
               <button
                 type="button"
                 onClick={() => setEditingBucket(bucket)}
+                disabled={!canAllocate}
                 className="min-w-0 flex-1 text-left"
               >
                 <span className="text-foreground block truncate font-medium">{bucket.name}</span>
@@ -212,30 +192,31 @@ function Reserva() {
                 </span>
               </button>
               <span className="text-foreground shrink-0 font-semibold">{formatBRL(bucket.value)}</span>
-              <button
-                type="button"
-                onClick={() => void handleDeleteBucket(bucket)}
-                className="text-danger min-h-[36px] shrink-0 text-xs font-medium"
-              >
-                Excluir
-              </button>
+              {canAllocate && (
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteBucket(bucket)}
+                  className="text-danger min-h-[36px] shrink-0 text-xs font-medium"
+                >
+                  Excluir
+                </button>
+              )}
             </li>
           ))}
         </ul>
 
-        {investments.buckets.length === 0 && (
-          <p className="text-muted py-6 text-center text-sm">
-            Nenhuma categoria ainda. Cada uma guarda parte da reserva para uma categoria do orçamento (Metas,
-            Conhecimentos); o resto fica sem categoria.
+        {!canAllocate ? (
+          <p className="text-muted py-4 text-center text-sm">
+            Para guardar numa categoria do orçamento, ligue Lançamentos.
           </p>
+        ) : (
+          investments.buckets.length === 0 && (
+            <p className="text-muted py-6 text-center text-sm">
+              Nenhuma categoria ainda. O que não estiver numa fica sem categoria.
+            </p>
+          )
         )}
       </section>
-
-      {configuring && (
-        <ModuleSettingsSheet module="investments" onClose={() => setConfiguring(false)}>
-          <TickerSection ticker={investments.ticker} />
-        </ModuleSettingsSheet>
-      )}
 
       {trading && (
         <TradeSheet
@@ -272,7 +253,10 @@ function Reserva() {
                   : 'Guardado: um gasto com esse valor entrou na categoria do mês.',
               );
             } catch (err) {
-              showToast(err instanceof Error ? err.message : 'Não foi possível salvar. Tente de novo.', 'error');
+              showToast(
+                err instanceof Error ? err.message : 'Não foi possível salvar. Tente de novo.',
+                'error',
+              );
             }
           }}
         />
@@ -299,7 +283,7 @@ function Reserva() {
 }
 
 /** Which ticker the reserve follows. Changing it starts the price cache over for that code. */
-function TickerSection({ ticker }: { ticker: string }) {
+export function TickerSection({ ticker }: { ticker: string }) {
   const { run } = useWallet();
   const { showToast } = useToast();
   const [value, setValue] = useState(ticker);
@@ -519,8 +503,8 @@ function AllocateSheet({
             ? `São ${formatQuotas(quotasForAmount(parsed, price))} cotas a ${formatBRL(price)}. `
             : ''}
           {out
-            ? `As cotas ficam sem categoria, e a categoria do orçamento ligada a ela recebe a devolução desse valor em ${formatMonthLabel(month)}.`
-            : `O valor também vira um gasto na categoria do orçamento ligada a ela, em ${formatMonthLabel(month)}.`}
+            ? `As cotas ficam sem categoria e a categoria do orçamento recebe a devolução em ${formatMonthLabel(month)}.`
+            : `O valor também vira um gasto na categoria do orçamento, em ${formatMonthLabel(month)}.`}
         </p>
 
         {tooMuch && bucket && (
@@ -560,7 +544,11 @@ function BucketFormSheet({
   const parsedQuotas = parseAmountInput(quotas);
 
   return (
-    <BottomSheet open title={initial ? 'Editar categoria da reserva' : 'Nova categoria da reserva'} onClose={onClose}>
+    <BottomSheet
+      open
+      title={initial ? 'Editar categoria da reserva' : 'Nova categoria da reserva'}
+      onClose={onClose}
+    >
       <form
         className="flex flex-col gap-5"
         onSubmit={async (event) => {

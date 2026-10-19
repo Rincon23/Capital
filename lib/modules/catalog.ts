@@ -99,10 +99,11 @@ export const MODULES: ModuleDefinition[] = [
     key: 'reimbursable',
     name: 'A receber',
     description:
-      'Para compras no cartão que outra pessoa vai te devolver: entram na fatura, mas não gastam nenhuma categoria.',
-    tagline: 'Compras no cartão que alguém vai devolver',
+      'Para o dinheiro que saiu por outra pessoa e que ela vai te devolver: no cartão ou não, não gasta nenhuma categoria.',
+    tagline: 'O que alguém vai te devolver',
     group: 'month',
-    dependsOn: ['card'],
+    // Not only card purchases: lending R$ 50 in cash is the same thing, so it only needs Lançamentos.
+    dependsOn: ['expenses'],
     homeCard: true,
   },
   {
@@ -122,43 +123,31 @@ export const MODULES: ModuleDefinition[] = [
   },
   {
     key: 'recurring',
-    name: 'Gastos recorrentes',
-    description: 'Modelos dos gastos que se repetem todo mês, lançados com um toque.',
-    tagline: 'Gastos que se repetem todo mês',
+    name: 'Contas do mês',
+    description:
+      'As contas de todo mês, como aluguel, luz e internet: o que falta lançar, o dia de cada uma e um aviso no celular quando vence.',
+    tagline: 'O que falta pagar este mês',
     group: 'wallet',
     dependsOn: ['expenses'],
     screen: {
-      label: 'Recorrentes',
+      label: 'Contas',
       href: () => '/carteira/recorrentes',
       isActive: (pathname) => pathname.startsWith('/carteira/recorrentes'),
     },
     homeCard: true,
   },
   {
-    key: 'investments',
-    name: 'Reserva investida',
-    description:
-      'Sua reserva em cotas, separada em categorias da reserva. Guardar numa delas lança o gasto na categoria do orçamento.',
-    tagline: 'Cotas, cotação e categorias da reserva',
-    group: 'wallet',
-    dependsOn: ['expenses'],
-    screen: {
-      label: 'Investida',
-      href: () => '/carteira/reserva',
-      isActive: (pathname) => pathname.startsWith('/carteira/reserva'),
-    },
-    homeCard: true,
-  },
-  {
     key: 'cash',
-    name: 'Reserva de emergência',
+    name: 'Reserva',
+    // One module for what used to be two ("Reserva de emergência" and "Reserva investida"): to the
+    // person it is a single thing, their reserve, with two tabs.
     description:
-      'Quanto você tem, quanto deve no cartão e nos parcelados e quanto falta para a reserva de emergência.',
-    tagline: 'Reserva, dívidas e o que falta',
+      'Sua reserva de emergência, já sem as dívidas do cartão, e quanto falta para a meta. Na aba Investida, as cotas que você guarda e as categorias da reserva.',
+    tagline: 'Quanto você tem e quanto falta',
     group: 'wallet',
     dependsOn: [],
     screen: {
-      label: 'Emergência',
+      label: 'Reserva',
       href: () => '/carteira/caixa',
       isActive: (pathname) => pathname.startsWith('/carteira/caixa'),
     },

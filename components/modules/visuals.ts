@@ -12,7 +12,6 @@ import {
   Target,
   ReceiptText,
   Repeat,
-  Scale,
   type LucideIcon,
 } from 'lucide-react';
 import type { HomeWidgetKey, ModuleKey } from '@/lib/budget';
@@ -31,8 +30,7 @@ export const MODULE_VISUALS: Record<ModuleKey, ModuleVisual> = {
   reimbursable: { icon: HandCoins, tone: 'green' },
   history: { icon: ChartColumn, tone: 'pink' },
   recurring: { icon: Repeat, tone: 'blue' },
-  investments: { icon: PiggyBank, tone: 'green' },
-  cash: { icon: Scale, tone: 'purple' },
+  cash: { icon: PiggyBank, tone: 'green' },
   diagram: { icon: Target, tone: 'orange' },
   reminders: { icon: Clock, tone: 'amber' },
   voice: { icon: Mic, tone: 'pink' },

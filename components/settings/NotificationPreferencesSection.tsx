@@ -4,9 +4,13 @@ import { useState } from 'react';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { Switch } from '@/components/ui/Switch';
 import { useToast } from '@/components/ui/Toast';
-import { NOTIFICATION_CATEGORY_LABELS, isNotificationCategoryOn, type NotificationCategory } from '@/lib/notifications';
+import {
+  NOTIFICATION_CATEGORY_LABELS,
+  isNotificationCategoryOn,
+  type NotificationCategory,
+} from '@/lib/notifications';
 
-const TOGGLEABLE: NotificationCategory[] = ['reminder', 'card', 'gmail', 'feature'];
+const TOGGLEABLE: NotificationCategory[] = ['reminder', 'card', 'recurring', 'gmail', 'feature'];
 
 /**
  * Which kinds of notification push to the phone. A PWA has no way to create separate channels
@@ -39,13 +43,13 @@ export function NotificationPreferencesSection() {
       <h2 className="text-muted text-sm font-semibold">Quais avisos chegam no celular</h2>
       <div className="border-border bg-card flex flex-col gap-4 rounded-xl border p-4 shadow-sm">
         <p className="text-muted text-xs">
-          O navegador só tem um interruptor por aparelho (&quot;Neste aparelho&quot;, acima). Isto escolhe,
-          dentro dele, quais tipos de aviso o usam — todos continuam aparecendo aqui na Central de
-          notificações de qualquer jeito.
+          Quais avisos chegam no celular. Todos ficam na Central de notificações.
         </p>
         {TOGGLEABLE.map((category) => (
           <div key={category} className="flex items-center justify-between gap-3">
-            <span className="text-foreground text-sm font-medium">{NOTIFICATION_CATEGORY_LABELS[category]}</span>
+            <span className="text-foreground text-sm font-medium">
+              {NOTIFICATION_CATEGORY_LABELS[category]}
+            </span>
             <Switch
               checked={isNotificationCategoryOn(prefs, category)}
               onChange={(checked) => void toggle(category, checked)}

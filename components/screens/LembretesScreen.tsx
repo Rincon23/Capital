@@ -272,10 +272,52 @@ function TodayView({
 }) {
   const day = reminderDay(snapshot.reminders, snapshot.completions, snapshot.today);
   const nothingToday = day.overdue.length === 0 && day.today.length === 0 && day.tasks.length === 0;
+  // The number of the screen: what is still to do today (the late ones included), out of all of it.
+  const total = day.overdue.length + day.today.length + day.tasks.length;
+  const pending =
+    day.overdue.length +
+    day.today.filter((item) => !item.done).length +
+    day.tasks.filter((item) => !item.done).length;
 
   return (
     <>
       <NotificationsHint />
+
+      {!nothingToday && (
+        <section
+          data-tour="lembretes-resumo"
+          className="border-border bg-card mx-4 flex flex-col gap-2 rounded-2xl border p-4 shadow-sm"
+        >
+          {pending === 0 ? (
+            <>
+              <p className="text-muted text-sm">Hoje</p>
+              <p className="text-success text-2xl font-bold">Tudo feito ✓</p>
+            </>
+          ) : (
+            <>
+              <p className="text-muted text-sm">Falta fazer hoje</p>
+              <p className="text-foreground text-2xl font-bold tabular-nums">
+                {pending} {pending === 1 ? 'lembrete' : 'lembretes'}
+              </p>
+            </>
+          )}
+          <div className="bg-border h-2.5 overflow-hidden rounded-full" aria-hidden>
+            <div
+              className={`h-full rounded-full ${pending === 0 ? 'bg-success-fill' : 'bg-primary'}`}
+              style={{ width: `${((total - pending) / total) * 100}%` }}
+            />
+          </div>
+          <p className="text-muted text-sm">
+            {total - pending} de {total} {total === 1 ? 'feito' : 'feitos'}
+            {day.overdue.length > 0 && (
+              <span className="text-danger">
+                {' '}
+                · {day.overdue.length} {day.overdue.length === 1 ? 'atrasado' : 'atrasados'}
+              </span>
+            )}
+          </p>
+        </section>
+      )}
 
       {nothingToday && (
         <div className="border-border bg-card mx-4 flex flex-col items-center gap-2 rounded-2xl border p-6 text-center shadow-sm">

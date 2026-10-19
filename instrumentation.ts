@@ -22,13 +22,21 @@ export async function register() {
     if (process.env.NODE_ENV === 'production') throw err;
   }
 
-  const [{ startScheduler }, { getDb }, { runCardModuleMigration }, { runFixedCostLabelMigration }] =
-    await Promise.all([
-      import('./lib/server/scheduler'),
-      import('./lib/server/db'),
-      import('./lib/server/cardModuleMigration'),
-      import('./lib/server/fixedCostLabelMigration'),
-    ]);
+  const [
+    { startScheduler },
+    { getDb },
+    { runCardModuleMigration },
+    { runFixedCostLabelMigration },
+    { runReserveModuleMigration },
+    { runRecurringLaunchLink },
+  ] = await Promise.all([
+    import('./lib/server/scheduler'),
+    import('./lib/server/db'),
+    import('./lib/server/cardModuleMigration'),
+    import('./lib/server/fixedCostLabelMigration'),
+    import('./lib/server/reserveModuleMigration'),
+    import('./lib/server/recurringLaunchLink'),
+  ]);
 
   // One-off data migrations; each records that it ran and does nothing on the next start.
   try {
@@ -41,6 +49,18 @@ export async function register() {
     await runFixedCostLabelMigration(getDb());
   } catch (err) {
     console.error('[categorias] falha ao renomear "Custo Fixo":', err);
+  }
+
+  try {
+    await runReserveModuleMigration(getDb());
+  } catch (err) {
+    console.error('[reserva] falha ao juntar as duas reservas:', err);
+  }
+
+  try {
+    await runRecurringLaunchLink(getDb());
+  } catch (err) {
+    console.error('[contas do mês] falha ao ligar os gastos já lançados:', err);
   }
 
   startScheduler(getDb);

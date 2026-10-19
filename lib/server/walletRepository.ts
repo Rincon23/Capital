@@ -10,6 +10,11 @@ import {
 } from '../budget/cards';
 import { computeCashReport, createDefaultCashSettings } from '../budget/cash';
 import { currentMonthKey, todayISO } from '../budget/date';
+import {
+  DEFAULT_RECURRING_SETTINGS,
+  launchesFromPlans,
+  type RecurringLaunch,
+} from '../budget/recurring';
 import { createId } from '../budget/id';
 import {
   advanceExpense,
@@ -32,6 +37,7 @@ import {
   type ReservePlanSummary,
 } from '../budget/reserve';
 import { round2 } from '../budget/money';
+import { isModuleOn } from '../modules';
 import type {
   CardBillPayment,
   CardSettings as CardNoticeSettings,
@@ -44,6 +50,7 @@ import type {
   Month,
   PriceQuote,
   RecurringExpense,
+  RecurringSettings,
 } from '../budget/types';
 import type {
   AdvanceInstallmentInput,
@@ -66,6 +73,7 @@ import {
   months,
   priceCache,
   recurringExpenses,
+  recurringSettings,
   reserveContributions,
   reservePlans,
 } from './db/schema';
@@ -101,18 +109,31 @@ export class PostgresWalletRepository implements WalletRepository {
   async getSnapshot(): Promise<WalletSnapshot> {
     const today = todayISO();
     const month = currentMonthKey();
-    const [recurring, plans, reserve, buckets, settings, cardList, payments, noticeSettings, closed] =
-      await Promise.all([
-        this.listRecurring(),
-        this.listInstallments(),
-        this.readReserve(),
-        this.listBuckets(),
-        this.readCashSettings(),
-        this.listCards(),
-        this.listBillPayments(),
-        this.readCardSettings(),
-        this.closedMonths(),
-      ]);
+    const [
+      recurring,
+      plans,
+      reserve,
+      buckets,
+      settings,
+      cardList,
+      payments,
+      noticeSettings,
+      closed,
+      launchedExpenses,
+      billSettings,
+    ] = await Promise.all([
+      this.listRecurring(),
+      this.listInstallments(),
+      this.readReserve(),
+      this.listBuckets(),
+      this.readCashSettings(),
+      this.listCards(),
+      this.listBillPayments(),
+      this.readCardSettings(),
+      this.closedMonths(),
+      this.listRecurringExpenseLaunches(),
+      this.readRecurringSettings(),
+    ]);
     const plan = await this.readReservePlan(month);
 
     const quote = await this.currentQuote(reserve, buckets);
@@ -121,6 +142,8 @@ export class PostgresWalletRepository implements WalletRepository {
 
     return {
       recurring,
+      recurringLaunches: [...launchedExpenses, ...launchesFromPlans(plans)],
+      recurringSettings: billSettings,
       installments: plans,
       cards: cardList,
       bills,
@@ -184,6 +207,7 @@ export class PostgresWalletRepository implements WalletRepository {
       ...(row.cardId ? { cardId: row.cardId } : {}),
       ...(row.installmentCount ? { installmentCount: row.installmentCount } : {}),
       ...(row.installmentAccounting ? { installmentAccounting: row.installmentAccounting } : {}),
+      ...(row.dueDay ? { dueDay: row.dueDay } : {}),
     }));
   }
 
@@ -206,6 +230,7 @@ export class PostgresWalletRepository implements WalletRepository {
       ...(row.cardId ? { cardId: row.cardId } : {}),
       ...(row.paidCount ? { paidCount: row.paidCount } : {}),
       ...(row.advancedCount ? { advancedCount: row.advancedCount } : {}),
+      ...(row.recurringId ? { recurringId: row.recurringId } : {}),
     }));
   }
 
@@ -275,6 +300,28 @@ export class PostgresWalletRepository implements WalletRepository {
       total: Number(row.total),
     }));
     return combineBillTotals(lineTotals, pendingCharges(plans, await this.launchedCharges()));
+  }
+
+  /** The expenses launched from a template ("Contas do mês"), each with its competence. */
+  async listRecurringExpenseLaunches(): Promise<RecurringLaunch[]> {
+    const rows = await this.db
+      .select({ recurringId: expenses.recurringId, month: expenses.month, date: expenses.date })
+      .from(expenses)
+      .where(and(eq(expenses.userId, this.userId), isNotNull(expenses.recurringId)));
+    return rows.map((row) => ({ recurringId: row.recurringId as string, month: row.month, date: row.date }));
+  }
+
+  async readRecurringSettings(): Promise<RecurringSettings> {
+    const [row] = await this.db
+      .select()
+      .from(recurringSettings)
+      .where(eq(recurringSettings.userId, this.userId));
+    if (!row) return DEFAULT_RECURRING_SETTINGS;
+    return {
+      notifyEnabled: row.notifyEnabled,
+      notifyTime: row.notifyTime,
+      repeatUntilLaunched: row.repeatUntilLaunched,
+    };
   }
 
   async readCardSettings(): Promise<CardNoticeSettings> {
@@ -498,6 +545,7 @@ export class PostgresWalletRepository implements WalletRepository {
       // Parcelar só existe no cartão: sem ele, o modelo volta a ser um gasto comum.
       installmentCount: item.card ? (item.installmentCount ?? null) : null,
       installmentAccounting: item.card && item.installmentCount ? (item.installmentAccounting ?? 'upfront') : null,
+      dueDay: item.dueDay ?? null,
     };
     const [last] = await this.db
       .select({
@@ -509,7 +557,7 @@ export class PostgresWalletRepository implements WalletRepository {
     checkQuota(
       last?.others ?? 0,
       QUOTAS.recurring,
-      `Dá para ter até ${QUOTAS.recurring} gastos recorrentes.`,
+      `Dá para ter até ${QUOTAS.recurring} contas do mês.`,
     );
     await this.db
       .insert(recurringExpenses)
@@ -521,6 +569,52 @@ export class PostgresWalletRepository implements WalletRepository {
     await this.db
       .delete(recurringExpenses)
       .where(and(eq(recurringExpenses.userId, this.userId), eq(recurringExpenses.id, id)));
+  }
+
+  async saveRecurringSettings(settings: RecurringSettings): Promise<void> {
+    const values = {
+      notifyEnabled: settings.notifyEnabled,
+      notifyTime: settings.notifyTime,
+      repeatUntilLaunched: settings.repeatUntilLaunched,
+    };
+    await this.db
+      .insert(recurringSettings)
+      .values({ userId: this.userId, ...values })
+      .onConflictDoUpdate({ target: recurringSettings.userId, set: values });
+  }
+
+  /**
+   * "Lançar ✅" on the notice of a bill: the template becomes an expense of `month`, dated `date`,
+   * exactly as "Lançar" in the app would make it with nothing changed. Twice is once — a bill
+   * already launched in that competence is left alone — and a parcelled template is not launched
+   * here: it needs the form, where the first charge is chosen.
+   */
+  async launchRecurring(id: string, month: Month, date: string): Promise<'launched' | 'already'> {
+    const item = (await this.listRecurring()).find((template) => template.id === id);
+    if (!item) throw new HttpError(404, 'NOT_FOUND', 'Essa conta não existe mais.');
+    if (item.card && item.installmentCount) {
+      throw new HttpError(409, 'NEEDS_FORM', 'Abra o Capital para lançar essa compra parcelada.');
+    }
+    const launched = (await this.listRecurringExpenseLaunches()).some(
+      (launch) => launch.recurringId === id && launch.month === month,
+    );
+    if (launched) return 'already';
+
+    // Without the Cartão module the expense is an ordinary one, as the form would make it.
+    const onCard = item.card && isModuleOn(await this.budget.getSettings(), 'card');
+    await this.budget.saveExpense(month, {
+      id: createId(),
+      categoryKind: item.categoryKind,
+      ...(item.topicId ? { topicId: item.topicId } : {}),
+      description: item.description,
+      amount: item.amount,
+      date,
+      singleInstallmentCard: onCard,
+      ...(onCard && item.cardId ? { cardId: item.cardId } : {}),
+      source: 'recurring',
+      recurringId: item.id,
+    });
+    return 'launched';
   }
 
   // -------------------------------------------------------------------------
@@ -590,10 +684,13 @@ export class PostgresWalletRepository implements WalletRepository {
       .where(eq(installments.userId, this.userId));
     checkQuota(others, QUOTAS.installments, `Dá para ter até ${QUOTAS.installments} compras parceladas.`);
 
+    // The bill of "Contas do mês" a purchase came from is set when it is created; an edit from the
+    // Cartão, which does not know about it, keeps it.
+    const link = plan.recurringId ? { recurringId: plan.recurringId } : {};
     await tx
       .insert(installments)
-      .values({ userId: this.userId, id: plan.id, ...values })
-      .onConflictDoUpdate({ target: [installments.userId, installments.id], set: values });
+      .values({ userId: this.userId, id: plan.id, ...values, ...link })
+      .onConflictDoUpdate({ target: [installments.userId, installments.id], set: { ...values, ...link } });
 
     // Start from a clean slate: what this plan wrote before may belong to another month, to
     // another category or to the other accounting mode altogether.

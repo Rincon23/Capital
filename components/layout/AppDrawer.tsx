@@ -28,6 +28,7 @@ import { useVerticalDrag } from './useVerticalDrag';
 /** Which app icons carry a count of unread notifications, and which category counts toward it. */
 const MODULE_NOTIFICATION_CATEGORY: Partial<Record<ModuleKey, NotificationCategory>> = {
   reminders: 'reminder',
+  recurring: 'recurring',
 };
 
 /** How much of its height the drawer has to travel (up to open, down to close) to go through. */

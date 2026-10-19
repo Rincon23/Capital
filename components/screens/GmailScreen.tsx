@@ -115,7 +115,11 @@ function Gmail() {
       action={
         <>
           <ModuleHelpButton module="gmail" />
-          <ModuleSettingsButton module="gmail" tourAnchor="gmail-config" onClick={() => setConfiguring(true)} />
+          <ModuleSettingsButton
+            module="gmail"
+            tourAnchor="gmail-config"
+            onClick={() => setConfiguring(true)}
+          />
         </>
       }
     />
@@ -156,9 +160,7 @@ function Gmail() {
               <p className="text-foreground font-semibold">Conecte o seu Gmail</p>
             </div>
             <p className="text-muted text-sm">
-              O Capital olha o assunto, o remetente e a prévia dos e-mails que chegarem e avisa no celular
-              quando aparecer uma das suas palavras-chave. A permissão é só de leitura: ele não apaga, não
-              envia e não marca nada.
+              Avisa quando chegar um e-mail com uma das suas palavras. Só lê: não apaga nem envia nada.
             </p>
             <a
               href={GMAIL_CONNECT_URL}
@@ -251,9 +253,7 @@ function Gmail() {
       <Card tour="gmail-palavras">
         <div>
           <p className="text-foreground font-semibold">Palavras-chave</p>
-          <p className="text-muted text-sm">
-            Um aviso por e-mail, com todas as palavras que ele tiver. Maiúsculas e acentos não importam.
-          </p>
+          <p className="text-muted text-sm">Um aviso por e-mail. Maiúsculas e acentos não importam.</p>
         </div>
         <form
           className="flex gap-2"
@@ -390,8 +390,7 @@ function SetupSteps({ redirectUri }: { redirectUri: string | null }) {
           <p className="text-foreground font-semibold">Ainda não disponível</p>
         </div>
         <p className="text-muted text-sm">
-          O monitor de Gmail ainda não foi configurado neste servidor. Enquanto isso, você já pode cadastrar
-          as palavras-chave.
+          O monitor ainda não está disponível aqui, mas você já pode cadastrar as palavras-chave.
         </p>
       </>
     );
