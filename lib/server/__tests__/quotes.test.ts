@@ -2,11 +2,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   QuoteUnavailableError,
+  fetchPriceHistory,
   fetchQuote,
   fetchQuotes,
   normalizeTicker,
   parseB3Quotation,
   parseYahooSpark,
+  parseYahooSparkHistory,
+  yahooHistorySymbol,
 } from '../quotes';
 
 /** Answers captured from the real services on 16/09/2026 (trimmed). */
@@ -123,5 +126,68 @@ describe('busca das cotações', () => {
     );
     await expect(fetchQuote('XXXX99')).rejects.toBeInstanceOf(QuoteUnavailableError);
     await expect(fetchQuote('XXXX99')).rejects.toThrow(/XXXX99/);
+  });
+});
+
+describe('preços passados (Histórico → Investimentos)', () => {
+  const at = (iso: string) => Date.parse(iso) / 1000;
+  function history(symbol: string, gmtoffset: number, stamps: string[], closes: (number | null)[]) {
+    return {
+      symbol,
+      response: [{ meta: { symbol, gmtoffset }, timestamp: stamps.map(at), indicators: { quote: [{ close: closes }] } }],
+    };
+  }
+
+  it('usa o símbolo do Yahoo de cada mercado', () => {
+    expect(yahooHistorySymbol({ market: 'b3', ticker: 'PETR4' })).toBe('PETR4.SA');
+    expect(yahooHistorySymbol({ market: 'us', ticker: 'VOO' })).toBe('VOO');
+    expect(yahooHistorySymbol({ market: 'crypto', ticker: 'BTC' })).toBe('BTC-USD');
+  });
+
+  it('lê os fechamentos por dia no fuso do mercado, sem os dias sem preço', () => {
+    const payload = {
+      spark: {
+        result: [
+          history(
+            'PETR4.SA',
+            -10800,
+            ['2026-10-15T13:00:00Z', '2026-10-16T13:00:00Z', '2026-10-17T02:00:00Z'],
+            [30.1, null, 30.5],
+          ),
+          { symbol: 'XXXX99.SA', response: [{ meta: {}, timestamp: null, indicators: { quote: [{}] } }] },
+        ],
+      },
+    };
+    const found = parseYahooSparkHistory(payload, '1d');
+    // 23:00 in São Paulo on the 16th is still the 16th there.
+    expect(found.get('PETR4.SA')).toEqual([
+      ['2026-10-15', 30.1],
+      ['2026-10-16', 30.5],
+    ]);
+    expect(found.has('XXXX99.SA')).toBe(false);
+  });
+
+  it('semanal: cada fechamento vai para a segunda-feira da sua semana, o mais novo vale', () => {
+    const payload = {
+      spark: {
+        result: [history('VOO', -14400, ['2026-10-05T13:30:00Z', '2026-10-12T13:30:00Z', '2026-10-15T20:00:00Z'], [690, 700, 705])],
+      },
+    };
+    expect(parseYahooSparkHistory(payload, '1wk').get('VOO')).toEqual([
+      ['2026-10-05', 690],
+      ['2026-10-12', 705],
+    ]);
+  });
+
+  it('pede de 10 em 10, com o período e o intervalo', async () => {
+    const fetchMock = vi.fn(async () => json({ spark: { result: [] } }));
+    vi.stubGlobal('fetch', fetchMock);
+    const symbols = Array.from({ length: 12 }, (_, index) => `AAAA${index}.SA`);
+    await fetchPriceHistory(symbols, '5y', '1wk');
+    const urls = fetchMock.mock.calls.map((call) => decodeURIComponent(String((call as unknown[])[0])));
+    expect(urls).toHaveLength(2);
+    expect(urls[0]).toContain('range=5y');
+    expect(urls[0]).toContain('interval=1wk');
+    expect(urls[1]).toContain('symbols=AAAA10.SA,AAAA11.SA');
   });
 });

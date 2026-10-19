@@ -16,6 +16,9 @@ import {
   DOLLAR_CACHE_KEY,
   RECOMMENDED_QUESTIONS,
   targetsComplete,
+  typesInUse,
+  alignHistory,
+  historyRange,
   type Answer,
   type AssetAnswers,
   type AssetIndicators,
@@ -34,6 +37,9 @@ import {
   type DiagramTargets,
   type FixedIncomeTotal,
   type FixedIncomeType,
+  type HistoryRange,
+  type PriceHistory,
+  type PricePoint,
   type QuestionInput,
   type QuoteMarket,
   type QuestionType,
@@ -49,12 +55,21 @@ import {
   diagramSettings,
   fundamentalsCache,
   priceCache,
+  priceHistoryCache,
 } from './db/schema';
 import type { Database, Transaction } from './db/types';
 import { HttpError } from './httpError';
 import { fetchFundamentals } from './fundamentals';
 import { checkQuota, QUOTAS } from './quotas';
-import { fetchMarketQuotes, pricedInDollars, searchTickers, type TickerSuggestion } from './quotes';
+import {
+  DOLLAR_SYMBOL,
+  fetchMarketQuotes,
+  fetchPriceHistory,
+  pricedInDollars,
+  searchTickers,
+  yahooHistorySymbol,
+  type TickerSuggestion,
+} from './quotes';
 
 /** A cached price older than this is refreshed the next time the Diagrama is opened. */
 const AUTO_REFRESH_MINUTES = 15;
@@ -64,6 +79,8 @@ const AUTO_REFRESH_WAIT_MS = 4_000;
 const RECENT_CONTRIBUTIONS = 30;
 /** LPA, VPA and P/VP change with each balance sheet: twice a day is plenty. */
 const INDICATORS_MAX_AGE_MINUTES = 12 * 60;
+/** Past closes are asked again after this long: the daily ones move with today's price. */
+const HISTORY_MAX_AGE_MINUTES = { '1d': 60, '1wk': 12 * 60 } as const;
 
 /**
  * When a source last failed to answer for a key (a price or an indicator), in this process. A key
@@ -335,6 +352,67 @@ export class PostgresDiagramRepository {
       updated: Object.keys(quotes).length,
       missing: assets.filter((asset) => !quotes[asset.id]).map((asset) => asset.ticker),
     };
+  }
+
+  /**
+   * The Histórico's Investimentos tab: the closes of every asset in the types in use over `range`,
+   * on the same dates and in R$. Cached per symbol (`price_history_cache`); when the source fails,
+   * the last answer it gave is used, however old.
+   */
+  async getHistory(range: HistoryRange): Promise<PriceHistory> {
+    const [settings, assets] = await Promise.all([this.readSettings(), this.listAssets()]);
+    const inUse = new Set(typesInUse(settings.targets));
+    const wanted = assets.filter((asset) => inUse.has(asset.type));
+    const request = (asset: DiagramAsset) => ({ market: assetMarket(asset.type, asset.ticker), ticker: asset.ticker });
+    const inDollars = wanted.some((asset) => pricedInDollars(request(asset).market));
+    const symbols = new Set(wanted.map((asset) => yahooHistorySymbol(request(asset))));
+    if (inDollars) symbols.add(DOLLAR_SYMBOL);
+
+    const series = await this.historySeries([...symbols], range);
+    return alignHistory(
+      range,
+      wanted.map((asset) => ({
+        id: asset.id,
+        points: series.get(yahooHistorySymbol(request(asset))),
+        inDollars: pricedInDollars(request(asset).market),
+      })),
+      series.get(DOLLAR_SYMBOL),
+    );
+  }
+
+  private async historySeries(symbols: string[], range: HistoryRange): Promise<Map<string, PricePoint[]>> {
+    if (symbols.length === 0) return new Map();
+    const { yahooRange, interval } = historyRange(range);
+    const rows = await this.db
+      .select()
+      .from(priceHistoryCache)
+      .where(and(eq(priceHistoryCache.range, range), inArray(priceHistoryCache.symbol, symbols)));
+    const series = new Map(rows.map((row) => [row.symbol, row.points]));
+    const fetchedAt = new Map(rows.map((row) => [row.symbol, row.fetchedAt.getTime()]));
+
+    const now = Date.now();
+    const missKey = (symbol: string) => `history:${range}:${symbol}`;
+    const stale = symbols.filter((symbol) => {
+      const at = fetchedAt.get(symbol);
+      const old = at === undefined || now - at > HISTORY_MAX_AGE_MINUTES[interval] * 60_000;
+      return old && !missedRecently(missKey(symbol), now);
+    });
+    if (stale.length === 0) return series;
+
+    const found = await fetchPriceHistory(stale, yahooRange, interval);
+    rememberMisses(stale.map(missKey), { has: (key) => found.has(key.slice(missKey('').length)) }, now);
+    const stamp = new Date();
+    for (const [symbol, points] of found) {
+      series.set(symbol, points);
+      await this.db
+        .insert(priceHistoryCache)
+        .values({ symbol, range, points, fetchedAt: stamp })
+        .onConflictDoUpdate({
+          target: [priceHistoryCache.symbol, priceHistoryCache.range],
+          set: { points, fetchedAt: stamp },
+        });
+    }
+    return series;
   }
 
   /**

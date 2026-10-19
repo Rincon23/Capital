@@ -1,5 +1,6 @@
 import 'server-only';
 import { DOLLAR_CACHE_KEY, looksLikeEtf, priceCacheKey } from '../diagram/tickers';
+import type { PricePoint } from '../diagram/history';
 import type { QuoteMarket } from '../diagram/types';
 
 /**
@@ -190,6 +191,94 @@ export async function fetchMarketQuotes(requests: MarketRequest[]): Promise<Map<
     for (const quote of await fromYahooSymbols([...bySymbol.keys()])) {
       const key = bySymbol.get(quote.ticker);
       if (key) found.set(key, { ...quote, ticker: key });
+    }
+  }
+  return found;
+}
+
+// ---------------------------------------------------------------------------
+// Past prices, for the Histórico's Investimentos tab: Yahoo's spark with a range (free, no token,
+// many symbols per request), the same endpoint as the prices of today.
+// ---------------------------------------------------------------------------
+
+/** The symbol Yahoo keeps an asset's past prices under: "PETR4.SA", "VOO", "BTC-USD". */
+export function yahooHistorySymbol(request: MarketRequest): string {
+  return request.market === 'b3' ? `${request.ticker}.SA` : yahooSymbol(request);
+}
+
+/** "2026-10-19" for the Monday of that day's week. */
+function mondayOf(date: string): string {
+  const day = new Date(`${date}T12:00:00Z`);
+  day.setUTCDate(day.getUTCDate() - ((day.getUTCDay() + 6) % 7));
+  return day.toISOString().slice(0, 10);
+}
+
+/**
+ * Reads Yahoo's `spark` answer with a range: the closes of each symbol, by day in the market's
+ * own time zone ("2026-10-17"). Weekly closes are filed under the Monday of their week, so markets
+ * whose weeks start at different hours land on the same dates. Symbols with no close are absent.
+ */
+export function parseYahooSparkHistory(payload: unknown, interval: '1d' | '1wk'): Map<string, PricePoint[]> {
+  const found = new Map<string, PricePoint[]>();
+  if (typeof payload !== 'object' || payload === null) return found;
+  const results = (payload as { spark?: { result?: unknown } }).spark?.result;
+  if (!Array.isArray(results)) return found;
+
+  for (const entry of results) {
+    const item = entry as {
+      symbol?: unknown;
+      response?: {
+        meta?: { gmtoffset?: unknown };
+        timestamp?: unknown;
+        indicators?: { quote?: { close?: unknown }[] };
+      }[];
+    };
+    if (typeof item.symbol !== 'string') continue;
+    const response = item.response?.[0];
+    const stamps = response?.timestamp;
+    const closes = response?.indicators?.quote?.[0]?.close;
+    if (!Array.isArray(stamps) || !Array.isArray(closes)) continue;
+    const offset = typeof response?.meta?.gmtoffset === 'number' ? response.meta.gmtoffset : 0;
+
+    const byDate = new Map<string, number>();
+    stamps.forEach((stamp, index) => {
+      const close = closes[index];
+      if (typeof stamp !== 'number' || !isPrice(close)) return;
+      const day = new Date((stamp + offset) * 1000).toISOString().slice(0, 10);
+      // The last one of a day (or a week) wins: it is the latest close.
+      byDate.set(interval === '1wk' ? mondayOf(day) : day, close);
+    });
+    if (byDate.size > 0) found.set(item.symbol, [...byDate].sort((a, b) => a[0].localeCompare(b[0])));
+  }
+  return found;
+}
+
+/** Fewer symbols per request than for today's price: five years of each is a heavier answer. */
+const YAHOO_HISTORY_BATCH = 10;
+const YAHOO_HISTORY_CONCURRENCY = 3;
+
+/**
+ * Past closes of these Yahoo symbols, in their own currency, over `range` ("6mo") every
+ * `interval`. Whatever Yahoo does not know is left out — never an exception.
+ */
+export async function fetchPriceHistory(
+  symbols: string[],
+  range: string,
+  interval: '1d' | '1wk',
+): Promise<Map<string, PricePoint[]>> {
+  const batches: string[][] = [];
+  for (let i = 0; i < symbols.length; i += YAHOO_HISTORY_BATCH) batches.push(symbols.slice(i, i + YAHOO_HISTORY_BATCH));
+
+  const found = new Map<string, PricePoint[]>();
+  for (let i = 0; i < batches.length; i += YAHOO_HISTORY_CONCURRENCY) {
+    const answers = await Promise.all(
+      batches.slice(i, i + YAHOO_HISTORY_CONCURRENCY).map((batch) => {
+        const params = new URLSearchParams({ symbols: batch.join(','), range, interval });
+        return getJson(`${YAHOO_SPARK_URL}?${params.toString()}`);
+      }),
+    );
+    for (const payload of answers) {
+      for (const [symbol, points] of parseYahooSparkHistory(payload, interval)) found.set(symbol, points);
     }
   }
   return found;

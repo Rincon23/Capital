@@ -10,9 +10,11 @@ import type {
   DiagramQuestion,
   DiagramTargets,
   FixedIncomeType,
+  HistoryRange,
+  PriceHistory,
   QuestionInput,
   QuestionType,
-} from '../diagram/types';
+} from '../diagram';
 import { apiRequest, seg } from './apiClient';
 
 /** A ticker suggestion while the person types. */
@@ -45,6 +47,8 @@ export interface DiagramRepository {
   refreshQuotes(): Promise<{ updated: number; missing: string[] }>;
   searchTickers(type: AssetType, query: string): Promise<TickerSuggestion[]>;
   contribute(input: ContributeInput): Promise<DiagramContribution>;
+  /** Past prices of the assets (Histórico → Investimentos). */
+  getHistory(range: HistoryRange): Promise<PriceHistory>;
 }
 
 export class HttpDiagramRepository implements DiagramRepository {
@@ -119,5 +123,9 @@ export class HttpDiagramRepository implements DiagramRepository {
 
   contribute(input: ContributeInput): Promise<DiagramContribution> {
     return apiRequest('POST', '/diagram/contributions', input);
+  }
+
+  getHistory(range: HistoryRange): Promise<PriceHistory> {
+    return apiRequest('GET', `/diagram/history?periodo=${seg(range)}`);
   }
 }

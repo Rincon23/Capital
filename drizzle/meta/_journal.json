@@ -169,6 +169,13 @@
       "when": 1792383923813,
       "tag": "0023_contas_do_mes",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792436359694,
+      "tag": "0024_historico_precos",
+      "breakpoints": true
     }
   ]
 }

@@ -104,6 +104,14 @@ describe('tours dos módulos', () => {
     expect(steps[4].sheet).toBeUndefined();
   });
 
+  it('o passo da aba Investimentos do Histórico só aparece com o Diagrama ligado', () => {
+    const anchors = (isOn: (key: string) => boolean) =>
+      tourSteps(['history'], '2026-10', isOn).map((step) => step.anchor);
+    expect(anchors(() => false)).not.toContain('historico-investimentos');
+    expect(anchors((key) => key === 'diagram')).toContain('historico-investimentos');
+    expect(anchors(() => false).at(-1)).toBe('ajuda-history');
+  });
+
   it('o tour do Cartão é um só, curto, e passa pelas três abas', () => {
     const anchors = MODULE_TOURS.card.map((step) => step.anchor);
     expect(anchors).toContain('cartao-fatura');

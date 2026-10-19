@@ -110,7 +110,7 @@ export const MODULES: ModuleDefinition[] = [
     key: 'history',
     name: 'Histórico e gráficos',
     description:
-      'Sua evolução mês a mês: quanto ficou dentro do planejado, gráficos de gasto e sobra e a tabela de cada mês.',
+      'Sua evolução mês a mês: quanto você gastou, cada categoria ao longo do tempo e, com o Diagrama ligado, a subida e a descida dos seus investimentos.',
     tagline: 'Sua evolução mês a mês',
     group: 'month',
     dependsOn: ['budget'],

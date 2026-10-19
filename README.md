@@ -95,7 +95,7 @@ pede confirmação e desliga os filhos junto. Cada mudança é salva na hora, co
   círculo de cada linha marca quem pagou (`expenses.reimbursed_at`). A marca não mexe em número
   nenhum — o dinheiro saiu de qualquer jeito e nunca consumiu categoria —, ela só tira a linha do
   que ainda é seu a receber, e é esse valor que o card do Início mostra.
-- **Histórico e gráficos** (`/historico`) — aderência à meta, gráficos e a tabela mês a mês.
+- **Histórico e gráficos** (`/historico`) — aba **Gastos**: o gasto de cada mês contra a sua média e a renda (toque numa barra para trocar de mês), as categorias do mês e cada categoria mês a mês (gasto × limite ou sobra). Com o **Diagrama** ligado, aba **Investimentos**: a subida e a descida da carteira em 1M/6M/1A/5A, por tipo e por ativo — a carteira de hoje aos preços de cada dia (Yahoo, grátis e sem token, em `price_history_cache`); sem as cotas, cada ativo conta igual.
 
 **Carteira** (cada um com tela própria; o antigo painel `/carteira` redireciona para o Início):
   - **Contas do mês** (`/carteira/recorrentes`; o antigo "Gastos recorrentes") — as contas de todo
@@ -809,7 +809,7 @@ Os demais testes:
 - [x] **Categorias do mês** — cabeçalho com renda/gasto/posso-gastar/saldo, card por categoria com barra de progresso (verde/amarelo/vermelho), card de custos fixos/imprevistos com rateio por categoria e "Fechar mês"
 - [x] **Detalhe da categoria** — lista de gastos editável/excluível e a conta completa (`renda × pct − rateio + mês passado = posso gastar`)
 - [x] **Lançamentos do mês** — abas Gastos / Renda / Custos Fixos / Imprevistos, busca e edição/exclusão inline
-- [x] **Histórico & Gráficos** — tabela mês a mês, evolução do gasto por categoria (linhas), composição do gasto por mês (barras empilhadas), sobra acumulada/rollover (linhas) e indicador de aderência à meta
+- [x] **Histórico & Gráficos** — abas Gastos (mês contra a média, categorias do mês, cada categoria mês a mês com gasto/limite e sobra) e Investimentos (com o Diagrama: subida e descida da carteira por período, por tipo e por ativo)
 - [x] **Configurações** — exportar/importar JSON, apagar tudo, tema claro/escuro, conta (e-mail + sair), importar dados locais. O editor de categorias (nome/descrição/%/ordem/arquivar, validador de 100% e restaurar padrão) fica na engrenagem de Categorias
 - [x] **Login** — entrar / criar conta / esqueci a senha, com confirmação de e-mail
 

@@ -45,6 +45,7 @@ import type {
   FixedIncomeType,
   QuestionType,
 } from '../../diagram/types';
+import type { PricePoint } from '../../diagram/history';
 import type { NotificationCategory } from '../../notifications/types';
 import type { ReminderKind, TimeOfDay } from '../../reminders/types';
 
@@ -590,6 +591,25 @@ export const priceCache = pgTable('price_cache', {
   source: text('source'),
   fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Past closes per Yahoo symbol and period (lib/diagram/history.ts), for the Histórico's
+ * Investimentos tab. Global, like `price_cache`, and kept when the source fails, so the chart
+ * still shows the last answer it had.
+ */
+export const priceHistoryCache = pgTable(
+  'price_history_cache',
+  {
+    /** As Yahoo knows it: "PETR4.SA", "VOO", "BTC-USD", "USDBRL=X". */
+    symbol: text('symbol').notNull(),
+    /** The period: '1m', '6m', '1a' or '5a'. */
+    range: text('range').notNull(),
+    /** [date, close] in the symbol's own currency, oldest first. */
+    points: jsonb('points').$type<PricePoint[]>().notNull(),
+    fetchedAt: timestamp('fetched_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.symbol, t.range] })],
+);
 
 /** What the cash report needs from each user. */
 export const cashSettings = pgTable('cash_settings', {

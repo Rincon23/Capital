@@ -7,7 +7,8 @@ import 'driver.js/dist/driver.css';
 import '@/components/onboarding/tour.css';
 import type { ModuleKey } from '@/lib/budget';
 import { useLastViewedMonth } from '@/lib/hooks/useLastViewedMonth';
-import { HOME_NAV, tourSteps, type TourStep } from '@/lib/modules';
+import { HOME_NAV, isModuleOn, tourSteps, type TourStep } from '@/lib/modules';
+import { useSettings } from '@/components/providers/SettingsProvider';
 import { revealOnHome } from './homeReveal';
 import { requestTourSheet } from './tourSheets';
 
@@ -33,6 +34,7 @@ const WAIT_FOR_ELEMENT_MS = 8000;
 export function TourProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const month = useLastViewedMonth();
+  const { settings } = useSettings();
   const active = useRef<Driver | null>(null);
   useEffect(() => () => active.current?.destroy(), []);
 
@@ -113,9 +115,10 @@ export function TourProvider({ children }: { children: ReactNode }) {
     (modules: ModuleKey[]) => {
       // Month screens carry the month in the URL; the tour uses the one on screen, if any.
       const monthOnScreen = window.location.pathname.match(/^\/mes\/([\d-]+)/)?.[1] ?? month;
-      startSteps(tourSteps(modules, monthOnScreen));
+      // A step about another module's part of the screen only when that module is on.
+      startSteps(tourSteps(modules, monthOnScreen, (key) => !!settings && isModuleOn(settings, key)));
     },
-    [month, startSteps],
+    [month, settings, startSteps],
   );
 
   const isTourActive = useCallback(() => active.current !== null, []);

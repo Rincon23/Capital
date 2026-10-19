@@ -14,6 +14,8 @@ export interface TourStepDefinition {
   side?: 'top' | 'bottom' | 'left' | 'right';
   /** Opened before the step is shown, e.g. the expense form for the card question. */
   sheet?: TourSheet;
+  /** Only shown while this other module is on (its part of the screen only exists then). */
+  requires?: ModuleKey;
 }
 
 const home = (month: Month) => `/mes/${month}`;
@@ -138,25 +140,33 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
   ],
   history: [
     {
-      route: () => '/historico',
-      anchor: 'historico-aderencia',
-      title: 'Dentro do planejado',
-      description: 'Quanto do limite de cada categoria você usou no último mês.',
+      route: () => '/historico?aba=gastos',
+      anchor: 'historico-mes',
+      title: 'Mês a mês',
+      description: 'Quanto você gastou e a sua renda. Toque numa barra para ver outro mês.',
       side: 'bottom',
     },
     {
-      route: () => '/historico',
-      anchor: 'historico-graficos',
-      title: 'Gráficos',
-      description: 'Gasto por categoria, composição do mês e sobra de um mês para o outro.',
+      route: () => '/historico?aba=gastos',
+      anchor: 'historico-categorias',
+      title: 'Cada categoria',
+      description: 'Quanto você gastou do limite de cada uma no mês escolhido.',
       side: 'top',
     },
     {
-      route: () => '/historico',
-      anchor: 'historico-tabela',
-      title: 'Mês a mês',
-      description: 'Os números de cada categoria. Use as setas para trocar de mês.',
+      route: () => '/historico?aba=gastos',
+      anchor: 'historico-evolucao',
+      title: 'Ao longo do tempo',
+      description: 'Escolha uma categoria e veja o gasto ou a sobra de cada mês.',
       side: 'top',
+    },
+    {
+      route: () => '/historico?aba=investimentos',
+      anchor: 'historico-investimentos',
+      title: 'Seus investimentos',
+      description: 'A subida e a descida da carteira no período. Filtre por tipo.',
+      side: 'bottom',
+      requires: 'diagram',
     },
   ],
   recurring: [
@@ -357,12 +367,18 @@ export interface TourStep extends Omit<TourStepDefinition, 'route'> {
 }
 
 /**
- * The steps of these modules' tours, one after the other, with the routes for `month`. Each
- * module's part ends on its help button.
+ * The steps of these modules' tours, one after the other, with the routes for `month`, leaving out
+ * the steps whose other module is off (`isOn`). Each module's part ends on its help button.
  */
-export function tourSteps(keys: ModuleKey[], month: Month): TourStep[] {
+export function tourSteps(
+  keys: ModuleKey[],
+  month: Month,
+  isOn: (key: ModuleKey) => boolean = () => true,
+): TourStep[] {
   return keys.flatMap((key) => [
-    ...MODULE_TOURS[key].map(({ route, ...step }) => ({ ...step, href: route(month), module: key })),
+    ...MODULE_TOURS[key]
+      .filter((step) => !step.requires || isOn(step.requires))
+      .map(({ route, ...step }) => ({ ...step, href: route(month), module: key })),
     {
       href: MODULE_HELP[key].route(month),
       sheet: MODULE_HELP[key].sheet,

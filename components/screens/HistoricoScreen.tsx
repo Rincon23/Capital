@@ -1,21 +1,22 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { isModuleOn } from '@/lib/modules';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ModuleGate } from '@/components/modules/ModuleGate';
 import { ModuleHelpButton } from '@/components/modules/ModuleHelpButton';
 import { useHomeHref } from '@/components/modules/useHomeHref';
 import { useModuleIntro } from '@/components/modules/useModuleIntro';
-import { AdherenceMeter } from '@/components/history/AdherenceMeter';
-import {
-  CompositionBarChart,
-  RemainingLineChart,
-  SpendingLineChart,
-  type TopicSeries,
-} from '@/components/history/HistoryCharts';
-import { useAllMonths } from '@/lib/hooks/useAllMonths';
+import { InvestmentHistory } from '@/components/history/InvestmentHistory';
+import { SpendingHistory } from '@/components/history/SpendingHistory';
 import { useSettings } from '@/components/providers/SettingsProvider';
-import { formatBRL, formatMonthLabel, formatPct } from '@/lib/budget';
+
+export type HistoryTab = 'gastos' | 'investimentos';
+
+const TABS: { key: HistoryTab; label: string }[] = [
+  { key: 'gastos', label: 'Gastos' },
+  { key: 'investimentos', label: 'Investimentos' },
+];
 
 export function HistoricoScreen() {
   return (
@@ -25,188 +26,50 @@ export function HistoricoScreen() {
   );
 }
 
+/**
+ * Histórico: the months of the budget ("Gastos") and, when the Diagrama is on, how the
+ * investments went up and down ("Investimentos"). The tab lives in the address (`?aba=`), so the
+ * module's tour can open either one.
+ */
 function Historico() {
   const backHref = useHomeHref();
   const { settings } = useSettings();
-  const { summaries, loading, error } = useAllMonths(settings?.topics);
+  const params = useSearchParams();
+  const investing = !!settings && isModuleOn(settings, 'diagram');
+  const tab: HistoryTab = investing && params.get('aba') === 'investimentos' ? 'investimentos' : 'gastos';
+  useModuleIntro('history', { ready: true });
 
-  const topics: TopicSeries[] = useMemo(() => {
-    const byId = new Map<string, TopicSeries>();
-    for (const summary of summaries) {
-      for (const topic of summary.topics) {
-        byId.set(topic.topicId, { id: topic.topicId, name: topic.name, color: topic.color });
-      }
-    }
-    return Array.from(byId.values());
-  }, [summaries]);
-
-  const latest = summaries.at(-1);
-
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
-  const tableIndex = useMemo(() => {
-    if (summaries.length === 0) return -1;
-    const found = selectedMonth
-      ? summaries.findIndex((summary) => summary.month === selectedMonth)
-      : -1;
-    return found === -1 ? summaries.length - 1 : found;
-  }, [summaries, selectedMonth]);
-  const tableSummary = tableIndex === -1 ? undefined : summaries[tableIndex];
-  useModuleIntro('history', { ready: !loading && !error });
-
-  if (loading) {
-    return <div className="text-muted flex flex-1 items-center justify-center px-4 py-16">Carregando…</div>;
-  }
-
-  const header = (
-    <PageHeader
-      title="Histórico & Gráficos"
-      backHref={backHref}
-      action={<ModuleHelpButton module="history" />}
-    />
-  );
-
-  if (error) {
-    return (
-      <div className="flex flex-1 flex-col gap-4">
-        {header}
-        <p className="text-danger px-4 text-sm">{error}</p>
-      </div>
-    );
-  }
-
-  // Without any month yet, the sections are still there (empty), so the tour can show them.
-  if (summaries.length === 0) {
-    const empty = (text: string) => (
-      <div className="border-border bg-card text-muted rounded-xl border p-4 text-sm shadow-sm">{text}</div>
-    );
-    return (
-      <div className="flex flex-1 flex-col gap-6 pb-10">
-        {header}
-        <section className="flex flex-col gap-2 px-4" data-tour="historico-aderencia">
-          <h2 className="text-muted text-sm font-semibold">Dentro do planejado</h2>
-          {empty('Aparece quando o primeiro mês tiver lançamentos.')}
-        </section>
-        <section className="flex flex-col gap-2 px-4" data-tour="historico-graficos">
-          <h2 className="text-muted text-sm font-semibold">Gráficos</h2>
-          {empty('A evolução do gasto, a composição de cada mês e a sobra acumulada aparecem aqui.')}
-        </section>
-        <section className="flex flex-col gap-2 px-4" data-tour="historico-tabela">
-          <h2 className="text-muted text-sm font-semibold">Tabela mês a mês</h2>
-          {empty('Nenhum mês registrado ainda.')}
-        </section>
-      </div>
-    );
-  }
+  const select = (key: HistoryTab) => {
+    // Changes the address without a navigation (Next keeps useSearchParams in step).
+    window.history.replaceState(null, '', `?aba=${key}`);
+  };
 
   return (
-    <div className="flex flex-1 flex-col gap-6 pb-10">
-      {header}
+    <div className="flex flex-1 flex-col gap-4 pb-10">
+      <PageHeader title="Histórico" backHref={backHref} action={<ModuleHelpButton module="history" />} />
 
-      <section className="flex flex-col gap-2 px-4" data-tour="historico-aderencia">
-        <h2 className="text-muted text-sm font-semibold">
-          Dentro do planejado ({latest ? formatMonthLabel(latest.month) : ''})
-        </h2>
-        <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
-          {latest?.topics.map((topic) => (
-            <AdherenceMeter
-              key={topic.topicId}
-              label={topic.name}
-              targetPct={topic.targetPct}
-              actualPct={latest.incomeTotal > 0 ? topic.spent / latest.incomeTotal : 0}
-              color={topic.color}
-            />
-          ))}
-        </div>
-      </section>
-
-      <div className="flex flex-col gap-6" data-tour="historico-graficos">
-        <section className="flex flex-col gap-2 px-4">
-          <h2 className="text-muted text-sm font-semibold">Evolução do gasto por categoria</h2>
-          <div className="border-border bg-card rounded-xl border p-3 shadow-sm">
-            <SpendingLineChart summaries={summaries} topics={topics} />
-          </div>
-        </section>
-
-        <section className="flex flex-col gap-2 px-4">
-          <h2 className="text-muted text-sm font-semibold">Composição do gasto por mês</h2>
-          <div className="border-border bg-card rounded-xl border p-3 shadow-sm">
-            <CompositionBarChart summaries={summaries} topics={topics} />
-          </div>
-        </section>
-
-        <section className="flex flex-col gap-2 px-4">
-          <h2 className="text-muted text-sm font-semibold">Sobra acumulada por categoria</h2>
-          <div className="border-border bg-card rounded-xl border p-3 shadow-sm">
-            <RemainingLineChart summaries={summaries} topics={topics} />
-          </div>
-        </section>
-      </div>
-
-      <section className="flex flex-col gap-2 px-4" data-tour="historico-tabela">
-        <h2 className="text-muted text-sm font-semibold">Tabela mês a mês</h2>
-        <div className="border-border bg-card flex flex-col rounded-xl border shadow-sm">
-          <div className="border-border flex items-center justify-between gap-2 border-b px-3 py-2">
-            <button
-              type="button"
-              onClick={() => setSelectedMonth(summaries[tableIndex - 1]?.month ?? null)}
-              disabled={tableIndex <= 0}
-              aria-label="Mês anterior"
-              className="text-foreground hover:bg-background flex h-9 w-9 items-center justify-center rounded-full text-xl disabled:cursor-not-allowed disabled:opacity-30"
-            >
-              ‹
-            </button>
-            <span className="text-foreground text-sm font-semibold">
-              {tableSummary ? formatMonthLabel(tableSummary.month) : ''}
-            </span>
-            <button
-              type="button"
-              onClick={() => setSelectedMonth(summaries[tableIndex + 1]?.month ?? null)}
-              disabled={tableIndex === -1 || tableIndex >= summaries.length - 1}
-              aria-label="Próximo mês"
-              className="text-foreground hover:bg-background flex h-9 w-9 items-center justify-center rounded-full text-xl disabled:cursor-not-allowed disabled:opacity-30"
-            >
-              ›
-            </button>
-          </div>
-          <div className="overflow-x-auto" data-no-swipe-nav>
-            <table className="w-full min-w-[520px] border-collapse text-sm">
-              <thead>
-                <tr className="border-border text-muted border-b text-left">
-                  <th className="px-3 py-2 font-medium">Categoria</th>
-                  <th className="px-3 py-2 text-right font-medium">Gasto</th>
-                  <th className="px-3 py-2 text-right font-medium">Limite</th>
-                  <th className="px-3 py-2 text-right font-medium">Sobra</th>
-                  <th className="px-3 py-2 text-right font-medium">% Utilizada</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tableSummary?.topics.map((topic) => (
-                  <tr
-                    key={`${tableSummary.month}-${topic.topicId}`}
-                    className="border-border border-b last:border-0"
-                  >
-                    <td className="text-foreground px-3 py-2">{topic.name}</td>
-                    <td className="text-foreground px-3 py-2 text-right font-[tabular-nums]">
-                      {formatBRL(topic.spent)}
-                    </td>
-                    <td className="text-foreground px-3 py-2 text-right font-[tabular-nums]">
-                      {formatBRL(topic.available)}
-                    </td>
-                    <td
-                      className={`px-3 py-2 text-right font-[tabular-nums] ${topic.remaining < 0 ? 'text-danger' : 'text-foreground'}`}
-                    >
-                      {formatBRL(topic.remaining)}
-                    </td>
-                    <td className="text-foreground px-3 py-2 text-right font-[tabular-nums]">
-                      {topic.usedPct === null ? '—' : formatPct(topic.usedPct)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {investing && (
+        <div className="px-4">
+          <div role="tablist" className="bg-card border-border grid grid-cols-2 gap-1 rounded-xl border p-1">
+            {TABS.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                role="tab"
+                aria-selected={tab === option.key}
+                onClick={() => select(option.key)}
+                className={`min-h-[40px] rounded-lg text-sm font-semibold transition-colors ${
+                  tab === option.key ? 'bg-primary text-primary-foreground' : 'text-muted hover:text-foreground'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
         </div>
-      </section>
+      )}
+
+      {tab === 'gastos' ? <SpendingHistory /> : <InvestmentHistory />}
     </div>
   );
 }
