@@ -1,5 +1,6 @@
 import 'server-only';
 import { accountDisplayName, accountKind, MEU_PLUGGY_LIMIT, suggestBankName } from '@/lib/banks';
+import { addDays, zonedMoment } from '@/lib/reminders/time';
 import { appBaseUrl } from '../gmail/google';
 import { HttpError } from '../httpError';
 import {
@@ -12,8 +13,14 @@ import {
   type FetchLike,
   type PluggyAccount,
   type PluggyItem,
+  type PluggyTransaction,
 } from './pluggy';
-import type { ConnectionUpdate, PostgresBanksRepository } from './repository';
+import type {
+  ConnectionUpdate,
+  PostgresBanksRepository,
+  StoredTransaction,
+  SyncedConnection,
+} from './repository';
 
 /**
  * The Open Finance flows the screen drives: checking and saving the person's key, bringing a bank
@@ -192,41 +199,100 @@ export function connectionStatusOf(item: PluggyItem): ConnectionUpdate['status']
   }
 }
 
-/** Reads one item and its accounts into the database; answers the status it ended with. */
+const numberOrNull = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
+
+/** The day of a Pluggy timestamp in São Paulo ("2026-10-18T03:00:00.000Z" → "2026-10-18"). */
+function dayOf(value: string | null | undefined): string | null {
+  const date = toDate(value);
+  return date ? zonedMoment(date).date : null;
+}
+
+/**
+ * Reads an item's accounts into the database, with their balance as of `balanceAt`; answers the
+ * accounts Pluggy sent and the name the Capital suggests for the bank (null when none came).
+ */
+async function readAccounts(
+  repo: PostgresBanksRepository,
+  client: PluggyClient,
+  itemId: string,
+  balanceAt: Date | null,
+): Promise<{ accounts: PluggyAccount[]; suggestedName: string | null }> {
+  const { results = [] } = await client.get<{ results?: PluggyAccount[] }>(
+    `/accounts?itemId=${encodeURIComponent(itemId)}`,
+  );
+  const names = results.map((account) => ({
+    type: account.type,
+    subtype: account.subtype,
+    name: account.name,
+    marketingName: account.marketingName,
+    transferNumber: account.bankData?.transferNumber,
+  }));
+  await repo.replaceAccounts(
+    itemId,
+    results.map((account, index) => ({
+      accountId: account.id,
+      kind: accountKind(account.subtype),
+      name: accountDisplayName(names[index]),
+      balance: numberOrNull(account.balance),
+      currency: account.currencyCode ?? null,
+      balanceAt,
+      creditLimit: numberOrNull(account.creditData?.creditLimit),
+      availableCredit: numberOrNull(account.creditData?.availableCreditLimit),
+      dueDate: dayOf(account.creditData?.balanceDueDate),
+    })),
+  );
+  return { accounts: results, suggestedName: results.length > 0 ? suggestBankName(names) : null };
+}
+
+/** A Pluggy transaction as the Capital keeps it. */
+export function transactionRow(transaction: PluggyTransaction, accountId: string): StoredTransaction {
+  const payment = transaction.paymentData;
+  const card = transaction.creditCardMetadata;
+  const integerOrNull = (value: unknown) => (typeof value === 'number' && Number.isInteger(value) ? value : null);
+  return {
+    transactionId: transaction.id,
+    accountId,
+    date: dayOf(transaction.date) ?? zonedMoment(new Date()).date,
+    amount: transaction.amount,
+    currency: transaction.currencyCode ?? null,
+    description: (transaction.description || transaction.descriptionRaw || '').trim(),
+    descriptionRaw: transaction.descriptionRaw ?? null,
+    type: transaction.type ?? (transaction.amount < 0 ? 'DEBIT' : 'CREDIT'),
+    status: transaction.status ?? 'POSTED',
+    category: transaction.category ?? null,
+    operationType: transaction.operationType ?? null,
+    paymentMethod: payment?.paymentMethod ?? null,
+    payerName: payment?.payer?.name ?? null,
+    payerDocument: payment?.payer?.documentNumber?.value ?? null,
+    receiverName: payment?.receiver?.name ?? null,
+    receiverDocument: payment?.receiver?.documentNumber?.value ?? null,
+    merchantName: transaction.merchant?.name ?? transaction.merchant?.businessName ?? null,
+    installmentNumber: integerOrNull(card?.installmentNumber),
+    totalInstallments: integerOrNull(card?.totalInstallments),
+    purchaseDate: dayOf(card?.purchaseDate),
+    billId: card?.billId ?? null,
+  };
+}
+
+/** Reads one arriving item into the database (its accounts, once it is done); answers its status. */
 async function readItem(
   repo: PostgresBanksRepository,
   client: PluggyClient,
   item: PluggyItem,
 ): Promise<ConnectionUpdate['status']> {
   const status = connectionStatusOf(item);
+  const lastUpdatedAt = toDate(item.lastUpdatedAt);
   const update: ConnectionUpdate = {
     status,
-    lastUpdatedAt: toDate(item.lastUpdatedAt),
+    lastUpdatedAt,
     nextAutoSyncAt: toDate(item.nextAutoSyncAt),
     consentExpiresAt: toDate(item.consentExpiresAt),
   };
   if (status === 'ok') {
-    const { results = [] } = await client.get<{ results?: PluggyAccount[] }>(
-      `/accounts?itemId=${encodeURIComponent(item.id)}`,
-    );
-    const names = results.map((account) => ({
-      type: account.type,
-      subtype: account.subtype,
-      name: account.name,
-      marketingName: account.marketingName,
-      transferNumber: account.bankData?.transferNumber,
-    }));
-    await repo.replaceAccounts(
-      item.id,
-      results.map((account, index) => ({
-        accountId: account.id,
-        kind: accountKind(account.subtype),
-        name: accountDisplayName(names[index]),
-        balance: typeof account.balance === 'number' ? account.balance : null,
-        currency: account.currencyCode ?? null,
-      })),
-    );
-    update.suggestedName = suggestBankName(names);
+    // The transactions come with the next sync (the job, or "Buscar novidades"): a year of them
+    // takes a while, and the screen is waiting.
+    const { suggestedName } = await readAccounts(repo, client, item.id, lastUpdatedAt);
+    if (suggestedName) update.suggestedName = suggestedName;
   }
   await repo.updateConnection(item.id, update);
   return status;
@@ -287,6 +353,124 @@ export async function refreshPending(
     await repo.deleteConnections(abandoned);
   }
   return { givenUp: abandoned.length };
+}
+
+/** How far back the first read goes (Open Finance hands about a year). */
+const FIRST_READ_DAYS = 365;
+/** A later read goes back this far before the last one: a pending one may have changed meanwhile. */
+const REREAD_DAYS = 7;
+
+/** What one bank's sync brought. */
+export interface BankSyncResult {
+  itemId: string;
+  /** Whether the bank had sent new data since the last read. */
+  changed: boolean;
+  /** The transactions seen for the first time. */
+  added: string[];
+}
+
+/**
+ * Asks Pluggy about one bank that already arrived. Only when the bank sent data since the last
+ * read (its `lastUpdatedAt` moved) are the accounts and the transactions read again: from a year
+ * back the first time, then from the last read minus 7 days. A transaction is kept by its id, so
+ * reading it again only updates it.
+ */
+export async function syncConnection(
+  repo: PostgresBanksRepository,
+  client: PluggyClient,
+  connection: SyncedConnection,
+  now: Date,
+): Promise<BankSyncResult> {
+  const unchanged: BankSyncResult = { itemId: connection.itemId, changed: false, added: [] };
+  const reply = await client.call('GET', `/items/${encodeURIComponent(connection.itemId)}`);
+  if (reply.status === 404) {
+    // Gone at Pluggy (revoked or deleted there): the person brings it again.
+    await repo.updateConnection(connection.itemId, { status: 'reconnect', checkedAt: now });
+    return unchanged;
+  }
+  if (reply.status >= 300) throw pluggyErrorOf(reply);
+  const item = reply.body as PluggyItem;
+
+  // While Pluggy updates an item (once a day) it says UPDATING: the bank keeps the status it had.
+  const said = connectionStatusOf(item);
+  const status = said === 'pending' ? connection.status : said;
+  if (status !== 'ok') {
+    console.log(
+      `[bancos] item ${connection.itemId.slice(0, 8)} na Pluggy: ${item.status}/${item.executionStatus ?? '-'}` +
+        (item.error ? ` erro ${item.error.code ?? '-'}: ${item.error.message ?? ''}` : ''),
+    );
+  }
+  const lastUpdatedAt = toDate(item.lastUpdatedAt);
+  const update: ConnectionUpdate = {
+    status,
+    lastUpdatedAt,
+    nextAutoSyncAt: toDate(item.nextAutoSyncAt),
+    consentExpiresAt: toDate(item.consentExpiresAt),
+    checkedAt: now,
+  };
+  const fresh =
+    item.status === 'UPDATED' &&
+    lastUpdatedAt !== null &&
+    (!connection.syncedUpdateAt || lastUpdatedAt > connection.syncedUpdateAt);
+  if (!fresh) {
+    await repo.updateConnection(connection.itemId, update);
+    return unchanged;
+  }
+
+  const { accounts, suggestedName } = await readAccounts(repo, client, connection.itemId, lastUpdatedAt);
+  if (suggestedName) update.suggestedName = suggestedName;
+  const today = zonedMoment(now).date;
+  const from = connection.syncedUpdateAt
+    ? addDays(zonedMoment(connection.syncedUpdateAt).date, -REREAD_DAYS)
+    : addDays(today, -FIRST_READ_DAYS);
+  const added: string[] = [];
+  for (const account of accounts) {
+    const transactions = await client.allTransactions(account.id, from, today);
+    added.push(...(await repo.upsertTransactions(transactions.map((t) => transactionRow(t, account.id)))));
+  }
+  // Only once everything is in: a read that broke halfway is done again next time.
+  update.syncedUpdateAt = lastUpdatedAt;
+  await repo.updateConnection(connection.itemId, update);
+  return { itemId: connection.itemId, changed: true, added };
+}
+
+const globalForSync = globalThis as unknown as { __capitalBanksSyncing?: Set<string> };
+const syncing = (globalForSync.__capitalBanksSyncing ??= new Set());
+
+/**
+ * Everything of one person: the banks on their way, then every bank that already arrived. A bank
+ * that fails doesn't stop the others. Answers null when a sync of this person is already running
+ * (the job and "Buscar novidades" at the same moment).
+ */
+export async function syncUser(
+  repo: PostgresBanksRepository,
+  userId: string,
+  fetchImpl: FetchLike = fetch,
+  now = new Date(),
+): Promise<BankSyncResult[] | null> {
+  if (syncing.has(userId)) return null;
+  syncing.add(userId);
+  try {
+    await refreshPending(repo, userId, fetchImpl, now);
+    const connections = await repo.connectionsToSync();
+    if (connections.length === 0) return [];
+    const client = await clientFor(repo, userId, fetchImpl);
+    const results: BankSyncResult[] = [];
+    for (const connection of connections) {
+      try {
+        results.push(await syncConnection(repo, client, connection, now));
+      } catch (err) {
+        if (err instanceof PluggyError && (err.status === 401 || err.status === 403)) forgetPluggyKey(userId);
+        console.error(
+          `[bancos] falha ao ler o item ${connection.itemId.slice(0, 8)}:`,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+    return results;
+  } finally {
+    syncing.delete(userId);
+  }
 }
 
 /** Deletes items at Pluggy (which also revokes their authorization); a failure doesn't stop the rest. */

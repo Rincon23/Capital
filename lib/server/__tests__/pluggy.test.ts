@@ -24,6 +24,7 @@ import {
   refreshPending,
   removeConnection,
   startConnection,
+  syncUser,
 } from '../banks/service';
 import * as schema from '../db/schema';
 import type { Database } from '../db/types';
@@ -32,7 +33,7 @@ import { HttpError } from '../httpError';
 type Answer = { status?: number; body: unknown };
 
 /** A fake Pluggy: answers by method and path (query included), and records what it was asked. */
-function fakePluggy(routes: Record<string, Answer | (() => Answer)>) {
+function fakePluggy(routes: Record<string, Answer | ((path: string) => Answer)>) {
   const calls: { method: string; path: string; headers: Record<string, string>; body: unknown }[] = [];
   const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
@@ -45,7 +46,7 @@ function fakePluggy(routes: Record<string, Answer | (() => Answer)>) {
       body: init?.body ? JSON.parse(String(init.body)) : undefined,
     });
     const route = routes[`${method} ${path}`] ?? routes[`${method} ${path.split('?')[0]}`];
-    const answer = typeof route === 'function' ? route() : route;
+    const answer = typeof route === 'function' ? route(path) : route;
     if (!answer) return new Response(JSON.stringify({ message: 'not found', code: 404 }), { status: 404 });
     return new Response(JSON.stringify(answer.body), { status: answer.status ?? 200 });
   }) as unknown as FetchLike;
@@ -303,7 +304,7 @@ describe('a bank arriving', () => {
     expect(connections.map((c) => [c.itemId, c.status])).toEqual([['caiu', 'reconnect']]);
   });
 
-  it('reads a failed bank again on the next visit, in case Pluggy recovered', async () => {
+  it('reads a failed bank again on the next sync, in case Pluggy recovered', async () => {
     const { id, banks } = await newPerson();
     await banks.saveKey('id', 'segredo');
     await banks.addPending(ITEM, null);
@@ -311,9 +312,15 @@ describe('a bank arriving', () => {
     const { fetchImpl } = fakePluggy({
       'POST /auth': { body: { apiKey: 'chave' } },
       [`GET /items/${ITEM}`]: () => ({
-        body: { id: ITEM, status, error: { code: 'UNEXPECTED_ERROR', message: 'Unexpected error.' } },
+        body: {
+          id: ITEM,
+          status,
+          lastUpdatedAt: '2026-10-20T12:57:28.616Z',
+          error: status === 'OUTDATED' ? { code: 'UNEXPECTED_ERROR', message: 'Unexpected error.' } : null,
+        },
       }),
       'GET /accounts': { body: accounts },
+      'GET /v2/transactions': { body: { results: [], next: null } },
     });
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     await refreshPending(banks, id, fetchImpl);
@@ -321,7 +328,7 @@ describe('a bank arriving', () => {
     expect(log.mock.calls.flat().join(' ')).toContain('UNEXPECTED_ERROR');
 
     status = 'UPDATED';
-    await refreshPending(banks, id, fetchImpl);
+    await syncUser(banks, id, fetchImpl, new Date('2026-10-20T15:00:00Z'));
     expect((await banks.listConnections())[0]).toMatchObject({ name: 'BTG Pactual', status: 'ok' });
     log.mockRestore();
   });

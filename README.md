@@ -334,6 +334,18 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
   - **Engrenagem:** a chave (o Secret só como "••••1234"), "Trocar a chave" e "Desconectar
     tudo". Desconectar tira os bancos da aplicação da pessoa na Pluggy e apaga a chave; os
     bancos continuam no Meu Pluggy.
+  - **Tela dos bancos:**
+    - em destaque, o **saldo nas contas**: a soma das contas, sem os cartões, porque o valor do
+      cartão é o que se deve;
+    - cada banco com "atualizado há 5 h", as contas com saldo e os cartões com o valor em aberto
+      e o vencimento, quando ele ainda está por vir;
+    - "Buscar novidades" relê a Pluggy (não faz o banco mandar antes), até 6 vezes em 10 min.
+  - **Avisos na tela:**
+    - banco sem dados há mais de 48 h fica **"Parado"**, com "Reconectar no Meu Pluggy", mesmo
+      com a Pluggy dizendo que está tudo bem;
+    - 15 dias antes de a autorização vencer, aparece "A autorização vence em N dias", com
+      "Renovar";
+    - um banco que a Pluggy perdeu pede "Trazer de novo".
 
 ### Navegação: a Início como a tela de um celular
 
@@ -649,9 +661,27 @@ dela); o servidor não tem chave da Pluggy. O plano por fases está em
     sugerido; os que esperam autorização 2 min depois de o link vencer são apagados aqui e na
     Pluggy;
   - tirar um banco e desconectar tudo.
-- `repository.ts` guarda a chave (`bank_keys`, Secret cifrado com `secretBox`), as conexões
-  (`bank_connections`, a única lista dos itens, porque o plano grátis não lista) e as contas
-  (`bank_accounts`).
+- `repository.ts` guarda:
+  - a chave (`bank_keys`, Secret cifrado com `secretBox`);
+  - as conexões (`bank_connections`, a única lista dos itens, porque o plano grátis não lista);
+  - as contas (`bank_accounts`), com saldo, data do saldo e, nos cartões, limite e vencimento;
+  - as transações (`bank_transactions`), pela id da Pluggy.
+- As transações:
+  - ficam como a Pluggy manda, com o cartão positivo na compra;
+  - `outcome`/`entry_id` dizem o que viraram no Capital (F5), e uma leitura nova nunca mexe nisso;
+  - nada disso é lançamento.
+- **Sincronização** (`job.ts`, uma vez por hora na agenda, com `job_runs`), para cada VIP com o
+  módulo ligado e a chave salva:
+  - pergunta `GET /items/{id}` de cada banco;
+  - **só quando `lastUpdatedAt` mudou** (o banco mandou dados), relê contas e transações: um ano
+    na primeira vez, depois desde a última leitura menos 7 dias;
+  - a pendente vira confirmada na mesma linha, nunca em duas;
+  - um banco ou uma pessoa que falha não para os outros, e duas leituras da mesma pessoa nunca
+    rodam juntas;
+  - enquanto a Pluggy atualiza (`UPDATING`), o banco mantém o status que tinha;
+  - um item que sumiu da Pluggy (404) vira "Trazer de novo";
+  - uma leitura que volta sem contas mantém as que havia.
+- "Parado" (48 h sem dados) e o aviso de autorização (15 dias antes) saem de `lib/banks/health.ts`.
 - O `apiKey` (2 h) fica só em memória, por pessoa.
 - Toda rota confere VIP e o módulo ligado (`access.ts`) e tem limite de tentativas.
 - A Pluggy devolve a pessoa para `<BETTER_AUTH_URL>/bancos`, ou para `PLUGGY_REDIRECT_URI`, que
@@ -872,8 +902,13 @@ Os demais testes:
   (maiúsculas, acentos, remetente, prévia), um aviso por e-mail com todas as palavras e nunca
   repetido, e-mails enviados e spam ignorados, `historyId` expirado, conexão recusada (avisa uma
   vez e para), token cifrado e o `state` do OAuth, com o Gmail simulado.
-- **`lib/server/__tests__/pluggy.test.ts` e `lib/banks/__tests__`:** o Open Finance, com a Pluggy
-  simulada nas respostas que ela dá de verdade. Cobrem:
+- **`lib/server/__tests__/pluggy.test.ts`, `banksSync.test.ts` e `lib/banks/__tests__`:** o Open
+  Finance, com a Pluggy simulada nas respostas que ela dá de verdade. Cobrem:
+  - a sincronização: um ano na primeira leitura, só "chegou algo?" enquanto o banco não manda
+    nada, 7 dias para trás depois, a pendente que vira confirmada sem duplicar e sem perder o que
+    a pessoa decidiu, `UPDATING`, item sumido, leitura sem contas e duas leituras ao mesmo tempo;
+  - o job: só VIPs com o módulo, uma vez por hora, e uma falha não para ninguém;
+  - "Parado" depois de 48 h, o aviso de autorização e o saldo sem os cartões;
   - a paginação por `next`, inclusive um `next` que aponta para fora da Pluggy;
   - a chave: conferida antes de salvar, cifrada, e só o fim do Secret volta;
   - trazer um banco: o corpo do `POST /items`, a espera pelo link e o `pending`;

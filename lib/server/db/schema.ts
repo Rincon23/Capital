@@ -885,6 +885,13 @@ export const bankConnections = pgTable(
     lastUpdatedAt: timestamp('last_updated_at', { withTimezone: true }),
     nextAutoSyncAt: timestamp('next_auto_sync_at', { withTimezone: true }),
     consentExpiresAt: timestamp('consent_expires_at', { withTimezone: true }),
+    /**
+     * The `last_updated_at` whose accounts and transactions the Capital already read: the sync
+     * only reads them again when Pluggy has newer data than this.
+     */
+    syncedUpdateAt: timestamp('synced_update_at', { withTimezone: true }),
+    /** When the Capital last asked Pluggy about this bank. */
+    checkedAt: timestamp('checked_at', { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -905,8 +912,14 @@ export const bankAccounts = pgTable(
     itemId: text('item_id').notNull(),
     kind: text('kind').$type<BankAccountKind>().notNull(),
     name: text('name').notNull(),
+    /** For a card, what is owed on it (Pluggy's balance of a credit account). */
     balance: numeric('balance', { mode: 'number' }),
     currency: text('currency'),
+    /** When the bank sent this balance (the connection's `last_updated_at` of the read). */
+    balanceAt: timestamp('balance_at', { withTimezone: true }),
+    creditLimit: numeric('credit_limit', { mode: 'number' }),
+    availableCredit: numeric('available_credit', { mode: 'number' }),
+    dueDate: date('due_date', { mode: 'string' }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -917,6 +930,58 @@ export const bankAccounts = pgTable(
       foreignColumns: [bankConnections.userId, bankConnections.itemId],
     }).onDelete('cascade'),
     check('bank_accounts_kind', sql`${t.kind} in ('checking', 'savings', 'card', 'other')`),
+  ],
+);
+
+/**
+ * What the banks sent, one row per Pluggy transaction (its id is the key: a read never adds it
+ * twice, and a later read updates it, pending → posted). Not an entry of the budget: `outcome`
+ * and `entry_id` say what it became in the Capital, once the person reviews it.
+ * On a card, a purchase is positive and a payment negative, as Pluggy sends them.
+ */
+export const bankTransactions = pgTable(
+  'bank_transactions',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    transactionId: text('transaction_id').notNull(),
+    accountId: text('account_id').notNull(),
+    /** The day, in São Paulo. */
+    date: date('date', { mode: 'string' }).notNull(),
+    amount: numeric('amount', { mode: 'number' }).notNull(),
+    currency: text('currency'),
+    description: text('description').notNull(),
+    descriptionRaw: text('description_raw'),
+    /** CREDIT (money in; on a card, a payment or refund) or DEBIT. */
+    type: text('type').notNull(),
+    /** PENDING or POSTED. On a card, PENDING means "not in a closed bill yet". */
+    status: text('status').notNull(),
+    category: text('category'),
+    operationType: text('operation_type'),
+    paymentMethod: text('payment_method'),
+    payerName: text('payer_name'),
+    payerDocument: text('payer_document'),
+    receiverName: text('receiver_name'),
+    receiverDocument: text('receiver_document'),
+    merchantName: text('merchant_name'),
+    installmentNumber: integer('installment_number'),
+    totalInstallments: integer('total_installments'),
+    purchaseDate: date('purchase_date', { mode: 'string' }),
+    billId: text('bill_id'),
+    /** Null until reviewed ("Confira os gastos"). */
+    outcome: text('outcome'),
+    entryId: uuid('entry_id'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.transactionId] }),
+    foreignKey({
+      columns: [t.userId, t.accountId],
+      foreignColumns: [bankAccounts.userId, bankAccounts.accountId],
+    }).onDelete('cascade'),
+    index('bank_transactions_user_date_idx').on(t.userId, t.date),
   ],
 );
 

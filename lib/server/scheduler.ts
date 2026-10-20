@@ -15,6 +15,7 @@ import {
 } from './db/schema';
 import type { Database } from './db/types';
 import { catchUpFrom, lastRun, markRun } from './jobRuns';
+import { runBanksJob } from './banks/job';
 import { runGmailJob } from './gmail/job';
 import { sendUserNotifications, type NotifyInput } from './notify';
 import type { PushSender } from './push';
@@ -206,6 +207,7 @@ export function startScheduler(getDb: () => Database): void {
       await runRecurringBillsJob(db).catch((err) => console.error('[contas do mês] falha nos avisos:', err));
       await runQuotesJob(db).catch((err) => console.error('[cotações] falha na atualização:', err));
       await runGmailJob(db).catch((err) => console.error('[gmail] falha na verificação:', err));
+      await runBanksJob(db).catch((err) => console.error('[bancos] falha na leitura:', err));
       await runAnnouncementsJob(db, FEATURE_ANNOUNCEMENTS).catch((err) =>
         console.error('[novidades] falha ao notificar:', err),
       );
@@ -225,5 +227,5 @@ export function startScheduler(getDb: () => Database): void {
     }, delay).unref?.();
   };
   scheduleNext();
-  console.log('[agenda] lembretes, cartões, cotações e Gmail em segundo plano ativados.');
+  console.log('[agenda] lembretes, cartões, cotações, Gmail e bancos em segundo plano ativados.');
 }

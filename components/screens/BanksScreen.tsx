@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ExternalLink, Landmark, LoaderCircle, Pencil, Plus } from 'lucide-react';
+import { ExternalLink, Landmark, LoaderCircle, Pencil, Plus, RefreshCw } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ModuleGate } from '@/components/modules/ModuleGate';
 import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
@@ -14,12 +14,18 @@ import { IconTile } from '@/components/ui/IconTile';
 import { InfoTip } from '@/components/ui/InfoTip';
 import { useToast } from '@/components/ui/Toast';
 import {
+  accountsBalance,
+  connectionHealth,
+  consentDaysLeft,
   formatAgo,
   MEU_PLUGGY_URL,
   PLUGGY_DASHBOARD_URL,
+  type BankAccount,
   type BankAccountKind,
   type BankConnection,
 } from '@/lib/banks';
+import { formatBRL } from '@/lib/budget/money';
+import { formatDayMonth, zonedToday } from '@/lib/reminders/time';
 import { banksRepository, type BanksOverviewResult } from '@/lib/storage';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
 
@@ -192,6 +198,31 @@ function Banks() {
         </Card>
       ) : (
         <section className="flex flex-col gap-3" data-tour="bancos-conexoes">
+          <Card>
+            <p className="text-muted text-sm">Saldo nas contas</p>
+            <p className="text-foreground text-3xl font-bold tabular-nums">
+              {formatBRL(accountsBalance(connections))}
+            </p>
+            <button
+              type="button"
+              className={secondaryButton}
+              disabled={busy !== null}
+              onClick={() =>
+                void act('sync', async () => {
+                  const { changed } = await banksRepository.sync();
+                  showToast(
+                    changed.length > 0
+                      ? 'Chegaram dados novos dos bancos.'
+                      : 'Nada novo desde a última leitura. Os bancos mandam os dados uma vez por dia.',
+                    'info',
+                  );
+                })
+              }
+            >
+              <RefreshCw className={`h-4 w-4 ${busy === 'sync' ? 'animate-spin' : ''}`} aria-hidden />
+              Buscar novidades
+            </button>
+          </Card>
           {connections.map((connection) => (
             <ConnectionCard
               key={connection.itemId}
@@ -200,6 +231,14 @@ function Banks() {
               busy={busy !== null}
               onRename={() => setRenaming(connection)}
               onRetry={() => void retry(connection)}
+              onRenew={async () => {
+                const ok = await confirm({
+                  title: 'Renovar a autorização',
+                  message: `• Banco: ${connection.name}. Para renovar, ele sai do Capital e você autoriza de novo no Meu Pluggy; os dados voltam na próxima leitura.`,
+                  confirmLabel: 'Renovar',
+                });
+                if (ok) void retry(connection);
+              }}
             />
           ))}
           <div className="mx-4 flex flex-col gap-2">
@@ -472,45 +511,47 @@ function ConnectionCard({
   busy,
   onRename,
   onRetry,
+  onRenew,
 }: {
   connection: BankConnection;
   now: number;
   busy: boolean;
   onRename: () => void;
   onRetry: () => void;
+  onRenew: () => void;
 }) {
-  const { status } = connection;
+  const health = connectionHealth(connection, now);
   // The first read failed (Pluggy's side) and nothing arrived: Meu Pluggy can't be asked to read
   // again, so the way out is bringing the bank again.
-  const neverArrived = status === 'error' && connection.accounts.length === 0;
-  // A bank that is just one card is named after it: no need to say the card's name twice.
-  const accounts = connection.accounts.filter(
-    (account) => connection.accounts.length > 1 || account.name !== connection.name,
-  );
+  const neverArrived = health === 'error' && connection.accounts.length === 0;
+  const consentLeft = health === 'reconnect' ? null : consentDaysLeft(connection, now);
+  const fine = health === 'ok' || health === 'pending';
   return (
     <Card>
       <div className="flex items-center gap-3">
-        <IconTile icon={Landmark} tone={status === 'ok' ? 'blue' : status === 'pending' ? 'purple' : 'amber'} />
+        <IconTile icon={Landmark} tone={health === 'ok' ? 'blue' : health === 'pending' ? 'purple' : 'amber'} />
         <div className="min-w-0 flex-1">
           <p className="text-foreground truncate font-semibold">{connection.name}</p>
-          <p className={`text-sm ${status === 'ok' || status === 'pending' ? 'text-muted' : 'text-warning'}`}>
-            {status === 'pending' ? (
+          <p className={`text-sm ${fine ? 'text-muted' : 'text-warning'}`}>
+            {health === 'pending' ? (
               <span className="inline-flex items-center gap-1.5">
                 <LoaderCircle className="h-3.5 w-3.5 animate-spin" aria-hidden />
                 Chegando… leva uns 2 minutos
               </span>
-            ) : status === 'ok' ? (
+            ) : health === 'ok' ? (
               connection.lastUpdatedAt ? (
                 `Atualizado ${formatAgo(connection.lastUpdatedAt, now)}`
               ) : (
                 'Ainda sem atualização'
               )
+            ) : health === 'stale' ? (
+              `Parado: sem dados do banco ${formatAgo(connection.lastUpdatedAt!, now)}`
             ) : neverArrived ? (
               'Não chegou: deu erro na Pluggy.'
-            ) : status === 'error' ? (
+            ) : health === 'error' ? (
               'A última atualização falhou; a Pluggy tenta de novo sozinha.'
             ) : (
-              'A autorização acabou. Tire este banco e traga de novo.'
+              'A autorização acabou.'
             )}
           </p>
         </div>
@@ -523,22 +564,62 @@ function ConnectionCard({
           <Pencil className="h-4 w-4" aria-hidden />
         </button>
       </div>
-      {neverArrived && (
+
+      {health === 'stale' && (
+        <a href={MEU_PLUGGY_URL} target="_blank" rel="noopener noreferrer" className={secondaryButton}>
+          Reconectar no Meu Pluggy
+          <ExternalLink className="h-4 w-4" aria-hidden />
+        </a>
+      )}
+      {(neverArrived || health === 'reconnect') && (
         <button type="button" onClick={onRetry} disabled={busy} className={secondaryButton}>
-          Tentar de novo
+          {neverArrived ? 'Tentar de novo' : 'Trazer de novo'}
         </button>
       )}
-      {accounts.length > 0 && (
-        <ul className="flex flex-col gap-1">
-          {accounts.map((account) => (
-            <li key={account.id} className="flex items-baseline justify-between gap-2 text-sm">
-              <span className="text-foreground truncate">{account.name}</span>
-              <span className="text-muted shrink-0 text-xs">{KIND_LABEL[account.kind]}</span>
-            </li>
+      {consentLeft !== null && (
+        <div className="bg-warning-bg text-warning flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm">
+          <span>{consentLeft === 0 ? 'A autorização vence hoje.' : `A autorização vence em ${consentLeft} ${consentLeft === 1 ? 'dia' : 'dias'}.`}</span>
+          <button type="button" onClick={onRenew} disabled={busy} className="shrink-0 font-semibold">
+            Renovar
+          </button>
+        </div>
+      )}
+
+      {connection.accounts.length > 0 && (
+        <ul className="divide-border flex flex-col divide-y">
+          {connection.accounts.map((account) => (
+            <AccountRow
+              key={account.id}
+              account={account}
+              // A bank that is just one card is named after it: no need to say the card's name twice.
+              name={connection.accounts.length === 1 && account.name === connection.name ? 'Fatura' : account.name}
+            />
           ))}
         </ul>
       )}
     </Card>
+  );
+}
+
+function AccountRow({ account, name }: { account: BankAccount; name: string }) {
+  // A card's balance is what is owed on it. Pluggy's due date is often the last closed bill's,
+  // already past: only a date still ahead is shown.
+  const detail =
+    account.kind !== 'card'
+      ? KIND_LABEL[account.kind]
+      : account.dueDate && account.dueDate >= zonedToday()
+        ? `cartão · em aberto · vence ${formatDayMonth(account.dueDate)}`
+        : 'cartão · em aberto';
+  return (
+    <li className="flex items-center justify-between gap-3 py-2 text-sm">
+      <span className="min-w-0">
+        <span className="text-foreground block truncate">{name}</span>
+        <span className="text-muted block text-xs">{detail}</span>
+      </span>
+      {account.balance !== null && (
+        <span className="text-foreground shrink-0 font-medium tabular-nums">{formatBRL(account.balance)}</span>
+      )}
+    </li>
   );
 }
 

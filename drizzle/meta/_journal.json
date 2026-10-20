@@ -183,6 +183,13 @@
       "when": 1792503846117,
       "tag": "0025_open_finance",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792505787630,
+      "tag": "0026_open_finance_sync",
+      "breakpoints": true
     }
   ]
 }

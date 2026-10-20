@@ -1,7 +1,7 @@
 import 'server-only';
-import { and, asc, eq, inArray, notInArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne, notInArray, sql } from 'drizzle-orm';
 import type { BankAccountKind, BankConnection, BankConnectionStatus } from '@/lib/banks';
-import { bankAccounts, bankConnections, bankKeys } from '../db/schema';
+import { bankAccounts, bankConnections, bankKeys, bankTransactions } from '../db/schema';
 import type { Database } from '../db/types';
 import { HttpError } from '../httpError';
 import { decryptSecret, encryptSecret } from '../secretBox';
@@ -12,7 +12,17 @@ export interface StoredAccount {
   name: string;
   balance: number | null;
   currency: string | null;
+  balanceAt?: Date | null;
+  creditLimit?: number | null;
+  availableCredit?: number | null;
+  dueDate?: string | null;
 }
+
+/** A transaction as the Capital keeps it (`bank_transactions`), without what it became. */
+export type StoredTransaction = Omit<
+  typeof bankTransactions.$inferInsert,
+  'userId' | 'outcome' | 'entryId' | 'createdAt' | 'updatedAt'
+>;
 
 /** What the last read of an item said about it. */
 export interface ConnectionUpdate {
@@ -21,6 +31,17 @@ export interface ConnectionUpdate {
   nextAutoSyncAt?: Date | null;
   consentExpiresAt?: Date | null;
   suggestedName?: string;
+  checkedAt?: Date;
+  /** The `lastUpdatedAt` whose data was just read in full. */
+  syncedUpdateAt?: Date | null;
+}
+
+/** A bank the sync looks at: what Pluggy last said and how far the Capital already read. */
+export interface SyncedConnection {
+  itemId: string;
+  status: BankConnectionStatus;
+  lastUpdatedAt: Date | null;
+  syncedUpdateAt: Date | null;
 }
 
 export interface PendingConnection {
@@ -28,6 +49,30 @@ export interface PendingConnection {
   authorizeExpiresAt: Date | null;
   createdAt: Date;
 }
+
+/** What a later read may change in a known transaction (never what the person decided about it). */
+const TRANSACTION_FIELDS = [
+  'accountId',
+  'date',
+  'amount',
+  'currency',
+  'description',
+  'descriptionRaw',
+  'type',
+  'status',
+  'category',
+  'operationType',
+  'paymentMethod',
+  'payerName',
+  'payerDocument',
+  'receiverName',
+  'receiverDocument',
+  'merchantName',
+  'installmentNumber',
+  'totalInstallments',
+  'purchaseDate',
+  'billId',
+] as const;
 
 /** One person's Open Finance: their Pluggy key and the banks (items) they brought. */
 export class PostgresBanksRepository {
@@ -94,8 +139,66 @@ export class PostgresBanksRepository {
       createdAt: row.createdAt.toISOString(),
       accounts: accounts
         .filter((account) => account.itemId === row.itemId)
-        .map((account) => ({ id: account.accountId, kind: account.kind, name: account.name })),
+        .map((account) => ({
+          id: account.accountId,
+          kind: account.kind,
+          name: account.name,
+          balance: account.balance,
+          balanceAt: account.balanceAt?.toISOString() ?? null,
+          creditLimit: account.creditLimit,
+          availableCredit: account.availableCredit,
+          dueDate: account.dueDate,
+        })),
     }));
+  }
+
+  /** Every bank past its arrival, for the sync. */
+  async connectionsToSync(): Promise<SyncedConnection[]> {
+    return this.db
+      .select({
+        itemId: bankConnections.itemId,
+        status: bankConnections.status,
+        lastUpdatedAt: bankConnections.lastUpdatedAt,
+        syncedUpdateAt: bankConnections.syncedUpdateAt,
+      })
+      .from(bankConnections)
+      .where(and(eq(bankConnections.userId, this.userId), ne(bankConnections.status, 'pending')))
+      .orderBy(asc(bankConnections.createdAt));
+  }
+
+  /**
+   * Keeps what a read brought, by Pluggy's id: new transactions are added, known ones updated
+   * (pending → posted), and what the person decided about them is never touched. Answers the ids
+   * that were new.
+   */
+  async upsertTransactions(transactions: StoredTransaction[]): Promise<string[]> {
+    const added: string[] = [];
+    for (let start = 0; start < transactions.length; start += 200) {
+      const chunk = transactions.slice(start, start + 200).map((row) => ({ ...row, userId: this.userId }));
+      const rows = await this.db
+        .insert(bankTransactions)
+        .values(chunk)
+        .onConflictDoUpdate({
+          target: [bankTransactions.userId, bankTransactions.transactionId],
+          set: {
+            ...Object.fromEntries(
+              TRANSACTION_FIELDS.map((field) => [field, sql.raw(`excluded."${bankTransactions[field].name}"`)]),
+            ),
+            updatedAt: sql`now()`,
+          },
+        })
+        .returning({ id: bankTransactions.transactionId, added: sql<boolean>`(xmax = 0)` });
+      for (const row of rows) if (row.added) added.push(row.id);
+    }
+    return added;
+  }
+
+  async countTransactions(): Promise<number> {
+    const [row] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(bankTransactions)
+      .where(eq(bankTransactions.userId, this.userId));
+    return row?.count ?? 0;
   }
 
   async itemIds(): Promise<string[]> {
@@ -106,7 +209,7 @@ export class PostgresBanksRepository {
     return rows.map((row) => row.itemId);
   }
 
-  /** The banks still on their way, and the ones whose last update failed (Pluggy may recover). */
+  /** The banks still on their way (the ones that failed are the sync's, which reads them again). */
   async pendingConnections(): Promise<PendingConnection[]> {
     return this.db
       .select({
@@ -115,9 +218,7 @@ export class PostgresBanksRepository {
         createdAt: bankConnections.createdAt,
       })
       .from(bankConnections)
-      .where(
-        and(eq(bankConnections.userId, this.userId), inArray(bankConnections.status, ['pending', 'error'])),
-      );
+      .where(and(eq(bankConnections.userId, this.userId), eq(bankConnections.status, 'pending')));
   }
 
   async addPending(itemId: string, authorizeExpiresAt: Date | null): Promise<void> {
@@ -143,13 +244,20 @@ export class PostgresBanksRepository {
         ...(update.nextAutoSyncAt !== undefined ? { nextAutoSyncAt: update.nextAutoSyncAt } : {}),
         ...(update.consentExpiresAt !== undefined ? { consentExpiresAt: update.consentExpiresAt } : {}),
         ...(update.suggestedName !== undefined ? { suggestedName: update.suggestedName } : {}),
+        ...(update.checkedAt !== undefined ? { checkedAt: update.checkedAt } : {}),
+        ...(update.syncedUpdateAt !== undefined ? { syncedUpdateAt: update.syncedUpdateAt } : {}),
         ...(update.status !== 'pending' ? { authorizeExpiresAt: null } : {}),
       })
       .where(and(eq(bankConnections.userId, this.userId), eq(bankConnections.itemId, itemId)));
   }
 
-  /** The accounts as the last read brought them: new ones added, the rest updated, gone ones removed. */
+  /**
+   * The accounts as the last read brought them: new ones added, the rest updated, gone ones removed
+   * (with their transactions). An empty read changes nothing: a bank never loses every account at
+   * once, Pluggy only stumbles.
+   */
   async replaceAccounts(itemId: string, accounts: StoredAccount[]): Promise<void> {
+    if (accounts.length === 0) return;
     await this.db.transaction(async (tx) => {
       const ids = accounts.map((account) => account.accountId);
       await tx
@@ -158,7 +266,7 @@ export class PostgresBanksRepository {
           and(
             eq(bankAccounts.userId, this.userId),
             eq(bankAccounts.itemId, itemId),
-            ...(ids.length > 0 ? [notInArray(bankAccounts.accountId, ids)] : []),
+            notInArray(bankAccounts.accountId, ids),
           ),
         );
       for (const account of accounts) {
@@ -168,6 +276,10 @@ export class PostgresBanksRepository {
           name: account.name,
           balance: account.balance,
           currency: account.currency,
+          balanceAt: account.balanceAt ?? null,
+          creditLimit: account.creditLimit ?? null,
+          availableCredit: account.availableCredit ?? null,
+          dueDate: account.dueDate ?? null,
         };
         await tx
           .insert(bankAccounts)

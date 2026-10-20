@@ -127,8 +127,10 @@ export default function PrivacyPage() {
           </li>
           <li>
             Guarda a sua chave (o Client Secret fica cifrado no servidor e nunca é mostrado nem enviado a ninguém
-            além da Pluggy), a lista dos bancos que você trouxe, com o nome que você der a cada um, e as contas e
-            cartões de cada banco, com nome e saldo.
+            além da Pluggy), a lista dos bancos que você trouxe, com o nome que você der a cada um, as contas e
+            cartões de cada banco, com nome e saldo, e as transações dos últimos 12 meses que os bancos mandam:
+            descrição, valor, data, categoria, forma de pagamento e quem pagou ou recebeu (nome e documento,
+            quando o banco informa). Uma vez por hora, o Capital pergunta à Pluggy se chegou algo novo.
           </li>
           <li>
             Esses dados não são vendidos, não são usados para publicidade e não são usados para treinar modelos

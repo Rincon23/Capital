@@ -12,6 +12,8 @@ export interface BanksRepository {
   saveKey(clientId: string, clientSecret: string): Promise<void>;
   /** Creates the connection and answers where the person authorizes it (the screen goes there). */
   connect(): Promise<{ authorizeUrl: string }>;
+  /** Reads what Pluggy has right away; answers the banks that brought something new. */
+  sync(): Promise<{ changed: string[] }>;
   rename(itemId: string, name: string): Promise<void>;
   remove(itemId: string): Promise<void>;
   disconnect(): Promise<void>;
@@ -28,6 +30,10 @@ export class HttpBanksRepository implements BanksRepository {
 
   connect(): Promise<{ authorizeUrl: string }> {
     return apiRequest('POST', '/banks/connections');
+  }
+
+  sync(): Promise<{ changed: string[] }> {
+    return apiRequest('POST', '/banks/sync');
   }
 
   rename(itemId: string, name: string): Promise<void> {

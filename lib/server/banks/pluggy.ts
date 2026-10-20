@@ -37,6 +37,43 @@ export interface PluggyAccount {
   balance?: number | null;
   currencyCode?: string | null;
   bankData?: { transferNumber?: string | null } | null;
+  creditData?: {
+    creditLimit?: number | null;
+    availableCreditLimit?: number | null;
+    balanceDueDate?: string | null;
+  } | null;
+}
+
+interface PluggyParty {
+  name?: string | null;
+  documentNumber?: { value?: string | null } | null;
+}
+
+/** The parts of a Pluggy transaction the Capital keeps (GET /v2/transactions). */
+export interface PluggyTransaction {
+  id: string;
+  accountId?: string | null;
+  date: string;
+  amount: number;
+  currencyCode?: string | null;
+  description?: string | null;
+  descriptionRaw?: string | null;
+  type?: string | null;
+  status?: string | null;
+  category?: string | null;
+  operationType?: string | null;
+  paymentData?: {
+    paymentMethod?: string | null;
+    payer?: PluggyParty | null;
+    receiver?: PluggyParty | null;
+  } | null;
+  merchant?: { name?: string | null; businessName?: string | null } | null;
+  creditCardMetadata?: {
+    installmentNumber?: number | null;
+    totalInstallments?: number | null;
+    purchaseDate?: string | null;
+    billId?: string | null;
+  } | null;
 }
 
 function isHttpsUrl(value: unknown): value is string {
@@ -152,17 +189,17 @@ export class PluggyClient {
    * pages by cursor: each answer's `next` is the address of the following page (a full URL or
    * just its query string), until it comes back empty.
    */
-  async allTransactions(
+  async allTransactions<T = PluggyTransaction>(
     accountId: string,
     dateFrom: string,
     dateTo: string,
     maxPages = 50,
-  ): Promise<unknown[]> {
+  ): Promise<T[]> {
     const first = new URLSearchParams({ accountId, dateFrom, dateTo });
     let path: string | null = `/v2/transactions?${first}`;
-    const all: unknown[] = [];
+    const all: T[] = [];
     for (let page = 0; path && page < maxPages; page++) {
-      const body: { results?: unknown[]; next?: unknown } = await this.get(path);
+      const body: { results?: T[]; next?: unknown } = await this.get(path);
       all.push(...(body.results ?? []));
       path = typeof body.next === 'string' && body.next ? nextPagePath(body.next, first) : null;
     }

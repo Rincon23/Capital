@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { formatAgo } from '@/lib/banks';
+import { accountsBalance, connectionHealth, formatAgo } from '@/lib/banks';
+import { formatBRL } from '@/lib/budget/money';
 import { banksRepository, type BanksOverviewResult } from '@/lib/storage';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
 import { CardNote, HomeCard, Skeleton } from './HomeCard';
@@ -43,24 +44,39 @@ export function BanksHomeCard() {
           {overview.key ? 'Nenhum banco ainda. Toque para trazer o primeiro.' : 'Toque para conectar seus bancos.'}
         </CardNote>
       ) : (
-        <ul className="divide-border flex flex-col divide-y">
-          {overview.connections.slice(0, SHOWN_BANKS).map((connection) => (
-            <li key={connection.itemId} className="flex items-baseline justify-between gap-2 py-1.5 text-sm">
-              <span className="text-foreground truncate">{connection.name}</span>
-              <span className={`shrink-0 text-xs ${connection.status === 'ok' || connection.status === 'pending' ? 'text-muted' : 'text-warning'}`}>
-                {connection.status === 'pending'
-                  ? 'chegando…'
-                  : connection.status === 'ok'
-                    ? connection.lastUpdatedAt
-                      ? formatAgo(connection.lastUpdatedAt, now)
-                      : '—'
-                    : connection.status === 'error'
-                      ? 'falhou'
-                      : 'reconectar'}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <>
+          <p className="text-sm">
+            <span className="text-muted block text-xs">Saldo nas contas</span>
+            <span className="text-foreground text-xl font-semibold tabular-nums">
+              {formatBRL(accountsBalance(overview.connections))}
+            </span>
+          </p>
+          <ul className="divide-border flex flex-col divide-y">
+            {overview.connections.slice(0, SHOWN_BANKS).map((connection) => {
+              const health = connectionHealth(connection, now);
+              return (
+                <li key={connection.itemId} className="flex items-baseline justify-between gap-2 py-1.5 text-sm">
+                  <span className="text-foreground truncate">{connection.name}</span>
+                  <span
+                    className={`shrink-0 text-xs ${health === 'ok' || health === 'pending' ? 'text-muted' : 'text-warning'}`}
+                  >
+                    {health === 'pending'
+                      ? 'chegando…'
+                      : health === 'ok'
+                        ? connection.lastUpdatedAt
+                          ? formatAgo(connection.lastUpdatedAt, now)
+                          : '—'
+                        : health === 'stale'
+                          ? 'parado'
+                          : health === 'error'
+                            ? 'falhou'
+                            : 'reconectar'}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </>
       )}
     </HomeCard>
   );
