@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ExternalLink, Landmark, ListChecks, LoaderCircle, Pencil, Plus, RefreshCw } from 'lucide-react';
+import { ExternalLink, Landmark, ListChecks, LoaderCircle, Pencil, Plus, RefreshCw, Target } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { isModuleOn } from '@/lib/modules';
@@ -177,6 +177,8 @@ function Banks() {
   const { key, connections, limit } = overview;
   const atLimit = connections.length >= limit;
   const expensesOn = isModuleOn(settings, 'expenses');
+  // The stocks and ETFs the banks hold are compared with the Diagrama's quantities, in the Diagrama.
+  const diagramOn = isModuleOn(settings, 'diagram');
 
   return (
     <div className="flex flex-1 flex-col gap-4 pb-10">
@@ -233,6 +235,12 @@ function Banks() {
               <Link href="/bancos/conferir" className={primaryButton}>
                 <ListChecks className="h-4 w-4" aria-hidden />
                 Confira os gastos
+              </Link>
+            )}
+            {diagramOn && (
+              <Link href="/diagrama?aba=ativos&conferir=1" className={secondaryButton}>
+                <Target className="h-4 w-4" aria-hidden />
+                Conferir investimentos
               </Link>
             )}
           </Card>

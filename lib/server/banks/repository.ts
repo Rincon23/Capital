@@ -14,6 +14,9 @@ import {
   type ReviewTransaction,
   type BankReserve,
   type ReserveSource,
+  type BankHolding,
+  type BankHoldings,
+  type HoldingsBank,
 } from '@/lib/banks';
 import { round2 } from '@/lib/budget/money';
 import {
@@ -25,6 +28,7 @@ import {
   bankSettings,
   bankTransactions,
   cashSettings,
+  investmentReserves,
 } from '../db/schema';
 import type { Database } from '../db/types';
 import { HttpError } from '../httpError';
@@ -55,6 +59,9 @@ export interface StoredInvestment {
   name: string;
   type: string | null;
   subtype: string | null;
+  code?: string | null;
+  isin?: string | null;
+  quantity?: number | null;
   balance: number | null;
   balanceAt: Date | null;
 }
@@ -254,6 +261,9 @@ export class PostgresBanksRepository {
           name: investment.name,
           type: investment.type,
           subtype: investment.subtype,
+          code: investment.code ?? null,
+          isin: investment.isin ?? null,
+          quantity: investment.quantity ?? null,
           balance: investment.balance,
           balanceAt: investment.balanceAt,
         };
@@ -263,6 +273,59 @@ export class PostgresBanksRepository {
           .onConflictDoUpdate({ target: [bankInvestments.userId, bankInvestments.investmentId], set: values });
       }
     });
+  }
+
+  /**
+   * Every investment of the banks that arrived, with its bank, for the Diagrama to compare
+   * quantities (lib/banks/holdings.ts). `reserve` is filled by the route, which knows the modules.
+   */
+  async holdings(): Promise<Omit<BankHoldings, 'reserve'>> {
+    const connections = await this.db
+      .select()
+      .from(bankConnections)
+      .where(and(eq(bankConnections.userId, this.userId), ne(bankConnections.status, 'pending')))
+      .orderBy(asc(bankConnections.createdAt));
+    const rows = await this.db
+      .select()
+      .from(bankInvestments)
+      .where(eq(bankInvestments.userId, this.userId))
+      .orderBy(asc(bankInvestments.name));
+    const banks: HoldingsBank[] = connections
+      .filter((connection) => rows.some((row) => row.itemId === connection.itemId))
+      .map((connection) => ({
+        itemId: connection.itemId,
+        name: connection.name ?? connection.suggestedName ?? 'Banco',
+        status: connection.status,
+        lastUpdatedAt: connection.lastUpdatedAt?.toISOString() ?? null,
+      }));
+    const holdings: BankHolding[] = rows.flatMap((row) => {
+      const bank = banks.find((candidate) => candidate.itemId === row.itemId);
+      if (!bank) return [];
+      return [
+        {
+          investmentId: row.investmentId,
+          itemId: row.itemId,
+          bankName: bank.name,
+          name: row.name,
+          type: row.type,
+          subtype: row.subtype,
+          code: row.code,
+          isin: row.isin,
+          quantity: row.quantity,
+          feedsReserve: row.feedsReserve,
+        },
+      ];
+    });
+    return { banks, holdings };
+  }
+
+  /** The Reserva investida's ticker and quotas (null when it holds none). */
+  async investedReserve(): Promise<BankHoldings['reserve']> {
+    const [row] = await this.db
+      .select({ ticker: investmentReserves.ticker, quotas: investmentReserves.totalQuotas })
+      .from(investmentReserves)
+      .where(eq(investmentReserves.userId, this.userId));
+    return row && row.quotas > 0 ? row : null;
   }
 
   /** What can feed the Reserva, bank by bank, and the sum of what the person marked. */

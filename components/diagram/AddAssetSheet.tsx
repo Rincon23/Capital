@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import type { BankOnlyHolding } from '@/lib/banks';
 import { parseAmountInput, todayISO } from '@/lib/budget';
 import {
   assetType,
@@ -16,6 +17,7 @@ import { diagramRepository, type TickerSuggestion } from '@/lib/storage';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Switch } from '@/components/ui/Switch';
 import { useToast } from '@/components/ui/Toast';
+import { quantityText } from './AssetSheet';
 
 /** How long the field waits after the last key before asking for suggestions. */
 const SEARCH_DELAY_MS = 300;
@@ -23,28 +25,42 @@ const SEARCH_DELAY_MS = 300;
 /**
  * "Adicionar ativo": first the type (the chips of the portfolio's types), then the ticker with
  * suggestions while typing, and the quantity. The answers come next, in the asset's own sheet,
- * which opens right after.
+ * which opens right after. From the banks ("No banco, mas não no Diagrama") the ticker and the
+ * quantity come filled in; the type too, when the bank's kind says it (an ETF the person picks).
  */
 export function AddAssetSheet({
   overview,
   initialType,
+  fromBank,
   onClose,
   onAdded,
 }: {
   overview: DiagramOverview;
   initialType?: AssetType;
+  fromBank?: BankOnlyHolding;
   onClose: () => void;
   onAdded: (asset: DiagramAsset) => Promise<void>;
 }) {
   const { showToast } = useToast();
   const types = typesInUse(overview.settings.targets);
-  const [type, setType] = useState<AssetType | null>(
-    initialType && types.includes(initialType) ? initialType : (types[0] ?? null),
+  const [type, setType] = useState<AssetType | null>(() => {
+    if (fromBank) return fromBank.type && types.includes(fromBank.type) ? fromBank.type : null;
+    return initialType && types.includes(initialType) ? initialType : (types[0] ?? null);
+  });
+  const [ticker, setTicker] = useState(fromBank?.ticker ?? '');
+  const [quantity, setQuantity] = useState(fromBank ? quantityText(fromBank.quantity) : '');
+  const [isEtf, setIsEtf] = useState(fromBank?.isEtf ?? false);
+  // With the type unknown the search still runs once the person picks one: it brings the name and
+  // whether it is an ETF, which the bank doesn't say.
+  const [chosen, setChosen] = useState<TickerSuggestion | null>(
+    fromBank?.type
+      ? {
+          ticker: fromBank.ticker,
+          name: fromBank.name && fromBank.name !== fromBank.ticker ? fromBank.name : undefined,
+          isEtf: fromBank.isEtf,
+        }
+      : null,
   );
-  const [ticker, setTicker] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [isEtf, setIsEtf] = useState(false);
-  const [chosen, setChosen] = useState<TickerSuggestion | null>(null);
   const [suggestions, setSuggestions] = useState<TickerSuggestion[]>([]);
   const [searching, setSearching] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -122,7 +138,9 @@ export function AddAssetSheet({
         }}
       >
         <div className="flex flex-col gap-2">
-          <span className="text-muted text-sm font-medium">Tipo</span>
+          <span className="text-muted text-sm font-medium">
+            {fromBank && !type ? `Tipo: em qual deles entra ${fromBank.ticker}?` : 'Tipo'}
+          </span>
           <div className="flex flex-wrap gap-2">
             {types.map((key) => {
               const definition = assetType(key);
@@ -134,7 +152,8 @@ export function AddAssetSheet({
                   aria-pressed={selected}
                   onClick={() => {
                     setType(key);
-                    setChosen(null);
+                    // A B3 code from the bank fits any type: no need to search it again.
+                    setChosen((current) => (fromBank && current?.ticker === fromBank.ticker ? current : null));
                   }}
                   className={`flex min-h-[40px] items-center gap-1.5 rounded-full border px-3 text-sm font-medium ${
                     selected ? 'text-foreground' : 'border-border text-muted'

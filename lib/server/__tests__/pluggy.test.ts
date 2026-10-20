@@ -245,6 +245,23 @@ describe('bringing a bank', () => {
 });
 
 describe('a bank arriving', () => {
+  it('brings its investments right away, with their quantities', async () => {
+    const { id, banks } = await newPerson();
+    await banks.saveKey('id', 'segredo');
+    await banks.addPending(ITEM, new Date('2026-10-20T13:38:45Z'));
+    const { fetchImpl } = fakePluggy({
+      'POST /auth': { body: { apiKey: 'chave' } },
+      [`GET /items/${ITEM}`]: { body: { id: ITEM, status: 'UPDATED', lastUpdatedAt: '2026-10-20T12:57:28.616Z' } },
+      'GET /accounts': { body: accounts },
+      'GET /investments': {
+        body: { results: [{ id: 'inv-1', name: 'PETR4', code: 'PETR4', quantity: 120, type: 'EQUITY', subtype: 'STOCK' }] },
+      },
+    });
+    await refreshPending(banks, id, fetchImpl, new Date('2026-10-20T13:40:00Z'));
+    const { holdings } = await banks.holdings();
+    expect(holdings.map((holding) => [holding.code, holding.quantity])).toEqual([['PETR4', 120]]);
+  });
+
   it('brings its accounts and a suggested name when Pluggy finishes', async () => {
     const { id, banks } = await newPerson();
     await banks.saveKey('id', 'segredo');

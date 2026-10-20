@@ -1,7 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import { ListChecks, Plus, RefreshCw, Search } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import Link from 'next/link';
+import { Check, ChevronDown, Landmark, ListChecks, Plus, RefreshCw, Search } from 'lucide-react';
+import {
+  bankNames,
+  checkHoldings,
+  holdingsStatusLine,
+  type AssetCheck,
+  type BankHoldings,
+  type BankOnlyHolding,
+} from '@/lib/banks';
 import { amountToInputValue, formatBRL, parseAmountInput, todayISO } from '@/lib/budget';
 import {
   assetType,
@@ -28,6 +37,8 @@ import { TypeChips } from './TypeChips';
 
 /** Past this many assets the list gets a search field. */
 const SEARCH_FROM = 8;
+/** Past this many, "No banco, mas não no Diagrama" starts folded (a broker can hold dozens). */
+const ONLY_BANK_OPEN_UP_TO = 3;
 
 /** The oldest price on screen: what "Cotações de …" says. */
 function oldestQuote(overview: DiagramOverview): string | null {
@@ -52,7 +63,73 @@ function ScorePill({ score, muted }: { score: number | null; muted?: boolean }) 
   );
 }
 
-/** One line of the list: what it is, what it is worth, its score. */
+/** A bank's quantity as it is, fractions included ("120", "10,5"). */
+function shares(quantity: number): string {
+  return quantity.toLocaleString('pt-BR', { maximumFractionDigits: 8 });
+}
+
+/**
+ * Under an asset, what the banks hold of it: "✓ Confere com BTG Pactual", or "BTG Pactual: 120 ·
+ * aqui: 100" with "Usar 120". Nothing changes until the person taps.
+ */
+function BankCheckLine({
+  check,
+  saving,
+  onUse,
+}: {
+  check: AssetCheck;
+  saving: boolean;
+  onUse: (quantity: number) => void;
+}) {
+  const where = bankNames(check.banks);
+  const reserve = check.reserve > 0 ? ` (${shares(check.reserve)} na Reserva)` : '';
+  if (check.status === 'match') {
+    return (
+      <p className="text-success -mt-1.5 flex items-center gap-1 px-4 pb-2 text-xs">
+        <Check aria-hidden className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">
+          Confere com {where}
+          {reserve}
+        </span>
+      </p>
+    );
+  }
+  return (
+    <div className="-mt-1.5 flex items-center gap-2 px-4 pb-2 text-xs">
+      <p className="text-warning min-w-0 flex-1">
+        {where}: {shares(check.bank)} · aqui: {shares(check.capital)}
+        {reserve}
+        {check.related.length > 0 && (
+          <span className="text-muted block">
+            No banco tem {check.related.map((item) => `${item.ticker}: ${shares(item.bank)}`).join(', ')}.
+          </span>
+        )}
+      </p>
+      {check.use !== null ? (
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => check.use !== null && onUse(check.use)}
+          className="border-border text-primary min-h-[32px] shrink-0 rounded-lg border px-2.5 font-semibold disabled:opacity-50"
+        >
+          {saving
+            ? 'Salvando…'
+            : check.reserve > 0
+              ? `Deixar ${shares(check.use)} aqui`
+              : `Usar ${shares(check.use)}`}
+        </button>
+      ) : check.reserve > 0 ? (
+        <Link href="/carteira/caixa?aba=investida" className="text-primary shrink-0 font-semibold">
+          Ver a Reserva
+        </Link>
+      ) : (
+        <span className="text-muted shrink-0">Em 2 tipos: ajuste na ficha</span>
+      )}
+    </div>
+  );
+}
+
+/** One line of the list: what it is, what it is worth, its score (and, below, `footer`). */
 function Row({
   title,
   badge,
@@ -61,6 +138,7 @@ function Row({
   score,
   stopped,
   onClick,
+  footer,
 }: {
   title: string;
   badge?: string;
@@ -69,6 +147,7 @@ function Row({
   score: number | null;
   stopped?: boolean;
   onClick: () => void;
+  footer?: ReactNode;
 }) {
   return (
     <li>
@@ -98,7 +177,114 @@ function Row({
         <span className="text-foreground shrink-0 text-sm tabular-nums">{value}</span>
         <ScorePill score={score} muted={stopped} />
       </button>
+      {footer}
     </li>
+  );
+}
+
+/**
+ * Above the list, with Open Finance: when the banks' data is from and why nothing changes by
+ * itself, the differences, and what the banks hold that the Diagrama doesn't ("Adicionar").
+ */
+function BanksCheckCard({
+  holdings,
+  check,
+  differing,
+  onlyDifferent,
+  onToggleDifferent,
+  onAdd,
+}: {
+  holdings: BankHoldings;
+  check: ReturnType<typeof checkHoldings>;
+  differing: number;
+  onlyDifferent: boolean;
+  onToggleDifferent: () => void;
+  onAdd: (item: BankOnlyHolding) => void;
+}) {
+  const [now] = useState(() => Date.now());
+  const [showOnlyBank, setShowOnlyBank] = useState(check.onlyBank.length <= ONLY_BANK_OPEN_UP_TO);
+  const status = holdingsStatusLine(holdings.banks, check.banks, now);
+  const above = check.reserveAbove;
+  return (
+    <section className="border-border bg-card mx-4 flex flex-col gap-2 rounded-xl border p-3 shadow-sm">
+      <p className="text-muted flex gap-2 text-xs">
+        <Landmark aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <span>
+          {status && (
+            <span className={status.warning ? 'text-warning' : 'text-foreground'}>{status.text}. </span>
+          )}
+          Uma compra leva uns 2 dias úteis para aparecer (liquidação na B3), por isso nada muda sozinho.
+        </span>
+      </p>
+      {differing === 0 && check.onlyBank.length === 0 && !above && (
+        <p className="text-success flex items-center gap-1 text-sm font-semibold">
+          <Check aria-hidden className="h-4 w-4 shrink-0" />
+          Tudo confere com {bankNames(check.banks)}.
+        </p>
+      )}
+      {(differing > 0 || onlyDifferent) && (
+        <button
+          type="button"
+          onClick={onToggleDifferent}
+          aria-pressed={onlyDifferent}
+          className="text-primary self-start text-sm font-semibold"
+        >
+          {onlyDifferent
+            ? 'Ver todos os ativos'
+            : differing === 1
+              ? 'Ver só o ativo diferente do banco'
+              : `Ver só os ${differing} ativos diferentes do banco`}
+        </button>
+      )}
+      {check.onlyBank.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <button
+            type="button"
+            onClick={() => setShowOnlyBank((open) => !open)}
+            aria-expanded={showOnlyBank}
+            className="text-foreground flex min-h-[36px] items-center gap-1 self-start text-sm font-semibold"
+          >
+            <ChevronDown
+              aria-hidden
+              className={`h-4 w-4 transition-transform ${showOnlyBank ? 'rotate-180' : ''}`}
+            />
+            No banco, mas não no Diagrama ({check.onlyBank.length})
+          </button>
+          {showOnlyBank && (
+            <ul className="divide-border divide-y">
+              {check.onlyBank.map((item) => (
+                <li key={item.ticker} className="flex min-h-[48px] items-center gap-2 py-1.5">
+                  <span className="min-w-0 flex-1">
+                    <span className="text-foreground block text-sm font-semibold">{item.ticker}</span>
+                    <span className="text-muted block truncate text-xs">
+                      {bankNames(item.banks)}: {shares(item.bank)}
+                      {item.reserve > 0 ? ` (${shares(item.reserve)} na Reserva)` : ''}
+                      {item.name && item.name !== item.ticker ? ` · ${item.name}` : ''}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onAdd(item)}
+                    className="border-border text-primary min-h-[36px] shrink-0 rounded-lg border px-3 text-sm font-semibold"
+                  >
+                    Adicionar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {above && (
+        <p className="text-muted text-xs">
+          Reserva investida: {shares(above.reserve)} cotas de {above.ticker} · {bankNames(above.banks)}:{' '}
+          {shares(above.bank)}.{' '}
+          <Link href="/carteira/caixa?aba=investida" className="text-primary font-semibold">
+            Ver a Reserva
+          </Link>
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -109,15 +295,23 @@ function Row({
  */
 export function AssetsTab({
   overview,
+  holdings,
+  checkBanks,
   onOpenAsset,
   onAddAsset,
+  onAddFromBank,
   onOpenQuestions,
   onOpenTargets,
   onChanged,
 }: {
   overview: DiagramOverview;
+  /** What the banks hold (Open Finance on, VIP); null hides every comparison. */
+  holdings: BankHoldings | null;
+  /** Came from "Conferir investimentos" (Open Finance): only what differs, the check in view. */
+  checkBanks?: boolean;
   onOpenAsset: (asset: DiagramAsset) => void;
   onAddAsset: () => void;
+  onAddFromBank: (item: BankOnlyHolding) => void;
   onOpenQuestions: () => void;
   onOpenTargets: () => void;
   onChanged: () => Promise<unknown>;
@@ -127,12 +321,58 @@ export function AssetsTab({
   const [query, setQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [editingFixed, setEditingFixed] = useState<FixedIncomeType | null>(null);
+  const [onlyDifferent, setOnlyDifferent] = useState(!!checkBanks);
+  const checkRef = useRef<HTMLDivElement>(null);
+  /** The asset whose quantity is being taken from the bank. */
+  const [usingBank, setUsingBank] = useState<string | null>(null);
 
   const inUse = typesInUse(overview.settings.targets);
   const search = query.trim().toUpperCase();
   const visibleTypes = inUse.filter((type) => filter === null || filter === type);
   const hidden = overview.assets.filter((asset) => !inUse.includes(asset.type)).length;
   const quotedAt = oldestQuote(overview);
+  const check = holdings ? checkHoldings(holdings, overview.assets) : null;
+  const differs = (asset: DiagramAsset) =>
+    !!check?.assets[asset.id] && check.assets[asset.id].status !== 'match';
+  const differing = overview.assets.filter((asset) => inUse.includes(asset.type) && differs(asset)).length;
+  // Once the last difference is fixed, the whole list comes back.
+  const showOnlyDifferent = onlyDifferent && differing > 0;
+
+  // "Conferir investimentos": the check comes into view once the banks' answer is here.
+  const scrolledToCheck = useRef(false);
+  useEffect(() => {
+    if (!checkBanks || !holdings || scrolledToCheck.current) return;
+    scrolledToCheck.current = true;
+    checkRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [checkBanks, holdings]);
+
+  /** "Usar 120": the bank's quantity, saved like the asset's own sheet saves it. */
+  async function applyBankQuantity(asset: DiagramAsset, quantity: number) {
+    setUsingBank(asset.id);
+    try {
+      await diagramRepository.updateAsset(
+        asset.id,
+        {
+          type: asset.type,
+          ticker: asset.ticker,
+          quantity,
+          sector: asset.sector ?? null,
+          subsector: asset.subsector ?? null,
+          note: asset.note ?? null,
+          stopBuying: asset.stopBuying,
+          isEtf: asset.isEtf,
+          directScore: asset.directScore,
+        },
+        todayISO(),
+      );
+      await onChanged();
+      showToast(`${asset.ticker}: ${shares(quantity)} ${quantity === 1 ? 'cota' : 'cotas'}.`);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Não foi possível salvar.', 'error');
+    } finally {
+      setUsingBank(null);
+    }
+  }
 
   async function refresh() {
     setRefreshing(true);
@@ -196,6 +436,27 @@ export function AssetsTab({
         </button>
       </div>
 
+      <div ref={checkRef} className="flex scroll-mt-20 flex-col">
+        {holdings && check && check.banks.length > 0 ? (
+          <BanksCheckCard
+            holdings={holdings}
+            check={check}
+            differing={differing}
+            onlyDifferent={showOnlyDifferent}
+            onToggleDifferent={() => setOnlyDifferent(!showOnlyDifferent)}
+            onAdd={onAddFromBank}
+          />
+        ) : (
+          holdings &&
+          checkBanks && (
+            <p className="border-border bg-card text-muted mx-4 rounded-xl border p-3 text-sm shadow-sm">
+              Os bancos ainda não mandaram as quantidades de ações e ETFs. Elas chegam na próxima leitura (uma
+              vez por dia).
+            </p>
+          )
+        )}
+      </div>
+
       {inUse.length > 1 && (
         <div className="px-4">
           <TypeChips
@@ -231,9 +492,11 @@ export function AssetsTab({
                 !search ||
                 asset.ticker.includes(search) ||
                 (overview.quotes[asset.id]?.name ?? '').toUpperCase().includes(search),
-            );
-          const showUnquoted = fixed && (!search || UNQUOTED_LABEL.toUpperCase().includes(search));
-          if (search && assets.length === 0 && !showUnquoted) return null;
+            )
+            .filter((asset) => !showOnlyDifferent || differs(asset));
+          const showUnquoted =
+            fixed && !showOnlyDifferent && (!search || UNQUOTED_LABEL.toUpperCase().includes(search));
+          if ((search || showOnlyDifferent) && assets.length === 0 && !showUnquoted) return null;
 
           const unquoted = fixed ? fixedIncomeAmount(overview, type as FixedIncomeType) : 0;
           const inType =
@@ -293,6 +556,15 @@ export function AssetsTab({
                         score={scoreOf(asset, overview).score}
                         stopped={asset.stopBuying}
                         onClick={() => onOpenAsset(asset)}
+                        footer={
+                          check?.assets[asset.id] && (
+                            <BankCheckLine
+                              check={check.assets[asset.id]}
+                              saving={usingBank === asset.id}
+                              onUse={(quantity) => void applyBankQuantity(asset, quantity)}
+                            />
+                          )
+                        }
                       />
                     );
                   })}

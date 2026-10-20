@@ -395,6 +395,33 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
       campo fica só leitura com "BTG Pactual · atualizado há 5 h". Se um banco parou, avisa que o
       valor é o último que chegou;
     - "Mudar as contas da reserva" e "Voltar a digitar à mão" (o último valor fica para editar).
+  - **Quantidades no Diagrama** (aba "Ativos e notas", com Open Finance ligado e conta VIP): a
+    corretora diz quantas ações e cotas a pessoa tem, e o Diagrama confere ativo por ativo:
+    - com o Diagrama ligado, a tela dos bancos tem **"Conferir investimentos"**: abre o Diagrama
+      (`/diagrama?aba=ativos&conferir=1`) já na conferência, só com o que difere, ou com "Tudo
+      confere com BTG Pactual". Se as quantidades ainda não chegaram, diz que vêm na próxima
+      leitura;
+    - cada ativo com código da B3 ganha "✓ Confere com BTG Pactual" ou "BTG Pactual: 120 · aqui:
+      100" com **"Usar 120"**, que salva pela mesma função da ficha do ativo. Nada é trocado
+      sozinho: uma compra leva uns 2 dias úteis para aparecer (liquidação na B3), e a linha de
+      ajuda diz isso junto com "atualizado há 5 h" (ou que um banco parou);
+    - um ativo que nenhum banco mandou aparece como "BTG Pactual: 0 · aqui: 50", com "Usar 0";
+      se o banco tem outra classe da mesma empresa que o Diagrama não tem, a linha avisa ("No
+      banco tem KLBN4: 157."), porque pode ser só o código trocado;
+    - "Ver só os ativos diferentes do banco" esconde os que conferem;
+    - **"No banco, mas não no Diagrama"**, com "Adicionar": o formulário de ativo já vem com o
+      código, a quantidade e o tipo (ação → Ações nacionais, FII → Fundos imobiliários, BDR → Ações
+      internacionais). Num ETF, ou num código terminado em 11 que o banco chama de ação (o BTG põe
+      ali ETFs e FIIs, como AUVP11 e PMLL11), a pessoa escolhe o tipo e a busca traz o nome e se é
+      ETF. Começa recolhido quando passa de 3 itens. Não são oferecidos o que a pessoa marcou como
+      Reserva na lista dos bancos nem direitos de subscrição e recibos (finais 1, 2, 9, 10, 12–15,
+      como HGRU12);
+    - ficam de fora a renda fixa, os fundos sem código da B3, as opções e o que o Open Finance não
+      traz (ativos no exterior, cripto): VOO ou BTC nunca aparecem como "faltando no banco";
+    - **Reserva investida:** com o módulo Reserva ligado, as cotas dela contam junto com as do
+      Diagrama no ticker dela (AUPO11…), porque costumam estar na mesma corretora. "Aqui" vira
+      Diagrama + Reserva, e a correção só mexe no Diagrama ("Deixar 30 aqui" = banco − Reserva). Se
+      a Reserva sozinha tem mais do que o banco, a linha leva a "Ver a Reserva".
 
 ### Navegação: a Início como a tela de um celular
 
@@ -706,7 +733,8 @@ dela); o servidor não tem chave da Pluggy. O plano por fases está em
 - `service.ts` tem os fluxos:
   - conferir e salvar a chave;
   - criar o item, esperar o link de autorização e guardar a conexão como `pending`;
-  - ler os itens `pending` a cada visita à tela: os que chegaram ganham as contas e um nome
+  - ler os itens `pending` a cada visita à tela: os que chegaram ganham as contas, os
+    investimentos (com as quantidades, para "Conferir investimentos" já funcionar) e um nome
     sugerido; os que esperam autorização 2 min depois de o link vencer são apagados aqui e na
     Pluggy;
   - tirar um banco e desconectar tudo.
@@ -715,7 +743,7 @@ dela); o servidor não tem chave da Pluggy. O plano por fases está em
   - as conexões (`bank_connections`, a única lista dos itens, porque o plano grátis não lista);
   - as contas (`bank_accounts`), com saldo, data do saldo e, nos cartões, limite e vencimento;
   - os investimentos (`bank_investments`), lidos junto, sem impedir a leitura do resto se
-    falharem;
+    falharem, com o código (ticker), o ISIN e a quantidade que a corretora manda;
   - a marca `feeds_reserve` de contas e investimentos. `writeReserve` grava a soma do que está
     marcado em `cash_settings.reserve_account_amount` depois de cada leitura com novidade, ao
     marcar e ao salvar a configuração da Reserva (o valor digitado não vence o dos bancos);
@@ -753,6 +781,19 @@ dela); o servidor não tem chave da Pluggy. O plano por fases está em
   - `sourceKey` evita repetir: o resumo por lote, o banco parado pela data do último dado e a
     autorização pela data de vencimento;
   - as escolhas ficam em `bank_settings.alerts` (`alertSettingsOf` lê só o que ainda existe).
+- **Quantidades** (`GET /api/v1/banks/holdings`, lógica pura em `lib/banks/holdings.ts`): a rota
+  devolve os investimentos com o banco de cada um e, com o módulo Reserva ligado, o ticker e as
+  cotas da Reserva investida. A comparação roda na tela (`checkHoldings`), de novo a cada mudança
+  do Diagrama, sem perguntar aos bancos:
+  - entram ações, FIIs, ETFs e BDRs (`EQUITY`/`ETF`, subtipos `STOCK`, `REAL_ESTATE_FUND`, `ETF`,
+    `BDR`) cujo código vira um ticker da B3 (maiúsculas, sem `.SA`, sem o `F` do fracionário);
+  - soma por ticker entre bancos e linhas; uma linha sem quantidade tira o ticker da conta;
+  - resultado por ativo: confere, diferente, só no Capital (com quantidade acima de 0) e, à
+    parte, só no banco. Tolerância de 0,0001 cota;
+  - a correção é sempre um toque da pessoa, por `updateAsset`, e nunca toca a Reserva investida;
+  - a migração `0030` recua 1 s o `synced_update_at` de cada banco já lido: a próxima
+    sincronização da hora relê tudo uma vez (como se o banco tivesse mandado dados) e as
+    quantidades chegam sem esperar o banco. Até lá, a tela não mostra conferência nenhuma.
 - O `apiKey` (2 h) fica só em memória, por pessoa.
 - Toda rota confere VIP e o módulo ligado (`access.ts`) e tem limite de tentativas.
 - A Pluggy devolve a pessoa para `<BETTER_AUTH_URL>/bancos`, ou para `PLUGGY_REDIRECT_URI`, que
@@ -813,7 +854,8 @@ não conectou nem no próprio Meu Pluggy):**
   `RENDIMENTO_APLIC_FINANCEIRA` (investimento); `PORTABILIDADE_SALARIO` (salário portado);
   `TARIFA_SERVICOS_AVULSOS` (tarifa).
 - `GET /bills` só traz faturas **fechadas**, com os pagamentos de cada uma. `GET /investments`
-  traz ações, FIIs, Tesouro, CDB, LCI e LCA com `name` e `balance`; `institution` vem vazio.
+  traz ações, FIIs, Tesouro, CDB, LCI e LCA com `name` e `balance`; `institution` vem vazio. No
+  BTG, os 67 investimentos vieram com `code` (o ticker, nas ações e nos FIIs) e `quantity`.
 
 ### IA local (`lib/server/ai`)
 

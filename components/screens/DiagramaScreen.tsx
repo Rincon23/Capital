@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import type { BankOnlyHolding } from '@/lib/banks';
 import type { DiagramAsset, QuestionType } from '@/lib/diagram';
 import { diagramRepository } from '@/lib/storage';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -16,6 +17,7 @@ import { AssetSheet } from '@/components/diagram/AssetSheet';
 import { AssetsTab } from '@/components/diagram/AssetsTab';
 import { QuestionsSheet } from '@/components/diagram/QuestionsSheet';
 import { TargetsSheet } from '@/components/diagram/TargetsSheet';
+import { useBankHoldings } from '@/components/diagram/useBankHoldings';
 import { useDiagram } from '@/components/diagram/useDiagram';
 
 export type DiagramTab = 'aporte' | 'ativos';
@@ -25,15 +27,21 @@ const TABS: { key: DiagramTab; label: string }[] = [
   { key: 'ativos', label: 'Ativos e notas' },
 ];
 
-export function DiagramaScreen({ initialTab }: { initialTab?: DiagramTab }) {
+export function DiagramaScreen({
+  initialTab,
+  checkBanks,
+}: {
+  initialTab?: DiagramTab;
+  checkBanks?: boolean;
+}) {
   return (
     <ModuleGate module="diagram">
-      <Diagrama initialTab={initialTab} />
+      <Diagrama initialTab={initialTab} checkBanks={checkBanks} />
     </ModuleGate>
   );
 }
 
-function Diagrama({ initialTab }: { initialTab?: DiagramTab }) {
+function Diagrama({ initialTab, checkBanks }: { initialTab?: DiagramTab; checkBanks?: boolean }) {
   const backHref = useHomeHref();
   const { settings } = useSettings();
   const { showToast } = useToast();
@@ -41,6 +49,9 @@ function Diagrama({ initialTab }: { initialTab?: DiagramTab }) {
   const [tab, setTab] = useState<DiagramTab>(initialTab ?? 'aporte');
   const [configuring, setConfiguring] = useState(false);
   const [adding, setAdding] = useState(false);
+  /** "Adicionar" from what the banks hold: the sheet starts filled in. */
+  const [fromBank, setFromBank] = useState<BankOnlyHolding | null>(null);
+  const holdings = useBankHoldings();
   const [openAsset, setOpenAsset] = useState<string | null>(null);
   const [questionsFor, setQuestionsFor] = useState<QuestionType | 'any' | null>(null);
   useModuleIntro('diagram', { ready: !!overview });
@@ -104,8 +115,17 @@ function Diagrama({ initialTab }: { initialTab?: DiagramTab }) {
       ) : (
         <AssetsTab
           overview={overview}
+          holdings={holdings}
+          checkBanks={checkBanks}
           onOpenAsset={(item: DiagramAsset) => setOpenAsset(item.id)}
-          onAddAsset={() => setAdding(true)}
+          onAddAsset={() => {
+            setFromBank(null);
+            setAdding(true);
+          }}
+          onAddFromBank={(item) => {
+            setFromBank(item);
+            setAdding(true);
+          }}
           onOpenQuestions={() => setQuestionsFor('any')}
           onOpenTargets={() => setConfiguring(true)}
           onChanged={refresh}
@@ -132,6 +152,7 @@ function Diagrama({ initialTab }: { initialTab?: DiagramTab }) {
       {adding && (
         <AddAssetSheet
           overview={overview}
+          fromBank={fromBank ?? undefined}
           onClose={() => setAdding(false)}
           onAdded={async (added) => {
             await refresh();

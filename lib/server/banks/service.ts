@@ -266,6 +266,9 @@ async function readInvestments(
         name: (investment.name ?? '').trim() || 'Investimento',
         type: investment.type ?? null,
         subtype: investment.subtype ?? null,
+        code: investment.code?.trim() || null,
+        isin: investment.isin?.trim() || null,
+        quantity: numberOrNull(investment.quantity),
         balance: numberOrNull(investment.balance),
         balanceAt,
       })),
@@ -324,9 +327,11 @@ async function readItem(
   };
   if (status === 'ok') {
     // The transactions come with the next sync (the job, or "Buscar novidades"): a year of them
-    // takes a while, and the screen is waiting.
+    // takes a while, and the screen is waiting. The investments are one call: they come now, so
+    // "Conferir investimentos" works as soon as the bank arrives.
     const { suggestedName } = await readAccounts(repo, client, item.id, lastUpdatedAt);
     if (suggestedName) update.suggestedName = suggestedName;
+    await readInvestments(repo, client, item.id, lastUpdatedAt);
   }
   await repo.updateConnection(item.id, update);
   return status;

@@ -982,6 +982,11 @@ export const bankInvestments = pgTable(
     /** Pluggy's type and subtype: FIXED_INCOME / CDB, EQUITY / STOCK… */
     type: text('type'),
     subtype: text('subtype'),
+    /** The code the bank gives it: the B3 ticker of a stock or fund ("PETR4"), its own code otherwise. */
+    code: text('code'),
+    isin: text('isin'),
+    /** How many shares or quotas the bank says the person holds (null when it didn't say). */
+    quantity: numeric('quantity', { precision: 24, scale: 8, mode: 'number' }),
     balance: numeric('balance', { mode: 'number' }),
     balanceAt: timestamp('balance_at', { withTimezone: true }),
     feedsReserve: boolean('feeds_reserve').notNull().default(false),

@@ -50,6 +50,11 @@ export interface PluggyInvestment {
   name?: string | null;
   type?: string | null;
   subtype?: string | null;
+  /** The B3 ticker of a stock or fund ("PETR4"); the bank's own code for the rest. */
+  code?: string | null;
+  isin?: string | null;
+  /** Shares or quotas held. */
+  quantity?: number | null;
   /** The value today (what a reserve counts). */
   balance?: number | null;
 }
