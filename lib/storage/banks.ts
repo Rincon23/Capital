@@ -1,4 +1,15 @@
 import type { BankAlertSettings, SalaryCandidate } from '../banks/alerts';
+import type { BankReview } from '../banks/review';
+import type { Expense, Income, InstallmentPlan, Month } from '../budget/types';
+
+/** One decision about one line of "Confira os gastos" (see app/api/v1/banks/review). */
+export type BankReviewAction =
+  | { action: 'expense'; transactionIds: string[]; month: Month; expense: Expense }
+  | { action: 'plan'; transactionIds: string[]; plan: InstallmentPlan }
+  | { action: 'income'; transactionIds: string[]; month: Month; income: Income }
+  | { action: 'linked'; transactionIds: string[]; month: Month; entryId: string }
+  | { action: 'ignore'; transactionIds: string[] }
+  | { action: 'bill'; transactionIds: string[] };
 import type { BankReserve, BanksOverview } from '../banks/types';
 
 export interface BankAlertsView {
@@ -27,6 +38,12 @@ export interface BanksRepository {
   remove(itemId: string): Promise<void>;
   getAlerts(): Promise<BankAlertsView>;
   saveAlerts(choices: BankAlertChoices): Promise<BankAlertsView>;
+  /** "Confira os gastos": what arrived and is still to review. */
+  getReview(): Promise<BankReview>;
+  /** One decision about one line; answers the list again. */
+  review(action: BankReviewAction): Promise<BankReview>;
+  /** Ties a bank card to a Capital card (null: "não informado"). */
+  linkCard(accountId: string, cardId: string | null): Promise<void>;
   /** What can feed the Reserva and what is marked. */
   getReserve(): Promise<BankReserve>;
   /** Marks what feeds the Reserva (both empty: back to typing it). */
@@ -65,6 +82,18 @@ export class HttpBanksRepository implements BanksRepository {
 
   saveAlerts(choices: BankAlertChoices): Promise<BankAlertsView> {
     return apiRequest('PUT', '/banks/alerts', choices);
+  }
+
+  getReview(): Promise<BankReview> {
+    return apiRequest('GET', '/banks/review');
+  }
+
+  review(action: BankReviewAction): Promise<BankReview> {
+    return apiRequest('POST', '/banks/review', action);
+  }
+
+  linkCard(accountId: string, cardId: string | null): Promise<void> {
+    return apiRequest('PUT', `/banks/cards/${seg(accountId)}`, { cardId });
   }
 
   getReserve(): Promise<BankReserve> {

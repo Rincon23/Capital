@@ -1,6 +1,7 @@
 import 'server-only';
 import { eq, sql } from 'drizzle-orm';
 import {
+  bankCategoryMemory,
   bankConnections,
   bankKeys,
   bankSettings,
@@ -75,6 +76,7 @@ export async function clearAccountData(db: Database, userId: string): Promise<vo
     await tx.delete(bankConnections).where(eq(bankConnections.userId, userId));
     await tx.delete(bankKeys).where(eq(bankKeys.userId, userId));
     await tx.delete(bankSettings).where(eq(bankSettings.userId, userId));
+    await tx.delete(bankCategoryMemory).where(eq(bankCategoryMemory.userId, userId));
     await tx.delete(notifications).where(eq(notifications.userId, userId));
   });
   forgetGmailToken(userId);

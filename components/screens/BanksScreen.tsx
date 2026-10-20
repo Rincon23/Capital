@@ -1,8 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ExternalLink, Landmark, LoaderCircle, Pencil, Plus, RefreshCw } from 'lucide-react';
+import Link from 'next/link';
+import { ExternalLink, Landmark, ListChecks, LoaderCircle, Pencil, Plus, RefreshCw } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { useSettings } from '@/components/providers/SettingsProvider';
+import { isModuleOn } from '@/lib/modules';
 import { ModuleGate } from '@/components/modules/ModuleGate';
 import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
 import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
@@ -65,6 +68,7 @@ function Card({ children, tour }: { children: ReactNode; tour?: string }) {
 function Banks() {
   const backHref = useHomeHref();
   const confirm = useConfirm();
+  const { settings } = useSettings();
   const { showToast } = useToast();
   const [overview, setOverview] = useState<BanksOverviewResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -172,6 +176,7 @@ function Banks() {
 
   const { key, connections, limit } = overview;
   const atLimit = connections.length >= limit;
+  const expensesOn = isModuleOn(settings, 'expenses');
 
   return (
     <div className="flex flex-1 flex-col gap-4 pb-10">
@@ -224,6 +229,12 @@ function Banks() {
               <RefreshCw className={`h-4 w-4 ${busy === 'sync' ? 'animate-spin' : ''}`} aria-hidden />
               Buscar novidades
             </button>
+            {expensesOn && (
+              <Link href="/bancos/conferir" className={primaryButton}>
+                <ListChecks className="h-4 w-4" aria-hidden />
+                Confira os gastos
+              </Link>
+            )}
           </Card>
           {connections.map((connection) => (
             <ConnectionCard

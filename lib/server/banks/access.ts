@@ -16,3 +16,11 @@ export async function requireBanksAccess(repo: PostgresBudgetRepository, access:
     throw new HttpError(403, 'MODULE_OFF', 'Ligue "Open Finance" em Módulos (na bandeja de apps da Início).');
   }
 }
+
+/** "Confira os gastos" launches into Lançamentos: it needs that module on too. */
+export async function requireReviewAccess(repo: PostgresBudgetRepository, access: UserAccess): Promise<void> {
+  await requireBanksAccess(repo, access);
+  if (!isModuleOn(await repo.getSettings(), 'expenses')) {
+    throw new HttpError(403, 'MODULE_OFF', 'Ligue "Lançamentos" em Módulos para conferir os gastos.');
+  }
+}

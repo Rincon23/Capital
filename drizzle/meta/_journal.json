@@ -204,6 +204,13 @@
       "when": 1792507547999,
       "tag": "0028_open_finance_alerts",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792516541976,
+      "tag": "0029_open_finance_review",
+      "breakpoints": true
     }
   ]
 }

@@ -47,6 +47,7 @@ const LOCKED_ACCOUNTING =
  */
 export function InstallmentFormSheet({
   plan,
+  draft,
   topics,
   specialCategories,
   showReimbursable,
@@ -59,6 +60,11 @@ export function InstallmentFormSheet({
 }: {
   /** The purchase being edited; absent when a new one is being registered. */
   plan?: InstallmentPlan;
+  /**
+   * A new purchase filled in ahead (one that came from a bank), still to be checked: the fields
+   * start from it, and saving registers it as new.
+   */
+  draft?: Partial<InstallmentPlan>;
   topics: TopicConfig[];
   specialCategories: SpecialCategoryLabels;
   showReimbursable: boolean;
@@ -73,19 +79,23 @@ export function InstallmentFormSheet({
   const labels = resolveSpecialCategoryLabels(specialCategories);
   const activeTopics = topics.filter((t) => !t.archived).sort((a, b) => a.order - b.order);
   const defaultCard = cards.find((card) => card.isDefault) ?? cards[0];
+  const prefill: Partial<InstallmentPlan> | undefined = plan ?? draft;
   const [id] = useState(() => plan?.id ?? createId());
-  const [name, setName] = useState(plan?.name ?? '');
-  const [total, setTotal] = useState(plan ? amountToInputValue(plan.totalAmount) : '');
-  const [purchaseDate, setPurchaseDate] = useState(plan?.purchaseDate ?? plan?.firstDebitDate ?? today);
-  const [cardId, setCardId] = useState<string | undefined>(plan ? plan.cardId : defaultCard?.id);
+  const [name, setName] = useState(prefill?.name ?? '');
+  const [total, setTotal] = useState(
+    prefill?.totalAmount !== undefined ? amountToInputValue(prefill.totalAmount) : '',
+  );
+  const [purchaseDate, setPurchaseDate] = useState(prefill?.purchaseDate ?? prefill?.firstDebitDate ?? today);
+  const [cardId, setCardId] = useState<string | undefined>(prefill ? prefill.cardId : defaultCard?.id);
   const [category, setCategory] = useState<CategoryValue>({
-    categoryKind: plan?.categoryKind ?? 'topic',
-    topicId: plan?.topicId ?? activeTopics[0]?.id,
+    categoryKind: prefill?.categoryKind ?? 'topic',
+    // A draft without a category leaves the choice to the person instead of picking the first one.
+    topicId: prefill ? prefill.topicId : activeTopics[0]?.id,
   });
   const [installment, setInstallment] = useState({
-    count: String(plan?.count ?? 10),
-    firstDebitDate: plan?.firstDebitDate ?? (defaultCard ? nextChargeDate(defaultCard) : today),
-    accounting: (plan?.accounting ?? 'upfront') as InstallmentAccounting,
+    count: String(prefill?.count ?? 10),
+    firstDebitDate: prefill?.firstDebitDate ?? (defaultCard ? nextChargeDate(defaultCard) : today),
+    accounting: (prefill?.accounting ?? 'upfront') as InstallmentAccounting,
   });
   const [pastMode, setPastMode] = useState<PastMode>('skip');
   const [paid, setPaid] = useState(String(plan?.paidCount ?? ''));

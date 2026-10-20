@@ -211,7 +211,7 @@ export class PostgresWalletRepository implements WalletRepository {
     }));
   }
 
-  private async listInstallments(): Promise<InstallmentPlan[]> {
+  async listInstallments(): Promise<InstallmentPlan[]> {
     const rows = await this.db
       .select()
       .from(installments)

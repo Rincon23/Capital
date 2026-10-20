@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, asc, desc, eq, gte, inArray, ne, notInArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, ne, notInArray, sql } from 'drizzle-orm';
 import {
   DEFAULT_BANK_ALERTS,
   investmentLabel,
@@ -9,6 +9,9 @@ import {
   type BankConnectionStatus,
   type AlertTransaction,
   type BankAlertSettings,
+  type CategoryChoice,
+  type ReviewCard,
+  type ReviewTransaction,
   type BankReserve,
   type ReserveSource,
   type SalaryCandidate,
@@ -17,6 +20,7 @@ import {
 import { round2 } from '@/lib/budget/money';
 import {
   bankAccounts,
+  bankCategoryMemory,
   bankConnections,
   bankInvestments,
   bankKeys,
@@ -38,6 +42,14 @@ export interface StoredAccount {
   creditLimit?: number | null;
   availableCredit?: number | null;
   dueDate?: string | null;
+}
+
+/** A transaction to review, with what the review shows about its account and bank. */
+export interface ReviewRow extends ReviewTransaction {
+  accountName: string;
+  bankName: string;
+  capitalCardId: string | null;
+  cardLinked: boolean;
 }
 
 export interface StoredInvestment {
@@ -481,6 +493,185 @@ export class PostgresBanksRepository {
       }
       return previous.filter((ref) => ref.transactionId === id);
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // "Confira os gastos"
+  // -------------------------------------------------------------------------
+
+  /**
+   * What is still to review: transactions nobody decided about, from a week before each bank was
+   * brought in (the year of history before that is not news to review).
+   */
+  async reviewTransactions(): Promise<ReviewRow[]> {
+    return this.db
+      .select({
+        id: bankTransactions.transactionId,
+        accountId: bankTransactions.accountId,
+        accountKind: bankAccounts.kind,
+        accountName: bankAccounts.name,
+        capitalCardId: bankAccounts.capitalCardId,
+        cardLinked: bankAccounts.cardLinked,
+        bankName: sql<string>`coalesce(${bankConnections.name}, ${bankConnections.suggestedName}, 'Banco')`,
+        date: bankTransactions.date,
+        amount: bankTransactions.amount,
+        type: bankTransactions.type,
+        description: bankTransactions.description,
+        category: bankTransactions.category,
+        operationType: bankTransactions.operationType,
+        paymentMethod: bankTransactions.paymentMethod,
+        payerName: bankTransactions.payerName,
+        receiverName: bankTransactions.receiverName,
+        merchantName: bankTransactions.merchantName,
+        installmentNumber: bankTransactions.installmentNumber,
+        totalInstallments: bankTransactions.totalInstallments,
+        purchaseDate: bankTransactions.purchaseDate,
+      })
+      .from(bankTransactions)
+      .innerJoin(
+        bankAccounts,
+        and(eq(bankAccounts.userId, bankTransactions.userId), eq(bankAccounts.accountId, bankTransactions.accountId)),
+      )
+      .innerJoin(
+        bankConnections,
+        and(eq(bankConnections.userId, bankAccounts.userId), eq(bankConnections.itemId, bankAccounts.itemId)),
+      )
+      .where(
+        and(
+          eq(bankTransactions.userId, this.userId),
+          isNull(bankTransactions.outcome),
+          sql`${bankTransactions.date} >= (${bankConnections.createdAt} at time zone 'America/Sao_Paulo')::date - 7`,
+        ),
+      )
+      .orderBy(desc(bankTransactions.date));
+  }
+
+  /** The entries already tied to a bank transaction: never offered as the duplicate of another. */
+  async takenEntryIds(): Promise<Set<string>> {
+    const rows = await this.db
+      .select({ entryId: bankTransactions.entryId })
+      .from(bankTransactions)
+      .where(and(eq(bankTransactions.userId, this.userId), sql`${bankTransactions.entryId} is not null`));
+    return new Set(rows.map((row) => row.entryId!));
+  }
+
+  /** The bank cards, with the Capital card each is tied to. */
+  async reviewCards(): Promise<ReviewCard[]> {
+    const rows = await this.db
+      .select({
+        accountId: bankAccounts.accountId,
+        name: bankAccounts.name,
+        cardId: bankAccounts.capitalCardId,
+        linked: bankAccounts.cardLinked,
+        bankName: sql<string>`coalesce(${bankConnections.name}, ${bankConnections.suggestedName}, 'Banco')`,
+      })
+      .from(bankAccounts)
+      .innerJoin(
+        bankConnections,
+        and(eq(bankConnections.userId, bankAccounts.userId), eq(bankConnections.itemId, bankAccounts.itemId)),
+      )
+      .where(and(eq(bankAccounts.userId, this.userId), eq(bankAccounts.kind, 'card')))
+      .orderBy(asc(bankAccounts.name));
+    return rows;
+  }
+
+  /** Ties a bank card to a Capital card (null: "não informado"). */
+  async linkCard(accountId: string, cardId: string | null): Promise<void> {
+    const updated = await this.db
+      .update(bankAccounts)
+      .set({ capitalCardId: cardId, cardLinked: true })
+      .where(
+        and(eq(bankAccounts.userId, this.userId), eq(bankAccounts.accountId, accountId), eq(bankAccounts.kind, 'card')),
+      )
+      .returning({ id: bankAccounts.accountId });
+    if (updated.length === 0) throw new HttpError(404, 'NOT_FOUND', 'Este cartão não está mais no Capital.');
+  }
+
+  /**
+   * Takes these transactions for one decision: only the ones nobody decided about yet. False when
+   * any of them was already decided (another tap, another device) — and then none is taken.
+   */
+  async claim(transactionIds: string[]): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      const taken = await tx
+        .update(bankTransactions)
+        .set({ outcome: 'launching' })
+        .where(
+          and(
+            eq(bankTransactions.userId, this.userId),
+            inArray(bankTransactions.transactionId, transactionIds),
+            isNull(bankTransactions.outcome),
+          ),
+        )
+        .returning({ id: bankTransactions.transactionId });
+      if (taken.length === new Set(transactionIds).size) return true;
+      await tx
+        .update(bankTransactions)
+        .set({ outcome: null })
+        .where(
+          and(
+            eq(bankTransactions.userId, this.userId),
+            inArray(
+              bankTransactions.transactionId,
+              taken.map((row) => row.id),
+            ),
+          ),
+        );
+      return false;
+    });
+  }
+
+  /** What the claimed transactions became. */
+  async settle(transactionIds: string[], outcome: string, entryId: string | null, entryMonth: string | null): Promise<void> {
+    await this.db
+      .update(bankTransactions)
+      .set({ outcome, entryId, entryMonth })
+      .where(
+        and(
+          eq(bankTransactions.userId, this.userId),
+          inArray(bankTransactions.transactionId, transactionIds),
+          eq(bankTransactions.outcome, 'launching'),
+        ),
+      );
+  }
+
+  /** Gives claimed transactions back (the launch failed). */
+  async release(transactionIds: string[]): Promise<void> {
+    await this.db
+      .update(bankTransactions)
+      .set({ outcome: null })
+      .where(
+        and(
+          eq(bankTransactions.userId, this.userId),
+          inArray(bankTransactions.transactionId, transactionIds),
+          eq(bankTransactions.outcome, 'launching'),
+        ),
+      );
+  }
+
+  async descriptionOf(transactionId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ description: bankTransactions.description })
+      .from(bankTransactions)
+      .where(and(eq(bankTransactions.userId, this.userId), eq(bankTransactions.transactionId, transactionId)));
+    return row?.description ?? null;
+  }
+
+  async categoryMemory(): Promise<Map<string, CategoryChoice>> {
+    const rows = await this.db.select().from(bankCategoryMemory).where(eq(bankCategoryMemory.userId, this.userId));
+    return new Map(
+      rows.map((row) => [row.key, { categoryKind: row.categoryKind, ...(row.topicId ? { topicId: row.topicId } : {}) }]),
+    );
+  }
+
+  /** The next transaction that reads like `key` is suggested this category. */
+  async remember(key: string, choice: CategoryChoice): Promise<void> {
+    if (!key) return;
+    const values = { categoryKind: choice.categoryKind, topicId: choice.topicId ?? null };
+    await this.db
+      .insert(bankCategoryMemory)
+      .values({ userId: this.userId, key, ...values })
+      .onConflictDoUpdate({ target: [bankCategoryMemory.userId, bankCategoryMemory.key], set: values });
   }
 
   /** The name each bank shows (the person's, or the suggested one). */

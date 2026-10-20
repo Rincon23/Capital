@@ -31,6 +31,8 @@ interface IncomeFormSheetProps {
    * ("Não recomendado") instead of being split by %. Absent hides the choice.
    */
   topics?: TopicConfig[];
+  /** Overrides the sheet's title, e.g. when confirming an income that came from a bank. */
+  title?: string;
   onClose: () => void;
   onSave: (income: Income) => Promise<void>;
   onDelete?: (incomeId: string) => Promise<void>;
@@ -40,6 +42,7 @@ export function IncomeFormSheet({
   month,
   initial,
   topics,
+  title,
   onClose,
   onSave,
   onDelete,
@@ -104,7 +107,7 @@ export function IncomeFormSheet({
   }
 
   return (
-    <BottomSheet open onClose={onClose} title={initial ? 'Editar renda' : 'Nova renda'}>
+    <BottomSheet open onClose={onClose} title={title ?? (initial ? 'Editar renda' : 'Nova renda')}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <AmountInput value={amount} onChange={setAmount} autoFocus={!initial} />
 

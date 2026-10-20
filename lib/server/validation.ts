@@ -397,6 +397,27 @@ export const bankAlertsSchema = z.object({
   salaryTransactionIds: z.array(z.string().min(1).max(100)).max(5),
 });
 
+/** The transactions of one line of "Confira os gastos" (a split purchase brings all its instalments). */
+const reviewIds = z.array(z.string().min(1).max(100)).min(1).max(48);
+
+/** A decision about one line of "Confira os gastos". */
+export const bankReviewActionSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('expense'), transactionIds: reviewIds, month: monthKeySchema, expense: expenseSchema }),
+  z.object({ action: z.literal('plan'), transactionIds: reviewIds, plan: installmentPlanSchema }),
+  z.object({ action: z.literal('income'), transactionIds: reviewIds, month: monthKeySchema, income: incomeSchema }),
+  z.object({
+    action: z.literal('linked'),
+    transactionIds: reviewIds,
+    month: monthKeySchema,
+    entryId: z.string().min(1).max(100),
+  }),
+  z.object({ action: z.literal('ignore'), transactionIds: reviewIds }),
+  z.object({ action: z.literal('bill'), transactionIds: reviewIds }),
+]);
+
+/** Which Capital card a bank card is (null: "não informado"). */
+export const bankCardLinkSchema = z.object({ cardId: z.string().min(1).max(100).nullable() });
+
 /** What feeds the Reserva: the ids of the marked accounts and investments. */
 export const bankReserveSchema = z.object({
   accounts: z.array(z.string().min(1).max(100)).max(50),

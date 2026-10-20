@@ -95,7 +95,7 @@ export function bankFromTransferNumber(transferNumber: string | null | undefined
 }
 
 /** "AMAZON MASTERCARD PLATINUM" → "Amazon Mastercard Platinum"; mixed case stays as the bank wrote it. */
-function tidy(name: string): string {
+export function tidyName(name: string): string {
   const trimmed = name.replace(/\s+/g, ' ').trim();
   if (trimmed !== trimmed.toUpperCase() || !/[A-ZÀ-Ú]/.test(trimmed)) return trimmed;
   return trimmed.toLowerCase().replace(/(^|\s)(\p{L})/gu, (_, space: string, letter: string) => space + letter.toUpperCase());
@@ -109,7 +109,7 @@ const LEGAL_NAME = /\bS\.?\s?A\.?(\s|$|-)|\bLtda\b|Institui[cç][aã]o de Pagame
  * name instead; and "Cartão …" for a card that doesn't say so.
  */
 export function accountDisplayName(account: PluggyAccountName): string {
-  const name = tidy(account.name || account.marketingName || '');
+  const name = tidyName(account.name || account.marketingName || '');
   if (accountKind(account.subtype) === 'card') {
     if (!name) return 'Cartão';
     return /cart[aã]o/i.test(name) ? name : `Cartão ${name.charAt(0).toUpperCase()}${name.slice(1)}`;
@@ -132,7 +132,7 @@ export function suggestBankName(accounts: PluggyAccountName[]): string {
     if (bank) return bank;
   }
   const banking = accounts.find((account) => accountKind(account.subtype) !== 'card' && account.name);
-  if (banking?.name) return tidy(banking.name.split(' - ')[0]);
+  if (banking?.name) return tidyName(banking.name.split(' - ')[0]);
   const card = accounts.find((account) => account.name);
   return card ? accountDisplayName(card) : 'Banco';
 }

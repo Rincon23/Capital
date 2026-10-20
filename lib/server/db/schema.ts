@@ -923,6 +923,10 @@ export const bankAccounts = pgTable(
     dueDate: date('due_date', { mode: 'string' }),
     /** The person marked it as part of their reserve (the Reserva's "Reserva em conta"). */
     feedsReserve: boolean('feeds_reserve').notNull().default(false),
+    /** A card: the Capital card its purchases go on (null with `card_linked`: "não informado"). */
+    capitalCardId: text('capital_card_id'),
+    /** Whether the person already said which Capital card this is. */
+    cardLinked: boolean('card_linked').notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -934,6 +938,25 @@ export const bankAccounts = pgTable(
     }).onDelete('cascade'),
     check('bank_accounts_kind', sql`${t.kind} in ('checking', 'savings', 'card', 'other')`),
   ],
+);
+
+/**
+ * What the person chose for a description before ("Confira os gastos"): the next transaction
+ * that reads the same is suggested the same category.
+ */
+export const bankCategoryMemory = pgTable(
+  'bank_category_memory',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    /** The description without numbers and instalment marks (lib/banks/review.ts `memoryKey`). */
+    key: text('key').notNull(),
+    categoryKind: text('category_kind').$type<CategoryKind>().notNull(),
+    topicId: text('topic_id'),
+    updatedAt: updatedAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.key] })],
 );
 
 /** The person's Open Finance choices that outlive any key or bank: what to alert about. */
@@ -1010,9 +1033,16 @@ export const bankTransactions = pgTable(
     totalInstallments: integer('total_installments'),
     purchaseDate: date('purchase_date', { mode: 'string' }),
     billId: text('bill_id'),
-    /** Null until reviewed ("Confira os gastos"). */
+    /**
+     * Null until reviewed ("Confira os gastos"): `expense`, `plan` or `income` (launched from it),
+     * `linked` (it was an entry already there), `ignored`, `bill` (it paid a bill), and
+     * `launching` for the moment it is being launched (what keeps it from becoming two entries).
+     */
     outcome: text('outcome'),
-    entryId: uuid('entry_id'),
+    /** The expense, income or purchase plan it became or was tied to (their ids are text). */
+    entryId: text('entry_id'),
+    /** The month of that expense or income. */
+    entryMonth: text('entry_month'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

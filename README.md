@@ -356,6 +356,33 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
     - ficam de fora a primeira leitura (o ano de histórico), o que tem mais de 7 dias, o
       pagamento de fatura, o estorno e o dinheiro movido entre contas da própria pessoa;
     - na engrenagem: compras, Pix enviados, Pix recebidos, salário e um valor mínimo opcional.
+  - **"Confira os gastos"** (`/bancos/conferir`, precisa de Lançamentos; o aviso "Chegaram…" abre
+    aqui). O que chegou dos bancos e ainda não está no Capital, desde uma semana antes de cada
+    banco ser conectado (o ano de histórico não entra):
+    - cada linha tem descrição, valor, data, banco e a categoria sugerida, com **"Lançar"** (um
+      toque), o lápis (o formulário de gasto, de compra parcelada ou de renda, já preenchido) e
+      "Ignorar". Débito sugere gasto, crédito sugere renda;
+    - **categoria sugerida**, nesta ordem: o que a pessoa escolheu antes para a mesma descrição;
+      uma categoria dita na descrição (as regras de `lib/ai`, sem IA); a categoria da Pluggy
+      traduzida para os nomes das categorias da pessoa; e o que as categorias padrão significam
+      (Diversos = comer fora, compras, lazer; Conhecimentos = cursos e livros; Metas = viagem;
+      Custos Fixos = assinaturas, contas, aluguel). Sem palpite, o botão vira "Escolher
+      categoria" e abre o formulário: nada é chutado;
+    - **cartão**: cada cartão do banco é ligado uma vez a um cartão do Capital (ou "Não
+      informar"). A pergunta só aparece para o cartão que tem compra na lista;
+    - **compra parcelada**: as parcelas da mesma compra viram uma linha só, venha o banco com
+      todas de uma vez ou uma por mês ("10× de R$ 87,23 · comprada em 09/02"). "Conferir
+      parcelado" abre o formulário de compra parcelada, que já sabe quantas parcelas caíram
+      ("Começar a contar de agora"). As próximas parcelas de uma compra que já está no Capital
+      são reconhecidas e ficam de fora;
+    - **duplicados**: um gasto (ou renda) lançado à mão com o mesmo valor, até 2 dias de
+      diferença e no mesmo cartão vira "Parece que você já lançou isso", com "É o mesmo" (só liga
+      os dois) ou "É outro";
+    - **deixados de fora, com o motivo à vista**: pagamento de fatura, dinheiro entre contas da
+      pessoa, aplicação/resgate/rendimento, estorno e parcela de compra já lançada. Cada um tem
+      "Lançar mesmo assim" e "Tirar da lista", e há "Tirar todos da lista";
+    - **fatura**: um pagamento de fatura que bate com uma fatura em aberto sugere "Marcar a fatura
+      de out (Nubank) como paga?", sempre com um toque. Nenhuma fatura sai sozinha.
   - **Reserva pelos bancos** (na engrenagem da Reserva, com Open Finance ligado):
     - "Atualizar pelos bancos conectados" lista as contas e os investimentos de cada banco. Nada
       vem marcado: o app não supõe qual banco é a reserva de cada um;
@@ -706,6 +733,18 @@ dela); o servidor não tem chave da Pluggy. O plano por fases está em
   - um item que sumiu da Pluggy (404) vira "Trazer de novo";
   - uma leitura que volta sem contas mantém as que havia.
 - "Parado" (48 h sem dados) e o aviso de autorização (15 dias antes) saem de `lib/banks/health.ts`.
+- **"Confira os gastos"** (`review.ts`, lógica pura em `lib/banks/review.ts`, pensada para servir
+  também a um "Importar extrato" OFX/CSV depois):
+  - `buildReview` monta a lista com os lançamentos dos meses envolvidos (para os duplicados) e os
+    parcelados (para reconhecer parcelas);
+  - `applyReviewAction` lança com as **mesmas funções dos formulários** (`saveExpense`,
+    `saveInstallment`, `saveIncome`), com `source: 'import'`;
+  - antes de lançar, as transações são "reservadas" (`outcome = 'launching'`): um segundo toque
+    ou outro aparelho recebe "Isso já foi conferido" em vez de um segundo lançamento, e uma falha
+    (mês fechado, por exemplo) devolve a transação à lista;
+  - `outcome` e `entry_id`/`entry_month` dizem o que cada transação virou;
+    `bank_category_memory` guarda a categoria escolhida por descrição;
+  - o vínculo de cartão fica em `bank_accounts.capital_card_id`/`card_linked`.
 - **Avisos** (`alerts.ts`, lógica pura em `lib/banks/alerts.ts`):
   - o job e "Buscar novidades" passam por `syncAndNotify`;
   - `sourceKey` evita repetir: o resumo por lote, o salário por transação, o banco parado pela

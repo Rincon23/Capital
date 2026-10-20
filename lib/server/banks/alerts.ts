@@ -25,8 +25,9 @@ import { syncUser, type BankSyncResult } from './service';
 const NEWS_DAYS = 7;
 /** An alert about money is still worth reading some hours late. */
 const ALERT_TTL_SECONDS = 12 * 60 * 60;
-/** Where a tap goes (the review of what arrived, once it exists). */
+/** Where a tap goes: the bank screen; what arrived goes to its review ("Confira os gastos"). */
 export const BANKS_ALERT_URL = '/bancos';
+export const BANKS_REVIEW_URL = '/bancos/conferir';
 
 export interface AlertDeps {
   sender?: PushSender;
@@ -55,7 +56,7 @@ export async function arrivalAlerts(
         message: {
           title: '💰 Seu salário caiu',
           body: `${formatBRL(salary.amount)} · ${bank}`,
-          url: BANKS_ALERT_URL,
+          url: BANKS_REVIEW_URL,
           tag: `banks-salary-${salary.id}`,
         },
       });
@@ -65,7 +66,7 @@ export async function arrivalAlerts(
         category: 'banks',
         // One summary per read of this bank: the first new transaction stands for the batch.
         sourceKey: `banks-arrivals:${result.itemId}:${[...result.added].sort()[0]}`,
-        message: { title: `🏦 ${bank}`, body, url: BANKS_ALERT_URL, tag: `banks-arrivals-${result.itemId}` },
+        message: { title: `🏦 ${bank}`, body, url: BANKS_REVIEW_URL, tag: `banks-arrivals-${result.itemId}` },
       });
     }
   }

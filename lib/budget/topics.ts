@@ -84,7 +84,7 @@ const fold = (text: string) =>
  * Which default category a topic is: its `preset`, or, for data from before presets existed (no
  * `preset` and no `description` of its own), the default with the same name.
  */
-function presetOf(topic: TopicConfig): DefaultTopic | undefined {
+export function presetOf(topic: TopicConfig): DefaultTopic | undefined {
   if (topic.preset) return DEFAULT_TOPICS.find((d) => d.preset === topic.preset);
   if (topic.description !== undefined) return undefined;
   return DEFAULT_TOPICS.find((d) => fold(d.name) === fold(topic.name));
