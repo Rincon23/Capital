@@ -46,6 +46,7 @@ import type {
   QuestionType,
 } from '../../diagram/types';
 import type { PricePoint } from '../../diagram/history';
+import type { BankAlertSettings } from '../../banks/alerts';
 import type { BankAccountKind, BankConnectionStatus } from '../../banks/types';
 import type { NotificationCategory } from '../../notifications/types';
 import type { ReminderKind, TimeOfDay } from '../../reminders/types';
@@ -934,6 +935,16 @@ export const bankAccounts = pgTable(
     check('bank_accounts_kind', sql`${t.kind} in ('checking', 'savings', 'card', 'other')`),
   ],
 );
+
+/** The person's Open Finance choices that outlive any key or bank: what to alert about. */
+export const bankSettings = pgTable('bank_settings', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  /** `BankAlertSettings` (lib/banks/alerts.ts); missing fields take the defaults. */
+  alerts: jsonb('alerts').$type<Partial<BankAlertSettings>>().notNull().default({}),
+  updatedAt: updatedAt(),
+});
 
 /** The investments a connection brought (fixed income, funds, stocks), with the last balance read. */
 export const bankInvestments = pgTable(

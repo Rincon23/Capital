@@ -355,8 +355,8 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
     {
       route: () => '/bancos',
       anchor: 'bancos-config',
-      title: 'Sua chave',
-      description: 'Na engrenagem você troca a chave ou desconecta tudo.',
+      title: 'Avisos e chave',
+      description: 'Na engrenagem: o que avisar no celular, o seu salário e a sua chave.',
       side: 'bottom',
     },
   ],

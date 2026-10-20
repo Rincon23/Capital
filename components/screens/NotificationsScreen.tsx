@@ -7,6 +7,7 @@ import {
   Clock,
   Repeat,
   CreditCard,
+  Landmark,
   Mail,
   Settings as SettingsIcon,
   Sparkles,
@@ -34,6 +35,7 @@ const CATEGORY_VISUAL: Record<NotificationCategory, { icon: LucideIcon; tone: Ic
   card: { icon: CreditCard, tone: 'orange' },
   recurring: { icon: Repeat, tone: 'blue' },
   gmail: { icon: Mail, tone: 'red' },
+  banks: { icon: Landmark, tone: 'blue' },
   feature: { icon: Sparkles, tone: 'purple' },
   system: { icon: Bell, tone: 'neutral' },
 };

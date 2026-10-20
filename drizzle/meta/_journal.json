@@ -197,6 +197,13 @@
       "when": 1792506876137,
       "tag": "0027_open_finance_reserve",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792507547999,
+      "tag": "0028_open_finance_alerts",
+      "breakpoints": true
     }
   ]
 }

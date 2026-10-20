@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { syncAndNotify } from '../banks/alerts';
 import { runBanksJob } from '../banks/job';
 import type { FetchLike } from '../banks/pluggy';
 import { PostgresBanksRepository } from '../banks/repository';
@@ -147,7 +148,7 @@ describe('the sync', () => {
     );
 
     const results = await syncUser(banks, id, fetchImpl, NOW);
-    expect(results).toEqual([{ itemId: ITEM, changed: true, added: ['tx-pix-1', 'tx-card-1'] }]);
+    expect(results).toEqual([{ itemId: ITEM, changed: true, added: ['tx-pix-1', 'tx-card-1'], firstRead: true }]);
     expect(calls.filter((call) => call.path.startsWith('/v2/transactions')).map((call) => call.path)).toEqual([
       '/v2/transactions?accountId=acc-1&dateFrom=2025-10-20&dateTo=2026-10-20',
       '/v2/transactions?accountId=acc-2&dateFrom=2025-10-20&dateTo=2026-10-20',
@@ -197,14 +198,16 @@ describe('the sync', () => {
       .where(eq(schema.bankTransactions.transactionId, 'tx-card-1'));
 
     calls.length = 0;
-    expect(await syncUser(banks, id, fetchImpl, NOW)).toEqual([{ itemId: ITEM, changed: false, added: [] }]);
+    expect(await syncUser(banks, id, fetchImpl, NOW)).toEqual([
+      { itemId: ITEM, changed: false, added: [], firstRead: false },
+    ]);
     expect(calls.map((call) => call.path)).toEqual([`/items/${ITEM}`]);
 
     lastUpdatedAt = SECOND;
     card = purchase({ status: 'POSTED', creditCardMetadata: { billId: 'bill-1' } });
     calls.length = 0;
     expect(await syncUser(banks, id, fetchImpl, new Date('2026-10-21T15:00:00Z'))).toEqual([
-      { itemId: ITEM, changed: true, added: [] },
+      { itemId: ITEM, changed: true, added: [], firstRead: false },
     ]);
     expect(calls.find((call) => call.path.includes('accountId=acc-2'))?.path).toBe(
       '/v2/transactions?accountId=acc-2&dateFrom=2026-10-13&dateTo=2026-10-21',
@@ -315,6 +318,94 @@ describe('the Reserva fed by the banks', () => {
     expect(await banks.writeReserve()).toBeNull();
     expect((await banks.reserve()).total).toBeNull();
     expect(await cashReserve(id)).toBe(2500.5);
+  });
+});
+
+describe('the alerts', () => {
+  async function bankNotifications(userId: string) {
+    return db
+      .select({ title: schema.notifications.title, body: schema.notifications.body, key: schema.notifications.sourceKey })
+      .from(schema.notifications)
+      .where(eq(schema.notifications.userId, userId))
+      .orderBy(schema.notifications.title);
+  }
+  const plain = (text: string) => text.replace(/ /g, ' ');
+
+  it('tell what arrived after the first read, one summary per bank, and the salary on its own', async () => {
+    let lastUpdatedAt = FIRST;
+    let card: unknown[] = [purchase({ id: 'old-purchase', date: '2026-01-10T03:00:00.000Z' })];
+    let bank: unknown[] = [];
+    const { id, banks, fetchImpl } = await arrivedBank(
+      (path) => (path.includes('accountId=acc-2') ? card : bank),
+      () => ({ status: 'UPDATED', lastUpdatedAt, consentExpiresAt: '2027-10-20T13:19:34.167Z' }),
+    );
+
+    // The first read is a year of history: no news.
+    await syncAndNotify(db, id, fetchImpl, NOW);
+    expect(await bankNotifications(id)).toEqual([]);
+
+    // The person points at last month's salary.
+    await db.insert(schema.bankTransactions).values({
+      userId: id,
+      transactionId: 'salary-sep',
+      accountId: 'acc-1',
+      date: '2026-09-30',
+      amount: 5000,
+      description: 'TED RECEBIDA EMPRESA',
+      type: 'CREDIT',
+      status: 'POSTED',
+      payerDocument: '12.345.678/0001-90',
+    });
+    const refs = await banks.salaryRefs(['salary-sep'], []);
+    await banks.saveAlertSettings({ ...(await banks.alertSettings()), salaries: refs });
+
+    // Next day: two purchases, a Pix received and the salary.
+    lastUpdatedAt = SECOND;
+    card = [
+      purchase({ id: 'p1', amount: 45.9, date: '2026-10-20T03:00:00.000Z' }),
+      purchase({ id: 'p2', amount: 74.1, date: '2026-10-21T03:00:00.000Z' }),
+    ];
+    bank = [
+      { ...pix, id: 'pix-2', date: '2026-10-21T03:00:00.000Z' },
+      {
+        ...pix,
+        id: 'salary-oct',
+        amount: 5100,
+        description: 'TED RECEBIDA EMPRESA',
+        paymentData: { paymentMethod: 'TED', payer: { documentNumber: { value: '12.345.678/0001-90' } } },
+      },
+    ];
+    await syncAndNotify(db, id, fetchImpl, new Date('2026-10-21T15:00:00Z'));
+
+    const told = (await bankNotifications(id)).map((n) => ({ title: n.title, body: plain(n.body) }));
+    expect(told).toEqual([
+      { title: '🏦 BTG Pactual', body: 'Chegaram 2 compras no cartão (R$ 120,00) e 1 Pix recebido (R$ 50,00).' },
+      { title: '💰 Seu salário caiu', body: 'R$ 5.100,00 · BTG Pactual' },
+    ]);
+
+    // Reading again brings nothing new, and nothing is told twice.
+    await syncAndNotify(db, id, fetchImpl, new Date('2026-10-21T16:00:00Z'));
+    expect(await bankNotifications(id)).toHaveLength(2);
+  });
+
+  it('a bank that stopped and an authorization running out are told once each', async () => {
+    const { id, banks, fetchImpl } = await arrivedBank(
+      () => [],
+      () => ({
+        status: 'UPDATED',
+        lastUpdatedAt: '2026-10-17T12:00:00.000Z',
+        consentExpiresAt: '2026-10-30T12:00:00.000Z',
+      }),
+    );
+    await banks.updateConnection(ITEM, { status: 'ok', suggestedName: 'BTG Pactual' });
+    await syncAndNotify(db, id, fetchImpl, NOW);
+    await syncAndNotify(db, id, fetchImpl, new Date(NOW.getTime() + 60 * 60_000));
+    const told = await bankNotifications(id);
+    expect(told.map((n) => n.title)).toEqual(['🏦 BTG Pactual parou', '🏦 BTG Pactual: autorização vencendo']);
+    expect(told.map((n) => n.body)).toEqual([
+      'Nenhum dado novo do banco há 3 dias. Toque para reconectar no Meu Pluggy.',
+      'A autorização vence em 10 dias. Toque para renovar.',
+    ]);
   });
 });
 

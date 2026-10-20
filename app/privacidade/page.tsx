@@ -131,7 +131,8 @@ export default function PrivacyPage() {
             cartões de cada banco, com nome e saldo, os investimentos com nome e saldo, e as transações dos
             últimos 12 meses que os bancos mandam:
             descrição, valor, data, categoria, forma de pagamento e quem pagou ou recebeu (nome e documento,
-            quando o banco informa). Uma vez por hora, o Capital pergunta à Pluggy se chegou algo novo.
+            quando o banco informa). Uma vez por hora, o Capital pergunta à Pluggy se chegou algo novo e, se você
+            quiser, avisa no celular um resumo do que chegou e quando o salário que você indicou cair.
           </li>
           <li>
             Esses dados não são vendidos, não são usados para publicidade e não são usados para treinar modelos

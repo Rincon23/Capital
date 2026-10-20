@@ -346,6 +346,16 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
     - 15 dias antes de a autorização vencer, aparece "A autorização vence em N dias", com
       "Renovar";
     - um banco que a Pluggy perdeu pede "Trazer de novo".
+  - **Avisos no celular** (categoria "Open Finance" em Notificações, só para VIP):
+    - depois de cada leitura com novidade, **um resumo por banco**: "🏦 Nubank — Chegaram 3
+      compras no cartão (R$ 120,00) e 1 Pix recebido (R$ 50,00)." Nunca "agora";
+    - o **salário** tem aviso próprio ("💰 Seu salário caiu — R$ 5.000,00 · Nubank"). A pessoa
+      aponta, na engrenagem, qual crédito recente é o salário; os próximos do mesmo pagador
+      (CPF/CNPJ, ou o nome, ou a descrição) com valor ±15% avisam. O app nunca adivinha;
+    - banco **parado** (48 h) e autorização **vencendo** (15 dias) avisam uma vez cada;
+    - ficam de fora a primeira leitura (o ano de histórico), o que tem mais de 7 dias, o
+      pagamento de fatura, o estorno e o dinheiro movido entre contas da própria pessoa;
+    - na engrenagem: compras, Pix enviados, Pix recebidos, salário e um valor mínimo opcional.
   - **Reserva pelos bancos** (na engrenagem da Reserva, com Open Finance ligado):
     - "Atualizar pelos bancos conectados" lista as contas e os investimentos de cada banco. Nada
       vem marcado: o app não supõe qual banco é a reserva de cada um;
@@ -696,6 +706,12 @@ dela); o servidor não tem chave da Pluggy. O plano por fases está em
   - um item que sumiu da Pluggy (404) vira "Trazer de novo";
   - uma leitura que volta sem contas mantém as que havia.
 - "Parado" (48 h sem dados) e o aviso de autorização (15 dias antes) saem de `lib/banks/health.ts`.
+- **Avisos** (`alerts.ts`, lógica pura em `lib/banks/alerts.ts`):
+  - o job e "Buscar novidades" passam por `syncAndNotify`;
+  - `sourceKey` evita repetir: o resumo por lote, o salário por transação, o banco parado pela
+    data do último dado e a autorização pela data de vencimento;
+  - as escolhas ficam em `bank_settings.alerts`. O salário é guardado a partir da transação que
+    a pessoa marcou (pagador, valor, descrição), montado no servidor.
 - O `apiKey` (2 h) fica só em memória, por pessoa.
 - Toda rota confere VIP e o módulo ligado (`access.ts`) e tem limite de tentativas.
 - A Pluggy devolve a pessoa para `<BETTER_AUTH_URL>/bancos`, ou para `PLUGGY_REDIRECT_URI`, que

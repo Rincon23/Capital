@@ -63,7 +63,7 @@ export interface PushSubscriptionInput {
 // ---------------------------------------------------------------------------
 
 /** What kind of thing generated a notification, so the bell can show an icon per row. */
-export type NotificationCategory = 'reminder' | 'card' | 'recurring' | 'gmail' | 'feature' | 'system';
+export type NotificationCategory = 'reminder' | 'card' | 'recurring' | 'gmail' | 'banks' | 'feature' | 'system';
 
 /** Label for each category in the notification-preferences switches. */
 export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> = {
@@ -71,6 +71,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   card: 'Cartões',
   recurring: 'Contas do mês',
   gmail: 'Monitor de Gmail',
+  banks: 'Open Finance',
   feature: 'Novidades do app',
   system: 'Outros avisos',
 };

@@ -4,14 +4,14 @@ import { userAccess } from '../access';
 import { bankKeys, budgetSettings, user } from '../db/schema';
 import type { Database } from '../db/types';
 import { lastRun, markRun } from '../jobRuns';
+import { syncAndNotify, type AlertDeps } from './alerts';
 import type { FetchLike } from './pluggy';
-import { PostgresBanksRepository } from './repository';
-import { syncUser, type BankSyncResult } from './service';
+import type { BankSyncResult } from './service';
 
 /**
  * Open Finance in the background: once an hour, every VIP with the module on and a saved key has
- * their banks read (lib/server/banks/service.ts `syncUser`). Pluggy updates each bank once a day,
- * so most hours only ask "anything new?" and read nothing else.
+ * their banks read (lib/server/banks/service.ts `syncUser`) and gets the alerts of what arrived
+ * (./alerts.ts). Pluggy updates each bank once a day, so most hours only ask "anything new?".
  */
 
 const BANKS_JOB = 'banks';
@@ -27,6 +27,7 @@ export async function runBanksJob(
   db: Database,
   now: Date = new Date(),
   fetchImpl: FetchLike = fetch,
+  deps: AlertDeps = {},
 ): Promise<BanksJobResult> {
   const previous = await lastRun(db, BANKS_JOB);
   if (previous && now.getTime() - previous.getTime() < EVERY_MS) return { people: 0, results: [] };
@@ -44,7 +45,7 @@ export async function runBanksJob(
     try {
       // VIP-only: someone whose VIP was taken back keeps the data, but nothing is read for them.
       if (!(await userAccess(db, userId, email)).vip) continue;
-      const banks = await syncUser(new PostgresBanksRepository(db, userId), userId, fetchImpl, now);
+      const banks = await syncAndNotify(db, userId, fetchImpl, now, deps);
       if (banks) results.push({ userId, banks });
     } catch (err) {
       console.error('[bancos] falha ao ler os bancos de uma conta:', err instanceof Error ? err.message : err);

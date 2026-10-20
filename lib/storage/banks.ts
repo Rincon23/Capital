@@ -1,4 +1,13 @@
+import type { BankAlertSettings, SalaryCandidate } from '../banks/alerts';
 import type { BankReserve, BanksOverview } from '../banks/types';
+
+export interface BankAlertsView {
+  settings: BankAlertSettings;
+  candidates: SalaryCandidate[];
+}
+
+/** What the gear sends: the switches, the minimum and which credits are the salary. */
+export type BankAlertChoices = Omit<BankAlertSettings, 'salaries'> & { salaryTransactionIds: string[] };
 import { apiRequest, seg } from './apiClient';
 
 export interface BanksOverviewResult extends BanksOverview {
@@ -16,6 +25,8 @@ export interface BanksRepository {
   sync(): Promise<{ changed: string[] }>;
   rename(itemId: string, name: string): Promise<void>;
   remove(itemId: string): Promise<void>;
+  getAlerts(): Promise<BankAlertsView>;
+  saveAlerts(choices: BankAlertChoices): Promise<BankAlertsView>;
   /** What can feed the Reserva and what is marked. */
   getReserve(): Promise<BankReserve>;
   /** Marks what feeds the Reserva (both empty: back to typing it). */
@@ -46,6 +57,14 @@ export class HttpBanksRepository implements BanksRepository {
 
   remove(itemId: string): Promise<void> {
     return apiRequest('DELETE', `/banks/connections/${seg(itemId)}`);
+  }
+
+  getAlerts(): Promise<BankAlertsView> {
+    return apiRequest('GET', '/banks/alerts');
+  }
+
+  saveAlerts(choices: BankAlertChoices): Promise<BankAlertsView> {
+    return apiRequest('PUT', '/banks/alerts', choices);
   }
 
   getReserve(): Promise<BankReserve> {

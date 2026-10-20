@@ -401,6 +401,8 @@ export interface BankSyncResult {
   changed: boolean;
   /** The transactions seen for the first time. */
   added: string[];
+  /** The bank's first read (a year back): nothing in it is news to alert about. */
+  firstRead: boolean;
 }
 
 /**
@@ -415,7 +417,7 @@ export async function syncConnection(
   connection: SyncedConnection,
   now: Date,
 ): Promise<BankSyncResult> {
-  const unchanged: BankSyncResult = { itemId: connection.itemId, changed: false, added: [] };
+  const unchanged: BankSyncResult = { itemId: connection.itemId, changed: false, added: [], firstRead: false };
   const reply = await client.call('GET', `/items/${encodeURIComponent(connection.itemId)}`);
   if (reply.status === 404) {
     // Gone at Pluggy (revoked or deleted there): the person brings it again.
@@ -466,7 +468,7 @@ export async function syncConnection(
   // Only once everything is in: a read that broke halfway is done again next time.
   update.syncedUpdateAt = lastUpdatedAt;
   await repo.updateConnection(connection.itemId, update);
-  return { itemId: connection.itemId, changed: true, added };
+  return { itemId: connection.itemId, changed: true, added, firstRead: connection.syncedUpdateAt === null };
 }
 
 const globalForSync = globalThis as unknown as { __capitalBanksSyncing?: Set<string> };
