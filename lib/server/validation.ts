@@ -411,6 +411,12 @@ export const bankReviewActionSchema = z.discriminatedUnion('action', [
     month: monthKeySchema,
     entryId: z.string().min(1).max(100),
   }),
+  z.object({
+    action: z.literal('reimbursed'),
+    transactionIds: reviewIds,
+    month: monthKeySchema,
+    expenseId: z.string().min(1).max(100),
+  }),
   z.object({ action: z.literal('ignore'), transactionIds: reviewIds }),
   z.object({ action: z.literal('bill'), transactionIds: reviewIds }),
 ]);

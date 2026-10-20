@@ -8,6 +8,7 @@ export type BankReviewAction =
   | { action: 'plan'; transactionIds: string[]; plan: InstallmentPlan }
   | { action: 'income'; transactionIds: string[]; month: Month; income: Income }
   | { action: 'linked'; transactionIds: string[]; month: Month; entryId: string }
+  | { action: 'reimbursed'; transactionIds: string[]; month: Month; expenseId: string }
   | { action: 'ignore'; transactionIds: string[] }
   | { action: 'bill'; transactionIds: string[] };
 import type { BankReserve, BanksOverview } from '../banks/types';

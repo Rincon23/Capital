@@ -339,6 +339,8 @@ export interface ReviewItem {
   } | null;
   /** A manual entry this looks like ("É o mesmo" ties them). */
   duplicate: { month: Month; entryId: string; description: string; amount: number; date: string } | null;
+  /** Money in that looks like an "A receber" being paid back ("Marcar como recebido"). */
+  reimbursement: { month: Month; expenseId: string; description: string; amount: number } | null;
   ignored: { reason: IgnoreReason; label: string } | null;
 }
 
@@ -386,6 +388,34 @@ export function findDuplicate(
     return candidate;
   }
   return null;
+}
+
+/**
+ * The "A receber" a Pix received may be paying back: one still open, of the same amount. With more
+ * than one, the payer's name in its description wins ("Jantar — João" for a Pix from João Silva);
+ * with none named, the most recent. Only ever a suggestion.
+ */
+export function findReimbursement(
+  item: { amount: number; payer: string | null },
+  pending: LaunchedExpense[],
+  taken: Set<string>,
+): LaunchedExpense | null {
+  const sameAmount = pending.filter(
+    ({ expense }) =>
+      expense.categoryKind === 'reimbursable' &&
+      !expense.reimbursedAt &&
+      !taken.has(expense.id) &&
+      Math.abs(expense.amount - item.amount) <= 0.009,
+  );
+  if (sameAmount.length === 0) return null;
+  const names = foldText(item.payer ?? '')
+    .split(/\s+/)
+    .filter((word) => word.length >= 3);
+  const named = sameAmount.find(({ expense }) => {
+    const description = foldText(expense.description);
+    return names.some((word) => new RegExp(`\\b${word}\\b`).test(description));
+  });
+  return named ?? [...sameAmount].sort((a, b) => b.expense.date.localeCompare(a.expense.date))[0];
 }
 
 /** The same for money in: an income of the same amount within 2 days. */

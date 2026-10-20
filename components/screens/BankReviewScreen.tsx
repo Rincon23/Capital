@@ -75,6 +75,8 @@ function Review() {
   const [form, setForm] = useState<FormState | null>(null);
   /** Lines where the person said "É outro" to the duplicate the Capital pointed at. */
   const [notSame, setNotSame] = useState<Set<string>>(() => new Set());
+  /** Lines where the person said the Pix is not the "A receber" the Capital pointed at. */
+  const [notPayback, setNotPayback] = useState<Set<string>>(() => new Set());
   const [showIgnored, setShowIgnored] = useState(false);
 
   const load = useCallback(async () => {
@@ -265,6 +267,20 @@ function Review() {
                   item={item}
                   busy={busy !== null}
                   showDuplicate={item.duplicate !== null && !notSame.has(item.key)}
+                  showPayback={item.reimbursement !== null && !notPayback.has(item.key)}
+                  onPayback={() =>
+                    void tap(
+                      item,
+                      {
+                        action: 'reimbursed',
+                        transactionIds: item.transactionIds,
+                        month: item.reimbursement!.month,
+                        expenseId: item.reimbursement!.expenseId,
+                      },
+                      `Pronto: “${item.reimbursement!.description}” marcado como recebido.`,
+                    )
+                  }
+                  onNotPayback={() => setNotPayback((current) => new Set(current).add(item.key))}
                   onLaunch={() => launch(item)}
                   onEdit={() => open(item)}
                   onIgnore={() =>
@@ -469,6 +485,9 @@ function ReviewRow({
   item,
   busy,
   showDuplicate,
+  showPayback,
+  onPayback,
+  onNotPayback,
   onLaunch,
   onEdit,
   onIgnore,
@@ -478,6 +497,9 @@ function ReviewRow({
   item: ReviewItem;
   busy: boolean;
   showDuplicate: boolean;
+  showPayback: boolean;
+  onPayback: () => void;
+  onNotPayback: () => void;
   onLaunch: () => void;
   onEdit: () => void;
   onIgnore: () => void;
@@ -520,7 +542,21 @@ function ReviewRow({
         </p>
       )}
 
-      {showDuplicate && item.duplicate ? (
+      {showPayback && item.reimbursement ? (
+        <div className="bg-success-bg flex flex-col gap-2 rounded-lg px-3 py-2 text-sm">
+          <p className="text-success">
+            É a devolução de “{item.reimbursement.description}” ({formatBRL(item.reimbursement.amount)})?
+          </p>
+          <div className="flex gap-2">
+            <button type="button" disabled={busy} onClick={onPayback} className={primaryButton}>
+              Marcar como recebido
+            </button>
+            <button type="button" disabled={busy} onClick={onNotPayback} className={`${quietButton} flex-1`}>
+              É outra coisa
+            </button>
+          </div>
+        </div>
+      ) : showDuplicate && item.duplicate ? (
         <div className="bg-warning-bg flex flex-col gap-2 rounded-lg px-3 py-2 text-sm">
           <p className="text-warning">
             Parece que você já lançou isso: “{item.duplicate.description}” ({formatBRL(item.duplicate.amount)},{' '}

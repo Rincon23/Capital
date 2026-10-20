@@ -5,6 +5,7 @@ import {
   descriptionKey,
   findDuplicate,
   findDuplicateIncome,
+  findReimbursement,
   groupInstallments,
   ignoreReason,
   matchingPlan,
@@ -195,6 +196,23 @@ describe('"Parece que você já lançou isso"', () => {
     expect(findDuplicate({ ...item, onCard: true, cardId: 'nubank' }, onCard, new Set())).toBeNull();
     expect(findDuplicate({ ...item, onCard: true, cardId: 'btg' }, onCard, new Set())?.expense.id).toBe('e1');
     expect(findDuplicate(item, [{ month: '2026-10', expense: expense({ installmentId: 'p' }) }], new Set())).toBeNull();
+  });
+
+  it('a Pix received may be an "A receber" paid back: same amount, the payer named in it first', () => {
+    const owed = (id: string, description: string, date: string, extra: Partial<Expense> = {}) => ({
+      month: '2026-10',
+      expense: expense({ id, categoryKind: 'reimbursable', topicId: undefined, description, amount: 50, date, ...extra }),
+    });
+    const pending = [
+      owed('jantar-maria', 'Jantar — Maria', '2026-10-15'),
+      owed('jantar-joao', 'Jantar — João', '2026-10-10'),
+      owed('pago', 'Cinema — João', '2026-10-12', { reimbursedAt: '2026-10-13T12:00:00.000Z' }),
+    ];
+    expect(findReimbursement({ amount: 50, payer: 'JOAO SILVA' }, pending, new Set())?.expense.id).toBe('jantar-joao');
+    // Nobody named: the most recent one still open.
+    expect(findReimbursement({ amount: 50, payer: null }, pending, new Set())?.expense.id).toBe('jantar-maria');
+    expect(findReimbursement({ amount: 51, payer: 'JOAO' }, pending, new Set())).toBeNull();
+    expect(findReimbursement({ amount: 50, payer: 'JOAO' }, pending, new Set(['jantar-joao', 'jantar-maria']))).toBeNull();
   });
 
   it('and for money in', () => {

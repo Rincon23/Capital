@@ -382,7 +382,12 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
       pessoa, aplicação/resgate/rendimento, estorno e parcela de compra já lançada. Cada um tem
       "Lançar mesmo assim" e "Tirar da lista", e há "Tirar todos da lista";
     - **fatura**: um pagamento de fatura que bate com uma fatura em aberto sugere "Marcar a fatura
-      de out (Nubank) como paga?", sempre com um toque. Nenhuma fatura sai sozinha.
+      de out (Nubank) como paga?", sempre com um toque. Nenhuma fatura sai sozinha;
+    - **A receber** (com o módulo ligado): um Pix recebido com o mesmo valor de um "A receber" em
+      aberto pergunta "É a devolução de 'Jantar — João' (R$ 50,00)?". Se mais de um tem o mesmo
+      valor, ganha o que tem o nome de quem pagou; sem nome, o mais recente. "Marcar como
+      recebido" usa o mesmo "Já me pagou" da tela do A receber; "É outra coisa" volta a oferecer
+      a renda. Nunca automático.
   - **Reserva pelos bancos** (na engrenagem da Reserva, com Open Finance ligado):
     - "Atualizar pelos bancos conectados" lista as contas e os investimentos de cada banco. Nada
       vem marcado: o app não supõe qual banco é a reserva de cada um;

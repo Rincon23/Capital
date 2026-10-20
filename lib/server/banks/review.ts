@@ -3,6 +3,7 @@ import { categoryOptions } from '@/lib/ai';
 import {
   findDuplicate,
   findDuplicateIncome,
+  findReimbursement,
   groupInstallments,
   IGNORE_LABELS,
   ignoreReason,
@@ -16,6 +17,8 @@ import {
   type ReviewItem,
 } from '@/lib/banks';
 import { nextMonth, presetOf, previousMonth } from '@/lib/budget';
+import { isModuleOn } from '@/lib/modules';
+import { zonedToday } from '@/lib/reminders/time';
 import type { Expense, Income, InstallmentPlan, Month } from '@/lib/budget';
 import type { PostgresBudgetRepository } from '../budgetRepository';
 import { HttpError } from '../httpError';
@@ -48,7 +51,10 @@ function monthsAround(dates: string[]): Month[] {
   return [...months];
 }
 
-function baseItem(row: ReviewRow, transactionIds: string[]): Omit<ReviewItem, 'kind' | 'category' | 'installments' | 'duplicate' | 'ignored'> {
+function baseItem(
+  row: ReviewRow,
+  transactionIds: string[],
+): Omit<ReviewItem, 'kind' | 'category' | 'installments' | 'duplicate' | 'ignored'> {
   const onCard = row.accountKind === 'card';
   return {
     key: row.id,
@@ -62,6 +68,7 @@ function baseItem(row: ReviewRow, transactionIds: string[]): Omit<ReviewItem, 'k
     description: row.description,
     amount: Math.abs(row.amount),
     payer: row.payerName,
+    reimbursement: null,
   };
 }
 
@@ -79,6 +86,10 @@ export async function buildReview({ banks, repo, wallet }: ReviewDeps): Promise<
   const memory = await banks.categoryMemory();
   const plans = await wallet.listInstallments();
   const taken = await banks.takenEntryIds();
+  // The "A receber" still open, when that module is on: a Pix received may be one paid back.
+  const pendingBack: LaunchedExpense[] = isModuleOn(settings, 'reimbursable')
+    ? await repo.pendingReimbursables(zonedToday().slice(0, 7))
+    : [];
 
   const launched: LaunchedExpense[] = [];
   const incomes: { month: Month; income: Income }[] = [];
@@ -118,6 +129,17 @@ export async function buildReview({ banks, repo, wallet }: ReviewDeps): Promise<
     const kind = reviewKind(row);
     if (kind === 'plan' && !reason) continue;
     const base = baseItem(row, [row.id]);
+    const payback = kind === 'income' && !reason ? findReimbursement(base, pendingBack, taken) : null;
+    if (payback) {
+      // One "A receber" is offered to one Pix at most.
+      taken.add(payback.expense.id);
+      base.reimbursement = {
+        month: payback.month,
+        expenseId: payback.expense.id,
+        description: payback.expense.description,
+        amount: payback.expense.amount,
+      };
+    }
     const duplicate =
       reason !== null
         ? null
@@ -166,6 +188,7 @@ export type ReviewAction =
   | { action: 'plan'; transactionIds: string[]; plan: InstallmentPlan }
   | { action: 'income'; transactionIds: string[]; month: Month; income: Income }
   | { action: 'linked'; transactionIds: string[]; month: Month; entryId: string }
+  | { action: 'reimbursed'; transactionIds: string[]; month: Month; expenseId: string }
   | { action: 'ignore'; transactionIds: string[] }
   | { action: 'bill'; transactionIds: string[] };
 
@@ -201,6 +224,11 @@ export async function applyReviewAction({ banks, repo, wallet }: ReviewDeps, inp
         break;
       case 'linked':
         await banks.settle(ids, 'linked', input.entryId, input.month);
+        break;
+      case 'reimbursed':
+        // The same "Já me pagou" as the A receber screen (`setReimbursed`), on the day it arrived.
+        await repo.setReimbursed(input.month, input.expenseId, new Date().toISOString());
+        await banks.settle(ids, 'reimbursed', input.expenseId, input.month);
         break;
       case 'ignore':
         await banks.settle(ids, 'ignored', null, null);

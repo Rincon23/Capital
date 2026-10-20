@@ -258,14 +258,17 @@ Marcar como recebido". Um toque usa a mesma rota de hoje
 
 ## Pronto quando
 
-- [ ] Um VIP liga o módulo e conecta os bancos sem sair do Capital, a não ser nos sites da Pluggy
+Todas as fases (F0 a F6) foram feitas em 2026-10-20, uma por commit; o que cada uma entrega está no
+`README.md` (módulo Open Finance e `lib/server/banks`).
+
+- [x] Um VIP liga o módulo e conecta os bancos sem sair do Capital, a não ser nos sites da Pluggy
       e do banco que o próprio app abre; quem não é VIP vê "VIP" e não liga.
-- [ ] O Client Secret fica cifrado, nunca chega ao navegador nem aos logs.
-- [ ] Transações chegam uma vez, sem duplicar; pendente que vira confirmada atualiza.
-- [ ] Conexão parada há mais de 48 h e consentimento perto de vencer geram aviso.
-- [ ] A Reserva pode vir do saldo de qualquer conta conectada que a pessoa marcar, e ela troca
+- [x] O Client Secret fica cifrado, nunca chega ao navegador nem aos logs.
+- [x] Transações chegam uma vez, sem duplicar; pendente que vira confirmada atualiza.
+- [x] Conexão parada há mais de 48 h e consentimento perto de vencer geram aviso.
+- [x] A Reserva pode vir do saldo de qualquer conta conectada que a pessoa marcar, e ela troca
       ou volta a digitar à mão quando quiser.
-- [ ] Avisos de compras, Pix e salário chegam, sem prometer tempo real.
-- [ ] "Confira os gastos" lança com um toque, sugere categoria, pega duplicados e ignora fatura e
+- [x] Avisos de compras, Pix e salário chegam, sem prometer tempo real.
+- [x] "Confira os gastos" lança com um toque, sugere categoria, pega duplicados e ignora fatura e
       transferência entre contas próprias.
-- [ ] Testes e lint passando; README e página de privacidade atualizados.
+- [x] Testes e lint passando; README e página de privacidade atualizados.

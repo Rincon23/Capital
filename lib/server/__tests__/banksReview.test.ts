@@ -260,6 +260,35 @@ describe('"Confira os gastos"', () => {
     expect(review.ignored[0].ignored).toMatchObject({ reason: 'in_plan' });
   });
 
+  it('a Pix that pays back an "A receber" is offered as such, and marking it uses the same "Já me pagou"', async () => {
+    const { repo, banks, deps } = await newPerson();
+    // The "A receber" module on, and an open one: dinner paid for João.
+    await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });
+    const month = day(-3).slice(0, 7);
+    await repo.saveExpense(month, {
+      id: 'jantar',
+      categoryKind: 'reimbursable',
+      description: 'Jantar — João',
+      amount: 50,
+      date: day(-3),
+    });
+    await banks.upsertTransactions([
+      tx({ transactionId: 'pix-joao', amount: 50, type: 'CREDIT', paymentMethod: 'PIX', payerName: 'JOAO SILVA' }),
+    ]);
+
+    const [item] = (await buildReview(deps)).items;
+    expect(item).toMatchObject({
+      kind: 'income',
+      reimbursement: { expenseId: 'jantar', description: 'Jantar — João', amount: 50, month },
+    });
+
+    await applyReviewAction(deps, { action: 'reimbursed', transactionIds: ['pix-joao'], month, expenseId: 'jantar' });
+    expect(await outcomeOf('pix-joao')).toEqual({ outcome: 'reimbursed', entryId: 'jantar' });
+    expect((await repo.pendingReimbursables(month)).map((pending) => pending.expense.id)).toEqual([]);
+    // Nothing else was launched: no income, the dinner is just marked as paid back.
+    expect((await repo.getMonth(month))!.incomes).toEqual([]);
+  });
+
   it('a launch that fails gives the transaction back to the list', async () => {
     const { repo, banks, deps } = await newPerson();
     await banks.upsertTransactions([tx({ transactionId: 'fechado', amount: -20, date: day(-1) })]);
