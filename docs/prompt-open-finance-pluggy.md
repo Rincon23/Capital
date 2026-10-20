@@ -12,8 +12,12 @@ O dono quer conectar os bancos pelo Open Finance para três coisas:
 
 1. **Avisar no celular** quando a pessoa fizer uma compra no cartão ou um Pix.
 2. **Avisar** quando ela receber um Pix ou o salário.
-3. **Deixar um banco como reserva de emergência** (o dono usa a Caixa Econômica): a Reserva passa
-   a se atualizar sozinha pelo saldo desse banco.
+3. **Usar contas conectadas como reserva de emergência**: a Reserva passa a se atualizar sozinha
+   pelo saldo das contas que **a própria pessoa** escolher, de qualquer banco.
+
+**O dono é só um dos usuários.** Os costumes dele não entram no app: ele usa a Caixa como reserva,
+mas outra pessoa pode usar o BTG como reserva e a Caixa como conta do dia a dia. Nenhum banco tem
+papel fixo; tudo é escolha de cada pessoa e editável a qualquer hora.
 
 ## Por que Meu Pluggy (pesquisa feita em 2026-10-20)
 
@@ -44,6 +48,10 @@ O dono quer conectar os bancos pelo Open Finance para três coisas:
 
 ## Decisões que você precisa confirmar com o dono ANTES de implementar
 
+**Respondidas em 2026-10-20:** o nome é **"Open Finance"** (tagline "Seus bancos no Capital, uma
+vez por dia"); nada entra sozinho, cada item entra pela revisão **com um toque, sem "Lançar
+todos"**; os avisos são **um resumo por sincronização e um aviso próprio do salário**.
+
 1. **Nome do módulo.** "Open Finance" é jargão; sugestão: **"Bancos conectados"** (tagline
    "Seus bancos no Capital, uma vez por dia"). Pergunte.
 2. **Gastos e rendas entram sozinhos nos Lançamentos?** Recomendação: **não**; ficam numa caixa
@@ -55,6 +63,15 @@ O dono quer conectar os bancos pelo Open Finance para três coisas:
    R$ 50,00") e um aviso separado só para o **salário**. Pergunte.
 
 ## O que a API da Pluggy faz (verificado em 2026-10-20; confirme na doc antes de usar)
+
+**F0 feita em 2026-10-20:** o que está abaixo foi conferido com a chave do dono, e o resultado
+completo está no `README.md` (seção "Open Finance pelo Meu Pluggy"). Diferenças e novidades:
+
+- O caminho (a) funciona e não precisa de widget. O link de autorização vale **4 minutos** e cada
+  autorização traz **um banco**.
+- `GET /items` responde 401, não `LIST_ITEMS_FEATURE_NOT_ENABLED` (dá no mesmo).
+- A primeira leitura traz ~12 meses.
+- O nome do banco não vem no item: o Capital sugere e a pessoa edita.
 
 Doc: https://docs.pluggy.ai. Fatos levantados (alguns vêm de projetos de terceiros, marcados com *):
 
@@ -100,7 +117,7 @@ o item do Meu Pluggy** — (a) redirecionando a pessoa para uma página da Plugg
 Pluggy Connect. Teste com as credenciais **do dono, que ele mesmo digita no app** (nunca peça para
 colar no chat; você nunca digita credenciais). Lembre que o retorno do OAuth não aceita localhost:
 combine com o dono como testar esse passo pelo endereço HTTPS do servidor. Anote no README o que
-descobriu (incluindo quais campos a Caixa e os outros bancos do dono preenchem de fato) e mostre ao
+descobriu (incluindo quais campos os bancos do dono preenchem de fato) e mostre ao
 dono antes de seguir.
 
 ### F1 — Módulo e conexão guiada, tudo pelo app
@@ -152,14 +169,16 @@ dono antes de seguir.
    e o status, as contas com saldo, os cartões. Uma linha só explicando que o banco manda os dados
    uma vez por dia. "Verificar agora" relê a Pluggy (não força o banco), com limite.
 
-### F3 — Reserva pelo banco (precisa da Reserva ligada)
+### F3 — Reserva pelas contas que a pessoa escolher (precisa da Reserva ligada)
 
 Na engrenagem da tela da Reserva (configuração de módulo fica na tela do módulo): **"Atualizar a
-reserva em conta por um banco conectado"** → a pessoa escolhe uma ou mais contas (ex.: poupança da
-Caixa) e/ou investimentos. A "Reserva em conta" (`cash_settings.reserve_account_amount`, editada em
-`CaixaScreen.tsx`, conta em `lib/budget/cash.ts`) passa a vir da soma desses saldos a cada
-sincronização; o campo fica só leitura com "Atualizado pela Caixa há 5 h" e a opção "Voltar a
-digitar à mão". Se a conexão estiver parada, o valor fica o último conhecido, com o aviso.
+reserva em conta pelos bancos conectados"** → a pessoa marca uma ou mais contas e/ou investimentos,
+**de qualquer banco** (nada vem marcado: o app não supõe qual banco é reserva e qual é do dia a
+dia), e pode desmarcar ou trocar quando quiser. A "Reserva em conta"
+(`cash_settings.reserve_account_amount`, editada em `CaixaScreen.tsx`, conta em
+`lib/budget/cash.ts`) passa a vir da soma desses saldos a cada sincronização; o campo fica só
+leitura com "Atualizado pelo {banco} há 5 h" e a opção "Voltar a digitar à mão". Se a conexão
+estiver parada, o valor fica o último conhecido, com o aviso.
 
 ### F4 — Avisos no celular
 
@@ -204,6 +223,10 @@ Marcar como recebido". Um toque usa a mesma rota de hoje
 
 ## Regras do Capital que valem aqui
 
+- **Nada dos costumes do dono.** Nenhum banco, conta ou cartão tem papel fixo (reserva, conta do dia
+  a dia, salário); cada pessoa escolhe, com um padrão neutro, e muda quando quiser. Nada pode
+  depender de um banco específico.
+
 - Todo recurso é módulo, com tour e botão "?"; o tour **nunca** abre sozinho. Desligar o módulo
   nunca apaga dados.
 - Configurações do módulo ficam na engrenagem da tela dele.
@@ -240,7 +263,8 @@ Marcar como recebido". Um toque usa a mesma rota de hoje
 - [ ] O Client Secret fica cifrado, nunca chega ao navegador nem aos logs.
 - [ ] Transações chegam uma vez, sem duplicar; pendente que vira confirmada atualiza.
 - [ ] Conexão parada há mais de 48 h e consentimento perto de vencer geram aviso.
-- [ ] A Reserva pode vir do saldo da Caixa (ou de qualquer conta escolhida).
+- [ ] A Reserva pode vir do saldo de qualquer conta conectada que a pessoa marcar, e ela troca
+      ou volta a digitar à mão quando quiser.
 - [ ] Avisos de compras, Pix e salário chegam, sem prometer tempo real.
 - [ ] "Confira os gastos" lança com um toque, sugere categoria, pega duplicados e ignora fatura e
       transferência entre contas próprias.

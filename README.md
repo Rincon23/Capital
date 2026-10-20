@@ -616,6 +616,68 @@ O servidor guarda, cifrado, o acesso de leitura ao e-mail de cada pessoa que con
 administra o servidor precisa ser de confiança para elas. Cada conta gasta poucas chamadas por
 minuto, quase só espera de rede.
 
+### Open Finance pelo Meu Pluggy (`lib/server/banks`) — em construção
+
+Só leitura. Cada pessoa usa a própria aplicação grátis da Pluggy (o Client ID e o Secret são
+dela); o servidor não tem chave da Pluggy. `lib/server/banks/pluggy.ts` fala com
+`https://api.pluggy.ai` por `fetch`, sem SDK. Enquanto o módulo não existe, `/bancos/teste` (só em
+desenvolvimento, só VIP) testa a API com a chave digitada na própria página e devolve só o formato
+das respostas, nunca valores (`lib/server/banks/probe.ts`). O plano por fases está em
+`docs/prompt-open-finance-pluggy.md`.
+
+**Como a pessoa conecta:** os bancos se conectam **uma vez** em meu.pluggy.ai (a autorização é no
+app do banco). O dashboard.pluggy.ai só cria a chave: uma aplicação com o conector MeuPluggy
+ativo. O aviso de "teste de 15 dias" não vale para uso pessoal. No Capital, cada banco é **uma
+autorização** no meu.pluggy.ai, sem passar de novo pelo banco. São até 5 conexões, do mesmo
+titular, e os dados chegam uma vez por dia.
+
+**O que a F0 conferiu na API (2026-10-20, com BTG, Nubank e um cartão Amazon Mastercard; a Caixa
+não conectou nem no próprio Meu Pluggy):**
+
+- **A conexão se cria sem widget.** `POST /items` com `connectorId: 200`, `parameters: {}`,
+  `oauthRedirectUri` (HTTPS, nunca localhost) e `clientUserId`. Em menos de 1 s, o item fica
+  `WAITING_USER_INPUT` e o endereço de autorização chega em `parameter.data` (`type: "oauth"`).
+  **Esse endereço vale 4 minutos**: crie o item só quando a pessoa tocar e mande-a direto para lá.
+  A pessoa escolhe **um banco** em meu.pluggy.ai e volta pelo `oauthRedirectUri`. Em ~1,5 min o
+  item fica `UPDATED`/`SUCCESS`. Não precisa do script do Pluggy Connect nem de mudança no CSP.
+- O conector 200 é o `MeuPluggy` (`PERSONAL_BANK`, `oauth: true`, sem credenciais). Ele marca
+  `isOpenFinance: false` por ser um repasse, mas os dados por baixo são Open Finance.
+- `POST /auth` devolve um `apiKey` (JWT) que vale **2 h**. `POST /connect_token` recusa
+  localhost ("must be a valid HTTPS URL (not localhost) or a valid deep link").
+- `GET /items` (listar) responde **401**, então o Capital guarda os ids dos itens que ele cria.
+  `PATCH /items/{id}` responde **400 "MeuPluggy item cant be updated"**: não dá para forçar a
+  atualização.
+- No item, `lastUpdatedAt` é a última sincronização do Meu Pluggy com o banco (pode ser anterior à
+  criação do item), `nextAutoSyncAt` cai ~24 h depois e `consentExpiresAt` fica 1 ano após a
+  autorização. Também vêm `autoSyncDisabledAt`, `consecutiveFailedLoginAttempts`,
+  `hasResourcesPendingAuthorization` e `resourcesCollectedAt`.
+- **O nome do banco não vem no item**: o conector é sempre "MeuPluggy". Conta bancária traz `name`
+  ("BTG Banking", "Nu Pagamentos S.A. …") e o código do banco no começo de
+  `bankData.transferNumber` (208, 260). Um cartão sozinho traz só o nome do cartão ("AMAZON
+  MASTERCARD PLATINUM"). O Capital sugere o nome e a pessoa edita.
+- `GET /v2/transactions` pagina por `next`. `page`/`pageSize` respondem **400**, e a v1
+  (`/transactions`) responde **410** `ENDPOINT_DEPRECATED`. A primeira leitura traz **~12 meses**.
+- Campos das transações:
+  - sempre preenchidos nos três bancos: `description`, `descriptionRaw`, `category`, `operationType`
+    e `paymentData.paymentMethod` (este, nas contas);
+  - quase sempre vazio: `merchant`;
+  - nunca preenchido: `balance` (o saldo depois da transação);
+  - pagador e recebedor vêm com documento (CPF/CNPJ) muito mais vezes do que com nome.
+- **Cartão:**
+  - compra: valor positivo, `type: DEBIT`;
+  - pagamento de fatura: negativo, `CREDIT`, `operationType: PAGAMENTO_FATURA` e categoria
+    "Credit card payment";
+  - estorno: negativo, `operationType: ESTORNO`;
+  - parcelada: os três mandaram juntos `installmentNumber`, `totalInstallments` e `purchaseDate`.
+  - `PENDING` no cartão quer dizer "ainda sem fatura fechada" (`billId` vazio). Num cartão era a
+    maioria, inclusive compras antigas: não trate como "vai virar POSTED logo".
+- Pistas para separar o que não é gasto: `TRANSFERENCIA_MESMA_INSTITUICAO` e a categoria "Same
+  person transfer" (entre contas próprias); `APLICACAO_FINANCEIRA`, `RESGATE_APLIC_FINANCEIRA` e
+  `RENDIMENTO_APLIC_FINANCEIRA` (investimento); `PORTABILIDADE_SALARIO` (salário portado);
+  `TARIFA_SERVICOS_AVULSOS` (tarifa).
+- `GET /bills` só traz faturas **fechadas**, com os pagamentos de cada uma. `GET /investments`
+  traz ações, FIIs, Tesouro, CDB, LCI e LCA com `name` e `balance`; `institution` vem vazio.
+
 ### IA local (`lib/server/ai`)
 
 Whisper (whisper.cpp, `WHISPER_URL`, com `--convert` para aceitar o webm do navegador) e Ollama
@@ -774,6 +836,9 @@ Os demais testes:
   (maiúsculas, acentos, remetente, prévia), um aviso por e-mail com todas as palavras e nunca
   repetido, e-mails enviados e spam ignorados, `historyId` expirado, conexão recusada (avisa uma
   vez e para), token cifrado e o `state` do OAuth, com o Gmail simulado.
+- **`lib/server/__tests__/pluggy.test.ts`:** a API da Pluggy simulada com respostas no formato real
+  (campos nulos, cartão com sinal invertido, parcela sem número, paginação por `next`, `next` que
+  aponta para fora da Pluggy) e a F0, que nunca devolve valores, a chave nem o token.
 - **`lib/modules/__tests__`:** o catálogo, as dependências (filho travado sem o pai, o que ligar
   antes e em que ordem, desligar em cascata, a árvore), os kits do primeiro acesso, o Primeiros
   passos (quem recebe, como cada passo se marca, quando some), a bandeja de apps, as áreas da Início
