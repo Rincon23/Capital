@@ -3,20 +3,25 @@ import { categoryOptions } from '@/lib/ai';
 import {
   findDuplicate,
   findDuplicateIncome,
-  findReimbursement,
   groupInstallments,
   IGNORE_LABELS,
   ignoreReason,
   matchingPlan,
   memoryKey,
+  paybackMemory,
+  paybackTolerance,
+  payerKey,
+  reimbursementCandidates,
   reviewKind,
   suggestCategory,
   type BankReview,
   type CategoryChoice,
   type LaunchedExpense,
+  type PaybackOption,
   type ReviewItem,
 } from '@/lib/banks';
-import { nextMonth, presetOf, previousMonth } from '@/lib/budget';
+import { nextMonth, presetOf, previousMonth, round2 } from '@/lib/budget';
+import { createId } from '@/lib/budget/id';
 import { isModuleOn } from '@/lib/modules';
 import { zonedToday } from '@/lib/reminders/time';
 import type { Expense, Income, InstallmentPlan, Month } from '@/lib/budget';
@@ -90,6 +95,8 @@ export async function buildReview({ banks, repo, wallet }: ReviewDeps): Promise<
   const pendingBack: LaunchedExpense[] = isModuleOn(settings, 'reimbursable')
     ? await repo.pendingReimbursables(zonedToday().slice(0, 7))
     : [];
+  // Who paid back what before: a payer the person already confirmed is recognised.
+  const paidBack = pendingBack.length > 0 ? paybackMemory(await banks.paybackHistory()) : new Map();
 
   const launched: LaunchedExpense[] = [];
   const incomes: { month: Month; income: Income }[] = [];
@@ -129,16 +136,22 @@ export async function buildReview({ banks, repo, wallet }: ReviewDeps): Promise<
     const kind = reviewKind(row);
     if (kind === 'plan' && !reason) continue;
     const base = baseItem(row, [row.id]);
-    const payback = kind === 'income' && !reason ? findReimbursement(base, pendingBack, taken) : null;
-    if (payback) {
-      // One "A receber" is offered to one Pix at most.
-      taken.add(payback.expense.id);
-      base.reimbursement = {
-        month: payback.month,
-        expenseId: payback.expense.id,
-        description: payback.expense.description,
-        amount: payback.expense.amount,
-      };
+    const payer = payerKey(row);
+    const paybacks =
+      kind === 'income' && !reason
+        ? reimbursementCandidates(base, pendingBack, taken, payer ? paidBack.get(payer) : undefined)
+        : [];
+    if (paybacks.length > 0) {
+      const option = ({ month, expense }: LaunchedExpense): PaybackOption => ({
+        month,
+        expenseId: expense.id,
+        description: expense.description,
+        amount: expense.amount,
+        difference: round2(base.amount - expense.amount),
+      });
+      // One "A receber" is offered first to one Pix at most (the others stay a tap away).
+      taken.add(paybacks[0].expense.id);
+      base.reimbursement = { ...option(paybacks[0]), others: paybacks.slice(1, 6).map(option) };
     }
     const duplicate =
       reason !== null
@@ -226,9 +239,7 @@ export async function applyReviewAction({ banks, repo, wallet }: ReviewDeps, inp
         await banks.settle(ids, 'linked', input.entryId, input.month);
         break;
       case 'reimbursed':
-        // The same "Já me pagou" as the A receber screen (`setReimbursed`), on the day it arrived.
-        await repo.setReimbursed(input.month, input.expenseId, new Date().toISOString());
-        await banks.settle(ids, 'reimbursed', input.expenseId, input.month);
+        await settlePayback({ banks, repo }, ids, input.month, input.expenseId);
         break;
       case 'ignore':
         await banks.settle(ids, 'ignored', null, null);
@@ -241,4 +252,49 @@ export async function applyReviewAction({ banks, repo, wallet }: ReviewDeps, inp
     await banks.release(ids);
     throw err;
   }
+}
+
+/**
+ * "Marcar como recebido": the same "Já me pagou" as the A receber screen (`setReimbursed`). A Pix a
+ * little off settles it too (`paybackTolerance`): what came beyond it becomes an income, and what
+ * was missing an expense in Imprevistos, on the day of the Pix — both saved first, by the forms'
+ * own functions, so a closed month refuses the whole thing.
+ */
+async function settlePayback(
+  { banks, repo }: Pick<ReviewDeps, 'banks' | 'repo'>,
+  ids: string[],
+  month: Month,
+  expenseId: string,
+): Promise<void> {
+  const owed = (await repo.pendingReimbursables(month)).find(
+    (pending) => pending.month === month && pending.expense.id === expenseId,
+  );
+  if (!owed) throw new HttpError(404, 'NOT_FOUND', 'Esse A receber não existe mais ou já foi recebido.');
+  const paid = await banks.paidIn(ids);
+  if (!paid) throw new HttpError(404, 'NOT_FOUND', 'Essa transação não está mais no Capital.');
+  const difference = round2(paid.amount - owed.expense.amount);
+  if (Math.abs(difference) > paybackTolerance(owed.expense.amount) + 0.009) {
+    throw new HttpError(400, 'TOO_FAR', 'O valor do Pix está longe demais desse A receber.');
+  }
+  const day = paid.date;
+  const { description } = owed.expense;
+  if (difference >= 0.01) {
+    await repo.saveIncome(day.slice(0, 7), {
+      id: createId(),
+      source: `Devolução a mais: ${description}`,
+      amount: difference,
+      date: day,
+    });
+  } else if (difference <= -0.01) {
+    await repo.saveExpense(day.slice(0, 7), {
+      id: createId(),
+      categoryKind: 'unforeseen',
+      description: `Faltou na devolução: ${description}`,
+      amount: -difference,
+      date: day,
+      source: 'import',
+    });
+  }
+  await repo.setReimbursed(month, expenseId, new Date().toISOString());
+  await banks.settle(ids, 'reimbursed', expenseId, month);
 }

@@ -13,12 +13,13 @@ import { useSettings } from '@/components/providers/SettingsProvider';
 import { Chip } from '@/components/ui/Chip';
 import { useToast } from '@/components/ui/Toast';
 import { useWallet, WalletProvider } from '@/components/wallet/WalletProvider';
-import { entryDescription, tidyName, type BankReview, type ReviewItem } from '@/lib/banks';
+import { entryDescription, tidyName, type BankReview, type PaybackOption, type ReviewItem } from '@/lib/banks';
 import {
   formatBRL,
   formatDayMonth,
   formatMonthLabel,
   nextChargeDate,
+  specialCategoryLabel,
   type CardBill,
   type Expense,
   type Income,
@@ -112,6 +113,8 @@ function Review() {
   }
 
   const cardOn = isModuleOn(settings, 'card');
+  // Where what was missing from a payback goes (the person may have renamed it).
+  const unforeseenLabel = specialCategoryLabel('unforeseen', settings.specialCategories);
   const budgetOn = isModuleOn(settings, 'budget');
 
   /** Sends a decision; errors go back to whoever asked (a form shows them, a tap toasts them). */
@@ -268,16 +271,17 @@ function Review() {
                   busy={busy !== null}
                   showDuplicate={item.duplicate !== null && !notSame.has(item.key)}
                   showPayback={item.reimbursement !== null && !notPayback.has(item.key)}
-                  onPayback={() =>
+                  unforeseenLabel={unforeseenLabel}
+                  onPayback={(option) =>
                     void tap(
                       item,
                       {
                         action: 'reimbursed',
                         transactionIds: item.transactionIds,
-                        month: item.reimbursement!.month,
-                        expenseId: item.reimbursement!.expenseId,
+                        month: option.month,
+                        expenseId: option.expenseId,
                       },
-                      `Pronto: “${item.reimbursement!.description}” marcado como recebido.`,
+                      paybackDone(option, unforeseenLabel),
                     )
                   }
                   onNotPayback={() => setNotPayback((current) => new Set(current).add(item.key))}
@@ -481,11 +485,33 @@ function Review() {
   );
 }
 
+/** What "Marcar como recebido" did, said back. */
+function paybackDone(option: PaybackOption, unforeseenLabel: string): string {
+  const what = `“${option.description}”`;
+  if (option.difference >= 0.01) {
+    return `Pronto: ${what} recebido, e ${formatBRL(option.difference)} a mais entraram como renda.`;
+  }
+  if (option.difference <= -0.01) {
+    return `Pronto: ${what} recebido, e ${formatBRL(-option.difference)} que faltaram foram para ${unforeseenLabel}.`;
+  }
+  return `Pronto: ${what} marcado como recebido.`;
+}
+
+/** Under "É a devolução de…?": what happens to a Pix a little off. */
+function differenceLine(option: PaybackOption, unforeseenLabel: string): string | null {
+  if (option.difference >= 0.01) return `Os ${formatBRL(option.difference)} a mais entram como renda.`;
+  if (option.difference <= -0.01) {
+    return `Os ${formatBRL(-option.difference)} que faltaram entram como gasto em ${unforeseenLabel}.`;
+  }
+  return null;
+}
+
 function ReviewRow({
   item,
   busy,
   showDuplicate,
   showPayback,
+  unforeseenLabel,
   onPayback,
   onNotPayback,
   onLaunch,
@@ -498,7 +524,8 @@ function ReviewRow({
   busy: boolean;
   showDuplicate: boolean;
   showPayback: boolean;
-  onPayback: () => void;
+  unforeseenLabel: string;
+  onPayback: (option: PaybackOption) => void;
   onNotPayback: () => void;
   onLaunch: () => void;
   onEdit: () => void;
@@ -507,6 +534,8 @@ function ReviewRow({
   onNotSame: () => void;
 }) {
   const income = item.kind === 'income';
+  /** "É outro A receber": the other open ones close enough in value. */
+  const [otherPaybacks, setOtherPaybacks] = useState(false);
   const launchLabel = income
     ? 'Lançar renda'
     : item.kind === 'plan'
@@ -547,14 +576,57 @@ function ReviewRow({
           <p className="text-success">
             É a devolução de “{item.reimbursement.description}” ({formatBRL(item.reimbursement.amount)})?
           </p>
+          {differenceLine(item.reimbursement, unforeseenLabel) && (
+            <p className="text-foreground text-xs">{differenceLine(item.reimbursement, unforeseenLabel)}</p>
+          )}
           <div className="flex gap-2">
-            <button type="button" disabled={busy} onClick={onPayback} className={primaryButton}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => item.reimbursement && onPayback(item.reimbursement)}
+              className={primaryButton}
+            >
               Marcar como recebido
             </button>
             <button type="button" disabled={busy} onClick={onNotPayback} className={`${quietButton} flex-1`}>
               É outra coisa
             </button>
           </div>
+          {item.reimbursement.others.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setOtherPaybacks((open) => !open)}
+              aria-expanded={otherPaybacks}
+              className="text-primary flex min-h-[36px] items-center gap-1 self-start text-sm font-semibold"
+            >
+              <ChevronDown aria-hidden className={`h-4 w-4 transition-transform ${otherPaybacks ? 'rotate-180' : ''}`} />
+              É outro A receber
+            </button>
+          )}
+          {otherPaybacks && (
+            <ul className="divide-border flex flex-col divide-y">
+              {item.reimbursement.others.map((option) => (
+                <li key={option.expenseId} className="flex items-center gap-2 py-1.5">
+                  <span className="min-w-0 flex-1">
+                    <span className="text-foreground block truncate">
+                      {option.description} · {formatBRL(option.amount)}
+                    </span>
+                    {differenceLine(option, unforeseenLabel) && (
+                      <span className="text-muted block text-xs">{differenceLine(option, unforeseenLabel)}</span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => onPayback(option)}
+                    className={`${quietButton} min-h-[36px] shrink-0`}
+                  >
+                    É este
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       ) : showDuplicate && item.duplicate ? (
         <div className="bg-warning-bg flex flex-col gap-2 rounded-lg px-3 py-2 text-sm">

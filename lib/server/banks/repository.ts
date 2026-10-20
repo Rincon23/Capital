@@ -17,6 +17,8 @@ import {
   type BankHolding,
   type BankHoldings,
   type HoldingsBank,
+  payerKey,
+  type PaybackHistory,
 } from '@/lib/banks';
 import { round2 } from '@/lib/budget/money';
 import {
@@ -28,6 +30,7 @@ import {
   bankSettings,
   bankTransactions,
   cashSettings,
+  expenses,
   investmentReserves,
 } from '../db/schema';
 import type { Database } from '../db/types';
@@ -493,6 +496,7 @@ export class PostgresBanksRepository {
         operationType: bankTransactions.operationType,
         paymentMethod: bankTransactions.paymentMethod,
         payerName: bankTransactions.payerName,
+        payerDocument: bankTransactions.payerDocument,
         receiverName: bankTransactions.receiverName,
         merchantName: bankTransactions.merchantName,
         installmentNumber: bankTransactions.installmentNumber,
@@ -619,6 +623,46 @@ export class PostgresBanksRepository {
           eq(bankTransactions.outcome, 'launching'),
         ),
       );
+  }
+
+  /** What a few transactions add up to (always positive) and the day of the last one: a Pix being reviewed. */
+  async paidIn(transactionIds: string[]): Promise<{ amount: number; date: string } | null> {
+    const rows = await this.db
+      .select({ amount: bankTransactions.amount, date: bankTransactions.date })
+      .from(bankTransactions)
+      .where(and(eq(bankTransactions.userId, this.userId), inArray(bankTransactions.transactionId, transactionIds)));
+    if (rows.length === 0) return null;
+    return {
+      amount: round2(rows.reduce((sum, row) => sum + Math.abs(row.amount), 0)),
+      date: rows.map((row) => row.date).sort()[rows.length - 1],
+    };
+  }
+
+  /**
+   * Who paid back which "A receber" before ("Marcar como recebido"): the Pix's payer and the
+   * description of the "A receber" it settled, for the review to recognise the payer next time.
+   */
+  async paybackHistory(): Promise<PaybackHistory[]> {
+    const rows = await this.db
+      .select({
+        payerDocument: bankTransactions.payerDocument,
+        payerName: bankTransactions.payerName,
+        description: expenses.description,
+      })
+      .from(bankTransactions)
+      .innerJoin(
+        expenses,
+        and(
+          eq(expenses.userId, bankTransactions.userId),
+          eq(expenses.id, bankTransactions.entryId),
+          eq(expenses.month, bankTransactions.entryMonth),
+        ),
+      )
+      .where(and(eq(bankTransactions.userId, this.userId), eq(bankTransactions.outcome, 'reimbursed')));
+    return rows.flatMap((row) => {
+      const payer = payerKey(row);
+      return payer ? [{ payer, description: row.description }] : [];
+    });
   }
 
   async descriptionOf(transactionId: string): Promise<string | null> {

@@ -30,6 +30,8 @@ export interface ReviewTransaction {
   operationType: string | null;
   paymentMethod: string | null;
   payerName: string | null;
+  /** The payer's CPF/CNPJ (the bank sends it far more often than a name): who paid an "A receber" back. */
+  payerDocument?: string | null;
   receiverName: string | null;
   merchantName: string | null;
   installmentNumber: number | null;
@@ -339,9 +341,25 @@ export interface ReviewItem {
   } | null;
   /** A manual entry this looks like ("É o mesmo" ties them). */
   duplicate: { month: Month; entryId: string; description: string; amount: number; date: string } | null;
-  /** Money in that looks like an "A receber" being paid back ("Marcar como recebido"). */
-  reimbursement: { month: Month; expenseId: string; description: string; amount: number } | null;
+  /**
+   * Money in that looks like an "A receber" being paid back ("Marcar como recebido"), and the other
+   * open ones close enough in value ("É outro A receber").
+   */
+  reimbursement: (PaybackOption & { others: PaybackOption[] }) | null;
   ignored: { reason: IgnoreReason; label: string } | null;
+}
+
+/** An "A receber" a Pix may pay back. */
+export interface PaybackOption {
+  month: Month;
+  expenseId: string;
+  description: string;
+  amount: number;
+  /**
+   * The Pix minus the "A receber": above 0 the rest becomes an income, below 0 what was missing
+   * becomes an expense in Imprevistos, both when the person confirms.
+   */
+  difference: number;
 }
 
 /** A bank card the person ties once to a Capital card (or to "não informado"). */
@@ -391,31 +409,97 @@ export function findDuplicate(
 }
 
 /**
- * The "A receber" a Pix received may be paying back: one still open, of the same amount. With more
- * than one, the payer's name in its description wins ("Jantar — João" for a Pix from João Silva);
- * with none named, the most recent. Only ever a suggestion.
+ * How far a Pix can be from an "A receber" and still be offered as paying it back: 10% of it, or
+ * R$ 5 when that is more (R$ 35,67 takes a Pix from R$ 30,67 to R$ 40,67). People round.
  */
+export function paybackTolerance(owed: number): number {
+  return Math.max(5, round2(owed * 0.1));
+}
+
+/** The words that can say who someone is: folded, three letters or more ("Jantar — João" → jantar, joao). */
+function nameWords(text: string | null | undefined): string[] {
+  return foldText(text ?? '')
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length >= 3);
+}
+
+/** Who paid a Pix: their document when the bank sent one (it usually does), else their name. */
+export function payerKey(payer: { payerDocument?: string | null; payerName?: string | null }): string | null {
+  const document = payer.payerDocument?.trim();
+  if (document) return `doc:${document}`;
+  const name = nameWords(payer.payerName).join(' ');
+  return name ? `name:${name}` : null;
+}
+
+/** An "A receber" the person once said a payer paid back. */
+export interface PaybackHistory {
+  payer: string;
+  /** The description of that "A receber" ("Jantar — João"). */
+  description: string;
+}
+
+/**
+ * What the person taught the review, like the category memory of the expenses: for each payer,
+ * the words of the "A receber" they paid back, with how often. A name keeps coming back ("joao"
+ * in "Jantar — João" and "Uber — João"); what was bought changes.
+ */
+export function paybackMemory(history: PaybackHistory[]): Map<string, Map<string, number>> {
+  const memory = new Map<string, Map<string, number>>();
+  for (const { payer, description } of history) {
+    const words = memory.get(payer) ?? new Map<string, number>();
+    for (const word of new Set(nameWords(description))) words.set(word, (words.get(word) ?? 0) + 1);
+    memory.set(payer, words);
+  }
+  return memory;
+}
+
+/**
+ * The "A receber" a Pix received may be paying back, best first: the ones still open within
+ * `paybackTolerance` of it. First the one that says who paid — the payer's name in its description
+ * ("Jantar — João" for a Pix from João Silva), or the words of what this payer paid back before —
+ * then the closest amount, then the most recent. Only ever a suggestion.
+ */
+export function reimbursementCandidates(
+  item: { amount: number; payer: string | null },
+  pending: LaunchedExpense[],
+  taken: Set<string>,
+  learned: Map<string, number> = new Map(),
+): LaunchedExpense[] {
+  const names = nameWords(item.payer);
+  const known = (description: string) => {
+    const words = new Set(nameWords(description));
+    return names.filter((word) => words.has(word)).length * 100 + [...words].reduce((sum, word) => sum + (learned.get(word) ?? 0), 0);
+  };
+  const near = pending
+    .filter(
+      ({ expense }) =>
+        expense.categoryKind === 'reimbursable' &&
+        !expense.reimbursedAt &&
+        !taken.has(expense.id) &&
+        Math.abs(expense.amount - item.amount) <= paybackTolerance(expense.amount) + 0.009,
+    )
+    .map((candidate) => ({
+      candidate,
+      known: known(candidate.expense.description),
+      // An exact amount is exact, whatever cents a float carries.
+      off: Math.round(Math.abs(candidate.expense.amount - item.amount) * 100),
+    }));
+  return near
+    .sort(
+      (a, b) =>
+        b.known - a.known || a.off - b.off || b.candidate.expense.date.localeCompare(a.candidate.expense.date),
+    )
+    .map(({ candidate }) => candidate);
+}
+
+/** The best of `reimbursementCandidates`, or null. */
 export function findReimbursement(
   item: { amount: number; payer: string | null },
   pending: LaunchedExpense[],
   taken: Set<string>,
+  learned?: Map<string, number>,
 ): LaunchedExpense | null {
-  const sameAmount = pending.filter(
-    ({ expense }) =>
-      expense.categoryKind === 'reimbursable' &&
-      !expense.reimbursedAt &&
-      !taken.has(expense.id) &&
-      Math.abs(expense.amount - item.amount) <= 0.009,
-  );
-  if (sameAmount.length === 0) return null;
-  const names = foldText(item.payer ?? '')
-    .split(/\s+/)
-    .filter((word) => word.length >= 3);
-  const named = sameAmount.find(({ expense }) => {
-    const description = foldText(expense.description);
-    return names.some((word) => new RegExp(`\\b${word}\\b`).test(description));
-  });
-  return named ?? [...sameAmount].sort((a, b) => b.expense.date.localeCompare(a.expense.date))[0];
+  return reimbursementCandidates(item, pending, taken, learned)[0] ?? null;
 }
 
 /** The same for money in: an income of the same amount within 2 days. */

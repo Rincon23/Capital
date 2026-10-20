@@ -289,6 +289,63 @@ describe('"Confira os gastos"', () => {
     expect((await repo.getMonth(month))!.incomes).toEqual([]);
   });
 
+  it('a Pix a little off settles an "A receber": the rest becomes income, what was missing Imprevistos', async () => {
+    const { repo, banks, deps } = await newPerson();
+    await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });
+    const month = day(-3).slice(0, 7);
+    const owe = (id: string, description: string, amount: number) =>
+      repo.saveExpense(month, { id, categoryKind: 'reimbursable', description, amount, date: day(-3) });
+    await owe('jantar', 'Jantar — João', 35.67);
+    await owe('cinema', 'Cinema — Maria', 52.4);
+    await banks.upsertTransactions([
+      tx({ transactionId: 'pix-36', amount: 36, type: 'CREDIT', paymentMethod: 'PIX', payerDocument: '***111***' }),
+      tx({ transactionId: 'pix-50', amount: 50, type: 'CREDIT', paymentMethod: 'PIX', payerDocument: '***222***' }),
+    ]);
+
+    const review = await buildReview(deps);
+    const byId = (id: string) => review.items.find((item) => item.transactionIds[0] === id)!;
+    expect(byId('pix-36').reimbursement).toMatchObject({ expenseId: 'jantar', difference: 0.33, others: [] });
+    expect(byId('pix-50').reimbursement).toMatchObject({ expenseId: 'cinema', difference: -2.4 });
+
+    await applyReviewAction(deps, { action: 'reimbursed', transactionIds: ['pix-36'], month, expenseId: 'jantar' });
+    await applyReviewAction(deps, { action: 'reimbursed', transactionIds: ['pix-50'], month, expenseId: 'cinema' });
+    expect((await repo.pendingReimbursables(month)).map((pending) => pending.expense.id)).toEqual([]);
+    const pixMonth = day(-1).slice(0, 7);
+    const data = (await repo.getMonth(pixMonth))!;
+    expect(data.incomes).toEqual([
+      expect.objectContaining({ source: 'Devolução a mais: Jantar — João', amount: 0.33, date: day(-1) }),
+    ]);
+    expect(data.expenses.filter((expense) => expense.categoryKind === 'unforeseen')).toEqual([
+      expect.objectContaining({ description: 'Faltou na devolução: Cinema — Maria', amount: 2.4, date: day(-1) }),
+    ]);
+
+    // Next time the same CPF sends a Pix, the "A receber" that speaks of João comes first.
+    await owe('uber-maria', 'Uber — Maria', 20);
+    await owe('uber-joao', 'Uber — João', 21);
+    await banks.upsertTransactions([
+      tx({ transactionId: 'pix-20', amount: 20, type: 'CREDIT', paymentMethod: 'PIX', payerDocument: '***111***' }),
+    ]);
+    const [again] = (await buildReview(deps)).items;
+    expect(again.reimbursement).toMatchObject({
+      expenseId: 'uber-joao',
+      difference: -1,
+      others: [expect.objectContaining({ expenseId: 'uber-maria', difference: 0 })],
+    });
+  });
+
+  it('refuses an "A receber" too far from the Pix, and launches nothing', async () => {
+    const { repo, banks, deps } = await newPerson();
+    await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });
+    const month = day(-3).slice(0, 7);
+    await repo.saveExpense(month, { id: 'viagem', categoryKind: 'reimbursable', description: 'Viagem', amount: 300, date: day(-3) });
+    await banks.upsertTransactions([tx({ transactionId: 'pix-10', amount: 10, type: 'CREDIT', paymentMethod: 'PIX' })]);
+    await expect(
+      applyReviewAction(deps, { action: 'reimbursed', transactionIds: ['pix-10'], month, expenseId: 'viagem' }),
+    ).rejects.toMatchObject({ code: 'TOO_FAR' });
+    expect(await outcomeOf('pix-10')).toEqual({ outcome: null, entryId: null });
+    expect((await repo.pendingReimbursables(month)).map((pending) => pending.expense.id)).toEqual(['viagem']);
+  });
+
   it('a launch that fails gives the transaction back to the list', async () => {
     const { repo, banks, deps } = await newPerson();
     await banks.upsertTransactions([tx({ transactionId: 'fechado', amount: -20, date: day(-1) })]);

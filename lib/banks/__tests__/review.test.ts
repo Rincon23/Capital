@@ -10,6 +10,10 @@ import {
   ignoreReason,
   matchingPlan,
   memoryKey,
+  paybackMemory,
+  paybackTolerance,
+  payerKey,
+  reimbursementCandidates,
   reviewKind,
   suggestCategory,
   type ReviewTransaction,
@@ -211,8 +215,63 @@ describe('"Parece que você já lançou isso"', () => {
     expect(findReimbursement({ amount: 50, payer: 'JOAO SILVA' }, pending, new Set())?.expense.id).toBe('jantar-joao');
     // Nobody named: the most recent one still open.
     expect(findReimbursement({ amount: 50, payer: null }, pending, new Set())?.expense.id).toBe('jantar-maria');
-    expect(findReimbursement({ amount: 51, payer: 'JOAO' }, pending, new Set())).toBeNull();
+    expect(findReimbursement({ amount: 56, payer: 'JOAO' }, pending, new Set())).toBeNull();
     expect(findReimbursement({ amount: 50, payer: 'JOAO' }, pending, new Set(['jantar-joao', 'jantar-maria']))).toBeNull();
+  });
+
+  it('a Pix a little off still pays an "A receber" back: 10% of it, or R$ 5 when that is more', () => {
+    expect(paybackTolerance(35.67)).toBe(5);
+    expect(paybackTolerance(500)).toBe(50);
+    const owed = (id: string, amount: number, date = '2026-10-10', description = 'Jantar') => ({
+      month: '2026-10',
+      expense: expense({ id, categoryKind: 'reimbursable', topicId: undefined, description, amount, date }),
+    });
+    const pending = [owed('jantar', 35.67)];
+    expect(findReimbursement({ amount: 36, payer: null }, pending, new Set())?.expense.id).toBe('jantar');
+    expect(findReimbursement({ amount: 40.67, payer: null }, pending, new Set())?.expense.id).toBe('jantar');
+    expect(findReimbursement({ amount: 30.67, payer: null }, pending, new Set())?.expense.id).toBe('jantar');
+    expect(findReimbursement({ amount: 40.68, payer: null }, pending, new Set())).toBeNull();
+    expect(findReimbursement({ amount: 549, payer: null }, [owed('viagem', 500)], new Set())?.expense.id).toBe('viagem');
+    expect(findReimbursement({ amount: 551, payer: null }, [owed('viagem', 500)], new Set())).toBeNull();
+    // Nobody recognised: the closest amount first, then the most recent.
+    const near = [owed('cinema', 38, '2026-10-15'), owed('uber', 36, '2026-10-01'), owed('lanche', 36, '2026-10-05')];
+    expect(reimbursementCandidates({ amount: 36, payer: null }, near, new Set()).map((c) => c.expense.id)).toEqual([
+      'lanche',
+      'uber',
+      'cinema',
+    ]);
+  });
+
+  it('learns who paid back what, like the categories of the expenses', () => {
+    expect(payerKey({ payerDocument: ' ***123456** ', payerName: 'João' })).toBe('doc:***123456**');
+    expect(payerKey({ payerDocument: null, payerName: 'JOÃO  da SILVA' })).toBe('name:joao silva');
+    expect(payerKey({ payerDocument: null, payerName: null })).toBeNull();
+
+    const memory = paybackMemory([
+      { payer: 'doc:1', description: 'Jantar — João' },
+      { payer: 'doc:1', description: 'Uber — João' },
+      { payer: 'doc:2', description: 'Cinema — Maria' },
+    ]);
+    expect(memory.get('doc:1')).toEqual(
+      new Map([
+        ['jantar', 1],
+        ['joao', 2],
+        ['uber', 1],
+      ]),
+    );
+    const owed = (id: string, description: string, amount: number, date: string) => ({
+      month: '2026-10',
+      expense: expense({ id, categoryKind: 'reimbursable', topicId: undefined, description, amount, date }),
+    });
+    const pending = [owed('maria', 'Pizza — Maria', 40, '2026-10-15'), owed('joao', 'Pizza — João', 42, '2026-10-10')];
+    // The bank sent only the CPF: what this payer paid before points at João, even a little further off.
+    expect(findReimbursement({ amount: 40, payer: null }, pending, new Set(), memory.get('doc:1'))?.expense.id).toBe(
+      'joao',
+    );
+    expect(findReimbursement({ amount: 40, payer: null }, pending, new Set(), memory.get('doc:2'))?.expense.id).toBe(
+      'maria',
+    );
+    expect(findReimbursement({ amount: 40, payer: null }, pending, new Set())?.expense.id).toBe('maria');
   });
 
   it('and for money in', () => {

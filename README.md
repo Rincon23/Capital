@@ -381,11 +381,19 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
       "Lançar mesmo assim" e "Tirar da lista", e há "Tirar todos da lista";
     - **fatura**: um pagamento de fatura que bate com uma fatura em aberto sugere "Marcar a fatura
       de out (Nubank) como paga?", sempre com um toque. Nenhuma fatura sai sozinha;
-    - **A receber** (com o módulo ligado): um Pix recebido com o mesmo valor de um "A receber" em
-      aberto pergunta "É a devolução de 'Jantar — João' (R$ 50,00)?". Se mais de um tem o mesmo
-      valor, ganha o que tem o nome de quem pagou; sem nome, o mais recente. "Marcar como
-      recebido" usa o mesmo "Já me pagou" da tela do A receber; "É outra coisa" volta a oferecer
-      a renda. Nunca automático.
+    - **A receber** (com o módulo ligado): um Pix recebido perto do valor de um "A receber" em
+      aberto pergunta "É a devolução de 'Jantar — João' (R$ 35,67)?". Perto é até 10% dele, ou
+      R$ 5 quando isso for mais, para cima ou para baixo (quem devolve arredonda):
+      - ao confirmar, a **sobra** (Pix de R$ 36: R$ 0,33) entra como renda ("Devolução a mais:
+        Jantar — João") e a **falta** (Pix de R$ 35: R$ 0,67) entra como gasto em Imprevistos
+        ("Faltou na devolução: …"), no dia do Pix. A caixa avisa disso antes do toque;
+      - **de quem é**: primeiro o que fala de quem pagou, pelo nome que o banco mandou ou pelo que
+        o app aprendeu, como nas categorias dos gastos. Cada "Marcar como recebido" ensina: o
+        próximo Pix do mesmo CPF prefere o A receber com as palavras que ele já pagou ("João").
+        Depois, o valor mais perto; depois, o mais recente;
+      - "É outro A receber" mostra os outros em aberto perto do valor, cada um com "É este";
+      - "Marcar como recebido" usa o mesmo "Já me pagou" da tela do A receber; "É outra coisa"
+        volta a oferecer a renda. Nunca automático.
   - **Reserva pelos bancos** (na engrenagem da Reserva, com Open Finance ligado):
     - "Atualizar pelos bancos conectados" lista as contas e os investimentos de cada banco. Nada
       vem marcado: o app não supõe qual banco é a reserva de cada um;
@@ -775,7 +783,12 @@ dela); o servidor não tem chave da Pluggy. O plano por fases está em
     (mês fechado, por exemplo) devolve a transação à lista;
   - `outcome` e `entry_id`/`entry_month` dizem o que cada transação virou;
     `bank_category_memory` guarda a categoria escolhida por descrição;
-  - o vínculo de cartão fica em `bank_accounts.capital_card_id`/`card_linked`.
+  - o vínculo de cartão fica em `bank_accounts.capital_card_id`/`card_linked`;
+  - **A receber** (`reimbursementCandidates`, `paybackTolerance`): o servidor confere a distância
+    de novo ao marcar (longe demais responde `TOO_FAR`), lança a sobra (`saveIncome`) ou a falta
+    (`saveExpense` em `unforeseen`) antes do "Já me pagou", e o que o app aprendeu de quem pagou
+    sai das próprias transações já conferidas (`outcome = 'reimbursed'` + a descrição do A
+    receber, por `payerKey`: o CPF/CNPJ, ou o nome), sem tabela à parte.
 - **Avisos** (`alerts.ts`, lógica pura em `lib/banks/alerts.ts`):
   - o job e "Buscar novidades" passam por `syncAndNotify`;
   - `sourceKey` evita repetir: o resumo por lote, o banco parado pela data do último dado e a
