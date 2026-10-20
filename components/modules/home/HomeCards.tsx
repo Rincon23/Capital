@@ -6,6 +6,7 @@ import { widgetModule } from '@/lib/modules';
 import { TodayRemindersCard } from '@/components/month/TodayRemindersCard';
 import { RemindersProvider } from '@/components/reminders/RemindersProvider';
 import { WalletProvider } from '@/components/wallet/WalletProvider';
+import { BanksHomeCard } from './BanksHomeCard';
 import { CalendarHomeCard } from './CalendarHomeCard';
 import { DiagramHomeCard } from './DiagramHomeCard';
 import { FirstStepsHomeCard } from './FirstStepsHomeCard';
@@ -34,6 +35,7 @@ const CARDS: Partial<Record<HomeWidgetKey, CardSpec>> = {
   reminders: { size: 'full', Component: TodayRemindersCard },
   calendar: { size: 'full', Component: CalendarHomeCard },
   gmail: { size: 'full', Component: GmailHomeCard },
+  banks: { size: 'full', Component: BanksHomeCard },
   firstSteps: { size: 'full', Component: FirstStepsHomeCard },
 };
 

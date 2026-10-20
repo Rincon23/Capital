@@ -5,6 +5,7 @@ import {
   Clock,
   CreditCard,
   HandCoins,
+  Landmark,
   ListChecks,
   Mail,
   Mic,
@@ -35,6 +36,7 @@ export const MODULE_VISUALS: Record<ModuleKey, ModuleVisual> = {
   reminders: { icon: Clock, tone: 'amber' },
   voice: { icon: Mic, tone: 'pink' },
   gmail: { icon: Mail, tone: 'red' },
+  banks: { icon: Landmark, tone: 'blue' },
 };
 
 /** The icon of an Início widget: its module's, except for the extra widgets, which have their own. */

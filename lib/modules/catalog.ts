@@ -154,6 +154,23 @@ export const MODULES: ModuleDefinition[] = [
     homeCard: true,
   },
   {
+    key: 'banks',
+    name: 'Open Finance',
+    description:
+      'Traz seus bancos e cartões para o Capital pelo Meu Pluggy, de graça e só para leitura. Os bancos mandam os dados uma vez por dia.',
+    tagline: 'Seus bancos no Capital, uma vez por dia',
+    group: 'wallet',
+    dependsOn: [],
+    screen: {
+      label: 'Bancos',
+      href: () => '/bancos',
+      isActive: (pathname) => pathname.startsWith('/bancos'),
+    },
+    homeCard: true,
+    // Each person brings their own free Meu Pluggy key; the owner tries it first.
+    vipOnly: true,
+  },
+  {
     key: 'diagram',
     name: 'Diagrama',
     description:

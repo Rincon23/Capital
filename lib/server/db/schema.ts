@@ -46,6 +46,7 @@ import type {
   QuestionType,
 } from '../../diagram/types';
 import type { PricePoint } from '../../diagram/history';
+import type { BankAccountKind, BankConnectionStatus } from '../../banks/types';
 import type { NotificationCategory } from '../../notifications/types';
 import type { ReminderKind, TimeOfDay } from '../../reminders/types';
 
@@ -841,6 +842,81 @@ export const gmailAlerts = pgTable(
   (t) => [
     primaryKey({ columns: [t.userId, t.messageId] }),
     index('gmail_alerts_user_received_idx').on(t.userId, t.receivedAt),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Open Finance (lib/server/banks): each person's own Meu Pluggy key and the banks they brought
+// ---------------------------------------------------------------------------
+
+/**
+ * The person's Pluggy application (dashboard.pluggy.ai). The Client Secret is stored encrypted
+ * (lib/server/secretBox.ts) and never leaves the server; `secret_hint` is its last 4 characters,
+ * all the screen ever shows of it.
+ */
+export const bankKeys = pgTable('bank_keys', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  clientId: text('client_id').notNull(),
+  clientSecret: text('client_secret').notNull(),
+  secretHint: text('secret_hint').notNull(),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+});
+
+/**
+ * One bank the person brought: a Pluggy item of the Meu Pluggy connector, created by the Capital
+ * (Pluggy's free plan can't list them, so this table is the only record of their ids). `name` is
+ * the person's own; until they give one, the screen shows `suggested_name`.
+ */
+export const bankConnections = pgTable(
+  'bank_connections',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    itemId: text('item_id').notNull(),
+    name: text('name'),
+    suggestedName: text('suggested_name'),
+    status: text('status').$type<BankConnectionStatus>().notNull().default('pending'),
+    /** Until when the authorization link works (4 minutes); a pending item past it was given up. */
+    authorizeExpiresAt: timestamp('authorize_expires_at', { withTimezone: true }),
+    lastUpdatedAt: timestamp('last_updated_at', { withTimezone: true }),
+    nextAutoSyncAt: timestamp('next_auto_sync_at', { withTimezone: true }),
+    consentExpiresAt: timestamp('consent_expires_at', { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.itemId] }),
+    check('bank_connections_status', sql`${t.status} in ('pending', 'ok', 'error', 'reconnect')`),
+  ],
+);
+
+/** The accounts and cards a connection brought, with the balance of the last read. */
+export const bankAccounts = pgTable(
+  'bank_accounts',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    accountId: text('account_id').notNull(),
+    itemId: text('item_id').notNull(),
+    kind: text('kind').$type<BankAccountKind>().notNull(),
+    name: text('name').notNull(),
+    balance: numeric('balance', { mode: 'number' }),
+    currency: text('currency'),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.accountId] }),
+    foreignKey({
+      columns: [t.userId, t.itemId],
+      foreignColumns: [bankConnections.userId, bankConnections.itemId],
+    }).onDelete('cascade'),
+    check('bank_accounts_kind', sql`${t.kind} in ('checking', 'savings', 'card', 'other')`),
   ],
 );
 

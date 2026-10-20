@@ -315,6 +315,25 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
   nunca o mesmo e-mail duas vezes; tocar abre o e-mail no Gmail. Mostra o histórico de alertas.
   Ignora o que você enviou, rascunhos e spam. Se o Google recusar a conexão, avisa uma vez e pede
   para conectar de novo.
+- **Open Finance** (`/bancos`, só VIP; em construção, por fases): traz os bancos da pessoa pelo
+  **Meu Pluggy**, grátis e só leitura, com a chave da própria pessoa.
+  - **Configuração em 4 passos**, uma linha e um botão cada, e o app guarda em que passo a pessoa
+    parou:
+    1. conectar os bancos em meu.pluggy.ai (o app abre o site);
+    2. criar a chave no dashboard da Pluggy (o app abre; o aviso de "teste de 15 dias" fica atrás
+       do ⓘ, porque não vale para uso pessoal);
+    3. colar o Client ID e o Client Secret, que a Pluggy confere antes de salvar;
+    4. **"Trazer um banco"**: o app manda a pessoa ao Meu Pluggy para escolher **um** banco e
+       autorizar, e a Pluggy a devolve para `/bancos`.
+  - **Chegada do banco:** ele aparece como "Chegando…" e a tela relê a cada 5 s até as contas
+    chegarem (~2 min).
+  - **Nome do banco:** o Capital sugere, pelo código do banco na conta ou pelo nome da conta, e a
+    pessoa troca no lápis, onde também tira o banco.
+  - **"Trazer outro banco"** mostra "3 de 5 conexões grátis". Uma autorização largada pela
+    metade some sozinha depois que o link vence.
+  - **Engrenagem:** a chave (o Secret só como "••••1234"), "Trocar a chave" e "Desconectar
+    tudo". Desconectar tira os bancos da aplicação da pessoa na Pluggy e apaga a chave; os
+    bancos continuam no Meu Pluggy.
 
 ### Navegação: a Início como a tela de um celular
 
@@ -619,11 +638,26 @@ minuto, quase só espera de rede.
 ### Open Finance pelo Meu Pluggy (`lib/server/banks`) — em construção
 
 Só leitura. Cada pessoa usa a própria aplicação grátis da Pluggy (o Client ID e o Secret são
-dela); o servidor não tem chave da Pluggy. `lib/server/banks/pluggy.ts` fala com
-`https://api.pluggy.ai` por `fetch`, sem SDK. Enquanto o módulo não existe, `/bancos/teste` (só em
-desenvolvimento, só VIP) testa a API com a chave digitada na própria página e devolve só o formato
-das respostas, nunca valores (`lib/server/banks/probe.ts`). O plano por fases está em
+dela); o servidor não tem chave da Pluggy. O plano por fases está em
 `docs/prompt-open-finance-pluggy.md`.
+
+- `pluggy.ts` fala com `https://api.pluggy.ai` por `fetch`, sem SDK.
+- `service.ts` tem os fluxos:
+  - conferir e salvar a chave;
+  - criar o item, esperar o link de autorização e guardar a conexão como `pending`;
+  - ler os itens `pending` a cada visita à tela: os que chegaram ganham as contas e um nome
+    sugerido; os que esperam autorização 2 min depois de o link vencer são apagados aqui e na
+    Pluggy;
+  - tirar um banco e desconectar tudo.
+- `repository.ts` guarda a chave (`bank_keys`, Secret cifrado com `secretBox`), as conexões
+  (`bank_connections`, a única lista dos itens, porque o plano grátis não lista) e as contas
+  (`bank_accounts`).
+- O `apiKey` (2 h) fica só em memória, por pessoa.
+- Toda rota confere VIP e o módulo ligado (`access.ts`) e tem limite de tentativas.
+- A Pluggy devolve a pessoa para `<BETTER_AUTH_URL>/bancos`, ou para `PLUGGY_REDIRECT_URI`, que
+  precisa ser https (no desenvolvimento, o endereço publicado; depois, volte à aba do localhost).
+- "Apagar todos os dados" leva o Open Finance junto e tira os itens da Pluggy.
+- A chave e as conexões ficam fora do backup: sem a chave, não há o que restaurar.
 
 **Como a pessoa conecta:** os bancos se conectam **uma vez** em meu.pluggy.ai (a autorização é no
 app do banco). O dashboard.pluggy.ai só cria a chave: uma aplicação com o conector MeuPluggy
@@ -638,8 +672,10 @@ não conectou nem no próprio Meu Pluggy):**
   `oauthRedirectUri` (HTTPS, nunca localhost) e `clientUserId`. Em menos de 1 s, o item fica
   `WAITING_USER_INPUT` e o endereço de autorização chega em `parameter.data` (`type: "oauth"`).
   **Esse endereço vale 4 minutos**: crie o item só quando a pessoa tocar e mande-a direto para lá.
-  A pessoa escolhe **um banco** em meu.pluggy.ai e volta pelo `oauthRedirectUri`. Em ~1,5 min o
-  item fica `UPDATED`/`SUCCESS`. Não precisa do script do Pluggy Connect nem de mudança no CSP.
+  A pessoa escolhe **um banco** em meu.pluggy.ai e volta pelo `oauthRedirectUri`, com
+  `?itemId=…` acrescentado. Em ~1,5 min o item fica `UPDATED`/`SUCCESS`. Às vezes a primeira
+  leitura falha do lado da Pluggy (`OUTDATED`, `UNEXPECTED_ERROR`); como não dá para pedir outra
+  leitura, a tela oferece "Tentar de novo", que tira a conexão e abre outra autorização. Não precisa do script do Pluggy Connect nem de mudança no CSP.
 - O conector 200 é o `MeuPluggy` (`PERSONAL_BANK`, `oauth: true`, sem credenciais). Ele marca
   `isOpenFinance: false` por ser um repasse, mas os dados por baixo são Open Finance.
 - `POST /auth` devolve um `apiKey` (JWT) que vale **2 h**. `POST /connect_token` recusa
@@ -836,9 +872,16 @@ Os demais testes:
   (maiúsculas, acentos, remetente, prévia), um aviso por e-mail com todas as palavras e nunca
   repetido, e-mails enviados e spam ignorados, `historyId` expirado, conexão recusada (avisa uma
   vez e para), token cifrado e o `state` do OAuth, com o Gmail simulado.
-- **`lib/server/__tests__/pluggy.test.ts`:** a API da Pluggy simulada com respostas no formato real
-  (campos nulos, cartão com sinal invertido, parcela sem número, paginação por `next`, `next` que
-  aponta para fora da Pluggy) e a F0, que nunca devolve valores, a chave nem o token.
+- **`lib/server/__tests__/pluggy.test.ts` e `lib/banks/__tests__`:** o Open Finance, com a Pluggy
+  simulada nas respostas que ela dá de verdade. Cobrem:
+  - a paginação por `next`, inclusive um `next` que aponta para fora da Pluggy;
+  - a chave: conferida antes de salvar, cifrada, e só o fim do Secret volta;
+  - trazer um banco: o corpo do `POST /items`, a espera pelo link e o `pending`;
+  - os limites: sem https, as 5 conexões e sem chave;
+  - a chegada das contas, com o nome sugerido, e o nome dado pela pessoa, que fica;
+  - a autorização largada, apagada aqui e na Pluggy, e a conexão que caiu;
+  - tirar um banco, desconectar tudo e "Apagar todos os dados";
+  - os nomes sugeridos e o "há 5 h".
 - **`lib/modules/__tests__`:** o catálogo, as dependências (filho travado sem o pai, o que ligar
   antes e em que ordem, desligar em cascata, a árvore), os kits do primeiro acesso, o Primeiros
   passos (quem recebe, como cada passo se marca, quando some), a bandeja de apps, as áreas da Início

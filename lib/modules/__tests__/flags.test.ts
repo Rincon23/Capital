@@ -22,7 +22,7 @@ import {
 const on = (...keys: ModuleKey[]) => Object.fromEntries(keys.map((key) => [key, true]));
 
 describe('catálogo de módulos', () => {
-  it('tem os 11 módulos, cada um depois dos que ele precisa', () => {
+  it('tem os 12 módulos, cada um depois dos que ele precisa', () => {
     expect(MODULE_KEYS).toEqual([
       'expenses',
       'budget',
@@ -31,6 +31,7 @@ describe('catálogo de módulos', () => {
       'history',
       'recurring',
       'cash',
+      'banks',
       'diagram',
       'reminders',
       'voice',
@@ -164,7 +165,7 @@ describe('dependências', () => {
     expect(parentOf('cash')).toBeNull();
 
     const tree = moduleTree();
-    expect(tree.map((node) => node.key)).toEqual(['expenses', 'cash', 'diagram', 'reminders', 'gmail']);
+    expect(tree.map((node) => node.key)).toEqual(['expenses', 'cash', 'banks', 'diagram', 'reminders', 'gmail']);
     const expenses = tree[0];
     expect(expenses.children.map((node) => node.key)).toEqual([
       'budget',
@@ -179,8 +180,8 @@ describe('dependências', () => {
 });
 
 describe('withAccessRules', () => {
-  it('keeps Lançar por voz off for accounts that are not VIP, whatever was saved', () => {
-    expect(VIP_ONLY_MODULES).toEqual(['voice']);
+  it('keeps the VIP modules (Open Finance, Lançar por voz) off for accounts that are not VIP, whatever was saved', () => {
+    expect(VIP_ONLY_MODULES).toEqual(['banks', 'voice']);
     const saved = { modules: on('expenses', 'voice') };
     expect(withAccessRules(saved, false).modules).toEqual({ expenses: true, voice: false });
     expect(isModuleOn(withAccessRules(saved, false), 'voice')).toBe(false);

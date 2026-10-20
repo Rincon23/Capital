@@ -1,29 +1,49 @@
 // @vitest-environment node
-import { describe, expect, it, vi } from 'vitest';
-import { nextPagePath, PluggyClient, pluggyApiKey, PluggyError, type FetchLike } from '../banks/pluggy';
+import { randomBytes, randomUUID } from 'node:crypto';
+import path from 'node:path';
+import { PGlite } from '@electric-sql/pglite';
+import { eq } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/pglite';
+import { migrate } from 'drizzle-orm/pglite/migrator';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearAccountData } from '../accountData';
 import {
-  apiKeyLifetimeMinutes,
-  bankCodeOf,
-  fieldFill,
-  findOauthUrl,
-  probeCreateItem,
-  probeCredentials,
-  transactionsSummary,
-} from '../banks/probe';
+  authorizeUrlOf,
+  nextPagePath,
+  PluggyClient,
+  pluggyApiKey,
+  PluggyError,
+  type FetchLike,
+} from '../banks/pluggy';
+import { PostgresBanksRepository } from '../banks/repository';
+import {
+  banksRedirectUri,
+  checkAndSaveKey,
+  disconnectAll,
+  forgetPluggyKey,
+  refreshPending,
+  removeConnection,
+  startConnection,
+} from '../banks/service';
+import * as schema from '../db/schema';
+import type { Database } from '../db/types';
+import { HttpError } from '../httpError';
+
+type Answer = { status?: number; body: unknown };
 
 /** A fake Pluggy: answers by method and path (query included), and records what it was asked. */
-function fakePluggy(routes: Record<string, { status?: number; body: unknown } | (() => { status?: number; body: unknown })>) {
-  const calls: { method: string; url: string; headers: Record<string, string>; body: unknown }[] = [];
+function fakePluggy(routes: Record<string, Answer | (() => Answer)>) {
+  const calls: { method: string; path: string; headers: Record<string, string>; body: unknown }[] = [];
   const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? 'GET';
+    const path = url.replace('https://api.pluggy.ai', '');
     calls.push({
       method,
-      url,
+      path,
       headers: (init?.headers ?? {}) as Record<string, string>,
       body: init?.body ? JSON.parse(String(init.body)) : undefined,
     });
-    const path = url.replace('https://api.pluggy.ai', '');
     const route = routes[`${method} ${path}`] ?? routes[`${method} ${path.split('?')[0]}`];
     const answer = typeof route === 'function' ? route() : route;
     if (!answer) return new Response(JSON.stringify({ message: 'not found', code: 404 }), { status: 404 });
@@ -31,9 +51,6 @@ function fakePluggy(routes: Record<string, { status?: number; body: unknown } | 
   }) as unknown as FetchLike;
   return { fetchImpl, calls };
 }
-
-const jwt = (payload: object) =>
-  `x.${Buffer.from(JSON.stringify(payload)).toString('base64url')}.y`;
 
 describe('pluggyApiKey', () => {
   it('trades the Client ID and Secret for the apiKey', async () => {
@@ -85,132 +102,285 @@ describe('PluggyClient.allTransactions', () => {
   });
 });
 
-describe('what the probe hands back', () => {
-  const transactions = [
-    {
-      id: '1',
-      description: 'IFOOD *RESTAURANTE',
-      descriptionRaw: null,
-      amount: 45.9,
-      date: '2026-10-18T03:00:00.000Z',
-      type: 'DEBIT',
-      status: 'POSTED',
-      category: 'Food delivery',
-      paymentData: null,
-      merchant: { name: 'IFOOD', cnpj: '00000000000000' },
-      creditCardMetadata: { totalInstallments: 3, purchaseDate: '2026-08-18T03:00:00.000Z' },
-    },
-    {
-      id: '2',
-      description: 'PAGAMENTO RECEBIDO',
-      descriptionRaw: '',
-      amount: -1200,
-      date: '2026-10-10T03:00:00.000Z',
-      type: 'CREDIT',
-      status: 'PENDING',
-      category: null,
-      paymentData: null,
-      merchant: null,
-      creditCardMetadata: null,
-    },
-  ];
-
-  it('counts which fields come filled, without their values', () => {
-    const fill = fieldFill(transactions);
-    expect(fill['descriptionRaw']).toBe('0/2');
-    expect(fill['merchant.name']).toBe('1/2');
-    expect(fill['creditCardMetadata.totalInstallments']).toBe('1/2');
-    expect(fill['amount']).toBe('2/2');
-    expect(JSON.stringify(fill)).not.toContain('IFOOD');
-  });
-
-  it('shows the card signs and the installments that came without their number', () => {
-    const summary = transactionsSummary(transactions, true);
-    expect(summary.card).toEqual({
-      'parece compra · valor positivo · DEBIT': 1,
-      'parece pagamento de fatura · valor negativo · CREDIT': 1,
-    });
-    expect(summary.installments).toEqual({ parceladas: 1, comNumeroDaParcela: 0, comDataDaCompra: 1 });
-    expect(summary.firstDay).toBe('2026-10-10');
-    expect(summary.status).toEqual({ POSTED: 1, PENDING: 1 });
-    const text = JSON.stringify(summary);
-    expect(text).not.toContain('45.9');
-    expect(text).not.toContain('PAGAMENTO RECEBIDO');
-  });
-
-  it('keeps only the bank code of a transfer number', () => {
-    expect(bankCodeOf('208/0001/1234567-8')).toBe('208');
-    expect(bankCodeOf('1234567-8')).toBeNull();
-    expect(bankCodeOf(null)).toBeNull();
-  });
-
-  it('reads how long the apiKey lasts when it is a JWT', () => {
-    expect(apiKeyLifetimeMinutes(jwt({ iat: 1000, exp: 1000 + 7200 }))).toBe(120);
-    expect(apiKeyLifetimeMinutes('opaca')).toBeNull();
-  });
-
-  it('finds the authorization address wherever Pluggy put it', () => {
-    expect(findOauthUrl({ parameter: { data: 'https://meu.pluggy.ai/oauth?x=1' } })).toEqual({
-      url: 'https://meu.pluggy.ai/oauth?x=1',
-      from: 'parameter.data',
-    });
-    expect(findOauthUrl({ userAction: { attributes: { link: 'https://meu.pluggy.ai/a' } } })?.from).toBe(
-      'userAction.attributes.link',
-    );
-    expect(findOauthUrl({ parameter: { data: 'iVBORw0KGgo=' } })).toBeNull();
+describe('authorizeUrlOf', () => {
+  it('finds the address Meu Pluggy puts in parameter.data, and only an https one', () => {
+    expect(
+      authorizeUrlOf({ id: 'i', status: 'WAITING_USER_INPUT', parameter: { type: 'oauth', data: 'https://meu.pluggy.ai/x' } }),
+    ).toBe('https://meu.pluggy.ai/x');
+    expect(authorizeUrlOf({ id: 'i', status: 'UPDATING', parameter: { data: 'iVBORw0KGgo=' } })).toBeNull();
+    expect(
+      authorizeUrlOf({ id: 'i', status: 'UPDATING', userAction: { attributes: { link: 'https://meu.pluggy.ai/a' } } }),
+    ).toBe('https://meu.pluggy.ai/a');
   });
 });
 
-describe('the probes', () => {
-  it('report every step, even after one is refused, and never the apiKey', async () => {
-    const { fetchImpl } = fakePluggy({
-      'POST /auth': { body: { apiKey: 'chave-secreta' } },
-      'GET /connectors': { body: { results: [{ id: 200, name: 'MeuPluggy', oauth: true, credentials: [] }] } },
-      'GET /connectors/200': { body: { id: 200, name: 'MeuPluggy', oauth: true } },
-      'GET /items': {
-        status: 403,
-        body: { code: 403, message: 'List items not enabled', codeDescription: 'LIST_ITEMS_FEATURE_NOT_ENABLED' },
-      },
-      'POST /connect_token': { body: { accessToken: 'token-de-30-min' } },
-    });
-    const steps = await probeCredentials({ clientId: 'id', clientSecret: 's' }, 'https://x.example/', fetchImpl);
-    expect(steps.map((s) => s.ok)).toEqual([true, true, true, false, true, true]);
-    expect(steps[3].note).toBe('List items not enabled · LIST_ITEMS_FEATURE_NOT_ENABLED');
-    const text = JSON.stringify(steps);
-    expect(text).not.toContain('chave-secreta');
-    expect(text).not.toContain('token-de-30-min');
+// ---------------------------------------------------------------------------
+// The Open Finance flows, against the database
+// ---------------------------------------------------------------------------
+
+let db: Database;
+
+beforeAll(async () => {
+  const pglite = drizzle({ client: new PGlite(), schema });
+  await migrate(pglite, { migrationsFolder: path.join(process.cwd(), 'drizzle') });
+  db = pglite;
+}, 60_000);
+
+beforeEach(() => {
+  vi.stubEnv('ENCRYPTION_KEY', randomBytes(32).toString('base64'));
+  vi.stubEnv('BETTER_AUTH_URL', 'https://capital.exemplo.com.br');
+  vi.stubEnv('PLUGGY_REDIRECT_URI', '');
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+async function newPerson() {
+  const id = randomUUID();
+  await db.insert(schema.user).values({ id, name: 'Pessoa', email: `${id}@teste.local` });
+  forgetPluggyKey(id);
+  return { id, banks: new PostgresBanksRepository(db, id) };
+}
+
+const ITEM = '6f1c2c3e-0000-4000-8000-000000000001';
+
+const accounts = {
+  results: [
+    {
+      id: 'acc-1',
+      type: 'BANK',
+      subtype: 'CHECKING_ACCOUNT',
+      name: 'BTG Banking',
+      balance: 1234.56,
+      currencyCode: 'BRL',
+      bankData: { transferNumber: '208/0001/1234567-8' },
+    },
+    { id: 'acc-2', type: 'CREDIT', subtype: 'CREDIT_CARD', name: 'gold', balance: 300, currencyCode: 'BRL' },
+  ],
+};
+
+describe('the key', () => {
+  it('is saved only after Pluggy accepts it, encrypted, and only its end ever comes back', async () => {
+    const { id, banks } = await newPerson();
+    const { fetchImpl } = fakePluggy({ 'POST /auth': { body: { apiKey: 'chave' } } });
+    await checkAndSaveKey(banks, id, { clientId: 'meu-client-id', clientSecret: 'segredo-1234' }, fetchImpl);
+
+    expect(await banks.getKey()).toEqual({ clientId: 'meu-client-id', secretHint: '1234' });
+    const [row] = await db.select().from(schema.bankKeys).where(eq(schema.bankKeys.userId, id));
+    expect(row.clientSecret).not.toContain('segredo');
+    expect((await banks.getCredentials())?.clientSecret).toBe('segredo-1234');
   });
 
-  it('creates the Meu Pluggy item and waits for the address to authorize', async () => {
+  it('refused by Pluggy, says so in one sentence and saves nothing', async () => {
+    const { id, banks } = await newPerson();
+    const { fetchImpl } = fakePluggy({ 'POST /auth': { status: 401, body: { message: 'Invalid credentials' } } });
+    const error = await checkAndSaveKey(banks, id, { clientId: 'x', clientSecret: 'y' }, fetchImpl).catch(
+      (err: unknown) => err,
+    );
+    expect(error).toBeInstanceOf(HttpError);
+    expect(error).toMatchObject({ status: 400, code: 'INVALID_KEY' });
+    expect(await banks.getKey()).toBeNull();
+  });
+});
+
+describe('bringing a bank', () => {
+  it('creates the Meu Pluggy item, waits for the link and keeps the bank as on its way', async () => {
+    const { id, banks } = await newPerson();
     let reads = 0;
     const { fetchImpl, calls } = fakePluggy({
       'POST /auth': { body: { apiKey: 'chave' } },
-      'POST /items': {
-        body: { id: '6f1c2c3e-0000-4000-8000-000000000001', status: 'UPDATING', executionStatus: 'CREATED' },
-      },
-      'GET /items/6f1c2c3e-0000-4000-8000-000000000001': () => {
+      'POST /items': { body: { id: ITEM, status: 'UPDATING', executionStatus: 'CREATED', parameter: null } },
+      [`GET /items/${ITEM}`]: () => {
         reads += 1;
         return {
           body: {
-            id: '6f1c2c3e-0000-4000-8000-000000000001',
+            id: ITEM,
             status: 'WAITING_USER_INPUT',
-            parameter: reads > 1 ? { name: 'oauth_code', type: 'oauth', data: 'https://meu.pluggy.ai/x' } : null,
+            parameter:
+              reads > 1
+                ? { type: 'oauth', data: 'https://meu.pluggy.ai/autorizar', expiresAt: '2026-10-20T13:38:45.085Z' }
+                : null,
           },
         };
       },
     });
-    const result = await probeCreateItem(
-      { clientId: 'id', clientSecret: 's' },
-      { redirectUri: 'https://x.example/', clientUserId: 'u1' },
-      fetchImpl,
-      { pollMs: 1, pollTimes: 5 },
-    );
-    expect(result.itemId).toBe('6f1c2c3e-0000-4000-8000-000000000001');
-    expect(result.oauthUrl).toBe('https://meu.pluggy.ai/x');
-    expect(calls.find((c) => c.method === 'POST' && c.url.endsWith('/items'))?.body).toMatchObject({
+    await banks.saveKey('id', 'segredo');
+
+    const { authorizeUrl } = await startConnection(banks, id, fetchImpl, { pollMs: 1, pollTimes: 5 });
+    expect(authorizeUrl).toBe('https://meu.pluggy.ai/autorizar');
+    expect(calls.find((call) => call.method === 'POST' && call.path === '/items')?.body).toEqual({
       connectorId: 200,
-      oauthRedirectUri: 'https://x.example/',
-      clientUserId: 'u1',
+      parameters: {},
+      oauthRedirectUri: 'https://capital.exemplo.com.br/bancos',
+      clientUserId: id,
     });
+    const [connection] = await banks.listConnections();
+    expect(connection).toMatchObject({ itemId: ITEM, status: 'pending', accounts: [] });
+    const [pending] = await banks.pendingConnections();
+    expect(pending.authorizeExpiresAt?.toISOString()).toBe('2026-10-20T13:38:45.085Z');
+  });
+
+  it('refuses without an https address to come back to, and at the free limit', async () => {
+    const { id, banks } = await newPerson();
+    await banks.saveKey('id', 'segredo');
+    const { fetchImpl } = fakePluggy({ 'POST /auth': { body: { apiKey: 'chave' } } });
+
+    vi.stubEnv('BETTER_AUTH_URL', 'http://localhost:3000');
+    expect(banksRedirectUri()).toBeNull();
+    await expect(startConnection(banks, id, fetchImpl)).rejects.toMatchObject({ code: 'NEEDS_HTTPS' });
+    vi.stubEnv('PLUGGY_REDIRECT_URI', 'https://capital.exemplo.com.br/bancos');
+    expect(banksRedirectUri()).toBe('https://capital.exemplo.com.br/bancos');
+
+    for (let i = 0; i < 5; i++) await banks.addPending(`item-${i}`, null);
+    await expect(startConnection(banks, id, fetchImpl)).rejects.toMatchObject({ code: 'LIMIT' });
+  });
+
+  it('without a key, asks for it', async () => {
+    const { id, banks } = await newPerson();
+    const { fetchImpl } = fakePluggy({});
+    await expect(startConnection(banks, id, fetchImpl)).rejects.toMatchObject({ code: 'NO_KEY' });
+  });
+});
+
+describe('a bank arriving', () => {
+  it('brings its accounts and a suggested name when Pluggy finishes', async () => {
+    const { id, banks } = await newPerson();
+    await banks.saveKey('id', 'segredo');
+    await banks.addPending(ITEM, new Date('2026-10-20T13:38:45Z'));
+    const { fetchImpl } = fakePluggy({
+      'POST /auth': { body: { apiKey: 'chave' } },
+      [`GET /items/${ITEM}`]: {
+        body: {
+          id: ITEM,
+          status: 'UPDATED',
+          executionStatus: 'SUCCESS',
+          lastUpdatedAt: '2026-10-20T12:57:28.616Z',
+          nextAutoSyncAt: '2026-10-21T14:21:00.000Z',
+          consentExpiresAt: '2027-10-20T13:19:34.167Z',
+        },
+      },
+      'GET /accounts': { body: accounts },
+    });
+
+    const { givenUp } = await refreshPending(banks, id, fetchImpl, new Date('2026-10-20T13:40:00Z'));
+    expect(givenUp).toBe(0);
+    const [connection] = await banks.listConnections();
+    expect(connection).toMatchObject({
+      name: 'BTG Pactual',
+      named: false,
+      status: 'ok',
+      lastUpdatedAt: '2026-10-20T12:57:28.616Z',
+      consentExpiresAt: '2027-10-20T13:19:34.167Z',
+      accounts: [
+        { id: 'acc-1', kind: 'checking', name: 'BTG Banking' },
+        { id: 'acc-2', kind: 'card', name: 'Cartão Gold' },
+      ],
+    });
+
+    // The person's own name stays, whatever is suggested later.
+    await banks.rename(ITEM, 'Meu BTG');
+    await banks.updateConnection(ITEM, { status: 'ok', suggestedName: 'Outro' });
+    expect((await banks.listConnections())[0]).toMatchObject({ name: 'Meu BTG', named: true });
+  });
+
+  it('gives up on an authorization never finished, here and at Pluggy, and marks a lost one', async () => {
+    const { id, banks } = await newPerson();
+    await banks.saveKey('id', 'segredo');
+    await banks.addPending('abandonado', new Date('2026-10-20T13:00:00Z'));
+    await banks.addPending('caiu', null);
+    const { fetchImpl, calls } = fakePluggy({
+      'POST /auth': { body: { apiKey: 'chave' } },
+      'GET /items/abandonado': { body: { id: 'abandonado', status: 'WAITING_USER_INPUT' } },
+      'GET /items/caiu': { body: { id: 'caiu', status: 'LOGIN_ERROR' } },
+      'DELETE /items/abandonado': { body: {} },
+    });
+
+    const { givenUp } = await refreshPending(banks, id, fetchImpl, new Date('2026-10-20T13:10:00Z'));
+    expect(givenUp).toBe(1);
+    expect(calls.some((call) => call.method === 'DELETE' && call.path === '/items/abandonado')).toBe(true);
+    const connections = await banks.listConnections();
+    expect(connections.map((c) => [c.itemId, c.status])).toEqual([['caiu', 'reconnect']]);
+  });
+
+  it('reads a failed bank again on the next visit, in case Pluggy recovered', async () => {
+    const { id, banks } = await newPerson();
+    await banks.saveKey('id', 'segredo');
+    await banks.addPending(ITEM, null);
+    let status = 'OUTDATED';
+    const { fetchImpl } = fakePluggy({
+      'POST /auth': { body: { apiKey: 'chave' } },
+      [`GET /items/${ITEM}`]: () => ({
+        body: { id: ITEM, status, error: { code: 'UNEXPECTED_ERROR', message: 'Unexpected error.' } },
+      }),
+      'GET /accounts': { body: accounts },
+    });
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    await refreshPending(banks, id, fetchImpl);
+    expect((await banks.listConnections())[0]).toMatchObject({ name: 'Banco', status: 'error', accounts: [] });
+    expect(log.mock.calls.flat().join(' ')).toContain('UNEXPECTED_ERROR');
+
+    status = 'UPDATED';
+    await refreshPending(banks, id, fetchImpl);
+    expect((await banks.listConnections())[0]).toMatchObject({ name: 'BTG Pactual', status: 'ok' });
+    log.mockRestore();
+  });
+
+  it('keeps waiting while the link still works', async () => {
+    const { id, banks } = await newPerson();
+    await banks.saveKey('id', 'segredo');
+    await banks.addPending(ITEM, new Date('2026-10-20T13:38:45Z'));
+    const { fetchImpl } = fakePluggy({
+      'POST /auth': { body: { apiKey: 'chave' } },
+      [`GET /items/${ITEM}`]: { body: { id: ITEM, status: 'WAITING_USER_INPUT' } },
+    });
+    await refreshPending(banks, id, fetchImpl, new Date('2026-10-20T13:37:00Z'));
+    expect((await banks.listConnections())[0].status).toBe('pending');
+  });
+});
+
+describe('leaving', () => {
+  it('takes one bank out, here and at Pluggy', async () => {
+    const { id, banks } = await newPerson();
+    await banks.saveKey('id', 'segredo');
+    await banks.addPending('a', null);
+    await banks.addPending('b', null);
+    const { fetchImpl, calls } = fakePluggy({
+      'POST /auth': { body: { apiKey: 'chave' } },
+      'DELETE /items/a': { body: {} },
+    });
+    await removeConnection(banks, id, 'a', fetchImpl);
+    expect(calls.filter((call) => call.method === 'DELETE').map((call) => call.path)).toEqual(['/items/a']);
+    expect((await banks.listConnections()).map((c) => c.itemId)).toEqual(['b']);
+  });
+
+  it('"Desconectar" removes every bank at Pluggy and the key and banks from the Capital', async () => {
+    const { id, banks } = await newPerson();
+    await banks.saveKey('id', 'segredo');
+    await banks.addPending('a', null);
+    await banks.replaceAccounts('a', [{ accountId: 'x', kind: 'checking', name: 'Conta', balance: 1, currency: 'BRL' }]);
+    const { fetchImpl, calls } = fakePluggy({
+      'POST /auth': { body: { apiKey: 'chave' } },
+      'DELETE /items/a': { body: {} },
+    });
+    await disconnectAll(banks, id, fetchImpl);
+    expect(calls.some((call) => call.method === 'DELETE' && call.path === '/items/a')).toBe(true);
+    expect(await banks.getKey()).toBeNull();
+    expect(await banks.listConnections()).toEqual([]);
+    expect(await db.select().from(schema.bankAccounts).where(eq(schema.bankAccounts.userId, id))).toEqual([]);
+  });
+
+  it('"Apagar todos os dados" takes the Open Finance along', async () => {
+    const { id, banks } = await newPerson();
+    await banks.saveKey('id', 'segredo');
+    await banks.addPending('a', null);
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 503 })));
+    try {
+      await clearAccountData(db, id);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(await banks.getKey()).toBeNull();
+    expect(await banks.listConnections()).toEqual([]);
   });
 });

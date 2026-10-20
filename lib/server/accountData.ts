@@ -1,6 +1,8 @@
 import 'server-only';
 import { eq, sql } from 'drizzle-orm';
 import {
+  bankConnections,
+  bankKeys,
   budgetSettings,
   cardBillPayments,
   cards,
@@ -27,16 +29,21 @@ import {
   reservePlans,
 } from './db/schema';
 import type { Database } from './db/types';
+import { PostgresBanksRepository } from './banks/repository';
+import { disconnectAll, forgetPluggyKey } from './banks/service';
 import { forgetGmailToken } from './gmail/job';
 
 /**
  * "Apagar todos os dados": everything the account stored, in every module — months and their
  * entries, settings, cards and bills, recurring and instalment purchases, reserves, the Diagrama,
- * reminders, the Gmail connection (its token included) and the notification history. The account itself
+ * reminders, the Gmail connection (its token included), the Open Finance key and banks and the
+ * notification history. The account itself
  * stays, and so do the devices that receive notifications; "Excluir minha conta" removes those too.
  * Rows that hang from others (entries, deliveries, completions) go with them by cascade.
  */
 export async function clearAccountData(db: Database, userId: string): Promise<void> {
+  // The banks leave the person's Pluggy application too, while the key to reach it still exists.
+  await disconnectAll(new PostgresBanksRepository(db, userId), userId).catch(() => undefined);
   await db.transaction(async (tx) => {
     // The same lock every budget write takes: nothing of this account is half-written meanwhile.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${userId}, 0))`);
@@ -64,7 +71,10 @@ export async function clearAccountData(db: Database, userId: string): Promise<vo
     await tx.delete(gmailAlerts).where(eq(gmailAlerts.userId, userId));
     await tx.delete(gmailKeywords).where(eq(gmailKeywords.userId, userId));
     await tx.delete(gmailAccounts).where(eq(gmailAccounts.userId, userId));
+    await tx.delete(bankConnections).where(eq(bankConnections.userId, userId));
+    await tx.delete(bankKeys).where(eq(bankKeys.userId, userId));
     await tx.delete(notifications).where(eq(notifications.userId, userId));
   });
   forgetGmailToken(userId);
+  forgetPluggyKey(userId);
 }

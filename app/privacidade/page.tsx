@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 
 export const metadata: Metadata = {
   title: 'Privacidade — Capital',
-  description: 'Como o Capital trata os seus dados, incluindo o acesso ao Gmail.',
+  description: 'Como o Capital trata os seus dados, incluindo o acesso ao Gmail e aos bancos.',
 };
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -26,7 +26,7 @@ export default function PrivacyPage() {
       <header className="flex flex-col gap-1">
         <p className="text-primary text-sm font-semibold">Capital</p>
         <h1 className="text-foreground text-2xl font-bold">Política de privacidade</h1>
-        <p className="text-muted text-sm">Última atualização: 21 de setembro de 2026.</p>
+        <p className="text-muted text-sm">Última atualização: 20 de outubro de 2026.</p>
       </header>
 
       <Section title="O que é o Capital">
@@ -111,10 +111,42 @@ export default function PrivacyPage() {
         </p>
       </Section>
 
+      <Section title="Open Finance (Meu Pluggy)">
+        <p>
+          Só para contas VIP. Se você ligar o Open Finance, o Capital lê os seus bancos pelo{' '}
+          <a href="https://meu.pluggy.ai" className="text-primary underline" target="_blank" rel="noopener noreferrer">
+            Meu Pluggy
+          </a>
+          , um serviço gratuito da Pluggy em que você mesmo conecta os seus bancos pelo Open Finance. O Capital
+          usa a sua própria chave da Pluggy (Client ID e Client Secret), que você cria no dashboard da Pluggy e
+          cola no app.
+        </p>
+        <ul className="list-disc pl-5">
+          <li>
+            É só leitura: o Capital não move dinheiro, não paga nada e não altera nada nos seus bancos.
+          </li>
+          <li>
+            Guarda a sua chave (o Client Secret fica cifrado no servidor e nunca é mostrado nem enviado a ninguém
+            além da Pluggy), a lista dos bancos que você trouxe, com o nome que você der a cada um, e as contas e
+            cartões de cada banco, com nome e saldo.
+          </li>
+          <li>
+            Esses dados não são vendidos, não são usados para publicidade e não são usados para treinar modelos
+            de IA.
+          </li>
+        </ul>
+        <p>
+          Na engrenagem do Open Finance, &quot;Desconectar tudo&quot; apaga a chave e os bancos do Capital e tira
+          o acesso do Capital na Pluggy. Os bancos continuam conectados no Meu Pluggy, onde você pode removê-los
+          também.
+        </p>
+      </Section>
+
       <Section title="Apagar os seus dados">
         <p>
           Em Configurações (na bandeja de apps, a setinha embaixo da Início), &quot;Apagar todos os
-          dados&quot; apaga tudo o que você lançou em todos os módulos (inclusive a conexão com o Gmail) e
+          dados&quot; apaga tudo o que você lançou em todos os módulos (inclusive as conexões com o Gmail e com
+          os bancos) e
           mantém a conta. &quot;Excluir minha conta&quot;, no mesmo lugar, apaga a conta e todos os dados dela
           de uma vez, depois de você confirmar a senha. Em Módulos, na mesma bandeja, você também pode
           desligar qualquer módulo.

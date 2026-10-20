@@ -176,6 +176,13 @@
       "when": 1792436359694,
       "tag": "0024_historico_precos",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792503846117,
+      "tag": "0025_open_finance",
+      "breakpoints": true
     }
   ]
 }

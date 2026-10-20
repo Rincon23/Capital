@@ -8,7 +8,52 @@ import 'server-only';
  */
 
 export const PLUGGY_API = 'https://api.pluggy.ai';
+/** The Meu Pluggy connector: one item per bank the person authorizes at meu.pluggy.ai. */
+export const MEU_PLUGGY_CONNECTOR_ID = 200;
 const TIMEOUT_MS = 20_000;
+
+/** The parts of a Pluggy item the Capital reads. */
+export interface PluggyItem {
+  id: string;
+  /** UPDATED, UPDATING, WAITING_USER_INPUT, LOGIN_ERROR or OUTDATED. */
+  status: string;
+  executionStatus?: string | null;
+  lastUpdatedAt?: string | null;
+  nextAutoSyncAt?: string | null;
+  consentExpiresAt?: string | null;
+  parameter?: { type?: string | null; data?: unknown; expiresAt?: string | null } | null;
+  /** Why the last update failed, in Pluggy's words. */
+  error?: { code?: string | null; message?: string | null } | null;
+  userAction?: { attributes?: Record<string, unknown> | null } | null;
+}
+
+/** The parts of a Pluggy account the Capital reads. */
+export interface PluggyAccount {
+  id: string;
+  type?: string | null;
+  subtype?: string | null;
+  name?: string | null;
+  marketingName?: string | null;
+  balance?: number | null;
+  currencyCode?: string | null;
+  bankData?: { transferNumber?: string | null } | null;
+}
+
+function isHttpsUrl(value: unknown): value is string {
+  return typeof value === 'string' && /^https:\/\//i.test(value);
+}
+
+/**
+ * Where the person authorizes a new item. Meu Pluggy puts it in `parameter.data` (type "oauth"),
+ * a moment after the item is created; the other places are where Pluggy's other OAuth flows put it.
+ */
+export function authorizeUrlOf(item: PluggyItem | null | undefined): string | null {
+  if (!item) return null;
+  const data = item.parameter?.data;
+  if (isHttpsUrl(data)) return data;
+  for (const value of Object.values(item.userAction?.attributes ?? {})) if (isHttpsUrl(value)) return value;
+  return null;
+}
 
 export type FetchLike = typeof fetch;
 

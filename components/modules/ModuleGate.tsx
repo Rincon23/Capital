@@ -2,10 +2,11 @@
 
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Lock } from 'lucide-react';
+import { Crown, Lock } from 'lucide-react';
 import type { ModuleKey } from '@/lib/budget';
 import { isModuleOn, moduleDefinition, moduleNames, modulesToTurnOnFirst } from '@/lib/modules';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { IconTile } from '@/components/ui/IconTile';
 import { useHomeHref } from './useHomeHref';
@@ -20,6 +21,7 @@ import { turnOnTogetherLabel, useModuleSwitch } from './useModuleSwitch';
 export function ModuleGate({ module, children }: { module: ModuleKey; children: ReactNode }) {
   const { settings, loading } = useSettings();
   const { turnOn, turnOnWithParents, busy } = useModuleSwitch();
+  const { user } = useAuth();
   const [turning, setTurning] = useState(false);
   const homeHref = useHomeHref();
 
@@ -31,6 +33,34 @@ export function ModuleGate({ module, children }: { module: ModuleKey; children: 
 
   const info = moduleDefinition(module);
   const missing = modulesToTurnOnFirst(settings, module);
+
+  // A VIP-only module explains itself to everyone else, with nothing to turn on.
+  if (info.vipOnly && !user.vip) {
+    return (
+      <div className="flex flex-1 flex-col gap-4 pb-10">
+        <PageHeader title={info.name} backHref={homeHref} />
+        <div className="border-border bg-card mx-4 flex flex-col gap-4 rounded-2xl border p-4 shadow-sm">
+          <div className="flex items-center gap-3">
+            <IconTile icon={MODULE_VISUALS[module].icon} tone={MODULE_VISUALS[module].tone} size="lg" />
+            <div className="min-w-0">
+              <p className="text-foreground font-semibold">
+                {info.name}
+                <span className="bg-primary/10 text-primary ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 align-middle text-[11px] font-semibold">
+                  <Crown aria-hidden className="h-3 w-3" />
+                  VIP
+                </span>
+              </p>
+              <p className="text-muted text-sm">Disponível só para contas VIP.</p>
+            </div>
+          </div>
+          <p className="text-muted text-sm">{info.description}</p>
+          <Link href="/modulos" className="text-primary text-center text-sm font-semibold">
+            Ver todos os módulos
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   async function handleTurnOn() {
     setTurning(true);

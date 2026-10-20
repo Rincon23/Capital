@@ -337,6 +337,29 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       side: 'bottom',
     },
   ],
+  banks: [
+    {
+      route: () => '/bancos',
+      anchor: 'bancos-conexoes',
+      title: 'Seus bancos',
+      description: 'Siga os passos e traga um banco por vez do Meu Pluggy.',
+      side: 'bottom',
+    },
+    {
+      route: () => '/bancos',
+      anchor: 'bancos-uma-vez-por-dia',
+      title: 'Uma vez por dia',
+      description: 'Os bancos mandam os dados uma vez por dia; o Capital não consegue pedir antes.',
+      side: 'top',
+    },
+    {
+      route: () => '/bancos',
+      anchor: 'bancos-config',
+      title: 'Sua chave',
+      description: 'Na engrenagem você troca a chave ou desconecta tudo.',
+      side: 'bottom',
+    },
+  ],
 };
 
 /**
@@ -356,6 +379,7 @@ export const MODULE_HELP: Record<ModuleKey, Pick<TourStepDefinition, 'route' | '
   reminders: { route: () => '/lembretes' },
   voice: { route: home, sheet: 'voice' },
   gmail: { route: () => '/gmail' },
+  banks: { route: () => '/bancos' },
 };
 
 export const helpAnchor = (key: ModuleKey) => `ajuda-${key}`;

@@ -379,6 +379,21 @@ export const aiExpenseTextSchema = z.object({ text: z.string().trim().min(1).max
 /** A keyword for the Gmail monitor. */
 export const gmailKeywordSchema = z.object({ keyword: z.string().trim().min(1).max(100) });
 
+/** The person's Pluggy key (Open Finance), as copied from dashboard.pluggy.ai. */
+export const bankKeySchema = z.object({
+  clientId: z.string().trim().min(1).max(200),
+  clientSecret: z.string().trim().min(1).max(500),
+});
+
+/** A bank's name in the Capital; empty goes back to the suggested one. */
+export const bankRenameSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .max(60)
+    .transform((name) => name || null),
+});
+
 /** A failed analysis as the app saw it, for the server log. */
 export const aiProblemReportSchema = z.object({
   kind: z.enum(['audio', 'text']),

@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { ZodError, type ZodType } from 'zod';
 import { MonthClosedError, MonthNotFoundError } from '@/lib/storage/repository';
 import { userAccess, type UserAccess } from './access';
+import { PostgresBanksRepository } from './banks/repository';
 import { getAuth } from './auth';
 import { PostgresBudgetRepository } from './budgetRepository';
 import { getDb } from './db';
@@ -46,6 +47,8 @@ interface RouteArgs<P> {
   gmail: PostgresGmailRepository;
   /** The in-app notification history (the bell / Central de notificações). */
   notifications: PostgresNotificationsRepository;
+  /** Open Finance: the person's Pluggy key and banks (VIP; see lib/server/banks/access.ts). */
+  banks: PostgresBanksRepository;
   userId: string;
   /** The signed-in user's e-mail, for the owner-only routes. */
   email: string | null;
@@ -98,6 +101,7 @@ export function apiRoute<P = Record<string, never>>(
         reminders: new PostgresRemindersRepository(db, session.user.id),
         gmail: new PostgresGmailRepository(db, session.user.id),
         notifications: new PostgresNotificationsRepository(db, session.user.id),
+        banks: new PostgresBanksRepository(db, session.user.id),
         userId: session.user.id,
         email: session.user.email ?? null,
         access: () => (access ??= userAccess(db, session.user.id, session.user.email ?? null)),
