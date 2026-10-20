@@ -331,11 +331,11 @@ describe('the alerts', () => {
   }
   const plain = (text: string) => text.replace(/ /g, ' ');
 
-  it('tell what arrived after the first read, one summary per bank, and the salary on its own', async () => {
+  it('tell what arrived after the first read, one summary per bank', async () => {
     let lastUpdatedAt = FIRST;
     let card: unknown[] = [purchase({ id: 'old-purchase', date: '2026-01-10T03:00:00.000Z' })];
     let bank: unknown[] = [];
-    const { id, banks, fetchImpl } = await arrivedBank(
+    const { id, fetchImpl } = await arrivedBank(
       (path) => (path.includes('accountId=acc-2') ? card : bank),
       () => ({ status: 'UPDATED', lastUpdatedAt, consentExpiresAt: '2027-10-20T13:19:34.167Z' }),
     );
@@ -344,22 +344,7 @@ describe('the alerts', () => {
     await syncAndNotify(db, id, fetchImpl, NOW);
     expect(await bankNotifications(id)).toEqual([]);
 
-    // The person points at last month's salary.
-    await db.insert(schema.bankTransactions).values({
-      userId: id,
-      transactionId: 'salary-sep',
-      accountId: 'acc-1',
-      date: '2026-09-30',
-      amount: 5000,
-      description: 'TED RECEBIDA EMPRESA',
-      type: 'CREDIT',
-      status: 'POSTED',
-      payerDocument: '12.345.678/0001-90',
-    });
-    const refs = await banks.salaryRefs(['salary-sep'], []);
-    await banks.saveAlertSettings({ ...(await banks.alertSettings()), salaries: refs });
-
-    // Next day: two purchases, a Pix received and the salary.
+    // Next day: two purchases, a Pix received and a TED (not part of the summary).
     lastUpdatedAt = SECOND;
     card = [
       purchase({ id: 'p1', amount: 45.9, date: '2026-10-20T03:00:00.000Z' }),
@@ -369,9 +354,10 @@ describe('the alerts', () => {
       { ...pix, id: 'pix-2', date: '2026-10-21T03:00:00.000Z' },
       {
         ...pix,
-        id: 'salary-oct',
+        id: 'ted',
         amount: 5100,
         description: 'TED RECEBIDA EMPRESA',
+        operationType: 'TED',
         paymentData: { paymentMethod: 'TED', payer: { documentNumber: { value: '12.345.678/0001-90' } } },
       },
     ];
@@ -380,12 +366,11 @@ describe('the alerts', () => {
     const told = (await bankNotifications(id)).map((n) => ({ title: n.title, body: plain(n.body) }));
     expect(told).toEqual([
       { title: '🏦 BTG Pactual', body: 'Chegaram 2 compras no cartão (R$ 120,00) e 1 Pix recebido (R$ 50,00).' },
-      { title: '💰 Seu salário caiu', body: 'R$ 5.100,00 · BTG Pactual' },
     ]);
 
     // Reading again brings nothing new, and nothing is told twice.
     await syncAndNotify(db, id, fetchImpl, new Date('2026-10-21T16:00:00Z'));
-    expect(await bankNotifications(id)).toHaveLength(2);
+    expect(await bankNotifications(id)).toHaveLength(1);
   });
 
   it('a bank that stopped and an authorization running out are told once each', async () => {

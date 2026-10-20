@@ -349,13 +349,11 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
   - **Avisos no celular** (categoria "Open Finance" em Notificações, só para VIP):
     - depois de cada leitura com novidade, **um resumo por banco**: "🏦 Nubank — Chegaram 3
       compras no cartão (R$ 120,00) e 1 Pix recebido (R$ 50,00)." Nunca "agora";
-    - o **salário** tem aviso próprio ("💰 Seu salário caiu — R$ 5.000,00 · Nubank"). A pessoa
-      aponta, na engrenagem, qual crédito recente é o salário; os próximos do mesmo pagador
-      (CPF/CNPJ, ou o nome, ou a descrição) com valor ±15% avisam. O app nunca adivinha;
     - banco **parado** (48 h) e autorização **vencendo** (15 dias) avisam uma vez cada;
     - ficam de fora a primeira leitura (o ano de histórico), o que tem mais de 7 dias, o
       pagamento de fatura, o estorno e o dinheiro movido entre contas da própria pessoa;
-    - na engrenagem: compras, Pix enviados, Pix recebidos, salário e um valor mínimo opcional.
+    - na engrenagem: compras, Pix enviados, Pix recebidos e um valor mínimo opcional. (Houve um
+      aviso próprio do salário; o dono o tirou em 2026-10-20 por não ver utilidade.)
   - **"Confira os gastos"** (`/bancos/conferir`, precisa de Lançamentos; o aviso "Chegaram…" abre
     aqui). O que chegou dos bancos e ainda não está no Capital, desde uma semana antes de cada
     banco ser conectado (o ano de histórico não entra):
@@ -752,10 +750,9 @@ dela); o servidor não tem chave da Pluggy. O plano por fases está em
   - o vínculo de cartão fica em `bank_accounts.capital_card_id`/`card_linked`.
 - **Avisos** (`alerts.ts`, lógica pura em `lib/banks/alerts.ts`):
   - o job e "Buscar novidades" passam por `syncAndNotify`;
-  - `sourceKey` evita repetir: o resumo por lote, o salário por transação, o banco parado pela
-    data do último dado e a autorização pela data de vencimento;
-  - as escolhas ficam em `bank_settings.alerts`. O salário é guardado a partir da transação que
-    a pessoa marcou (pagador, valor, descrição), montado no servidor.
+  - `sourceKey` evita repetir: o resumo por lote, o banco parado pela data do último dado e a
+    autorização pela data de vencimento;
+  - as escolhas ficam em `bank_settings.alerts` (`alertSettingsOf` lê só o que ainda existe).
 - O `apiKey` (2 h) fica só em memória, por pessoa.
 - Toda rota confere VIP e o módulo ligado (`access.ts`) e tem limite de tentativas.
 - A Pluggy devolve a pessoa para `<BETTER_AUTH_URL>/bancos`, ou para `PLUGGY_REDIRECT_URI`, que

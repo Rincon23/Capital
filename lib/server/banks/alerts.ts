@@ -6,7 +6,6 @@ import {
   summarizeArrivals,
   type BankConnection,
 } from '@/lib/banks';
-import { formatBRL } from '@/lib/budget/money';
 import { addDays, zonedMoment } from '@/lib/reminders/time';
 import type { Database } from '../db/types';
 import { sendUserNotifications, type NotifyInput } from '../notify';
@@ -17,8 +16,8 @@ import { syncUser, type BankSyncResult } from './service';
 
 /**
  * Open Finance on the phone (category "Open Finance"): after each read, one summary per bank with
- * what arrived, the salary on its own, and — once each — a bank that stopped and an authorization
- * about to run out. Every alert has a `sourceKey`, so nothing is ever told twice.
+ * what arrived, and — once each — a bank that stopped and an authorization about to run out. Every
+ * alert has a `sourceKey`, so nothing is ever told twice.
  */
 
 /** Older than this, a transaction that only now arrived is not news anymore. */
@@ -48,19 +47,7 @@ export async function arrivalAlerts(
   for (const result of news) {
     const bank = names.get(result.itemId) ?? 'Banco';
     const transactions = await repo.alertTransactions(result.added, since);
-    const { body, salaries } = summarizeArrivals(transactions, settings);
-    for (const salary of salaries) {
-      alerts.push({
-        category: 'banks',
-        sourceKey: `banks-salary:${salary.id}`,
-        message: {
-          title: '💰 Seu salário caiu',
-          body: `${formatBRL(salary.amount)} · ${bank}`,
-          url: BANKS_REVIEW_URL,
-          tag: `banks-salary-${salary.id}`,
-        },
-      });
-    }
+    const body = summarizeArrivals(transactions, settings);
     if (body) {
       alerts.push({
         category: 'banks',

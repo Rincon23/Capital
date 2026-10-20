@@ -1,7 +1,7 @@
 import 'server-only';
 import { and, asc, desc, eq, gte, inArray, isNull, ne, notInArray, sql } from 'drizzle-orm';
 import {
-  DEFAULT_BANK_ALERTS,
+  alertSettingsOf,
   investmentLabel,
   isUsualReserve,
   type BankAccountKind,
@@ -14,8 +14,6 @@ import {
   type ReviewTransaction,
   type BankReserve,
   type ReserveSource,
-  type SalaryCandidate,
-  type SalaryRef,
 } from '@/lib/banks';
 import { round2 } from '@/lib/budget/money';
 import {
@@ -367,7 +365,7 @@ export class PostgresBanksRepository {
       .select({ alerts: bankSettings.alerts })
       .from(bankSettings)
       .where(eq(bankSettings.userId, this.userId));
-    return { ...DEFAULT_BANK_ALERTS, ...(row?.alerts ?? {}) };
+    return alertSettingsOf(row?.alerts);
   }
 
   async saveAlertSettings(alerts: BankAlertSettings): Promise<void> {
@@ -390,8 +388,6 @@ export class PostgresBanksRepository {
         paymentMethod: bankTransactions.paymentMethod,
         operationType: bankTransactions.operationType,
         category: bankTransactions.category,
-        payerName: bankTransactions.payerName,
-        payerDocument: bankTransactions.payerDocument,
       })
       .from(bankTransactions)
       .innerJoin(
@@ -406,93 +402,6 @@ export class PostgresBanksRepository {
         ),
       );
     return rows;
-  }
-
-  /**
-   * Recent credits that could be a salary (accounts only, from R$ 300, not moved between the
-   * person's own accounts): the latest of each payer, the ones the bank called a salary first.
-   */
-  async salaryCandidates(since: string): Promise<SalaryCandidate[]> {
-    const rows = await this.db
-      .select({
-        transactionId: bankTransactions.transactionId,
-        date: bankTransactions.date,
-        amount: bankTransactions.amount,
-        description: bankTransactions.description,
-        payerName: bankTransactions.payerName,
-        payerDocument: bankTransactions.payerDocument,
-        operationType: bankTransactions.operationType,
-        category: bankTransactions.category,
-        bankName: sql<string>`coalesce(${bankConnections.name}, ${bankConnections.suggestedName}, 'Banco')`,
-      })
-      .from(bankTransactions)
-      .innerJoin(
-        bankAccounts,
-        and(eq(bankAccounts.userId, bankTransactions.userId), eq(bankAccounts.accountId, bankTransactions.accountId)),
-      )
-      .innerJoin(
-        bankConnections,
-        and(eq(bankConnections.userId, bankAccounts.userId), eq(bankConnections.itemId, bankAccounts.itemId)),
-      )
-      .where(
-        and(
-          eq(bankTransactions.userId, this.userId),
-          eq(bankTransactions.type, 'CREDIT'),
-          ne(bankAccounts.kind, 'card'),
-          gte(bankTransactions.date, since),
-          gte(bankTransactions.amount, 300),
-        ),
-      )
-      .orderBy(desc(bankTransactions.date));
-    const seen = new Set<string>();
-    const candidates: SalaryCandidate[] = [];
-    for (const row of rows) {
-      if (row.category === 'Same person transfer' || row.category === 'Investments') continue;
-      if (row.operationType && /APLIC|RESGATE|RENDIMENTO/.test(row.operationType)) continue;
-      const payer = row.payerDocument ?? row.payerName ?? row.description;
-      if (seen.has(payer)) continue;
-      seen.add(payer);
-      candidates.push({
-        transactionId: row.transactionId,
-        date: row.date,
-        amount: row.amount,
-        description: row.description,
-        payerName: row.payerName,
-        payerDocument: row.payerDocument,
-        bankName: row.bankName,
-        likely: row.operationType === 'PORTABILIDADE_SALARIO',
-      });
-    }
-    return candidates
-      .sort((a, b) => Number(b.likely) - Number(a.likely) || b.amount - a.amount)
-      .slice(0, 8);
-  }
-
-  /**
-   * The salaries the person pointed at, built from the transactions themselves (payer, amount,
-   * description). One that is no longer stored (its bank left) keeps what was saved before.
-   */
-  async salaryRefs(transactionIds: string[], previous: SalaryRef[]): Promise<SalaryRef[]> {
-    if (transactionIds.length === 0) return [];
-    const rows = await this.db
-      .select()
-      .from(bankTransactions)
-      .where(and(eq(bankTransactions.userId, this.userId), inArray(bankTransactions.transactionId, transactionIds)));
-    return transactionIds.flatMap((id): SalaryRef[] => {
-      const row = rows.find((candidate) => candidate.transactionId === id);
-      if (row) {
-        return [
-          {
-            transactionId: id,
-            payerDocument: row.payerDocument,
-            payerName: row.payerName,
-            description: row.description,
-            amount: row.amount,
-          },
-        ];
-      }
-      return previous.filter((ref) => ref.transactionId === id);
-    });
   }
 
   // -------------------------------------------------------------------------

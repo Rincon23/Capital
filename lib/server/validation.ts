@@ -386,15 +386,12 @@ export const bankKeySchema = z.object({
   clientSecret: z.string().trim().min(1).max(500),
 });
 
-/** Open Finance alerts: what to tell, the minimum amount and which credits are the salary. */
+/** Open Finance alerts: what to tell and the minimum amount. */
 export const bankAlertsSchema = z.object({
   purchases: z.boolean(),
   pixSent: z.boolean(),
   pixReceived: z.boolean(),
-  salary: z.boolean(),
   minAmount: money.min(0).nullable(),
-  /** The bank transactions the person pointed at as their salary (one per job, at most 5). */
-  salaryTransactionIds: z.array(z.string().min(1).max(100)).max(5),
 });
 
 /** The transactions of one line of "Confira os gastos" (a split purchase brings all its instalments). */

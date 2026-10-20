@@ -691,38 +691,28 @@ interface AlertsDraft {
   purchases: boolean;
   pixSent: boolean;
   pixReceived: boolean;
-  salary: boolean;
   minAmount: string;
-  salaryIds: string[];
 }
 
-const ALERT_SWITCHES: { key: 'purchases' | 'pixSent' | 'pixReceived' | 'salary'; label: string }[] = [
+const ALERT_SWITCHES: { key: 'purchases' | 'pixSent' | 'pixReceived'; label: string }[] = [
   { key: 'purchases', label: 'Compras no cartão' },
   { key: 'pixSent', label: 'Pix enviados' },
   { key: 'pixReceived', label: 'Pix recebidos' },
-  { key: 'salary', label: 'Salário' },
 ];
 
-/**
- * What the phone is told when a bank sends data: a summary per bank (purchases, Pix sent and
- * received) and the salary on its own, which the person points at — the Capital never guesses it.
- */
+/** What the phone is told when a bank sends data: a summary per bank of purchases and Pix. */
 function AlertsSettings() {
   const { showToast } = useToast();
-  const [view, setView] = useState<BankAlertsView | null>(null);
   const [draft, setDraft] = useState<AlertsDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const adopt = useCallback((next: BankAlertsView) => {
-    setView(next);
     setDraft({
       purchases: next.settings.purchases,
       pixSent: next.settings.pixSent,
       pixReceived: next.settings.pixReceived,
-      salary: next.settings.salary,
       minAmount: next.settings.minAmount === null ? '' : amountToInputValue(next.settings.minAmount),
-      salaryIds: next.settings.salaries.map((salary) => salary.transactionId),
     });
   }, []);
 
@@ -750,9 +740,7 @@ function AlertsSettings() {
           purchases: current.purchases,
           pixSent: current.pixSent,
           pixReceived: current.pixReceived,
-          salary: current.salary,
           minAmount: minAmount !== null && minAmount > 0 ? minAmount : null,
-          salaryTransactionIds: current.salaryIds,
         }),
       );
       showToast('Avisos salvos.');
@@ -764,12 +752,7 @@ function AlertsSettings() {
   }
 
   if (error) return <p className="text-danger px-4 text-sm">{error}</p>;
-  if (!view || !draft) return <p className="text-muted px-4 text-sm">Carregando os avisos…</p>;
-
-  // A salary saved earlier that is no longer among the recent credits still shows, ticked.
-  const savedOnly = view.settings.salaries.filter(
-    (salary) => !view.candidates.some((candidate) => candidate.transactionId === salary.transactionId),
-  );
+  if (!draft) return <p className="text-muted px-4 text-sm">Carregando os avisos…</p>;
 
   return (
     <form
@@ -801,75 +784,10 @@ function AlertsSettings() {
           placeholder="Qualquer valor"
         />
       </label>
-
-      {draft.salary && (
-        <fieldset className="flex min-w-0 flex-col gap-1">
-          <legend className="text-foreground mb-1 text-sm font-semibold">Qual é o seu salário?</legend>
-          {view.candidates.length === 0 && savedOnly.length === 0 ? (
-            <p className="text-muted text-sm">Nenhum crédito recente para escolher ainda.</p>
-          ) : (
-            <>
-              <p className="text-muted text-xs">Marque o crédito do salário; os próximos parecidos avisam.</p>
-              {savedOnly.map((salary) => (
-                <SalaryOption
-                  key={salary.transactionId}
-                  checked={draft.salaryIds.includes(salary.transactionId)}
-                  title={salary.payerName || salary.description}
-                  detail="escolhido antes"
-                  amount={salary.amount}
-                  onToggle={() => setDraft({ ...draft, salaryIds: toggled(draft.salaryIds, salary.transactionId) })}
-                />
-              ))}
-              {view.candidates.map((candidate) => (
-                <SalaryOption
-                  key={candidate.transactionId}
-                  checked={draft.salaryIds.includes(candidate.transactionId)}
-                  title={candidate.payerName || candidate.description}
-                  detail={`${candidate.bankName} · ${formatDayMonth(candidate.date)}${candidate.likely ? ' · o banco diz que é salário' : ''}`}
-                  amount={candidate.amount}
-                  onToggle={() =>
-                    setDraft({ ...draft, salaryIds: toggled(draft.salaryIds, candidate.transactionId) })
-                  }
-                />
-              ))}
-            </>
-          )}
-        </fieldset>
-      )}
-
       <button type="submit" className={primaryButton} disabled={saving}>
         {saving ? 'Salvando…' : 'Salvar avisos'}
       </button>
     </form>
-  );
-}
-
-function toggled(ids: string[], id: string): string[] {
-  return ids.includes(id) ? ids.filter((other) => other !== id) : [...ids, id];
-}
-
-function SalaryOption({
-  checked,
-  title,
-  detail,
-  amount,
-  onToggle,
-}: {
-  checked: boolean;
-  title: string;
-  detail: string;
-  amount: number;
-  onToggle: () => void;
-}) {
-  return (
-    <label className="flex min-h-[44px] items-center gap-3 text-sm">
-      <input type="checkbox" checked={checked} onChange={onToggle} className="accent-primary h-5 w-5 shrink-0" />
-      <span className="min-w-0 flex-1">
-        <span className="text-foreground block truncate">{title}</span>
-        <span className="text-muted block truncate text-xs">{detail}</span>
-      </span>
-      <span className="text-foreground shrink-0 tabular-nums">{formatBRL(amount)}</span>
-    </label>
   );
 }
 

@@ -1,6 +1,8 @@
-import type { BankAlertSettings, SalaryCandidate } from '../banks/alerts';
+import type { BankAlertSettings } from '../banks/alerts';
 import type { BankReview } from '../banks/review';
+import type { BankReserve, BanksOverview } from '../banks/types';
 import type { Expense, Income, InstallmentPlan, Month } from '../budget/types';
+import { apiRequest, seg } from './apiClient';
 
 /** One decision about one line of "Confira os gastos" (see app/api/v1/banks/review). */
 export type BankReviewAction =
@@ -11,16 +13,13 @@ export type BankReviewAction =
   | { action: 'reimbursed'; transactionIds: string[]; month: Month; expenseId: string }
   | { action: 'ignore'; transactionIds: string[] }
   | { action: 'bill'; transactionIds: string[] };
-import type { BankReserve, BanksOverview } from '../banks/types';
 
 export interface BankAlertsView {
   settings: BankAlertSettings;
-  candidates: SalaryCandidate[];
 }
 
-/** What the gear sends: the switches, the minimum and which credits are the salary. */
-export type BankAlertChoices = Omit<BankAlertSettings, 'salaries'> & { salaryTransactionIds: string[] };
-import { apiRequest, seg } from './apiClient';
+/** What the gear sends: the switches and the minimum amount. */
+export type BankAlertChoices = BankAlertSettings;
 
 export interface BanksOverviewResult extends BanksOverview {
   /** Banks whose authorization was never finished and that were taken out on this read. */

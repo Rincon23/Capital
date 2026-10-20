@@ -50,7 +50,8 @@ papel fixo; tudo é escolha de cada pessoa e editável a qualquer hora.
 
 **Respondidas em 2026-10-20:** o nome é **"Open Finance"** (tagline "Seus bancos no Capital, uma
 vez por dia"); nada entra sozinho, cada item entra pela revisão **com um toque, sem "Lançar
-todos"**; os avisos são **um resumo por sincronização e um aviso próprio do salário**.
+todos"**; os avisos são **um resumo por sincronização**. Houve também um aviso próprio do salário; o dono o
+tirou no mesmo dia ("bem inútil"): não reimplemente.
 
 1. **Nome do módulo.** "Open Finance" é jargão; sugestão: **"Bancos conectados"** (tagline
    "Seus bancos no Capital, uma vez por dia"). Pergunte.
@@ -188,9 +189,9 @@ estiver parada, o valor fica o último conhecido, com o aviso.
 2. **Resumo por sincronização** (ou o formato que o dono escolher): compras no cartão, Pix
    enviados e recebidos, com valores. Tocar abre "Confira os gastos" (F5) ou, antes dela, a tela
    dos bancos.
-3. **Salário caiu**: crédito parecido com uma renda que a pessoa já confirmou como salário (mesmo
-   pagador, valor ±15%) → aviso próprio, "Seu salário caiu: R$ 5.000,00".
-4. Na engrenagem do módulo: o que avisar (compras, Pix enviados, Pix recebidos, salário) e um
+3. ~~**Salário caiu**~~: feito e depois **tirado pelo dono** em 2026-10-20 ("bem inútil"). Não
+   reimplemente.
+4. Na engrenagem do módulo: o que avisar (compras, Pix enviados, Pix recebidos) e um
    valor mínimo opcional.
 
 ### F5 — "Confira os gastos" → Lançamentos (precisa de Lançamentos)
@@ -268,7 +269,7 @@ Todas as fases (F0 a F6) foram feitas em 2026-10-20, uma por commit; o que cada 
 - [x] Conexão parada há mais de 48 h e consentimento perto de vencer geram aviso.
 - [x] A Reserva pode vir do saldo de qualquer conta conectada que a pessoa marcar, e ela troca
       ou volta a digitar à mão quando quiser.
-- [x] Avisos de compras, Pix e salário chegam, sem prometer tempo real.
+- [x] Avisos de compras e Pix chegam, sem prometer tempo real (o do salário saiu a pedido do dono).
 - [x] "Confira os gastos" lança com um toque, sugere categoria, pega duplicados e ignora fatura e
       transferência entre contas próprias.
 - [x] Testes e lint passando; README e página de privacidade atualizados.
