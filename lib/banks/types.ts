@@ -51,6 +51,34 @@ export interface BanksOverview {
   limit: number;
 }
 
+/** An account or investment the person can mark as part of their reserve. */
+export interface ReserveSource {
+  id: string;
+  kind: 'account' | 'investment';
+  name: string;
+  /** "conta", "poupança", "CDB", "Tesouro", "ação"… */
+  detail: string;
+  /** Fixed income and accounts first: what a reserve usually is. */
+  usual: boolean;
+  balance: number | null;
+  marked: boolean;
+}
+
+export interface ReserveSourceBank {
+  itemId: string;
+  name: string;
+  status: BankConnectionStatus;
+  lastUpdatedAt: string | null;
+  sources: ReserveSource[];
+}
+
+/** The Reserva fed by the banks: what can be marked, and the sum of what is. */
+export interface BankReserve {
+  banks: ReserveSourceBank[];
+  /** The sum of the marked balances; null when nothing is marked (the person types it). */
+  total: number | null;
+}
+
 /** Meu Pluggy's free plan: up to 5 active connections, all of the same person. */
 export const MEU_PLUGGY_LIMIT = 5;
 

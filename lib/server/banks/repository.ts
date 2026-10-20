@@ -1,7 +1,23 @@
 import 'server-only';
 import { and, asc, eq, inArray, ne, notInArray, sql } from 'drizzle-orm';
-import type { BankAccountKind, BankConnection, BankConnectionStatus } from '@/lib/banks';
-import { bankAccounts, bankConnections, bankKeys, bankTransactions } from '../db/schema';
+import {
+  investmentLabel,
+  isUsualReserve,
+  type BankAccountKind,
+  type BankConnection,
+  type BankConnectionStatus,
+  type BankReserve,
+  type ReserveSource,
+} from '@/lib/banks';
+import { round2 } from '@/lib/budget/money';
+import {
+  bankAccounts,
+  bankConnections,
+  bankInvestments,
+  bankKeys,
+  bankTransactions,
+  cashSettings,
+} from '../db/schema';
 import type { Database } from '../db/types';
 import { HttpError } from '../httpError';
 import { decryptSecret, encryptSecret } from '../secretBox';
@@ -16,6 +32,15 @@ export interface StoredAccount {
   creditLimit?: number | null;
   availableCredit?: number | null;
   dueDate?: string | null;
+}
+
+export interface StoredInvestment {
+  investmentId: string;
+  name: string;
+  type: string | null;
+  subtype: string | null;
+  balance: number | null;
+  balanceAt: Date | null;
 }
 
 /** A transaction as the Capital keeps it (`bank_transactions`), without what it became. */
@@ -191,6 +216,131 @@ export class PostgresBanksRepository {
       for (const row of rows) if (row.added) added.push(row.id);
     }
     return added;
+  }
+
+  /** The investments as the last read brought them (an empty read changes nothing, as with accounts). */
+  async replaceInvestments(itemId: string, investments: StoredInvestment[]): Promise<void> {
+    if (investments.length === 0) return;
+    await this.db.transaction(async (tx) => {
+      await tx.delete(bankInvestments).where(
+        and(
+          eq(bankInvestments.userId, this.userId),
+          eq(bankInvestments.itemId, itemId),
+          notInArray(
+            bankInvestments.investmentId,
+            investments.map((investment) => investment.investmentId),
+          ),
+        ),
+      );
+      for (const investment of investments) {
+        const values = {
+          itemId,
+          name: investment.name,
+          type: investment.type,
+          subtype: investment.subtype,
+          balance: investment.balance,
+          balanceAt: investment.balanceAt,
+        };
+        await tx
+          .insert(bankInvestments)
+          .values({ userId: this.userId, investmentId: investment.investmentId, ...values })
+          .onConflictDoUpdate({ target: [bankInvestments.userId, bankInvestments.investmentId], set: values });
+      }
+    });
+  }
+
+  /** What can feed the Reserva, bank by bank, and the sum of what the person marked. */
+  async reserve(): Promise<BankReserve> {
+    const connections = await this.db
+      .select()
+      .from(bankConnections)
+      .where(and(eq(bankConnections.userId, this.userId), ne(bankConnections.status, 'pending')))
+      .orderBy(asc(bankConnections.createdAt));
+    const accounts = await this.db
+      .select()
+      .from(bankAccounts)
+      .where(and(eq(bankAccounts.userId, this.userId), ne(bankAccounts.kind, 'card')))
+      .orderBy(asc(bankAccounts.name));
+    const investments = await this.db
+      .select()
+      .from(bankInvestments)
+      .where(eq(bankInvestments.userId, this.userId))
+      .orderBy(asc(bankInvestments.name));
+
+    let total: number | null = null;
+    const add = (marked: boolean, balance: number | null) => {
+      if (marked) total = round2((total ?? 0) + (balance ?? 0));
+    };
+    const banks = connections.map((connection) => {
+      const sources: ReserveSource[] = [
+        ...accounts
+          .filter((account) => account.itemId === connection.itemId)
+          .map((account) => {
+            add(account.feedsReserve, account.balance);
+            return {
+              id: account.accountId,
+              kind: 'account' as const,
+              name: account.name,
+              detail: account.kind === 'savings' ? 'poupança' : 'conta',
+              usual: true,
+              balance: account.balance,
+              marked: account.feedsReserve,
+            };
+          }),
+        ...investments
+          .filter((investment) => investment.itemId === connection.itemId)
+          .map((investment) => {
+            add(investment.feedsReserve, investment.balance);
+            return {
+              id: investment.investmentId,
+              kind: 'investment' as const,
+              name: investment.name,
+              detail: investmentLabel(investment.type, investment.subtype),
+              usual: isUsualReserve(investment.type),
+              balance: investment.balance,
+              marked: investment.feedsReserve,
+            };
+          }),
+      ];
+      return {
+        itemId: connection.itemId,
+        name: connection.name ?? connection.suggestedName ?? 'Banco',
+        status: connection.status,
+        lastUpdatedAt: connection.lastUpdatedAt?.toISOString() ?? null,
+        sources,
+      };
+    });
+    return { banks: banks.filter((bank) => bank.sources.length > 0), total };
+  }
+
+  /** Marks exactly these accounts and investments as the reserve (none: back to typing it). */
+  async setReserveSources(accountIds: string[], investmentIds: string[]): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(bankAccounts)
+        .set({ feedsReserve: accountIds.length ? inArray(bankAccounts.accountId, accountIds) : sql`false` })
+        .where(eq(bankAccounts.userId, this.userId));
+      await tx
+        .update(bankInvestments)
+        .set({
+          feedsReserve: investmentIds.length ? inArray(bankInvestments.investmentId, investmentIds) : sql`false`,
+        })
+        .where(eq(bankInvestments.userId, this.userId));
+    });
+  }
+
+  /**
+   * Writes the sum of the marked balances as the Reserva's "Reserva em conta". Nothing marked:
+   * nothing is written (the person types it). Answers what was written.
+   */
+  async writeReserve(): Promise<number | null> {
+    const { total } = await this.reserve();
+    if (total === null) return null;
+    await this.db
+      .insert(cashSettings)
+      .values({ userId: this.userId, reserveAccountAmount: total })
+      .onConflictDoUpdate({ target: cashSettings.userId, set: { reserveAccountAmount: total } });
+    return total;
   }
 
   async countTransactions(): Promise<number> {

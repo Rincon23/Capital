@@ -385,6 +385,12 @@ export const bankKeySchema = z.object({
   clientSecret: z.string().trim().min(1).max(500),
 });
 
+/** What feeds the Reserva: the ids of the marked accounts and investments. */
+export const bankReserveSchema = z.object({
+  accounts: z.array(z.string().min(1).max(100)).max(50),
+  investments: z.array(z.string().min(1).max(100)).max(300),
+});
+
 /** A bank's name in the Capital; empty goes back to the suggested one. */
 export const bankRenameSchema = z.object({
   name: z

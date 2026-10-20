@@ -1,4 +1,4 @@
-import type { BanksOverview } from '../banks/types';
+import type { BankReserve, BanksOverview } from '../banks/types';
 import { apiRequest, seg } from './apiClient';
 
 export interface BanksOverviewResult extends BanksOverview {
@@ -16,6 +16,10 @@ export interface BanksRepository {
   sync(): Promise<{ changed: string[] }>;
   rename(itemId: string, name: string): Promise<void>;
   remove(itemId: string): Promise<void>;
+  /** What can feed the Reserva and what is marked. */
+  getReserve(): Promise<BankReserve>;
+  /** Marks what feeds the Reserva (both empty: back to typing it). */
+  setReserve(accounts: string[], investments: string[]): Promise<BankReserve>;
   disconnect(): Promise<void>;
 }
 
@@ -42,6 +46,14 @@ export class HttpBanksRepository implements BanksRepository {
 
   remove(itemId: string): Promise<void> {
     return apiRequest('DELETE', `/banks/connections/${seg(itemId)}`);
+  }
+
+  getReserve(): Promise<BankReserve> {
+    return apiRequest('GET', '/banks/reserve');
+  }
+
+  setReserve(accounts: string[], investments: string[]): Promise<BankReserve> {
+    return apiRequest('PUT', '/banks/reserve', { accounts, investments });
   }
 
   disconnect(): Promise<void> {

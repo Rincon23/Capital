@@ -53,6 +53,41 @@ export function accountKind(subtype: string | null | undefined): BankAccountKind
   }
 }
 
+const INVESTMENT_LABELS: Record<string, string> = {
+  CDB: 'CDB',
+  LCI: 'LCI',
+  LCA: 'LCA',
+  LC: 'LC',
+  TREASURY: 'Tesouro',
+  CRI: 'CRI',
+  CRA: 'CRA',
+  CORPORATE_DEBT: 'debênture',
+  DEBENTURES: 'debênture',
+  STOCK: 'ação',
+  REAL_ESTATE_FUND: 'FII',
+  ETF: 'ETF',
+  BDR: 'BDR',
+  INVESTMENT_FUND: 'fundo',
+  MULTIMARKET_FUND: 'fundo multimercado',
+  FIXED_INCOME_FUND: 'fundo de renda fixa',
+  STOCK_FUND: 'fundo de ações',
+  RETIREMENT: 'previdência',
+};
+
+/** How an investment shows up: its kind in plain words ("CDB", "Tesouro", "ação"). */
+export function investmentLabel(type: string | null | undefined, subtype: string | null | undefined): string {
+  if (subtype && INVESTMENT_LABELS[subtype]) return INVESTMENT_LABELS[subtype];
+  if (type === 'FIXED_INCOME') return 'renda fixa';
+  if (type === 'EQUITY') return 'renda variável';
+  if (type === 'MUTUAL_FUND') return 'fundo';
+  return 'investimento';
+}
+
+/** Fixed income is what a reserve usually is; stocks and funds can be marked too, one tap further. */
+export function isUsualReserve(type: string | null | undefined): boolean {
+  return type === 'FIXED_INCOME';
+}
+
 /** "208/0001/1234567-8" → "BTG Pactual"; null when the code is not a known bank. */
 export function bankFromTransferNumber(transferNumber: string | null | undefined): string | null {
   const code = /^\s*(\d{3})\s*\//.exec(transferNumber ?? '')?.[1];

@@ -190,6 +190,13 @@
       "when": 1792505787630,
       "tag": "0026_open_finance_sync",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792506876137,
+      "tag": "0027_open_finance_reserve",
+      "breakpoints": true
     }
   ]
 }

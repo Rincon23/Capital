@@ -12,6 +12,7 @@ import {
   pluggyErrorOf,
   type FetchLike,
   type PluggyAccount,
+  type PluggyInvestment,
   type PluggyItem,
   type PluggyTransaction,
 } from './pluggy';
@@ -244,6 +245,39 @@ async function readAccounts(
   return { accounts: results, suggestedName: results.length > 0 ? suggestBankName(names) : null };
 }
 
+/**
+ * Reads an item's investments (they can feed the Reserva). Best effort: a bank whose investments
+ * fail to come still has its accounts and transactions read.
+ */
+async function readInvestments(
+  repo: PostgresBanksRepository,
+  client: PluggyClient,
+  itemId: string,
+  balanceAt: Date | null,
+): Promise<void> {
+  try {
+    const { results = [] } = await client.get<{ results?: PluggyInvestment[] }>(
+      `/investments?itemId=${encodeURIComponent(itemId)}`,
+    );
+    await repo.replaceInvestments(
+      itemId,
+      results.map((investment) => ({
+        investmentId: investment.id,
+        name: (investment.name ?? '').trim() || 'Investimento',
+        type: investment.type ?? null,
+        subtype: investment.subtype ?? null,
+        balance: numberOrNull(investment.balance),
+        balanceAt,
+      })),
+    );
+  } catch (err) {
+    console.warn(
+      `[bancos] investimentos do item ${itemId.slice(0, 8)} não vieram:`,
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
+
 /** A Pluggy transaction as the Capital keeps it. */
 export function transactionRow(transaction: PluggyTransaction, accountId: string): StoredTransaction {
   const payment = transaction.paymentData;
@@ -419,6 +453,7 @@ export async function syncConnection(
 
   const { accounts, suggestedName } = await readAccounts(repo, client, connection.itemId, lastUpdatedAt);
   if (suggestedName) update.suggestedName = suggestedName;
+  await readInvestments(repo, client, connection.itemId, lastUpdatedAt);
   const today = zonedMoment(now).date;
   const from = connection.syncedUpdateAt
     ? addDays(zonedMoment(connection.syncedUpdateAt).date, -REREAD_DAYS)
@@ -467,6 +502,8 @@ export async function syncUser(
         );
       }
     }
+    // The Reserva follows the balances the person marked, when they changed.
+    if (results.some((result) => result.changed)) await repo.writeReserve();
     return results;
   } finally {
     syncing.delete(userId);

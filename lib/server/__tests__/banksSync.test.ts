@@ -260,6 +260,64 @@ describe('the sync', () => {
   });
 });
 
+describe('the Reserva fed by the banks', () => {
+  async function cashReserve(userId: string) {
+    const [row] = await db.select().from(schema.cashSettings).where(eq(schema.cashSettings.userId, userId));
+    return row?.reserveAccountAmount ?? null;
+  }
+
+  it('nothing comes marked; marking writes the sum, a sync keeps it, unmarking leaves the value', async () => {
+    let balance = 1234.56;
+    const { id, banks } = await arrivedBank(
+      () => [],
+      () => ({ status: 'UPDATED', lastUpdatedAt: balance === 1234.56 ? FIRST : SECOND }),
+    );
+    const { fetchImpl } = fakePluggy({
+      'POST /auth': { body: { apiKey: 'chave' } },
+      [`GET /items/${ITEM}`]: () => ({
+        body: { id: ITEM, status: 'UPDATED', lastUpdatedAt: balance === 1234.56 ? FIRST : SECOND },
+      }),
+      'GET /accounts': () => ({
+        body: { results: [{ ...accounts.results[0], balance }, accounts.results[1]] },
+      }),
+      'GET /investments': {
+        body: {
+          results: [
+            { id: 'inv-cdb', name: 'CDB NU FINANCEIRA', type: 'FIXED_INCOME', subtype: 'CDB', balance: 500.5 },
+            { id: 'inv-stock', name: 'PETR4', type: 'EQUITY', subtype: 'STOCK', balance: 80 },
+          ],
+        },
+      },
+      'GET /v2/transactions': { body: { results: [], next: null } },
+    });
+    await syncUser(banks, id, fetchImpl, NOW);
+
+    const offered = await banks.reserve();
+    expect(offered.total).toBeNull();
+    expect(offered.banks[0].sources.map((s) => [s.id, s.detail, s.usual, s.marked])).toEqual([
+      ['acc-1', 'conta', true, false],
+      ['inv-cdb', 'CDB', true, false],
+      ['inv-stock', 'ação', false, false],
+    ]);
+    expect(await cashReserve(id)).toBeNull();
+
+    await banks.setReserveSources(['acc-1'], ['inv-cdb']);
+    expect(await banks.writeReserve()).toBe(1735.06);
+    expect(await cashReserve(id)).toBe(1735.06);
+
+    // The next day the bank sends a new balance: the Reserva follows.
+    balance = 2000;
+    await syncUser(banks, id, fetchImpl, new Date('2026-10-21T15:00:00Z'));
+    expect(await cashReserve(id)).toBe(2500.5);
+
+    // Back to typing it: the marks go, the last value stays for the person to edit.
+    await banks.setReserveSources([], []);
+    expect(await banks.writeReserve()).toBeNull();
+    expect((await banks.reserve()).total).toBeNull();
+    expect(await cashReserve(id)).toBe(2500.5);
+  });
+});
+
 describe('the hourly job', () => {
   it('reads only VIPs with the module on, once an hour, and one failure stops nobody', async () => {
     const vip = await newPerson();

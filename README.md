@@ -346,6 +346,15 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
     - 15 dias antes de a autorização vencer, aparece "A autorização vence em N dias", com
       "Renovar";
     - um banco que a Pluggy perdeu pede "Trazer de novo".
+  - **Reserva pelos bancos** (na engrenagem da Reserva, com Open Finance ligado):
+    - "Atualizar pelos bancos conectados" lista as contas e os investimentos de cada banco. Nada
+      vem marcado: o app não supõe qual banco é a reserva de cada um;
+    - investimentos de renda fixa aparecem de cara; ações e fundos ficam atrás de "Mostrar ações
+      e fundos", e o que tem saldo zero não aparece;
+    - a "Reserva em conta" passa a ser a soma do que foi marcado, reescrita a cada leitura, e o
+      campo fica só leitura com "BTG Pactual · atualizado há 5 h". Se um banco parou, avisa que o
+      valor é o último que chegou;
+    - "Mudar as contas da reserva" e "Voltar a digitar à mão" (o último valor fica para editar).
 
 ### Navegação: a Início como a tela de um celular
 
@@ -665,6 +674,11 @@ dela); o servidor não tem chave da Pluggy. O plano por fases está em
   - a chave (`bank_keys`, Secret cifrado com `secretBox`);
   - as conexões (`bank_connections`, a única lista dos itens, porque o plano grátis não lista);
   - as contas (`bank_accounts`), com saldo, data do saldo e, nos cartões, limite e vencimento;
+  - os investimentos (`bank_investments`), lidos junto, sem impedir a leitura do resto se
+    falharem;
+  - a marca `feeds_reserve` de contas e investimentos. `writeReserve` grava a soma do que está
+    marcado em `cash_settings.reserve_account_amount` depois de cada leitura com novidade, ao
+    marcar e ao salvar a configuração da Reserva (o valor digitado não vence o dos bancos);
   - as transações (`bank_transactions`), pela id da Pluggy.
 - As transações:
   - ficam como a Pluggy manda, com o cartão positivo na compra;

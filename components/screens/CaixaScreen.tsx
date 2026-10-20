@@ -19,8 +19,11 @@ import {
   type ReservePlan,
   type ReservePlanSummary,
 } from '@/lib/budget';
+import { reserveStatusLine, type BankReserve, type ReserveSource } from '@/lib/banks';
 import { isModuleOn } from '@/lib/modules';
-import { walletRepository } from '@/lib/storage';
+import { banksRepository, walletRepository } from '@/lib/storage';
+import { toStorageErrorMessage } from '@/lib/storage/errors';
+import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { AmountInput } from '@/components/ui/AmountInput';
@@ -129,6 +132,27 @@ function Caixa({ initialTab }: { initialTab?: ReserveTab }) {
   /** O lançamento de uma parcela do plano. */
   const [contributing, setContributing] = useState(false);
   useModuleIntro('cash', { ready: !!snapshot });
+  // Open Finance: "Reserva em conta" can come from the accounts the person marked.
+  const { user } = useAuth();
+  const banksOn = isModuleOn(settings, 'banks') && user.vip;
+  const [bankReserve, setBankReserve] = useState<BankReserve | null>(null);
+  const [now] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!banksOn) return;
+    let active = true;
+    banksRepository
+      .getReserve()
+      .then((reserve) => {
+        if (active) setBankReserve(reserve);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+    // Read again whenever the wallet changed (a save of the settings, say).
+  }, [banksOn, snapshot]);
+  const reserveLine = banksOn && bankReserve ? reserveStatusLine(bankReserve, now) : null;
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -212,7 +236,7 @@ function Caixa({ initialTab }: { initialTab?: ReserveTab }) {
             </button>
             <div id="caixa-detalhes" hidden={!details} className="flex flex-col gap-3">
               <div data-tour="caixa-reserva" className="flex flex-col gap-3">
-                <Row label="Reserva em conta" value={report.reserveAccount} />
+                <Row label="Reserva em conta" value={report.reserveAccount} hint={reserveLine?.text} />
                 <Row
                   label="Reserva investida"
                   value={report.investedReserve}
@@ -275,7 +299,12 @@ function Caixa({ initialTab }: { initialTab?: ReserveTab }) {
 
       {configuring && (
         <ModuleSettingsSheet module="cash" onClose={() => setConfiguring(false)}>
-          <CashSettingsForm settings={snapshot.cash.settings} />
+          <CashSettingsForm
+            settings={snapshot.cash.settings}
+            bankReserve={banksOn ? bankReserve : null}
+            onBankReserve={setBankReserve}
+            now={now}
+          />
           <TickerSection ticker={snapshot.investments.ticker} />
         </ModuleSettingsSheet>
       )}
@@ -638,7 +667,18 @@ interface CostDraft {
 }
 
 /** Reserve in the bank, the "no income" monthly costs and how many months to cover. */
-function CashSettingsForm({ settings }: { settings: CashSettings }) {
+function CashSettingsForm({
+  settings,
+  bankReserve,
+  onBankReserve,
+  now,
+}: {
+  settings: CashSettings;
+  /** Null without Open Finance: the reserve is always typed. */
+  bankReserve: BankReserve | null;
+  onBankReserve: (reserve: BankReserve) => void;
+  now: number;
+}) {
   const { run } = useWallet();
   const { showToast } = useToast();
   const [reserve, setReserve] = useState(amountToInputValue(settings.reserveAccountAmount));
@@ -679,16 +719,27 @@ function CashSettingsForm({ settings }: { settings: CashSettings }) {
     <section className="flex flex-col gap-2 px-4">
       <h2 className="text-muted text-sm font-semibold">Reserva e custos mensais</h2>
       <div className="border-border bg-card flex flex-col gap-4 rounded-xl border p-4 shadow-sm">
-        <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
-          Reserva em conta (R$)
-          <input
-            type="text"
-            inputMode="decimal"
-            value={reserve}
-            onChange={(e) => setReserve(e.target.value)}
-            className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] rounded-lg border px-3 py-2 text-base outline-none focus:ring-2"
-          />
-        </label>
+        {bankReserve && bankReserve.total !== null ? (
+          <div className="flex flex-col gap-1.5">
+            <p className="text-muted text-sm font-medium">Reserva em conta</p>
+            <p className="text-foreground text-base font-semibold tabular-nums">{formatBRL(bankReserve.total)}</p>
+            <BankReserveLine reserve={bankReserve} now={now} />
+          </div>
+        ) : (
+          <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
+            Reserva em conta (R$)
+            <input
+              type="text"
+              inputMode="decimal"
+              value={reserve}
+              onChange={(e) => setReserve(e.target.value)}
+              className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] rounded-lg border px-3 py-2 text-base outline-none focus:ring-2"
+            />
+          </label>
+        )}
+        {bankReserve && bankReserve.banks.length > 0 && (
+          <BankReserveChooser reserve={bankReserve} onChange={onBankReserve} />
+        )}
 
         <div className="flex flex-col gap-2">
           <p className="text-muted text-sm font-medium">Custo mensal se eu ficar sem renda</p>
@@ -753,5 +804,161 @@ function CashSettingsForm({ settings }: { settings: CashSettings }) {
         </button>
       </div>
     </section>
+  );
+}
+
+/** Where "Reserva em conta" comes from, and how fresh it is (a warning when a bank stopped). */
+function BankReserveLine({ reserve, now }: { reserve: BankReserve; now: number }) {
+  const line = reserveStatusLine(reserve, now);
+  if (!line) return null;
+  return <p className={`text-xs ${line.warning ? 'text-warning' : 'text-muted'}`}>{line.text}</p>;
+}
+
+/**
+ * Open Finance: the person marks which accounts and investments are their reserve, from any bank
+ * (nothing comes marked: the Capital doesn't guess which bank is the reserve), and can change it or
+ * go back to typing the value at any time.
+ */
+function BankReserveChooser({
+  reserve,
+  onChange,
+}: {
+  reserve: BankReserve;
+  onChange: (reserve: BankReserve) => void;
+}) {
+  const { run } = useWallet();
+  const { showToast } = useToast();
+  const fed = reserve.total !== null;
+  const [open, setOpen] = useState(false);
+  const [marked, setMarked] = useState<Set<string>>(() => markedIds(reserve));
+  const [showAll, setShowAll] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function save(accounts: string[], investments: string[], done: string) {
+    setBusy(true);
+    try {
+      let next: BankReserve | null = null;
+      await run(async () => {
+        next = await banksRepository.setReserve(accounts, investments);
+      });
+      if (next) {
+        onChange(next);
+        setMarked(markedIds(next));
+      }
+      setOpen(false);
+      showToast(done);
+    } catch (err) {
+      showToast(toStorageErrorMessage(err, 'Não foi possível salvar. Tente de novo.'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <div className="flex flex-wrap gap-x-4 gap-y-1">
+        <button type="button" onClick={() => setOpen(true)} className="text-primary text-sm font-semibold">
+          {fed ? 'Mudar as contas da reserva' : 'Atualizar pelos bancos conectados'}
+        </button>
+        {fed && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void save([], [], 'Pronto: a reserva em conta volta a ser digitada.')}
+            className="text-muted text-sm font-medium disabled:opacity-50"
+          >
+            Voltar a digitar à mão
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // An investment already redeemed (balance zero) is only noise, unless it is still marked.
+  const offered = (source: ReserveSource) =>
+    source.marked || source.kind === 'account' || (source.balance !== null && source.balance > 0);
+  const hidden = reserve.banks
+    .flatMap((bank) => bank.sources)
+    .filter((source) => offered(source) && !source.usual && !source.marked).length;
+  const toggle = (id: string) =>
+    setMarked((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const pick = (kind: ReserveSource['kind']) =>
+    reserve.banks.flatMap((bank) => bank.sources).filter((s) => s.kind === kind && marked.has(s.id)).map((s) => s.id);
+
+  return (
+    <form
+      className="border-border flex flex-col gap-3 rounded-lg border p-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void save(pick('account'), pick('investment'), 'Pronto: a reserva em conta vem dos bancos.');
+      }}
+    >
+      <p className="text-muted text-sm">Marque o que é a sua reserva. O valor passa a vir daí a cada leitura.</p>
+      {reserve.banks.map((bank) => {
+        const sources = bank.sources.filter(
+          (source) => offered(source) && (showAll || source.usual || source.marked),
+        );
+        if (sources.length === 0) return null;
+        return (
+          // min-w-0: a fieldset never shrinks below its content otherwise, and long names push the
+          // amounts out of the sheet.
+          <fieldset key={bank.itemId} className="flex min-w-0 flex-col gap-1">
+            <legend className="text-foreground mb-1 text-sm font-semibold">{bank.name}</legend>
+            {sources.map((source) => (
+              <label key={source.id} className="flex min-h-[40px] items-center gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={marked.has(source.id)}
+                  onChange={() => toggle(source.id)}
+                  className="accent-primary h-5 w-5 shrink-0"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="text-foreground block truncate">{source.name}</span>
+                  <span className="text-muted block text-xs">{source.detail}</span>
+                </span>
+                {source.balance !== null && (
+                  <span className="text-foreground shrink-0 tabular-nums">{formatBRL(source.balance)}</span>
+                )}
+              </label>
+            ))}
+          </fieldset>
+        );
+      })}
+      {!showAll && hidden > 0 && (
+        <button type="button" onClick={() => setShowAll(true)} className="text-primary self-start text-sm font-medium">
+          Mostrar ações e fundos ({hidden})
+        </button>
+      )}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setMarked(markedIds(reserve));
+            setOpen(false);
+          }}
+          className="border-border text-foreground min-h-[44px] flex-1 rounded-lg border text-sm font-medium"
+        >
+          Cancelar
+        </button>
+        <button
+          type="submit"
+          disabled={busy || marked.size === 0}
+          className="bg-primary text-primary-foreground min-h-[44px] flex-1 rounded-lg text-sm font-semibold disabled:opacity-50"
+        >
+          {busy ? 'Salvando…' : 'Usar estas'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function markedIds(reserve: BankReserve): Set<string> {
+  return new Set(
+    reserve.banks.flatMap((bank) => bank.sources.filter((source) => source.marked).map((source) => source.id)),
   );
 }

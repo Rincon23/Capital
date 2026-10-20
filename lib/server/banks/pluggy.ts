@@ -44,6 +44,16 @@ export interface PluggyAccount {
   } | null;
 }
 
+/** The parts of a Pluggy investment the Capital keeps (GET /investments). */
+export interface PluggyInvestment {
+  id: string;
+  name?: string | null;
+  type?: string | null;
+  subtype?: string | null;
+  /** The value today (what a reserve counts). */
+  balance?: number | null;
+}
+
 interface PluggyParty {
   name?: string | null;
   documentNumber?: { value?: string | null } | null;

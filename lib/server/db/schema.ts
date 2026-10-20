@@ -920,6 +920,8 @@ export const bankAccounts = pgTable(
     creditLimit: numeric('credit_limit', { mode: 'number' }),
     availableCredit: numeric('available_credit', { mode: 'number' }),
     dueDate: date('due_date', { mode: 'string' }),
+    /** The person marked it as part of their reserve (the Reserva's "Reserva em conta"). */
+    feedsReserve: boolean('feeds_reserve').notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -930,6 +932,34 @@ export const bankAccounts = pgTable(
       foreignColumns: [bankConnections.userId, bankConnections.itemId],
     }).onDelete('cascade'),
     check('bank_accounts_kind', sql`${t.kind} in ('checking', 'savings', 'card', 'other')`),
+  ],
+);
+
+/** The investments a connection brought (fixed income, funds, stocks), with the last balance read. */
+export const bankInvestments = pgTable(
+  'bank_investments',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    investmentId: text('investment_id').notNull(),
+    itemId: text('item_id').notNull(),
+    name: text('name').notNull(),
+    /** Pluggy's type and subtype: FIXED_INCOME / CDB, EQUITY / STOCK… */
+    type: text('type'),
+    subtype: text('subtype'),
+    balance: numeric('balance', { mode: 'number' }),
+    balanceAt: timestamp('balance_at', { withTimezone: true }),
+    feedsReserve: boolean('feeds_reserve').notNull().default(false),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.investmentId] }),
+    foreignKey({
+      columns: [t.userId, t.itemId],
+      foreignColumns: [bankConnections.userId, bankConnections.itemId],
+    }).onDelete('cascade'),
   ],
 );
 

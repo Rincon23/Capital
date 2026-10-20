@@ -1,5 +1,7 @@
 import { sum } from '../budget/money';
-import type { BankAccount, BankConnection } from './types';
+import { formatDayMonth, zonedMoment } from '../reminders/time';
+import { formatAgo } from './format';
+import type { BankAccount, BankConnection, BankReserve } from './types';
 
 /**
  * How a bank is doing, as the screen tells it. Pluggy's own status is not enough: a connection can
@@ -37,6 +39,40 @@ export function consentDaysLeft(connection: Pick<BankConnection, 'consentExpires
 /** Money in the accounts (cards don't count: what they show is owed, not held). */
 export function accountsBalance(connections: Pick<BankConnection, 'accounts'>[]): number {
   return sum(connections.flatMap((connection) => connection.accounts.map(heldBalance)));
+}
+
+/**
+ * The line under "Reserva em conta" when the banks feed it: from where and how long ago ("BTG
+ * Pactual · atualizado há 5 h"), or, when one of them stopped, that the value is the last one that
+ * came. Null when nothing is marked. (No "pelo"/"pela": a bank's name has no known gender.)
+ */
+export function reserveStatusLine(
+  reserve: BankReserve,
+  now: number,
+): { text: string; warning: boolean } | null {
+  if (reserve.total === null) return null;
+  const marked = reserve.banks.filter((bank) => bank.sources.some((source) => source.marked));
+  if (marked.length === 0) return null;
+  const names =
+    marked.length === 1
+      ? marked[0].name
+      : `${marked
+          .slice(0, -1)
+          .map((bank) => bank.name)
+          .join(', ')} e ${marked[marked.length - 1].name}`;
+  const stopped = marked.find((bank) => connectionHealth(bank, now) !== 'ok');
+  if (stopped) {
+    const when = stopped.lastUpdatedAt ? formatDayMonth(zonedMoment(new Date(stopped.lastUpdatedAt)).date) : null;
+    return {
+      text: `${stopped.name}: sem dados novos; o valor é o último que chegou${when ? `, de ${when}` : ''}.`,
+      warning: true,
+    };
+  }
+  const oldest = marked
+    .map((bank) => bank.lastUpdatedAt)
+    .filter((date): date is string => date !== null)
+    .sort()[0];
+  return { text: `${names}${oldest ? ` · atualizado ${formatAgo(oldest, now)}` : ''}`, warning: false };
 }
 
 function heldBalance(account: Pick<BankAccount, 'kind' | 'balance'>): number {
