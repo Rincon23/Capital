@@ -12,6 +12,11 @@ export interface PushMessage {
   /** Buttons under the notification (Android). iOS ignores them; the screen has the same action. */
   actions?: PushAction[];
   /**
+   * Shown without sound or vibration ("Aviso silencioso" of Open Finance). An older service
+   * worker ignores it and rings: that is fine.
+   */
+  silent?: boolean;
+  /**
    * Other notifications due at the same moment, shown by the service worker from this same push.
    * Two pushes a second apart can reach the phone as one (Android kept only the first), so
    * whatever is due together travels together; each one is still its own notification.

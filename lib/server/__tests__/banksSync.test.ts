@@ -7,6 +7,8 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { syncAndNotify } from '../banks/alerts';
+import { PostgresBudgetRepository } from '../budgetRepository';
+import { PostgresPushRepository, type PushSender } from '../push';
 import { runBanksJob } from '../banks/job';
 import type { FetchLike } from '../banks/pluggy';
 import { PostgresBanksRepository } from '../banks/repository';
@@ -337,7 +339,7 @@ describe('the alerts', () => {
   }
   const plain = (text: string) => text.replace(/ /g, ' ');
 
-  it('tell what arrived after the first read, one summary per bank', async () => {
+  it('tell what a read brought to check, one alert per bank, only after the first read', async () => {
     let lastUpdatedAt = FIRST;
     let card: unknown[] = [purchase({ id: 'old-purchase', date: '2026-01-10T03:00:00.000Z' })];
     let bank: unknown[] = [];
@@ -346,15 +348,18 @@ describe('the alerts', () => {
       () => ({ status: 'UPDATED', lastUpdatedAt, consentExpiresAt: '2027-10-20T13:19:34.167Z' }),
     );
 
+    // The check lives in Lançamentos.
+    const budget = new PostgresBudgetRepository(db, id);
+    await budget.saveSettings({ ...(await budget.getSettings()), modules: { expenses: true } });
     // The first read is a year of history: no news.
     await syncAndNotify(db, id, fetchImpl, NOW);
     expect(await bankNotifications(id)).toEqual([]);
 
-    // Next day: two purchases, a Pix received and a TED (not part of the summary).
+    // Next day: two purchases, a Pix received and a TED, all missing in the Capital.
     lastUpdatedAt = SECOND;
     card = [
-      purchase({ id: 'p1', amount: 45.9, date: '2026-10-20T03:00:00.000Z' }),
-      purchase({ id: 'p2', amount: 74.1, date: '2026-10-21T03:00:00.000Z' }),
+      purchase({ id: 'p1', amount: 45.9, date: '2026-10-20T03:00:00.000Z', creditCardMetadata: null }),
+      purchase({ id: 'p2', amount: 74.1, date: '2026-10-21T03:00:00.000Z', creditCardMetadata: null }),
     ];
     bank = [
       { ...pix, id: 'pix-2', date: '2026-10-21T03:00:00.000Z' },
@@ -370,12 +375,54 @@ describe('the alerts', () => {
     await syncAndNotify(db, id, fetchImpl, new Date('2026-10-21T15:00:00Z'));
 
     const told = (await bankNotifications(id)).map((n) => ({ title: n.title, body: plain(n.body) }));
-    expect(told).toEqual([
-      { title: '🏦 BTG Pactual', body: 'Chegaram 2 compras no cartão (R$ 120,00) e 1 Pix recebido (R$ 50,00).' },
-    ]);
+    expect(told).toEqual([{ title: '🏦 BTG Pactual atualizou', body: '2 gastos e 2 recebimentos para conferir.' }]);
 
     // Reading again brings nothing new, and nothing is told twice.
     await syncAndNotify(db, id, fetchImpl, new Date('2026-10-21T16:00:00Z'));
+    expect(await bankNotifications(id)).toHaveLength(1);
+  });
+
+  it('tell nothing when what came is already in the Capital, and follow "Aviso silencioso"', async () => {
+    let lastUpdatedAt = FIRST;
+    let bank: unknown[] = [];
+    const { id, banks, fetchImpl } = await arrivedBank(
+      (path) => (path.includes('accountId=acc-2') ? [] : bank),
+      () => ({ status: 'UPDATED', lastUpdatedAt, consentExpiresAt: '2027-10-20T13:19:34.167Z' }),
+    );
+    await new PostgresPushRepository(db, id).registerDevice(
+      { endpoint: `https://fcm.googleapis.com/fcm/send/${id}`, keys: { p256dh: 'k', auth: 'a' } },
+      null,
+    );
+    const budget = new PostgresBudgetRepository(db, id);
+    await budget.saveSettings({ ...(await budget.getSettings()), modules: { expenses: true } });
+    const pushed: Record<string, unknown>[] = [];
+    const sender: PushSender = async (_subscription, payload) => {
+      pushed.push(JSON.parse(payload) as Record<string, unknown>);
+    };
+    await syncAndNotify(db, id, fetchImpl, NOW, { sender });
+
+    // The Pix of 50 is already in the Capital (a strong pair): nothing to check, nothing told.
+    await budget.saveIncome('2026-10', { id: 'joao', source: 'João', amount: 50, date: '2026-10-21' });
+    lastUpdatedAt = SECOND;
+    bank = [{ ...pix, id: 'pix-2', date: '2026-10-21T03:00:00.000Z' }];
+    await syncAndNotify(db, id, fetchImpl, new Date('2026-10-21T15:00:00Z'), { sender });
+    expect(await bankNotifications(id)).toEqual([]);
+
+    // A Pix nobody entered, with "Aviso silencioso" on: told, without sound.
+    await banks.saveAlertSettings({ expenses: true, incomes: true, silent: true });
+    lastUpdatedAt = '2026-10-22T13:10:00.000Z';
+    bank = [{ ...pix, id: 'pix-3', amount: 80, date: '2026-10-22T03:00:00.000Z' }];
+    await syncAndNotify(db, id, fetchImpl, new Date('2026-10-22T15:00:00Z'), { sender });
+    expect((await bankNotifications(id)).map((n) => plain(n.body))).toEqual(['1 recebimento para conferir.']);
+    expect(pushed).toEqual([
+      expect.objectContaining({ title: '🏦 BTG Pactual atualizou', silent: true, url: '/bancos/conferir?tipo=recebimentos' }),
+    ]);
+
+    // Money in turned off: the next one is not told.
+    await banks.saveAlertSettings({ expenses: true, incomes: false, silent: true });
+    lastUpdatedAt = '2026-10-23T13:10:00.000Z';
+    bank = [{ ...pix, id: 'pix-4', amount: 90, date: '2026-10-23T03:00:00.000Z' }];
+    await syncAndNotify(db, id, fetchImpl, new Date('2026-10-23T15:00:00Z'), { sender });
     expect(await bankNotifications(id)).toHaveLength(1);
   });
 

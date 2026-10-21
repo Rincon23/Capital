@@ -34,7 +34,7 @@ export interface BankAlertsView {
   settings: BankAlertSettings;
 }
 
-/** What the gear sends: the switches and the minimum amount. */
+/** What the gear sends: the switches. */
 export type BankAlertChoices = BankAlertSettings;
 
 export interface BanksOverviewResult extends BanksOverview {

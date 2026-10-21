@@ -349,14 +349,19 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
       "Renovar";
     - um banco que a Pluggy perdeu pede "Trazer de novo".
   - **Avisos no celular** (categoria "Open Finance" em Notificações, só para VIP):
-    - depois de cada leitura com novidade, **um resumo por banco**: "🏦 Nubank — Chegaram 3
-      compras no cartão (R$ 120,00) e 1 Pix recebido (R$ 50,00)." Nunca "agora";
+    - **só quando a atualização traz algo para conferir**: depois de cada leitura com novidade
+      (não a primeira, o ano de histórico), conta só o que é **novo nesta leitura e caiu em
+      "Falta no Capital"** no mês atual ou no anterior, pelo mesmo cálculo da tela: "🏦 Nubank
+      atualizou: 3 gastos e 1 recebimento para conferir." O que já confere (par forte, compra
+      parcelada no Capital) e o que fica de fora não avisa. Sem nada para conferir, não avisa.
+      Tocar abre a aba que tem mais coisa (no mês anterior, se tudo for dele). Nunca "agora";
     - banco **parado** (48 h) e autorização **vencendo** (15 dias) avisam uma vez cada;
-    - ficam de fora a primeira leitura (o ano de histórico), o que tem mais de 7 dias, o
-      pagamento de fatura, o estorno e o dinheiro movido entre contas da própria pessoa;
-    - na engrenagem: compras, Pix enviados, Pix recebidos e um valor mínimo opcional. (Houve um
-      aviso próprio do salário; o dono o tirou em 2026-10-20 por não ver utilidade.)
-  - **Conferir o mês** (`/bancos/conferir`, precisa de Lançamentos; o aviso "Chegaram…" abre
+    - na engrenagem: "Gastos para conferir", "Recebimentos para conferir" e **"Aviso
+      silencioso"** (chega na central e na bandeja do celular, sem som nem vibração; vale também
+      para banco parado e autorização). As escolhas antigas viram as novas: gastos = compras ou
+      Pix enviados, recebimentos = Pix recebidos; o valor mínimo saiu. (Houve um aviso próprio
+      do salário; o dono o tirou em 2026-10-20 por não ver utilidade.)
+  - **Conferir o mês** (`/bancos/conferir`, precisa de Lançamentos; o aviso do banco abre
     aqui). O que os bancos mandaram **no mês**, ao lado do que está no Capital. Abre no mês atual
     e aceita só o anterior (o que acontece no dia 31 só chega no dia 1º). Entram o dinheiro que
     sai e entra nas contas, as compras à vista no cartão com data no mês e **a parcela do mês** de
@@ -855,9 +860,14 @@ dela); o servidor não tem chave da Pluggy. O plano por fases está em
     receber, por `payerKey`: o CPF/CNPJ, ou o nome), sem tabela à parte.
 - **Avisos** (`alerts.ts`, lógica pura em `lib/banks/alerts.ts`):
   - o job e "Buscar novidades" passam por `syncAndNotify`;
-  - `sourceKey` evita repetir: o resumo por lote, o banco parado pela data do último dado e a
+  - `arrivalAlerts` monta o `buildReview` do mês atual e do anterior e conta, por banco, as
+    linhas de "Falta no Capital" com alguma transação nova desta leitura (`reviewAlertBody`,
+    `reviewAlertUrl`); sem Lançamentos ligado, não há o que conferir;
+  - `sourceKey` evita repetir: o aviso por lote, o banco parado pela data do último dado e a
     autorização pela data de vencimento;
-  - as escolhas ficam em `bank_settings.alerts` (`alertSettingsOf` lê só o que ainda existe).
+  - `PushMessage.silent`: o `public/sw.js` passa `silent` ao `showNotification` e não usa
+    `renotify` quando é silencioso. Um service worker antigo ignora o campo (toca);
+  - as escolhas ficam em `bank_settings.alerts` (`alertSettingsOf` converte o que estava salvo).
 - **Quantidades** (`GET /api/v1/banks/holdings`, lógica pura em `lib/banks/holdings.ts`): a rota
   devolve os investimentos com o banco de cada um e, com o módulo Reserva ligado, o ticker e as
   cotas da Reserva investida. A comparação roda na tela (`checkHoldings`), de novo a cada mudança

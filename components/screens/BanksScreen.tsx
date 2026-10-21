@@ -36,9 +36,8 @@ import {
   type BankAccountKind,
   type BankConnection,
 } from '@/lib/banks';
-import { amountToInputValue, parseAmountInput } from '@/lib/budget/money';
-import type { BankReviewCounts } from '@/lib/banks';
-import { banksRepository, type BankAlertsView, type BanksOverviewResult } from '@/lib/storage';
+import type { BankAlertSettings, BankReviewCounts } from '@/lib/banks';
+import { banksRepository, type BanksOverviewResult } from '@/lib/storage';
 import { NotificationsSection } from '@/components/settings/NotificationsSection';
 import { Switch } from '@/components/ui/Switch';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
@@ -738,41 +737,25 @@ function RenameSheet({
   );
 }
 
-interface AlertsDraft {
-  purchases: boolean;
-  pixSent: boolean;
-  pixReceived: boolean;
-  minAmount: string;
-}
-
-const ALERT_SWITCHES: { key: 'purchases' | 'pixSent' | 'pixReceived'; label: string }[] = [
-  { key: 'purchases', label: 'Compras no cartão' },
-  { key: 'pixSent', label: 'Pix enviados' },
-  { key: 'pixReceived', label: 'Pix recebidos' },
+const ALERT_SWITCHES: { key: keyof BankAlertSettings; label: string; detail?: string }[] = [
+  { key: 'expenses', label: 'Gastos para conferir' },
+  { key: 'incomes', label: 'Recebimentos para conferir' },
+  { key: 'silent', label: 'Aviso silencioso', detail: 'Chega sem som nem vibração.' },
 ];
 
-/** What the phone is told when a bank sends data: a summary per bank of purchases and Pix. */
+/** What the phone is told when a bank sends data: only when it brought something to check. */
 function AlertsSettings() {
   const { showToast } = useToast();
-  const [draft, setDraft] = useState<AlertsDraft | null>(null);
+  const [draft, setDraft] = useState<BankAlertSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  const adopt = useCallback((next: BankAlertsView) => {
-    setDraft({
-      purchases: next.settings.purchases,
-      pixSent: next.settings.pixSent,
-      pixReceived: next.settings.pixReceived,
-      minAmount: next.settings.minAmount === null ? '' : amountToInputValue(next.settings.minAmount),
-    });
-  }, []);
 
   useEffect(() => {
     let active = true;
     banksRepository
       .getAlerts()
       .then((next) => {
-        if (active) adopt(next);
+        if (active) setDraft(next.settings);
       })
       .catch((err: unknown) => {
         if (active) setError(toStorageErrorMessage(err, 'Não foi possível abrir os avisos.'));
@@ -780,20 +763,12 @@ function AlertsSettings() {
     return () => {
       active = false;
     };
-  }, [adopt]);
+  }, []);
 
-  async function save(current: AlertsDraft) {
+  async function save(current: BankAlertSettings) {
     setSaving(true);
     try {
-      const minAmount = current.minAmount.trim() ? parseAmountInput(current.minAmount) : null;
-      adopt(
-        await banksRepository.saveAlerts({
-          purchases: current.purchases,
-          pixSent: current.pixSent,
-          pixReceived: current.pixReceived,
-          minAmount: minAmount !== null && minAmount > 0 ? minAmount : null,
-        }),
-      );
+      setDraft((await banksRepository.saveAlerts(current)).settings);
       showToast('Avisos salvos.');
     } catch (err) {
       showToast(toStorageErrorMessage(err, 'Não foi possível salvar os avisos.'), 'error');
@@ -814,10 +789,13 @@ function AlertsSettings() {
       }}
     >
       <p className="text-foreground font-semibold">Avisos no celular</p>
-      <p className="text-muted text-sm">Quando um banco manda dados novos, chega um resumo do que entrou.</p>
-      {ALERT_SWITCHES.map(({ key, label }) => (
+      <p className="text-muted text-sm">Quando um banco atualiza e traz algo para conferir.</p>
+      {ALERT_SWITCHES.map(({ key, label, detail }) => (
         <div key={key} className="flex items-center justify-between gap-3">
-          <span className="text-foreground text-sm font-medium">{label}</span>
+          <span className="min-w-0">
+            <span className="text-foreground block text-sm font-medium">{label}</span>
+            {detail && <span className="text-muted block text-xs">{detail}</span>}
+          </span>
           <Switch
             checked={draft[key]}
             onChange={(checked) => setDraft({ ...draft, [key]: checked })}
@@ -825,16 +803,6 @@ function AlertsSettings() {
           />
         </div>
       ))}
-      <label className="text-foreground flex flex-col gap-1 text-sm font-medium">
-        Só avisar a partir de (R$)
-        <input
-          className={inputClass}
-          inputMode="decimal"
-          value={draft.minAmount}
-          onChange={(event) => setDraft({ ...draft, minAmount: event.target.value })}
-          placeholder="Qualquer valor"
-        />
-      </label>
       <button type="submit" className={primaryButton} disabled={saving}>
         {saving ? 'Salvando…' : 'Salvar avisos'}
       </button>

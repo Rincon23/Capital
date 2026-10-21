@@ -5,7 +5,7 @@
 // a shared device after signing out. With no connection, the offline page is shown.
 //
 // It also shows the push notifications (reminders, Gmail alerts) and runs their buttons.
-const CACHE_VERSION = 'capital-v6';
+const CACHE_VERSION = 'capital-v7';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const OFFLINE_URL = '/offline.html';
@@ -130,8 +130,10 @@ async function showOne(message) {
     icon: '/icon-192.png',
     badge: '/badge-96.png',
     tag: message.tag,
-    // A notification that replaces another with the same tag still rings.
-    renotify: Boolean(message.tag),
+    // "Aviso silencioso": in the tray, without sound or vibration.
+    silent: Boolean(message.silent),
+    // A notification that replaces another with the same tag still rings (unless it is silent).
+    renotify: Boolean(message.tag) && !message.silent,
     timestamp: Date.now(),
     actions: actions.map(({ action, title }) => ({ action, title })),
     data: { url: message.url || '/', actions },

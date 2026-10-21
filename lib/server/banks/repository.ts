@@ -7,7 +7,6 @@ import {
   type BankAccountKind,
   type BankConnection,
   type BankConnectionStatus,
-  type AlertTransaction,
   type BankAlertSettings,
   type CategoryChoice,
   type ReviewCard,
@@ -435,35 +434,6 @@ export class PostgresBanksRepository {
       .insert(bankSettings)
       .values({ userId: this.userId, alerts })
       .onConflictDoUpdate({ target: bankSettings.userId, set: { alerts } });
-  }
-
-  /** These transactions as the alerts read them, only the ones dated `since` or later. */
-  async alertTransactions(ids: string[], since: string): Promise<AlertTransaction[]> {
-    if (ids.length === 0) return [];
-    const rows = await this.db
-      .select({
-        id: bankTransactions.transactionId,
-        accountKind: bankAccounts.kind,
-        amount: bankTransactions.amount,
-        type: bankTransactions.type,
-        description: bankTransactions.description,
-        paymentMethod: bankTransactions.paymentMethod,
-        operationType: bankTransactions.operationType,
-        category: bankTransactions.category,
-      })
-      .from(bankTransactions)
-      .innerJoin(
-        bankAccounts,
-        and(eq(bankAccounts.userId, bankTransactions.userId), eq(bankAccounts.accountId, bankTransactions.accountId)),
-      )
-      .where(
-        and(
-          eq(bankTransactions.userId, this.userId),
-          inArray(bankTransactions.transactionId, ids),
-          gte(bankTransactions.date, since),
-        ),
-      );
-    return rows;
   }
 
   // -------------------------------------------------------------------------

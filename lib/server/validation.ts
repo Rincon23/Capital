@@ -388,10 +388,9 @@ export const bankKeySchema = z.object({
 
 /** Open Finance alerts: what to tell and the minimum amount. */
 export const bankAlertsSchema = z.object({
-  purchases: z.boolean(),
-  pixSent: z.boolean(),
-  pixReceived: z.boolean(),
-  minAmount: money.min(0).nullable(),
+  expenses: z.boolean(),
+  incomes: z.boolean(),
+  silent: z.boolean(),
 });
 
 /** The transactions of one line of "Confira os gastos" (a split purchase brings all its instalments). */
