@@ -362,9 +362,11 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
     sai e entra nas contas, as compras à vista no cartão com data no mês e **a parcela do mês** de
     cada compra parcelada; Pix e compras à vista de outros meses não. Os **gastos** (dinheiro
     saindo e compras no cartão) ficam separados dos **recebimentos** (dinheiro entrando nas
-    contas), cada um com quantos faltam; a tela dos bancos mostra a conta nos botões "Conferir
-    gastos" e "Conferir recebimentos", e a Início, "N para conferir em outubro". Cada linha cai
-    em uma lista:
+    contas), em duas abas (`?tipo=gastos|recebimentos`), cada uma com quantos faltam; a tela dos
+    bancos mostra a conta nos botões "Conferir gastos" e "Conferir recebimentos", que abrem cada
+    aba, e a Início, "N para conferir em outubro". O mês fica no topo, com ‹ › e deslizar
+    (`MonthSwipe` com `min`/`max`: além do mês anterior ou do atual, volta sozinho; `?mes=`).
+    Com tudo conferido, a aba diz "Outubro confere ✓". Cada linha cai em uma lista:
     - **Falta no Capital**: o que pede um toque;
     - **✓ Confere** (fechada): já está no Capital. É o que foi lançado, ligado, recebido ou a
       fatura marcada por aqui; a compra parcelada que bate com uma compra do Capital; e o **par

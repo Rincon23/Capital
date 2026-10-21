@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { ChevronDown, Pencil, Tag } from 'lucide-react';
 import { InstallmentFormSheet } from '@/components/card/InstallmentFormSheet';
 import { useCards } from '@/components/cards/CardsProvider';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ExpenseFormSheet } from '@/components/month/ExpenseFormSheet';
 import { IncomeFormSheet } from '@/components/month/IncomeFormSheet';
+import { MonthSwipe } from '@/components/month/MonthSwipe';
+import { MonthSwitcher } from '@/components/month/MonthSwitcher';
 import { ModuleGate } from '@/components/modules/ModuleGate';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { Chip } from '@/components/ui/Chip';
@@ -15,6 +18,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useWallet, WalletProvider } from '@/components/wallet/WalletProvider';
 import {
   entryDescription,
+  reviewMonths,
   tidyName,
   type BankReview,
   type PaybackOption,
@@ -26,24 +30,28 @@ import {
   formatBRL,
   formatDayMonth,
   formatMonthLabel,
+  formatMonthName,
   nextChargeDate,
   specialCategoryLabel,
   type CardBill,
   type Expense,
   type Income,
   type InstallmentPlan,
+  type Month,
 } from '@/lib/budget';
 import { isModuleOn } from '@/lib/modules';
+import { zonedToday } from '@/lib/reminders/time';
 import { banksRepository, walletRepository, type BankReviewAction } from '@/lib/storage';
 import { ApiRequestError } from '@/lib/storage/apiClient';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
 
 /**
- * The month's check: what the banks sent this month, beside what is in the Capital. What is
- * missing is launched with one tap when the Capital has a category to suggest, opens the very form
- * of a purchase, a split purchase or an income otherwise (and through the pencil), and can be
- * ignored; what is already there, what the app leaves out and what was ignored wait folded below.
- * Nothing becomes an entry without a tap, and no bill leaves without "Marcar paga".
+ * The month's check: what the banks sent in a month, beside what is in the Capital, in two tabs
+ * ("Gastos" and "Recebimentos", `?tipo=`), this month or the one before (`?mes=`, ‹ › and a swipe).
+ * What is missing is launched with one tap when the Capital has a category to suggest, opens the
+ * very form of a purchase, a split purchase or an income otherwise (and through the pencil), and
+ * can be ignored; what is already there, what the app leaves out and what was ignored wait folded
+ * below. Nothing becomes an entry without a tap, and no bill leaves without "Marcar paga".
  */
 export function BankReviewScreen() {
   return (
@@ -54,6 +62,10 @@ export function BankReviewScreen() {
     </ModuleGate>
   );
 }
+
+/** The two tabs, as the address says them. */
+type Side = 'expenses' | 'incomes';
+const SIDE_PARAM: Record<Side, string> = { expenses: 'gastos', incomes: 'recebimentos' };
 
 type FormState =
   | { kind: 'expense'; item: ReviewItem; draft: Partial<Expense> }
@@ -75,6 +87,11 @@ function billPaidBy(item: ReviewItem, bills: CardBill[]): CardBill | null {
 }
 
 function Review() {
+  const params = useSearchParams();
+  const [months] = useState(() => reviewMonths(zonedToday()));
+  const side: Side = params.get('tipo') === SIDE_PARAM.incomes ? 'incomes' : 'expenses';
+  const asked = params.get('mes');
+  const month: Month = asked && months.includes(asked) ? asked : months[months.length - 1];
   const { settings } = useSettings();
   const { cards } = useCards();
   const { snapshot, refresh: refreshWallet } = useWallet();
@@ -92,17 +109,26 @@ function Review() {
 
   const load = useCallback(async () => {
     try {
-      setReview(await banksRepository.getReview());
+      setReview(await banksRepository.getReview(month));
       setError(null);
     } catch (err) {
       setError(toStorageErrorMessage(err, 'Não foi possível abrir o que chegou dos bancos.'));
     }
-  }, []);
+  }, [month]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  /** The tab and the month live in the address, replaced (the phone's back goes to the banks). */
+  const go = (next: { side?: Side; month?: Month }) => {
+    const nextMonth = next.month ?? month;
+    const query = `?tipo=${SIDE_PARAM[next.side ?? side]}${nextMonth === months[months.length - 1] ? '' : `&mes=${nextMonth}`}`;
+    window.history.replaceState(null, '', query);
+  };
+  const hrefOf = (other: Month) =>
+    `/bancos/conferir?tipo=${SIDE_PARAM[side]}${other === months[months.length - 1] ? '' : `&mes=${other}`}`;
 
   const header = <PageHeader title="Conferir" backHref="/bancos" />;
   if (!settings) return header;
@@ -217,82 +243,48 @@ function Review() {
     );
   }
 
-  /** One list of the month, money out and money in together, newest first. */
-  const lines = (place: keyof ReviewSide): ReviewItem[] =>
-    review
-      ? [...review.expenses[place], ...review.incomes[place]].sort(
-          (a, b) => b.date.localeCompare(a.date) || b.amount - a.amount,
-        )
-      : [];
+  const byDate = (a: ReviewItem, b: ReviewItem) => b.date.localeCompare(a.date) || b.amount - a.amount;
+  /** A strong pair the person undid goes back to what is missing, on this screen only. */
   const undone = (item: ReviewItem) => item.match?.kind === 'pair' && notPair.has(item.key);
-  const missing = [...lines('missing'), ...lines('matched').filter(undone)].sort(
-    (a, b) => b.date.localeCompare(a.date) || b.amount - a.amount,
-  );
-  const matched = lines('matched').filter((item) => !undone(item));
-  const leftOut = lines('leftOut');
-  const ignored = lines('ignored');
+  const shownSide = (which: Side): ReviewSide => {
+    const lists = review![which];
+    return {
+      missing: [...lists.missing, ...lists.matched.filter(undone)].sort(byDate),
+      matched: lists.matched.filter((item) => !undone(item)),
+      leftOut: lists.leftOut,
+      ignored: lists.ignored,
+    };
+  };
+  const current = review ? shownSide(side) : null;
 
   // Asked only for the bank cards with something to launch now, and only once each.
-  const cardsInUse = new Set(missing.filter((item) => item.onCard).map((item) => item.accountId));
+  const cardsInUse = new Set((current?.missing ?? []).filter((item) => item.onCard).map((item) => item.accountId));
   const unlinkedCards =
-    cardOn && cards.length > 0
+    cardOn && cards.length > 0 && side === 'expenses'
       ? (review?.cards ?? []).filter((card) => !card.linked && cardsInUse.has(card.accountId))
       : [];
   const bills = snapshot?.bills ?? [];
+  const shownMonth = review?.month ?? month;
+  const noun = side === 'expenses' ? ['gasto confere', 'gastos conferem'] : ['recebimento confere', 'recebimentos conferem'];
 
-  return (
-    <div className="flex flex-1 flex-col gap-4 pb-10">
-      {header}
-      {error && <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{error}</p>}
-      {!review && !error && <div className="text-muted px-4 py-16 text-center">Carregando…</div>}
-
-      {review && (
-        <>
-          <p className="text-muted px-4 text-sm">
-            {formatMonthLabel(review.month)}: o que os bancos mandaram, ao lado do que está no Capital.
-          </p>
-
-          {unlinkedCards.length > 0 && (
-            <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm">
-              <p className="text-foreground text-sm font-semibold">Qual é cada cartão no Capital?</p>
-              {unlinkedCards.map((bankCard) => (
-                <div key={bankCard.accountId} className="flex flex-col gap-1.5">
-                  <p className="text-muted truncate text-xs">
-                    {bankCard.name} · {bankCard.bankName}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {[...cards.map((card) => ({ id: card.id as string | null, label: card.name })), { id: null, label: 'Não informar' }].map(
-                      (option) => (
-                        <Chip
-                          key={option.id ?? 'none'}
-                          label={option.label}
-                          selected={false}
-                          onClick={() =>
-                            void banksRepository
-                              .linkCard(bankCard.accountId, option.id)
-                              .then(load)
-                              .catch((err: unknown) =>
-                                showToast(toStorageErrorMessage(err, 'Não foi possível salvar.'), 'error'),
-                              )
-                          }
-                        />
-                      ),
-                    )}
-                  </div>
-                </div>
-              ))}
-            </section>
-          )}
-
-          <p className="text-foreground px-4 text-sm font-semibold">Falta no Capital ({missing.length})</p>
-          {missing.length === 0 ? (
-            <section className="border-border bg-card mx-4 flex flex-col gap-1 rounded-2xl border p-4 text-center shadow-sm">
-              <p className="text-foreground font-semibold">Tudo conferido ✓</p>
-              <p className="text-muted text-sm">Quando os bancos mandarem novidades, elas aparecem aqui.</p>
-            </section>
-          ) : (
+  /** The four lists of the month for some lines: what is missing open, the rest folded. */
+  function lists(lines: ReviewSide, scope: string) {
+    return (
+      <>
+        {lines.missing.length === 0 ? (
+          <section className="border-border bg-card mx-4 flex flex-col gap-1 rounded-2xl border p-4 text-center shadow-sm">
+            <p className="text-success font-semibold">{formatMonthName(shownMonth)} confere ✓</p>
+            <p className="text-muted text-sm">
+              {lines.matched.length > 0
+                ? `${lines.matched.length} ${lines.matched.length === 1 ? noun[0] : noun[1]} com o Capital.`
+                : 'Nada para conferir neste mês.'}
+            </p>
+          </section>
+        ) : (
+          <>
+            <p className="text-foreground px-4 text-sm font-semibold">Falta no Capital ({lines.missing.length})</p>
             <ul className="flex flex-col gap-3">
-              {missing.map((item) => (
+              {lines.missing.map((item) => (
                 <ReviewRow
                   key={item.key}
                   item={item}
@@ -334,85 +326,168 @@ function Review() {
                 />
               ))}
             </ul>
-          )}
+          </>
+        )}
 
-          <Folded title="✓ Confere" count={matched.length}>
-            {matched.map((item) => (
-              <li key={item.key} className="border-border bg-card mx-4 flex flex-col gap-1.5 rounded-xl border p-3 text-sm shadow-sm">
-                <LineHead item={item} />
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-success min-w-0 text-xs">{matchLabel(item.match)}</span>
-                  {item.match?.kind === 'pair' && (
-                    <button
-                      type="button"
-                      onClick={() => setNotPair((current) => new Set(current).add(item.key))}
-                      className="text-primary shrink-0 text-xs font-semibold"
-                    >
-                      Não é este
-                    </button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </Folded>
-
-          <Folded title="Deixados de fora" count={leftOut.length}>
-            {leftOut.map((item) => {
-              const bill = item.leftOut?.reason === 'bill_payment' && cardOn ? billPaidBy(item, bills) : null;
-              return (
-                <li key={item.key} className="border-border bg-card mx-4 flex flex-col gap-2 rounded-xl border p-3 text-sm shadow-sm">
-                  <LineHead item={item} detail={item.leftOut?.label} />
-                  {bill && (
-                    <div className="bg-background flex items-center justify-between gap-2 rounded-lg px-3 py-2">
-                      <span className="text-foreground text-xs">
-                        Marcar a fatura de {formatMonthLabel(bill.month)} ({bill.cardName}) como paga?
-                      </span>
-                      <button
-                        type="button"
-                        disabled={busy !== null}
-                        onClick={() =>
-                          void (async () => {
-                            setBusy(item.key);
-                            try {
-                              await walletRepository.payBill({ cardId: bill.cardId, month: bill.month });
-                              await send({ action: 'bill', transactionIds: item.transactionIds });
-                              void refreshWallet();
-                              showToast(`Fatura de ${formatMonthLabel(bill.month)} paga.`);
-                            } catch (err) {
-                              showToast(toStorageErrorMessage(err, 'Não foi possível marcar a fatura.'), 'error');
-                            } finally {
-                              setBusy(null);
-                            }
-                          })()
-                        }
-                        className="text-primary shrink-0 text-xs font-semibold"
-                      >
-                        Marcar paga
-                      </button>
-                    </div>
-                  )}
+        <Folded key={`${scope}-matched`} title="✓ Confere" count={lines.matched.length}>
+          {lines.matched.map((item) => (
+            <li key={item.key} className="border-border bg-card mx-4 flex flex-col gap-1.5 rounded-xl border p-3 text-sm shadow-sm">
+              <LineHead item={item} />
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-success min-w-0 text-xs">{matchLabel(item.match)}</span>
+                {item.match?.kind === 'pair' && (
                   <button
                     type="button"
-                    disabled={busy !== null}
-                    onClick={() => open(item)}
-                    className="text-primary self-start text-xs font-semibold"
+                    onClick={() => setNotPair((current) => new Set(current).add(item.key))}
+                    className="text-primary shrink-0 text-xs font-semibold"
                   >
-                    Lançar mesmo assim
+                    Não é este
                   </button>
-                </li>
+                )}
+              </div>
+            </li>
+          ))}
+        </Folded>
+
+        <Folded key={`${scope}-left-out`} title="Deixados de fora" count={lines.leftOut.length}>
+          {lines.leftOut.map((item) => {
+            const bill = item.leftOut?.reason === 'bill_payment' && cardOn ? billPaidBy(item, bills) : null;
+            return (
+              <li key={item.key} className="border-border bg-card mx-4 flex flex-col gap-2 rounded-xl border p-3 text-sm shadow-sm">
+                <LineHead item={item} detail={item.leftOut?.label} />
+                {bill && (
+                  <div className="bg-background flex items-center justify-between gap-2 rounded-lg px-3 py-2">
+                    <span className="text-foreground text-xs">
+                      Marcar a fatura de {formatMonthLabel(bill.month)} ({bill.cardName}) como paga?
+                    </span>
+                    <button
+                      type="button"
+                      disabled={busy !== null}
+                      onClick={() =>
+                        void (async () => {
+                          setBusy(item.key);
+                          try {
+                            await walletRepository.payBill({ cardId: bill.cardId, month: bill.month });
+                            await send({ action: 'bill', transactionIds: item.transactionIds });
+                            void refreshWallet();
+                            showToast(`Fatura de ${formatMonthLabel(bill.month)} paga.`);
+                          } catch (err) {
+                            showToast(toStorageErrorMessage(err, 'Não foi possível marcar a fatura.'), 'error');
+                          } finally {
+                            setBusy(null);
+                          }
+                        })()
+                      }
+                      className="text-primary shrink-0 text-xs font-semibold"
+                    >
+                      Marcar paga
+                    </button>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  disabled={busy !== null}
+                  onClick={() => open(item)}
+                  className="text-primary self-start text-xs font-semibold"
+                >
+                  Lançar mesmo assim
+                </button>
+              </li>
+            );
+          })}
+        </Folded>
+
+        <Folded key={`${scope}-ignored`} title="Ignorados" count={lines.ignored.length}>
+          {lines.ignored.map((item) => (
+            <li key={item.key} className="border-border bg-card mx-4 flex flex-col gap-1.5 rounded-xl border p-3 text-sm shadow-sm">
+              <LineHead item={item} detail={item.leftOut?.label ?? 'Você ignorou'} />
+            </li>
+          ))}
+        </Folded>
+      </>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 flex-col gap-4 pb-10">
+      {header}
+      <MonthSwipe
+        month={shownMonth}
+        onMonth={(next) => go({ month: next })}
+        min={months[0]}
+        max={months[months.length - 1]}
+        className="flex flex-col gap-4"
+      >
+        <div className="flex flex-col gap-3 px-4">
+          <MonthSwitcher month={shownMonth} href={hrefOf} min={months[0]} max={months[months.length - 1]} />
+          <div role="tablist" className="bg-card border-border grid grid-cols-2 gap-1 rounded-xl border p-1">
+            {(['expenses', 'incomes'] as const).map((key) => {
+              const missing = review ? shownSide(key).missing.length : 0;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={side === key}
+                  onClick={() => go({ side: key })}
+                  className={`flex min-h-[40px] items-center justify-center gap-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                    side === key ? 'bg-primary text-primary-foreground' : 'text-muted hover:text-foreground'
+                  }`}
+                >
+                  {key === 'expenses' ? 'Gastos' : 'Recebimentos'}
+                  {missing > 0 && (
+                    <span
+                      className={`rounded-full px-1.5 text-xs tabular-nums ${
+                        side === key ? 'bg-primary-foreground/20' : 'bg-primary/10 text-primary'
+                      }`}
+                    >
+                      {missing}
+                    </span>
+                  )}
+                </button>
               );
             })}
-          </Folded>
+          </div>
+          <p className="text-muted text-sm">O que os bancos mandaram no mês, ao lado do que está no Capital.</p>
+        </div>
 
-          <Folded title="Ignorados" count={ignored.length}>
-            {ignored.map((item) => (
-              <li key={item.key} className="border-border bg-card mx-4 flex flex-col gap-1.5 rounded-xl border p-3 text-sm shadow-sm">
-                <LineHead item={item} detail={item.leftOut?.label ?? 'Você ignorou'} />
-              </li>
+        {error && <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{error}</p>}
+        {!review && !error && <p className="text-muted py-16 text-center">Carregando…</p>}
+
+        {unlinkedCards.length > 0 && (
+          <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm">
+            <p className="text-foreground text-sm font-semibold">Qual é cada cartão no Capital?</p>
+            {unlinkedCards.map((bankCard) => (
+              <div key={bankCard.accountId} className="flex flex-col gap-1.5">
+                <p className="text-muted truncate text-xs">
+                  {bankCard.name} · {bankCard.bankName}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {[...cards.map((card) => ({ id: card.id as string | null, label: card.name })), { id: null, label: 'Não informar' }].map(
+                    (option) => (
+                      <Chip
+                        key={option.id ?? 'none'}
+                        label={option.label}
+                        selected={false}
+                        onClick={() =>
+                          void banksRepository
+                            .linkCard(bankCard.accountId, option.id)
+                            .then(load)
+                            .catch((err: unknown) =>
+                              showToast(toStorageErrorMessage(err, 'Não foi possível salvar.'), 'error'),
+                            )
+                        }
+                      />
+                    ),
+                  )}
+                </div>
+              </div>
             ))}
-          </Folded>
-        </>
-      )}
+          </section>
+        )}
+
+        {current && lists(current, side)}
+      </MonthSwipe>
 
       {form?.kind === 'expense' && (
         <ExpenseFormSheet

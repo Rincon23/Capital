@@ -80,12 +80,17 @@ function visibleTop(): number {
 export function MonthSwipe({
   month,
   onMonth,
+  min,
+  max,
   className = '',
   children,
 }: {
   month: Month;
   /** Puts the other month on screen (a route of that month, or the screen's own state). */
   onMonth: (month: Month) => void;
+  /** The first and last months the screen has (none: any): past them, a swipe springs back. */
+  min?: Month;
+  max?: Month;
   className?: string;
   children: ReactNode;
 }) {
@@ -96,10 +101,11 @@ export function MonthSwipe({
   const giveUpTimer = useRef<number | null>(null);
 
   // The window listeners (attached once) read the latest props through this.
-  const latest = useRef({ month, onMonth });
+  const latest = useRef({ month, onMonth, min, max });
   useEffect(() => {
-    latest.current = { month, onMonth };
+    latest.current = { month, onMonth, min, max };
   });
+  const within = (target: Month) => (!min || target >= min) && (!max || target <= max);
 
   function clearTimers() {
     if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
@@ -143,6 +149,13 @@ export function MonthSwipe({
   function slideTo(step: Step) {
     const el = wrapper.current;
     if (!el) return;
+    const { month: current, min: first, max: last } = latest.current;
+    const next = shiftMonth(current, step);
+    // The screen has no month there: back to rest, like a short drag.
+    if ((first && next < first) || (last && next > last)) {
+      springBack();
+      return;
+    }
     busy.current = true;
     clearTimers();
     placeGhosts(el);
@@ -293,8 +306,8 @@ export function MonthSwipe({
     <div className="overflow-x-clip">
       <div ref={wrapper} className={`relative touch-pan-y ${className}`}>
         <MonthSwipeContext.Provider value={go}>{children}</MonthSwipeContext.Provider>
-        <MonthGhost month={shiftMonth(month, -1)} side={-1} />
-        <MonthGhost month={shiftMonth(month, 1)} side={1} />
+        {within(shiftMonth(month, -1)) && <MonthGhost month={shiftMonth(month, -1)} side={-1} />}
+        {within(shiftMonth(month, 1)) && <MonthGhost month={shiftMonth(month, 1)} side={1} />}
       </div>
     </div>
   );
