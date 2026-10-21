@@ -36,19 +36,62 @@ export function isModuleOn(source: FlagsSource, key: ModuleKey): boolean {
   return resolveModules(source)[key];
 }
 
-/** The modules only VIP accounts can turn on (see `ModuleDefinition.vipOnly`). */
-export const VIP_ONLY_MODULES: ModuleKey[] = MODULES.filter((definition) => definition.vipOnly).map(
+/** What decides which modules an account may turn on. */
+export interface ModuleAccess {
+  /** A VIP account (the owner always is): may turn on every module. */
+  vip: boolean;
+  /** The modules only VIP accounts can turn on, as the owner set them in Administração. */
+  vipModules: ModuleKey[];
+}
+
+/** The VIP-only modules before the owner changes anything (`ModuleDefinition.vipByDefault`). */
+export const DEFAULT_VIP_MODULES: ModuleKey[] = MODULES.filter((definition) => definition.vipByDefault).map(
   (definition) => definition.key,
 );
+
+/**
+ * The VIP-only modules from the owner's choices ("Só VIP" in Administração, one per module): a
+ * module the owner never touched keeps its default. In catalog order.
+ */
+export function vipModulesFrom(choices: Partial<Record<ModuleKey, boolean>>): ModuleKey[] {
+  return MODULES.filter((definition) => choices[definition.key] ?? definition.vipByDefault === true).map(
+    (definition) => definition.key,
+  );
+}
+
+/** Whether this account may turn `key` on by itself (it may still need another module first). */
+export function mayUseModule(access: ModuleAccess, key: ModuleKey): boolean {
+  return access.vip || !access.vipModules.includes(key);
+}
+
+/**
+ * The VIP-only module that keeps `key` out of this account's reach: `key` itself, or one it needs
+ * (with Lançamentos only for VIP, so is everything built on it). Null when nothing does.
+ */
+export function vipLockOf(access: ModuleAccess, key: ModuleKey): ModuleKey | null {
+  if (!mayUseModule(access, key)) return key;
+  for (const dep of moduleDefinition(key).dependsOn) {
+    const lock = vipLockOf(access, dep);
+    if (lock) return lock;
+  }
+  return null;
+}
+
+/** Why a module is out of reach: "Disponível só para contas VIP." or the VIP-only one it needs. */
+export function vipLockText(key: ModuleKey, lock: ModuleKey): string {
+  return lock === key
+    ? 'Disponível só para contas VIP.'
+    : `Precisa de ${moduleDefinition(lock).name}, disponível só para contas VIP.`;
+}
 
 /**
  * The settings as this account may have them: for anyone who is not VIP, the VIP-only modules
  * are off, whatever was saved (an old backup, a direct API call, a VIP status taken back).
  */
-export function withAccessRules<T extends Pick<BudgetSettings, 'modules'>>(settings: T, vip: boolean): T {
-  if (vip || !settings.modules) return settings;
+export function withAccessRules<T extends Pick<BudgetSettings, 'modules'>>(settings: T, access: ModuleAccess): T {
+  if (access.vip || !settings.modules) return settings;
   const modules = { ...settings.modules };
-  for (const key of VIP_ONLY_MODULES) if (modules[key]) modules[key] = false;
+  for (const key of access.vipModules) if (modules[key]) modules[key] = false;
   return { ...settings, modules };
 }
 

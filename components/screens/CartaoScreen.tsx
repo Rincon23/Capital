@@ -40,7 +40,7 @@ import {
   type TopicConfig,
 } from '@/lib/budget';
 import { reviewMonths, type BankReviewCounts } from '@/lib/banks';
-import { isModuleOn } from '@/lib/modules';
+import { isModuleOn, mayUseModule } from '@/lib/modules';
 import { zonedToday } from '@/lib/reminders/time';
 import { banksRepository, budgetRepository, walletRepository } from '@/lib/storage';
 import { AdvanceInstallmentSheet } from '@/components/card/AdvanceInstallmentSheet';
@@ -436,7 +436,10 @@ function BankCheck({ month, cards }: { month: Month; cards: CreditCard[] }) {
   const { user } = useAuth();
   const [months] = useState(() => reviewMonths(zonedToday()));
   const on =
-    user.vip && isModuleOn(settings, 'banks') && isModuleOn(settings, 'expenses') && months.includes(month);
+    mayUseModule(user, 'banks') &&
+    isModuleOn(settings, 'banks') &&
+    isModuleOn(settings, 'expenses') &&
+    months.includes(month);
   const [counts, setCounts] = useState<BankReviewCounts | null>(null);
 
   useEffect(() => {

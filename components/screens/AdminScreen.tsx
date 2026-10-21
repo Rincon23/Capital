@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Activity,
   Ban,
@@ -13,12 +14,15 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
-import type { AdminOverview, AdminUser, GuardEventKind, ServerStatus } from '@/lib/admin/types';
-import { moduleNames, VIP_ONLY_MODULES } from '@/lib/modules';
+import type { AdminModule, AdminOverview, AdminUser, GuardEventKind, ServerStatus } from '@/lib/admin/types';
+import type { ModuleKey } from '@/lib/budget';
+import { moduleDefinition, moduleNames } from '@/lib/modules';
 import { adminRepository } from '@/lib/storage/admin';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useHomeHref } from '@/components/modules/useHomeHref';
+import { MODULE_VISUALS } from '@/components/modules/visuals';
+import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { IconTile, type IconTone } from '@/components/ui/IconTile';
 import { Switch } from '@/components/ui/Switch';
 import { useToast } from '@/components/ui/Toast';
@@ -93,13 +97,20 @@ function Card({
   );
 }
 
+/** "1 conta sem VIP", "3 contas sem VIP". */
+function accountsWithoutVip(count: number): string {
+  return count === 1 ? '1 conta sem VIP' : `${count} contas sem VIP`;
+}
+
 /**
  * Administração, only for whoever runs the server (OWNER_EMAIL): how the board is doing right now
- * (requests per second, temperature, pauses), the recent warnings, and every account with the
- * switch that makes it VIP — VIP accounts can turn on the VIP-only modules.
+ * (requests per second, temperature, pauses), the recent warnings, which modules are only for VIP
+ * accounts ("Só VIP", one switch per module) and every account with the switch that makes it VIP.
  */
 export function AdminScreen() {
   const { showToast } = useToast();
+  const confirm = useConfirm();
+  const router = useRouter();
   const homeHref = useHomeHref();
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -108,17 +119,21 @@ export function AdminScreen() {
   const [showAllEvents, setShowAllEvents] = useState(false);
   /** The account whose VIP switch is being saved: a refresh meanwhile keeps its local value. */
   const saving = useRef<string | null>(null);
+  /** The same for the module whose "Só VIP" is being saved. */
+  const savingModule = useRef<ModuleKey | null>(null);
+  const [busyModule, setBusyModule] = useState<ModuleKey | null>(null);
 
   const load = useCallback(async () => {
     try {
       const next = await adminRepository.overview();
       setOverview((previous) => {
-        const pending = saving.current;
-        if (!previous || !pending) return next;
-        const local = previous.users.find((item) => item.id === pending);
+        if (!previous) return next;
+        const local = previous.users.find((item) => item.id === saving.current);
+        const localModule = previous.modules.find((item) => item.key === savingModule.current);
         return {
           ...next,
-          users: next.users.map((item) => (item.id === pending && local ? local : item)),
+          users: next.users.map((item) => (local && item.id === local.id ? local : item)),
+          modules: next.modules.map((item) => (localModule && item.key === localModule.key ? localModule : item)),
         };
       });
       setError(null);
@@ -149,13 +164,63 @@ export function AdminScreen() {
     apply(vip);
     try {
       await adminRepository.setVip(target.id, vip);
-      showToast(vip ? `${target.email} agora é VIP.` : `${target.email} não é mais VIP.`, 'success');
+      showToast(
+        vip
+          ? `${target.email} agora é VIP.`
+          : `${target.email} não é mais VIP. Os módulos só VIP desligaram para essa conta, sem apagar nada.`,
+        'success',
+      );
     } catch (err) {
       apply(!vip);
       showToast(toStorageErrorMessage(err, 'Não foi possível salvar. Tente de novo.'), 'error');
     } finally {
       saving.current = null;
     }
+  }
+
+  async function toggleModuleVip(target: AdminModule, vipOnly: boolean) {
+    const name = moduleDefinition(target.key).name;
+    const using = target.usersWithoutVip;
+    if (vipOnly && using > 0) {
+      const confirmed = await confirm({
+        title: `Deixar ${name} só para VIP?`,
+        message: `${accountsWithoutVip(using)} ${using === 1 ? 'usa' : 'usam'} este módulo agora, e ele vai desligar para ${using === 1 ? 'ela' : 'elas'}. Nenhum dado é apagado: se ele voltar a ser de todos, é só ligar de novo.`,
+        confirmLabel: 'Deixar só VIP',
+        cancelLabel: 'Agora não',
+      });
+      if (!confirmed) return;
+    }
+    const apply = (value: boolean) =>
+      setOverview(
+        (previous) =>
+          previous && {
+            ...previous,
+            modules: previous.modules.map((item) =>
+              item.key === target.key ? { ...item, vipOnly: value } : item,
+            ),
+          },
+      );
+    savingModule.current = target.key;
+    setBusyModule(target.key);
+    apply(vipOnly);
+    try {
+      const { turnedOff } = await adminRepository.setModuleVip(target.key, vipOnly);
+      showToast(
+        vipOnly
+          ? `${name} agora é só para VIP.${turnedOff > 0 ? ` Desligado para ${accountsWithoutVip(turnedOff)}, sem apagar nada.` : ''}`
+          : `${name} liberado para todas as contas.`,
+        'success',
+      );
+      // The owner's own screens (the "VIP" marks in Módulos) read the new choice too.
+      router.refresh();
+    } catch (err) {
+      apply(!vipOnly);
+      showToast(toStorageErrorMessage(err, 'Não foi possível salvar. Tente de novo.'), 'error');
+    } finally {
+      savingModule.current = null;
+      setBusyModule(null);
+    }
+    void load();
   }
 
   const users = useMemo(() => {
@@ -182,6 +247,7 @@ export function AdminScreen() {
   const { status } = overview;
   const level = levelOf(status);
   const vipCount = overview.users.filter((item) => item.vip).length;
+  const vipModules = overview.modules.filter((item) => item.vipOnly).map((item) => item.key);
   const events = showAllEvents ? status.events : status.events.slice(0, EVENTS_SHOWN);
 
   return (
@@ -260,10 +326,29 @@ export function AdminScreen() {
         )}
       </Card>
 
+      <Card title="Módulos só para VIP" icon={Crown} tone="purple">
+        <p className="text-muted text-sm">
+          Com &quot;Só VIP&quot; ligado, as outras contas veem o módulo com o selo VIP e não conseguem
+          ligar. Quem já usava fica com ele desligado, sem perder nenhum dado.
+        </p>
+        <ul className="divide-border -mx-1 flex flex-col divide-y">
+          {overview.modules.map((item) => (
+            <ModuleRow
+              key={item.key}
+              item={item}
+              busy={busyModule === item.key}
+              onToggle={(vipOnly) => void toggleModuleVip(item, vipOnly)}
+            />
+          ))}
+        </ul>
+      </Card>
+
       <Card title={`Contas (${overview.users.length})`} icon={Users} tone="blue">
         <p className="text-muted text-sm">
-          VIP libera os módulos exclusivos: hoje, {moduleNames(VIP_ONLY_MODULES)}. {vipCount}{' '}
-          {vipCount === 1 ? 'conta é VIP' : 'contas são VIP'}, contando a sua.
+          {vipModules.length > 0
+            ? `VIP libera os módulos marcados "Só VIP": hoje, ${moduleNames(vipModules)}.`
+            : 'Nenhum módulo está marcado "Só VIP" agora.'}{' '}
+          {vipCount} {vipCount === 1 ? 'conta é VIP' : 'contas são VIP'}, contando a sua.
         </p>
 
         {overview.users.length > 5 && (
@@ -345,6 +430,41 @@ function Stat({
       </span>
       <span className="text-muted text-[11px] leading-tight">{hint}</span>
     </div>
+  );
+}
+
+function ModuleRow({
+  item,
+  busy,
+  onToggle,
+}: {
+  item: AdminModule;
+  busy: boolean;
+  onToggle: (vipOnly: boolean) => void;
+}) {
+  const info = moduleDefinition(item.key);
+  const visual = MODULE_VISUALS[item.key];
+  const using = item.usersWithoutVip;
+  return (
+    <li className="flex items-center gap-3 px-1 py-3">
+      <IconTile icon={visual.icon} tone={visual.tone} size="sm" />
+      <div className="min-w-0 flex-1">
+        <p className="text-foreground text-sm font-medium">{info.name}</p>
+        <p className="text-muted text-xs">
+          {item.vipOnly
+            ? 'Só as contas VIP'
+            : using > 0
+              ? `Todas as contas · ${accountsWithoutVip(using)} ${using === 1 ? 'usa' : 'usam'}`
+              : 'Todas as contas'}
+        </p>
+      </div>
+      <div className="flex shrink-0 flex-col items-center gap-1">
+        <Switch checked={item.vipOnly} onChange={onToggle} label={`Só VIP: ${info.name}`} disabled={busy} />
+        <span aria-hidden className="text-muted text-[10px] leading-none font-medium">
+          Só VIP
+        </span>
+      </div>
+    </li>
   );
 }
 

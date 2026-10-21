@@ -629,3 +629,6 @@ export const backupSchema = z.object({
 
 /** Administração: make an account VIP or take it back. */
 export const vipSchema = z.object({ vip: z.boolean() });
+
+/** Administração: make a module only for VIP accounts ("Só VIP") or open it to everyone. */
+export const moduleVipSchema = z.object({ vipOnly: z.boolean() });

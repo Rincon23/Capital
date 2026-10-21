@@ -14,7 +14,6 @@ export const GET = apiRoute(async ({ repo, diagram }) => ({
 /** Replaces all of the account's data with the backup (the Diagrama only when the file has it). */
 export const POST = apiRoute(async ({ request, repo, diagram, access }) => {
   const backup = await readJson(request, backupSchema, { maxBytes: MAX_BACKUP_BYTES });
-  const { vip } = await access();
-  await repo.importData({ ...backup, settings: withAccessRules(backup.settings, vip) });
+  await repo.importData({ ...backup, settings: withAccessRules(backup.settings, await access()) });
   if (backup.diagram) await diagram.importData(backup.diagram);
 });

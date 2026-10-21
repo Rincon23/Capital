@@ -2,20 +2,20 @@
 
 import { useEffect, useState } from 'react';
 import type { BankHoldings } from '@/lib/banks';
-import { isModuleOn } from '@/lib/modules';
+import { isModuleOn, mayUseModule } from '@/lib/modules';
 import { banksRepository } from '@/lib/storage';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
 
 /**
  * What the banks say the person holds (Open Finance), for the Diagrama to compare quantities. Only
- * for VIP accounts with Open Finance on; read once per visit — the banks send data once a day, and
+ * with Open Finance on (and VIP while it is "Só VIP"); read once per visit — the banks send data once a day, and
  * the comparison itself is redone on the screen after every change in the Diagrama.
  */
 export function useBankHoldings(): BankHoldings | null {
   const { user } = useAuth();
   const { settings } = useSettings();
-  const enabled = isModuleOn(settings, 'banks') && user.vip;
+  const enabled = isModuleOn(settings, 'banks') && mayUseModule(user, 'banks');
   const [holdings, setHoldings] = useState<BankHoldings | null>(null);
 
   useEffect(() => {

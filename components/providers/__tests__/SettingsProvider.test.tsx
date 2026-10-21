@@ -12,6 +12,11 @@ vi.mock('@/lib/storage', () => ({
   },
 }));
 
+// An account without VIP, with the default "Só VIP" modules.
+vi.mock('../AuthProvider', () => ({
+  useAuth: () => ({ user: { vip: false, vipModules: ['banks', 'voice'] } }),
+}));
+
 let api: ReturnType<typeof useSettings> | null = null;
 function Probe() {
   const value = useSettings();
@@ -49,5 +54,27 @@ describe('SettingsProvider', () => {
     await waitFor(() =>
       expect(api!.settings!.dismissedNotices).toEqual(['intro:budget', 'hint:swipe-month', 'first-steps:budget']),
     );
+  });
+
+  it('nunca liga um módulo "Só VIP" numa conta sem VIP, como o servidor', async () => {
+    vi.mocked(budgetRepository.getSettings).mockResolvedValue({
+      topics: createDefaultTopics(),
+      specialCategories: DEFAULT_SPECIAL_CATEGORY_LABELS,
+    });
+    render(
+      <SettingsProvider>
+        <Probe />
+      </SettingsProvider>,
+    );
+    await screen.findByText('pronto');
+
+    await act(async () => {
+      await api!.saveSettings({ ...api!.settings!, modules: { expenses: true, voice: true } });
+    });
+    expect(vi.mocked(budgetRepository.saveSettings).mock.calls.at(-1)![0].modules).toEqual({
+      expenses: true,
+      voice: false,
+    });
+    await waitFor(() => expect(api!.settings!.modules).toEqual({ expenses: true, voice: false }));
   });
 });

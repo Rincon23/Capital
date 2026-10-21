@@ -218,6 +218,13 @@
       "when": 1792519976622,
       "tag": "0030_open_finance_quantidades",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792592091169,
+      "tag": "0031_module_access",
+      "breakpoints": true
     }
   ]
 }

@@ -20,7 +20,7 @@ import {
   type ReservePlanSummary,
 } from '@/lib/budget';
 import { reserveStatusLine, type BankReserve, type ReserveSource } from '@/lib/banks';
-import { isModuleOn } from '@/lib/modules';
+import { isModuleOn, mayUseModule } from '@/lib/modules';
 import { banksRepository, walletRepository } from '@/lib/storage';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -134,7 +134,7 @@ function Caixa({ initialTab }: { initialTab?: ReserveTab }) {
   useModuleIntro('cash', { ready: !!snapshot });
   // Open Finance: "Reserva em conta" can come from the accounts the person marked.
   const { user } = useAuth();
-  const banksOn = isModuleOn(settings, 'banks') && user.vip;
+  const banksOn = isModuleOn(settings, 'banks') && mayUseModule(user, 'banks');
   const [bankReserve, setBankReserve] = useState<BankReserve | null>(null);
   const [now] = useState(() => Date.now());
 

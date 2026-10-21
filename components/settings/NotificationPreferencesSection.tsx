@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import type { ModuleKey } from '@/lib/budget';
+import { mayUseModule } from '@/lib/modules';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { Switch } from '@/components/ui/Switch';
@@ -12,8 +14,17 @@ import {
 } from '@/lib/notifications';
 
 const TOGGLEABLE: NotificationCategory[] = ['reminder', 'card', 'recurring', 'gmail', 'banks', 'feature'];
-/** Categories of VIP-only modules: everyone else never gets them, so they don't see the switch. */
-const VIP_ONLY: NotificationCategory[] = ['banks'];
+/**
+ * The module each category comes from. A module only for VIP accounts never notifies anyone else,
+ * so they don't see its switch.
+ */
+const CATEGORY_MODULE: Partial<Record<NotificationCategory, ModuleKey>> = {
+  reminder: 'reminders',
+  card: 'card',
+  recurring: 'recurring',
+  gmail: 'gmail',
+  banks: 'banks',
+};
 
 /**
  * Which kinds of notification push to the phone. A PWA has no way to create separate channels
@@ -49,7 +60,10 @@ export function NotificationPreferencesSection() {
         <p className="text-muted text-xs">
           Quais avisos chegam no celular. Todos ficam na Central de notificações.
         </p>
-        {TOGGLEABLE.filter((category) => user.vip || !VIP_ONLY.includes(category)).map((category) => (
+        {TOGGLEABLE.filter((category) => {
+          const source = CATEGORY_MODULE[category];
+          return !source || mayUseModule(user, source);
+        }).map((category) => (
           <div key={category} className="flex items-center justify-between gap-3">
             <span className="text-foreground text-sm font-medium">
               {NOTIFICATION_CATEGORY_LABELS[category]}

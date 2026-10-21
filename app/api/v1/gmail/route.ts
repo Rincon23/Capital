@@ -5,8 +5,8 @@ import { apiRoute } from '@/lib/server/http';
 import { isOwnerEmail } from '@/lib/server/owner';
 
 /** Everything the Monitor de Gmail screen shows, in one read. */
-export const GET = apiRoute(async ({ repo, gmail, email }): Promise<GmailOverview> => {
-  await requireGmailAccess(repo);
+export const GET = apiRoute(async ({ repo, gmail, email, access }): Promise<GmailOverview> => {
+  await requireGmailAccess(repo, await access());
   const account = await gmail.getAccount();
   return {
     configured: googleConfig() !== null,

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import type { GmailConnectError } from '@/lib/gmail';
+import { userAccess } from '@/lib/server/access';
 import { getAuth } from '@/lib/server/auth';
 import { PostgresBudgetRepository } from '@/lib/server/budgetRepository';
 import { getDb } from '@/lib/server/db';
@@ -23,7 +24,11 @@ export async function GET(request: NextRequest): Promise<Response> {
   try {
     const session = await getAuth().api.getSession({ headers: request.headers });
     if (!session) return NextResponse.redirect(`${appBaseUrl()}/login`, 303);
-    await requireGmailAccess(new PostgresBudgetRepository(getDb(), session.user.id));
+    const db = getDb();
+    await requireGmailAccess(
+      new PostgresBudgetRepository(db, session.user.id),
+      await userAccess(db, session.user.id, session.user.email),
+    );
 
     const config = googleConfig();
     if (!config) return back('nao-configurado');

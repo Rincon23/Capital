@@ -1,5 +1,6 @@
 import 'server-only';
 import { eq, sql } from 'drizzle-orm';
+import { mayUseModule } from '@/lib/modules';
 import { userAccess } from '../access';
 import { bankKeys, budgetSettings, user } from '../db/schema';
 import type { Database } from '../db/types';
@@ -43,8 +44,8 @@ export async function runBanksJob(
   const results: BanksJobResult['results'] = [];
   for (const { userId, email } of people) {
     try {
-      // VIP-only: someone whose VIP was taken back keeps the data, but nothing is read for them.
-      if (!(await userAccess(db, userId, email)).vip) continue;
+      // While "Só VIP": someone whose VIP was taken back keeps the data, but nothing is read for them.
+      if (!mayUseModule(await userAccess(db, userId, email), 'banks')) continue;
       const banks = await syncAndNotify(db, userId, fetchImpl, now, deps);
       if (banks) results.push({ userId, banks });
     } catch (err) {

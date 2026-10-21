@@ -3,8 +3,10 @@ import { createDefaultSettings } from '../../budget/seed';
 import type { ModuleKey } from '../../budget/types';
 import { MODULES, MODULE_KEYS, moduleNames } from '../catalog';
 import {
+  DEFAULT_VIP_MODULES,
   dependentsOf,
   isModuleOn,
+  mayUseModule,
   missingDependencies,
   moduleTree,
   modulesToTurnOnFirst,
@@ -15,11 +17,14 @@ import {
   turnModuleOff,
   turnModuleOn,
   turnModulesOn,
-  VIP_ONLY_MODULES,
+  vipLockOf,
+  vipLockText,
+  vipModulesFrom,
   withAccessRules,
 } from '../flags';
 
 const on = (...keys: ModuleKey[]) => Object.fromEntries(keys.map((key) => [key, true]));
+const notVipDefault = { vip: false, vipModules: DEFAULT_VIP_MODULES };
 
 describe('catálogo de módulos', () => {
   it('tem os 12 módulos, cada um depois dos que ele precisa', () => {
@@ -179,22 +184,61 @@ describe('dependências', () => {
   });
 });
 
+describe('módulos só para VIP', () => {
+  const notVip = (...vipModules: ModuleKey[]) => ({ vip: false, vipModules });
+
+  it('começa com Open Finance e Lançar por voz ou texto só para VIP', () => {
+    expect(DEFAULT_VIP_MODULES).toEqual(['banks', 'voice']);
+    expect(vipModulesFrom({})).toEqual(['banks', 'voice']);
+  });
+
+  it('segue a escolha do dono em Administração, módulo por módulo', () => {
+    expect(vipModulesFrom({ banks: false })).toEqual(['voice']);
+    expect(vipModulesFrom({ gmail: true, voice: false })).toEqual(['banks', 'gmail']);
+    expect(vipModulesFrom({ banks: false, voice: false })).toEqual([]);
+  });
+
+  it('libera tudo para VIP e só o que não é "Só VIP" para os outros', () => {
+    expect(mayUseModule({ vip: true, vipModules: ['banks'] }, 'banks')).toBe(true);
+    expect(mayUseModule(notVip('banks'), 'banks')).toBe(false);
+    expect(mayUseModule(notVip('banks'), 'gmail')).toBe(true);
+    expect(mayUseModule(notVip(), 'banks')).toBe(true);
+  });
+
+  it('tranca também o que depende de um módulo só VIP', () => {
+    expect(vipLockOf(notVip('expenses'), 'expenses')).toBe('expenses');
+    expect(vipLockOf(notVip('expenses'), 'history')).toBe('expenses');
+    expect(vipLockOf(notVip('expenses'), 'cash')).toBeNull();
+    expect(vipLockOf({ vip: true, vipModules: ['expenses'] }, 'history')).toBeNull();
+    expect(vipLockText('voice', 'voice')).toBe('Disponível só para contas VIP.');
+    expect(vipLockText('history', 'expenses')).toBe('Precisa de Lançamentos, disponível só para contas VIP.');
+  });
+});
+
 describe('withAccessRules', () => {
-  it('keeps the VIP modules (Open Finance, Lançar por voz) off for accounts that are not VIP, whatever was saved', () => {
-    expect(VIP_ONLY_MODULES).toEqual(['banks', 'voice']);
+  it('keeps the VIP modules off for accounts that are not VIP, whatever was saved', () => {
     const saved = { modules: on('expenses', 'voice') };
-    expect(withAccessRules(saved, false).modules).toEqual({ expenses: true, voice: false });
-    expect(isModuleOn(withAccessRules(saved, false), 'voice')).toBe(false);
+    expect(withAccessRules(saved, notVipDefault).modules).toEqual({ expenses: true, voice: false });
+    expect(isModuleOn(withAccessRules(saved, notVipDefault), 'voice')).toBe(false);
+  });
+
+  it('follows the saved choice: a module no longer VIP stays as it was saved', () => {
+    const saved = { modules: on('expenses', 'voice', 'gmail') };
+    expect(withAccessRules(saved, { vip: false, vipModules: ['gmail'] }).modules).toEqual({
+      expenses: true,
+      voice: true,
+      gmail: false,
+    });
   });
 
   it('leaves a VIP account as it is', () => {
     const saved = { modules: on('expenses', 'voice') };
-    expect(withAccessRules(saved, true)).toBe(saved);
-    expect(isModuleOn(withAccessRules(saved, true), 'voice')).toBe(true);
+    expect(withAccessRules(saved, { vip: true, vipModules: DEFAULT_VIP_MODULES })).toBe(saved);
+    expect(isModuleOn(withAccessRules(saved, { vip: true, vipModules: DEFAULT_VIP_MODULES }), 'voice')).toBe(true);
   });
 
   it('does not add a modules map to a payload that had none', () => {
     const saved = { modules: undefined };
-    expect(withAccessRules(saved, false)).toBe(saved);
+    expect(withAccessRules(saved, notVipDefault)).toBe(saved);
   });
 });

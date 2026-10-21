@@ -69,6 +69,26 @@ desligado (`ModuleGate`) ou nos kits do primeiro acesso. Desligar um módulo de 
 pede confirmação e desliga os filhos junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no servidor:
 `resolveModules` só considera ligado um módulo cujos pais estão ligados.
 
+**Módulos só para VIP.** O dono do servidor (`OWNER_EMAIL`) escolhe em **Administração**, no card
+"Módulos só para VIP", quais módulos ficam só para as contas VIP: um switch **"Só VIP"** por
+módulo. A escolha fica no banco (`module_access`, uma linha por módulo que o dono mexeu); um módulo
+sem linha segue o padrão do catálogo (`vipByDefault`), que é **Open Finance** e **Lançar por voz ou
+texto**. As contas VIP ficam em `vip_users` (o dono é sempre VIP).
+
+- Quem não é VIP vê o módulo com o selo **"VIP"** no lugar do switch (em Módulos, na tela do
+  módulo e na bandeja de widgets) e não consegue ligar. Um módulo que depende de um "Só VIP" fica
+  trancado do mesmo jeito: "Precisa de Lançamentos, disponível só para contas VIP."
+- **Virou "Só VIP":** o módulo desliga para todas as contas sem VIP, junto com os que dependem
+  dele, e nenhum dado é apagado (`setModuleVip` em `lib/server/adminRepository.ts`). Se alguém sem
+  VIP usa o módulo, a Administração pede confirmação dizendo quantas contas são.
+- **Deixou de ser "Só VIP":** nada muda sozinho; quem quiser liga em Módulos.
+- **Uma conta perde o VIP:** os módulos "Só VIP" dela desligam, com os dados guardados.
+- No servidor, `withAccessRules` (em `lib/modules/flags.ts`) mantém desligado o que a conta não
+  pode usar, em qualquer leitura ou gravação das configurações e na importação de backup, e as
+  rotas de Open Finance, IA e Gmail recusam com `VIP_ONLY` (`requireNotVipLocked` em
+  `lib/server/access.ts`). O app recebe a lista no layout (`vipModules` do `AuthUser`) e usa
+  `mayUseModule` e `vipLockOf`.
+
 **Dinheiro do mês**
 
 - **Lançamentos** (`/mes/[mês]/lancamentos`) — gastos e rendas do mês com busca, abas por
@@ -315,7 +335,7 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
   nunca o mesmo e-mail duas vezes; tocar abre o e-mail no Gmail. Mostra o histórico de alertas.
   Ignora o que você enviou, rascunhos e spam. Se o Google recusar a conexão, avisa uma vez e pede
   para conectar de novo.
-- **Open Finance** (`/bancos`, só VIP): traz os bancos da pessoa pelo **Meu Pluggy**, grátis e
+- **Open Finance** (`/bancos`, começa "Só VIP"): traz os bancos da pessoa pelo **Meu Pluggy**, grátis e
   só leitura, com a chave da própria pessoa, e serve **só para conferir** o que foi lançado no
   Capital: gastos, recebimentos e (no Diagrama) as quantidades de ações e cotas. Nenhum saldo,
   fatura, valor em aberto ou limite do banco aparece, a não ser os saldos das contas que a
@@ -351,7 +371,7 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
     - 15 dias antes de a autorização vencer, aparece "A autorização vence em N dias", com
       "Renovar";
     - um banco que a Pluggy perdeu pede "Trazer de novo".
-  - **Avisos no celular** (categoria "Open Finance" em Notificações, só para VIP):
+  - **Avisos no celular** (categoria "Open Finance" em Notificações, para quem pode usar o módulo):
     - **só quando a atualização traz algo para conferir**: depois de cada leitura com novidade
       (não a primeira, o ano de histórico), conta só o que é **novo nesta leitura e caiu em
       "Falta no Capital"** no mês atual ou no anterior, pelo mesmo cálculo da tela: "🏦 Nubank
@@ -432,7 +452,7 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
     - **fatura**: um pagamento de fatura que bate com uma fatura em aberto **do Capital** sugere
       "Marcar a fatura de out (Nubank) como paga?", sempre com um toque. Nenhuma fatura sai sozinha
       e a fatura do banco nunca aparece;
-    - **no módulo Cartão** (com Open Finance e conta VIP): na aba Fatura do mês atual e do
+    - **no módulo Cartão** (com Open Finance ligado): na aba Fatura do mês atual e do
       anterior, uma linha por cartão ligado, "2 compras do banco não estão aqui · Conferir" (abre
       a aba Gastos nesse mês, já no bloco do cartão) ou "✓ Confere com o banco". Só contagens:
       nenhum valor do banco;
@@ -465,7 +485,7 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
       campo fica só leitura com "BTG Pactual · atualizado há 5 h". Se um banco parou, avisa que o
       valor é o último que chegou;
     - "Mudar as contas da reserva" e "Voltar a digitar à mão" (o último valor fica para editar).
-  - **Quantidades no Diagrama** (aba "Ativos e notas", com Open Finance ligado e conta VIP): a
+  - **Quantidades no Diagrama** (aba "Ativos e notas", com Open Finance ligado): a
     corretora diz quantas ações e cotas a pessoa tem, e o Diagrama confere ativo por ativo:
     - com o Diagrama ligado, a tela dos bancos tem **"Conferir investimentos"**: abre o Diagrama
       (`/diagrama?aba=ativos&conferir=1`) já na conferência, só com o que difere, ou com "Tudo
@@ -825,8 +845,8 @@ dela); o servidor não tem chave da Pluggy. Como o módulo nasceu (F0–F6) est�
   - ficam como a Pluggy manda, com o cartão positivo na compra;
   - `outcome`/`entry_id` dizem o que viraram no Capital (F5), e uma leitura nova nunca mexe nisso;
   - nada disso é lançamento.
-- **Sincronização** (`job.ts`, uma vez por hora na agenda, com `job_runs`), para cada VIP com o
-  módulo ligado e a chave salva:
+- **Sincronização** (`job.ts`, uma vez por hora na agenda, com `job_runs`), para cada conta que
+  pode usar o módulo (VIP, enquanto ele for "Só VIP"), com ele ligado e a chave salva:
   - pergunta `GET /items/{id}` de cada banco;
   - **só quando `lastUpdatedAt` mudou** (o banco mandou dados), relê contas e transações: um ano
     na primeira vez, depois desde a última leitura menos 7 dias;
@@ -893,7 +913,7 @@ dela); o servidor não tem chave da Pluggy. Como o módulo nasceu (F0–F6) est�
     sincronização da hora relê tudo uma vez (como se o banco tivesse mandado dados) e as
     quantidades chegam sem esperar o banco. Até lá, a tela não mostra conferência nenhuma.
 - O `apiKey` (2 h) fica só em memória, por pessoa.
-- Toda rota confere VIP e o módulo ligado (`access.ts`) e tem limite de tentativas.
+- Toda rota confere o "Só VIP" e o módulo ligado (`access.ts`) e tem limite de tentativas.
 - A Pluggy devolve a pessoa para `<BETTER_AUTH_URL>/bancos`, ou para `PLUGGY_REDIRECT_URI`, que
   precisa ser https (no desenvolvimento, o endereço publicado; depois, volte à aba do localhost).
 - "Apagar todos os dados" leva o Open Finance junto e tira os itens da Pluggy.
@@ -1109,6 +1129,10 @@ Os demais testes:
   90", "vai me devolver"), valores, datas relativas, cartão, normalização de categorias, schema da
   resposta e as etapas transmitidas, com a IA simulada. `aiOllama.integration.test.ts` roda os
   mesmos exemplos contra o Ollama real, só com `OLLAMA_TEST_URL` definido.
+- **`lib/server/__tests__/moduleAccess.test.ts` e `lib/modules/__tests__/flags.test.ts`:** o
+  "Só VIP" da Administração: o padrão (Open Finance e Lançar por voz ou texto), a escolha do dono
+  módulo por módulo, o módulo que vira "Só VIP" desligando para quem não é VIP (e os que dependem
+  dele) sem apagar nada, o que volta a ser de todos e a conta que perde o VIP.
 - **`lib/gmail/__tests__/match.test.ts` e `lib/server/__tests__/gmail.test.ts`:** palavras-chave
   (maiúsculas, acentos, remetente, prévia), um aviso por e-mail com todas as palavras e nunca
   repetido, e-mails enviados e spam ignorados, `historyId` expirado, conexão recusada (avisa uma
@@ -1118,7 +1142,8 @@ Os demais testes:
   - a sincronização: um ano na primeira leitura, só "chegou algo?" enquanto o banco não manda
     nada, 7 dias para trás depois, a pendente que vira confirmada sem duplicar e sem perder o que
     a pessoa decidiu, `UPDATING`, item sumido, leitura sem contas e duas leituras ao mesmo tempo;
-  - o job: só VIPs com o módulo, uma vez por hora, e uma falha não para ninguém;
+  - o job: só quem pode usar o módulo e está com ele ligado, uma vez por hora, e uma falha não para
+    ninguém;
   - "Parado" depois de 48 h, o aviso de autorização e os saldos guardados só no servidor (a tela
     recebe só o nome e o tipo de cada conta);
   - a conferência do mês (`banksReview.test.ts`, com a data fixa em 21/10/2026): os dois jeitos de

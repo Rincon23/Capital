@@ -3,15 +3,20 @@
 import { createContext, useCallback, useContext, useEffect, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut as signOutAction } from '@/lib/auth/actions';
+import type { ModuleKey } from '@/lib/budget';
+import type { ModuleAccess } from '@/lib/modules';
 import { UNAUTHENTICATED_EVENT } from '@/lib/storage/httpRepository';
 
-export interface AuthUser {
+/** Also what `mayUseModule` and `vipLockOf` read (it is a `ModuleAccess`). */
+export interface AuthUser extends ModuleAccess {
   id: string;
   email: string | null;
   /** Used for the greeting on the home screen. */
   name: string | null;
   /** May turn on the VIP-only modules (granted by the owner in Administração). */
   vip: boolean;
+  /** The modules only VIP accounts can turn on ("Só VIP" in Administração). */
+  vipModules: ModuleKey[];
   /** Runs the server (OWNER_EMAIL): sees Administração. */
   owner: boolean;
 }

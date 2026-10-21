@@ -7,8 +7,8 @@ import { apiRoute } from '@/lib/server/http';
  * not revoke the permission at Google: the grant belongs to the Google Cloud client, and n8n may
  * use the same one — revoking would cut its Gmail monitor off too.
  */
-export const DELETE = apiRoute(async ({ repo, gmail, userId }) => {
-  await requireGmailAccess(repo);
+export const DELETE = apiRoute(async ({ repo, gmail, userId, access }) => {
+  await requireGmailAccess(repo, await access());
   forgetGmailToken(userId);
   await gmail.deleteAccount();
 });

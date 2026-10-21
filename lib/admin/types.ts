@@ -1,5 +1,7 @@
 /** What the Administração screen shows. Only the server's owner (OWNER_EMAIL) ever gets it. */
 
+import type { ModuleKey } from '../budget/types';
+
 export interface LoadGuardConfig {
   /** Average requests per second that raise a warning. */
   alertRps: number;
@@ -55,7 +57,18 @@ export interface AdminUser {
   lastSeenAt: string | null;
 }
 
+/** A module and the owner's "Só VIP" choice for it. */
+export interface AdminModule {
+  key: ModuleKey;
+  /** Only VIP accounts can turn it on. */
+  vipOnly: boolean;
+  /** Accounts without VIP that have it on now: making it "Só VIP" turns it off for them. */
+  usersWithoutVip: number;
+}
+
 export interface AdminOverview {
   status: ServerStatus;
   users: AdminUser[];
+  /** Every module, in catalog order. */
+  modules: AdminModule[];
 }

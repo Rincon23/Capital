@@ -9,6 +9,7 @@ import {
   moduleDefinition,
   moduleNames,
   nearestMissing,
+  vipLockOf,
   widgetDescription,
   widgetModule,
   widgetName,
@@ -275,7 +276,8 @@ function OffModuleWidget({ widget }: { widget: HomeWidgetKey }) {
   const owner = widgetModule(widget);
   const info = moduleDefinition(owner);
   const visual = widgetVisual(widget);
-  const vipLocked = info.vipOnly === true && !user.vip;
+  const vipLock = vipLockOf(user, owner);
+  const vipLocked = vipLock !== null;
   const blockers = vipLocked ? [] : nearestMissing(settings, owner);
 
   return (
@@ -300,7 +302,7 @@ function OffModuleWidget({ widget }: { widget: HomeWidgetKey }) {
         <span className="min-w-0 flex-1">
           <span className="text-muted block font-medium">
             {widgetName(widget)}
-            {info.vipOnly && (
+            {(vipLocked || user.vipModules.includes(owner)) && (
               <span className="bg-primary/10 text-primary ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 align-middle text-[11px] font-semibold">
                 <Crown aria-hidden className="h-3 w-3" />
                 VIP
@@ -312,8 +314,12 @@ function OffModuleWidget({ widget }: { widget: HomeWidgetKey }) {
       </button>
       {expanded && (
         <div className="flex flex-col gap-2 px-3 pb-3 text-xs">
-          {vipLocked ? (
-            <p className="text-muted">É do módulo {info.name}, disponível só para contas VIP.</p>
+          {vipLock ? (
+            <p className="text-muted">
+              {vipLock === owner
+                ? `É do módulo ${info.name}, disponível só para contas VIP.`
+                : `É do módulo ${info.name}, que precisa de ${moduleDefinition(vipLock).name}, disponível só para contas VIP.`}
+            </p>
           ) : blockers.length > 0 ? (
             <p className="text-foreground flex items-start gap-1.5">
               <Lock aria-hidden className="text-muted mt-0.5 h-3 w-3 shrink-0" />

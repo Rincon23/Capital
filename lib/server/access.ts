@@ -1,22 +1,41 @@
 import 'server-only';
 import { eq } from 'drizzle-orm';
-import { vipUsers } from './db/schema';
+import type { ModuleKey } from '../budget/types';
+import { mayUseModule, moduleDefinition, vipModulesFrom, type ModuleAccess } from '../modules';
+import { moduleAccess, vipUsers } from './db/schema';
 import type { Database } from './db/types';
+import { HttpError } from './httpError';
 import { isOwnerEmail } from './owner';
 
 /** What an account may do beyond the ordinary: run the server (owner) and use the VIP modules. */
-export interface UserAccess {
+export interface UserAccess extends ModuleAccess {
   /** The account whose e-mail is OWNER_EMAIL: sees Administração and is always VIP. */
   owner: boolean;
-  /** May turn on the `vipOnly` modules (lib/modules/catalog.ts). */
+  /** May turn on the VIP-only modules (`vipModules`). */
   vip: boolean;
 }
 
+/** The modules only VIP accounts can turn on, as the owner set them in Administração. */
+export async function vipModules(db: Database): Promise<ModuleKey[]> {
+  const rows = await db
+    .select({ moduleKey: moduleAccess.moduleKey, vipOnly: moduleAccess.vipOnly })
+    .from(moduleAccess);
+  return vipModulesFrom(Object.fromEntries(rows.map((row) => [row.moduleKey, row.vipOnly])));
+}
+
 export async function userAccess(db: Database, userId: string, email: string | null): Promise<UserAccess> {
-  if (isOwnerEmail(email)) return { owner: true, vip: true };
-  const [row] = await db
-    .select({ userId: vipUsers.userId })
-    .from(vipUsers)
-    .where(eq(vipUsers.userId, userId));
-  return { owner: false, vip: row !== undefined };
+  const modules = vipModules(db);
+  if (isOwnerEmail(email)) return { owner: true, vip: true, vipModules: await modules };
+  const [[row], list] = await Promise.all([
+    db.select({ userId: vipUsers.userId }).from(vipUsers).where(eq(vipUsers.userId, userId)),
+    modules,
+  ]);
+  return { owner: false, vip: row !== undefined, vipModules: list };
+}
+
+/** Refuses (403) a module this account may not use because it is only for VIP accounts. */
+export function requireNotVipLocked(access: ModuleAccess, key: ModuleKey): void {
+  if (!mayUseModule(access, key)) {
+    throw new HttpError(403, 'VIP_ONLY', `${moduleDefinition(key).name} é só para contas VIP.`);
+  }
 }

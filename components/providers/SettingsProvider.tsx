@@ -2,8 +2,10 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { normalizeSettings, type BudgetSettings } from '@/lib/budget';
+import { withAccessRules } from '@/lib/modules';
 import { budgetRepository } from '@/lib/storage';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
+import { useAuth } from './AuthProvider';
 
 interface SettingsContextValue {
   settings: BudgetSettings | null;
@@ -16,6 +18,7 @@ interface SettingsContextValue {
 const SettingsContext = createContext<SettingsContextValue | null>(null);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [settings, setSettings] = useState<BudgetSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,18 +52,25 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [refresh]);
 
-  const saveSettings = useCallback((next: BudgetSettings) => {
-    const seen = [...new Set([...notices.current, ...(next.dismissedNotices ?? [])])];
-    notices.current = seen;
-    const run = async () => {
-      const normalized = normalizeSettings(seen.length > 0 ? { ...next, dismissedNotices: seen } : next);
-      await budgetRepository.saveSettings(normalized);
-      setSettings(normalized);
-    };
-    const saved = queue.current.then(run, run);
-    queue.current = saved.catch(() => {});
-    return saved;
-  }, []);
+  const saveSettings = useCallback(
+    (next: BudgetSettings) => {
+      const seen = [...new Set([...notices.current, ...(next.dismissedNotices ?? [])])];
+      notices.current = seen;
+      const run = async () => {
+        // The same rule the server applies: a VIP-only module stays off here too (a kit with one).
+        const normalized = withAccessRules(
+          normalizeSettings(seen.length > 0 ? { ...next, dismissedNotices: seen } : next),
+          user,
+        );
+        await budgetRepository.saveSettings(normalized);
+        setSettings(normalized);
+      };
+      const saved = queue.current.then(run, run);
+      queue.current = saved.catch(() => {});
+      return saved;
+    },
+    [user],
+  );
 
   // A failure here blocks every screen (they all need settings), so surface it
   // in place rather than letting each screen spin on "Carregando…".

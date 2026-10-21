@@ -4,7 +4,14 @@ import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Crown, Lock } from 'lucide-react';
 import type { ModuleKey } from '@/lib/budget';
-import { isModuleOn, moduleDefinition, moduleNames, modulesToTurnOnFirst } from '@/lib/modules';
+import {
+  isModuleOn,
+  moduleDefinition,
+  moduleNames,
+  modulesToTurnOnFirst,
+  vipLockOf,
+  vipLockText,
+} from '@/lib/modules';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
@@ -34,8 +41,10 @@ export function ModuleGate({ module, children }: { module: ModuleKey; children: 
   const info = moduleDefinition(module);
   const missing = modulesToTurnOnFirst(settings, module);
 
-  // A VIP-only module explains itself to everyone else, with nothing to turn on.
-  if (info.vipOnly && !user.vip) {
+  // A module only for VIP accounts (or built on one) explains itself to everyone else, with nothing
+  // to turn on.
+  const vipLock = vipLockOf(user, module);
+  if (vipLock) {
     return (
       <div className="flex flex-1 flex-col gap-4 pb-10">
         <PageHeader title={info.name} backHref={homeHref} />
@@ -50,7 +59,7 @@ export function ModuleGate({ module, children }: { module: ModuleKey; children: 
                   VIP
                 </span>
               </p>
-              <p className="text-muted text-sm">Disponível só para contas VIP.</p>
+              <p className="text-muted text-sm">{vipLockText(module, vipLock)}</p>
             </div>
           </div>
           <p className="text-muted text-sm">{info.description}</p>

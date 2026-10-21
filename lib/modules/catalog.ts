@@ -39,10 +39,10 @@ export interface ModuleDefinition {
   /** Whether the home dashboard shows a card for it. */
   homeCard: boolean;
   /**
-   * Only for the accounts the server's owner made VIP (Administração). Everyone else sees it marked
-   * "VIP" and cannot turn it on; the server keeps it off for them whatever is saved.
+   * Starts as only for VIP accounts. The owner changes it in Administração ("Só VIP", saved in
+   * `module_access`); everything reads that choice (`vipModules`), never this field directly.
    */
-  vipOnly?: boolean;
+  vipByDefault?: boolean;
 }
 
 /**
@@ -168,7 +168,7 @@ export const MODULES: ModuleDefinition[] = [
     },
     homeCard: true,
     // Each person brings their own free Meu Pluggy key; the owner tries it first.
-    vipOnly: true,
+    vipByDefault: true,
   },
   {
     key: 'diagram',
@@ -209,7 +209,7 @@ export const MODULES: ModuleDefinition[] = [
     dependsOn: ['expenses'],
     homeCard: false,
     // The AI runs on the server's own board: kept to a few accounts so it doesn't overheat.
-    vipOnly: true,
+    vipByDefault: true,
   },
   {
     key: 'gmail',

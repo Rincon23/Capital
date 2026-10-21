@@ -23,7 +23,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const requestHeaders = await headers();
   const session = await getAuth().api.getSession({ headers: requestHeaders });
   if (!session) redirect('/login');
-  const { vip, owner } = await userAccess(getDb(), session.user.id, session.user.email);
+  const { vip, owner, vipModules } = await userAccess(getDb(), session.user.id, session.user.email);
 
   return (
     <AppProviders
@@ -33,6 +33,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         // The placeholder from the e-mail ("enzo.rincon") is not a name: the app waits for a real one.
         name: realName(session.user.name, session.user.email),
         vip,
+        vipModules,
         owner,
       }}
     >

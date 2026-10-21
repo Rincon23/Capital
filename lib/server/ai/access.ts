@@ -2,7 +2,7 @@ import 'server-only';
 import { isModuleOn } from '@/lib/modules';
 import { categoryOptions, type AiProgressEvent, type CategoryOption } from '@/lib/ai';
 import { zonedToday } from '@/lib/reminders/time';
-import type { UserAccess } from '../access';
+import { requireNotVipLocked, type UserAccess } from '../access';
 import type { PostgresBudgetRepository } from '../budgetRepository';
 import { HttpError } from '../httpError';
 import { isUnderStrain } from '../loadGuard';
@@ -19,9 +19,9 @@ export interface VoiceAccess {
 }
 
 /**
- * VIP accounts with the module on (it is VIP-only: the AI heats the board),
- * within a per-user rate limit, and only while the server is not under strain. Checked on every
- * request, whatever the browser shows.
+ * Accounts with the module on, and only VIP ones while the owner keeps it "Só VIP" (it starts so:
+ * the AI heats the board), within a per-user rate limit, and only while the server is not under
+ * strain. Checked on every request, whatever the browser shows.
  */
 export async function requireVoiceAccess(
   repo: PostgresBudgetRepository,
@@ -29,9 +29,7 @@ export async function requireVoiceAccess(
   access: UserAccess,
   { countAttempt }: { countAttempt: boolean },
 ): Promise<VoiceAccess> {
-  if (!access.vip) {
-    throw new HttpError(403, 'VIP_ONLY', 'Lançar por voz ou texto é só para contas VIP.');
-  }
+  requireNotVipLocked(access, 'voice');
   const settings = await repo.getSettings();
   if (!isModuleOn(settings, 'voice')) {
     throw new HttpError(

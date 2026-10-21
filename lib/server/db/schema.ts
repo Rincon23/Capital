@@ -31,6 +31,7 @@ import type {
   HomeWidgetKey,
   InstallmentAccounting,
   ModuleFlags,
+  ModuleKey,
   NavKey,
   QuickCategoryKey,
   SpecialCategoryColors,
@@ -131,14 +132,25 @@ export const verification = pgTable(
 
 /**
  * The accounts the server's owner (OWNER_EMAIL) made VIP in Administração: they can turn on the
- * modules marked `vipOnly` (lib/modules/catalog.ts). A row is the grant; no row, no VIP. Kept out
- * of `users` on purpose, so nothing Better Auth lets a user update can ever touch it.
+ * VIP-only modules (`moduleAccess`). A row is the grant; no row, no VIP. Kept out of `users` on
+ * purpose, so nothing Better Auth lets a user update can ever touch it.
  */
 export const vipUsers = pgTable('vip_users', {
   userId: uuid('user_id')
     .primaryKey()
     .references(() => user.id, { onDelete: 'cascade' }),
   grantedAt: timestamp('granted_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Which modules are only for VIP accounts, as the owner set them in Administração ("Só VIP"). A
+ * row is the owner's choice for that module; a module without one keeps the catalog's default
+ * (`vipByDefault` in lib/modules/catalog.ts: Open Finance and Lançar por voz ou texto).
+ */
+export const moduleAccess = pgTable('module_access', {
+  moduleKey: text('module_key').$type<ModuleKey>().primaryKey(),
+  vipOnly: boolean('vip_only').notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 // ---------------------------------------------------------------------------

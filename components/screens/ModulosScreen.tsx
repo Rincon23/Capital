@@ -12,6 +12,9 @@ import {
   modulesToTurnOnFirst,
   nearestMissing,
   resolveModules,
+  vipLockOf,
+  vipLockText,
+  type ModuleAccess,
 } from '@/lib/modules';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useHomeHref } from '@/components/modules/useHomeHref';
@@ -72,7 +75,7 @@ export function ModulosScreen() {
   }
 
   async function handleToggle(key: ModuleKey, next: boolean) {
-    if (next && moduleDefinition(key).vipOnly && !user.vip) return;
+    if (next && vipLockOf(user, key)) return;
     if (!next) {
       await turnOff(key);
       return;
@@ -108,7 +111,7 @@ export function ModulosScreen() {
                 key={definition.key}
                 moduleKey={definition.key}
                 modules={modules}
-                vip={user.vip}
+                access={user}
                 busy={busy}
                 open={open === definition.key}
                 glowing={attention.includes(definition.key)}
@@ -127,7 +130,7 @@ export function ModulosScreen() {
 function ModuleCard({
   moduleKey,
   modules,
-  vip,
+  access,
   busy,
   open,
   glowing,
@@ -137,8 +140,8 @@ function ModuleCard({
 }: {
   moduleKey: ModuleKey;
   modules: ModuleFlags;
-  /** Whether this account may turn on the VIP-only modules. */
-  vip: boolean;
+  /** Whether this account is VIP, and which modules are only for VIP accounts. */
+  access: ModuleAccess;
   busy: boolean;
   /** The full description is showing. */
   open: boolean;
@@ -151,8 +154,10 @@ function ModuleCard({
   const info = moduleDefinition(moduleKey);
   const visual = MODULE_VISUALS[moduleKey];
   const on = modules[moduleKey];
-  // Reserved for VIP accounts: everyone else sees it marked "VIP", but can't turn it on.
-  const vipLocked = info.vipOnly === true && !vip;
+  // Reserved for VIP accounts (or built on a module that is): everyone else sees it marked "VIP",
+  // but can't turn it on.
+  const vipLock = vipLockOf(access, moduleKey);
+  const vipLocked = vipLock !== null;
   const blockers = on || vipLocked ? [] : nearestMissing({ modules }, moduleKey);
   const locked = blockers.length > 0;
   const dimmed = locked || vipLocked;
@@ -176,7 +181,7 @@ function ModuleCard({
               className={`flex items-center gap-1.5 text-sm leading-tight font-semibold ${dimmed ? 'text-muted' : 'text-foreground'}`}
             >
               <span className="truncate">{info.name}</span>
-              {info.vipOnly && vip && (
+              {access.vip && access.vipModules.includes(moduleKey) && (
                 <span className="bg-primary/10 text-primary inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold">
                   <Crown aria-hidden className="h-3 w-3" />
                   VIP
@@ -229,7 +234,7 @@ function ModuleCard({
       )}
       <div id={detailsId} hidden={!open} className="text-muted ml-[52px] text-xs leading-relaxed">
         {info.description}
-        {vipLocked && <span className="mt-1 block">Disponível só para contas VIP.</span>}
+        {vipLock && <span className="mt-1 block">{vipLockText(moduleKey, vipLock)}</span>}
       </div>
     </li>
   );
