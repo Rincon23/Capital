@@ -1,6 +1,7 @@
 # Open Finance vira conferência do mês
 
-Plano de 2026-10-21. Leia antes o `AGENTS.md`, o `docs/prompt-open-finance-pluggy.md` (como o
+Plano de 2026-10-21. **Estado:** C1–C7 feitas no mesmo dia, uma por commit (o que cada uma
+entrega está no `README.md`, módulo Open Finance e `lib/server/banks`). Leia antes o `AGENTS.md`, o `docs/prompt-open-finance-pluggy.md` (como o
 módulo nasceu, F0–F6) e a seção "Open Finance" do `README.md`. Responda ao dono sempre em
 português.
 

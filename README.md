@@ -315,8 +315,11 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
   nunca o mesmo e-mail duas vezes; tocar abre o e-mail no Gmail. Mostra o histórico de alertas.
   Ignora o que você enviou, rascunhos e spam. Se o Google recusar a conexão, avisa uma vez e pede
   para conectar de novo.
-- **Open Finance** (`/bancos`, só VIP; em construção, por fases): traz os bancos da pessoa pelo
-  **Meu Pluggy**, grátis e só leitura, com a chave da própria pessoa.
+- **Open Finance** (`/bancos`, só VIP): traz os bancos da pessoa pelo **Meu Pluggy**, grátis e
+  só leitura, com a chave da própria pessoa, e serve **só para conferir** o que foi lançado no
+  Capital: gastos, recebimentos e (no Diagrama) as quantidades de ações e cotas. Nenhum saldo,
+  fatura, valor em aberto ou limite do banco aparece, a não ser os saldos das contas que a
+  pessoa marca para a Reserva.
   - **Configuração em 4 passos**, uma linha e um botão cada, e o app guarda em que passo a pessoa
     parou:
     1. conectar os bancos em meu.pluggy.ai (o app abre o site);
@@ -783,11 +786,12 @@ O servidor guarda, cifrado, o acesso de leitura ao e-mail de cada pessoa que con
 administra o servidor precisa ser de confiança para elas. Cada conta gasta poucas chamadas por
 minuto, quase só espera de rede.
 
-### Open Finance pelo Meu Pluggy (`lib/server/banks`) — em construção
+### Open Finance pelo Meu Pluggy (`lib/server/banks`)
 
 Só leitura. Cada pessoa usa a própria aplicação grátis da Pluggy (o Client ID e o Secret são
-dela); o servidor não tem chave da Pluggy. O plano por fases está em
-`docs/prompt-open-finance-pluggy.md`.
+dela); o servidor não tem chave da Pluggy. Como o módulo nasceu (F0–F6) está em
+`docs/prompt-open-finance-pluggy.md`; a virada para "só conferir o mês" (C1–C7, 2026-10-21), em
+`docs/plano-open-finance-conferencia.md`.
 
 - `pluggy.ts` fala com `https://api.pluggy.ai` por `fetch`, sem SDK.
 - `service.ts` tem os fluxos:
@@ -1110,6 +1114,15 @@ Os demais testes:
   - o job: só VIPs com o módulo, uma vez por hora, e uma falha não para ninguém;
   - "Parado" depois de 48 h, o aviso de autorização e os saldos guardados só no servidor (a tela
     recebe só o nome e o tipo de cada conta);
+  - a conferência do mês (`banksReview.test.ts`, com a data fixa em 21/10/2026): os dois jeitos de
+    os bancos mandarem as parcelas (gravados do formato real), a virada de mês, o par forte × o
+    fraco, a compra parcelada que bate com um plano (o número da parcela do Capital), o mês
+    anterior aceito e o mais antigo recusado, Ignorados e "Voltar para conferir";
+  - os cartões: compra lançada à mão sem cartão, em outro cartão, lançada à vista que no banco é
+    parcelada ("Trocar por parcelado" numa gravação só), cartão sem ligação, "Não informar", mês
+    fechado recusando "Pôr no…", e que nenhuma resposta leva saldo, fatura ou limite do banco;
+  - os avisos: só o que é novo e falta no Capital, nada quando já confere, as escolhas antigas
+    convertidas e o "Aviso silencioso" chegando ao push;
   - a paginação por `next`, inclusive um `next` que aponta para fora da Pluggy;
   - a chave: conferida antes de salvar, cifrada, e só o fim do Secret volta;
   - trazer um banco: o corpo do `POST /items`, a espera pelo link e o `pending`;

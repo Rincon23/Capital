@@ -134,7 +134,8 @@ export default function PrivacyPage() {
             trazem:
             descrição, valor, data, categoria, forma de pagamento e quem pagou ou recebeu (nome e documento,
             quando o banco informa). Uma vez por hora, o Capital pergunta à Pluggy se chegou algo novo e, se você
-            quiser, avisa no celular um resumo do que chegou. Nada vira
+            quiser, avisa no celular quando há algo para conferir (o aviso pode ser silencioso). O Capital usa
+            essas transações só para conferir, mês a mês, o que você lançou. Nada vira
             lançamento sozinho: você confere e lança com um toque; o Capital lembra a categoria que você escolheu
             para cada descrição, para sugerir de novo.
           </li>
