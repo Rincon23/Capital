@@ -190,16 +190,8 @@ export class PostgresBanksRepository {
       createdAt: row.createdAt.toISOString(),
       accounts: accounts
         .filter((account) => account.itemId === row.itemId)
-        .map((account) => ({
-          id: account.accountId,
-          kind: account.kind,
-          name: account.name,
-          balance: account.balance,
-          balanceAt: account.balanceAt?.toISOString() ?? null,
-          creditLimit: account.creditLimit,
-          availableCredit: account.availableCredit,
-          dueDate: account.dueDate,
-        })),
+        // Never the balance, limit or due date: they stay here for the Reserva only.
+        .map((account) => ({ id: account.accountId, kind: account.kind, name: account.name })),
     }));
   }
 

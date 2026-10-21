@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { accountsBalance, connectionHealth, consentDaysLeft, reserveStatusLine } from '..';
+import { connectionHealth, consentDaysLeft, reserveStatusLine } from '..';
 
 const now = new Date('2026-10-20T15:00:00Z').getTime();
 const hoursAgo = (hours: number) => new Date(now - hours * 60 * 60 * 1000).toISOString();
@@ -60,26 +60,5 @@ describe('the line under "Reserva em conta"', () => {
 
   it('is nothing while the person types the reserve', () => {
     expect(reserveStatusLine({ total: null, banks: [bank('Caixa', hoursAgo(1), false)] }, now)).toBeNull();
-  });
-});
-
-describe('the money in the accounts', () => {
-  it('adds the accounts, never what is owed on a card', () => {
-    const account = (kind: 'checking' | 'savings' | 'card', balance: number | null) => ({
-      id: kind,
-      kind,
-      name: kind,
-      balance,
-      balanceAt: null,
-      creditLimit: null,
-      availableCredit: null,
-      dueDate: null,
-    });
-    expect(
-      accountsBalance([
-        { accounts: [account('checking', 1000.1), account('card', 300)] },
-        { accounts: [account('savings', 200.2), account('checking', null)] },
-      ]),
-    ).toBe(1200.3);
   });
 });

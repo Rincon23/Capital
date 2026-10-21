@@ -170,11 +170,17 @@ describe('the sync', () => {
 
     const [connection] = await banks.listConnections();
     expect(connection.consentExpiresAt).toBe('2027-10-20T13:19:34.167Z');
+    // The screens get no balance, limit or due date…
     expect(connection.accounts).toEqual([
-      expect.objectContaining({ id: 'acc-1', balance: 1234.56, balanceAt: FIRST }),
+      { id: 'acc-1', kind: 'checking', name: expect.any(String) },
+      { id: 'acc-2', kind: 'card', name: expect.any(String) },
+    ]);
+    // …which stay on the server, for the Reserva.
+    const stored = await db.select().from(schema.bankAccounts).where(eq(schema.bankAccounts.userId, id));
+    expect(stored.sort((a, b) => a.accountId.localeCompare(b.accountId))).toEqual([
+      expect.objectContaining({ accountId: 'acc-1', balance: 1234.56, balanceAt: new Date(FIRST) }),
       expect.objectContaining({
-        id: 'acc-2',
-        kind: 'card',
+        accountId: 'acc-2',
         balance: 300,
         creditLimit: 5000,
         availableCredit: 4700,

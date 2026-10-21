@@ -334,11 +334,13 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
   - **Engrenagem:** a chave (o Secret só como "••••1234"), "Trocar a chave" e "Desconectar
     tudo". Desconectar tira os bancos da aplicação da pessoa na Pluggy e apaga a chave; os
     bancos continuam no Meu Pluggy.
-  - **Tela dos bancos:**
-    - em destaque, o **saldo nas contas**: a soma das contas, sem os cartões, porque o valor do
-      cartão é o que se deve;
-    - cada banco com "atualizado há 5 h", as contas com saldo e os cartões com o valor em aberto
-      e o vencimento, quando ele ainda está por vir;
+  - **Tela dos bancos** (o Open Finance serve **só para conferir** o que foi lançado no Capital):
+    - **nenhum saldo, fatura, valor em aberto ou limite** vindo do banco aparece, nem aqui nem na
+      Início. O saldo só aparece na Reserva, nas contas que a pessoa marca;
+    - no topo, **"Conferir com o Capital"**: "Conferir gastos" e "Conferir recebimentos" (com
+      Lançamentos) e "Conferir investimentos" (com o Diagrama);
+    - cada banco com "atualizado há 5 h" e as contas só com o nome e o tipo (conta, poupança,
+      cartão);
     - "Buscar novidades" relê a Pluggy (não faz o banco mandar antes), até 6 vezes em 10 min.
   - **Avisos na tela:**
     - banco sem dados há mais de 48 h fica **"Parado"**, com "Reconectar no Meu Pluggy", mesmo
@@ -749,7 +751,9 @@ dela); o servidor não tem chave da Pluggy. O plano por fases está em
 - `repository.ts` guarda:
   - a chave (`bank_keys`, Secret cifrado com `secretBox`);
   - as conexões (`bank_connections`, a única lista dos itens, porque o plano grátis não lista);
-  - as contas (`bank_accounts`), com saldo, data do saldo e, nos cartões, limite e vencimento;
+  - as contas (`bank_accounts`), com saldo, data do saldo e, nos cartões, limite e vencimento.
+    Só o nome e o tipo chegam ao navegador (`listConnections`); os saldos servem à Reserva
+    (`reserve()`), e o limite e o vencimento não são mostrados;
   - os investimentos (`bank_investments`), lidos junto, sem impedir a leitura do resto se
     falharem, com o código (ticker), o ISIN e a quantidade que a corretora manda;
   - a marca `feeds_reserve` de contas e investimentos. `writeReserve` grava a soma do que está
@@ -1034,7 +1038,8 @@ Os demais testes:
     nada, 7 dias para trás depois, a pendente que vira confirmada sem duplicar e sem perder o que
     a pessoa decidiu, `UPDATING`, item sumido, leitura sem contas e duas leituras ao mesmo tempo;
   - o job: só VIPs com o módulo, uma vez por hora, e uma falha não para ninguém;
-  - "Parado" depois de 48 h, o aviso de autorização e o saldo sem os cartões;
+  - "Parado" depois de 48 h, o aviso de autorização e os saldos guardados só no servidor (a tela
+    recebe só o nome e o tipo de cada conta);
   - a paginação por `next`, inclusive um `next` que aponta para fora da Pluggy;
   - a chave: conferida antes de salvar, cifrada, e só o fim do Secret volta;
   - trazer um banco: o corpo do `POST /items`, a espera pelo link e o `pending`;

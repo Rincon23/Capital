@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { accountsBalance, connectionHealth, formatAgo } from '@/lib/banks';
-import { formatBRL } from '@/lib/budget/money';
+import { connectionHealth, formatAgo } from '@/lib/banks';
 import { banksRepository, type BanksOverviewResult } from '@/lib/storage';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
 import { CardNote, HomeCard, Skeleton } from './HomeCard';
@@ -45,12 +44,6 @@ export function BanksHomeCard() {
         </CardNote>
       ) : (
         <>
-          <p className="text-sm">
-            <span className="text-muted block text-xs">Saldo nas contas</span>
-            <span className="text-foreground text-xl font-semibold tabular-nums">
-              {formatBRL(accountsBalance(overview.connections))}
-            </span>
-          </p>
           <ul className="divide-border flex flex-col divide-y">
             {overview.connections.slice(0, SHOWN_BANKS).map((connection) => {
               const health = connectionHealth(connection, now);

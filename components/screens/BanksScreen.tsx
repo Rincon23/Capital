@@ -2,7 +2,17 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { ExternalLink, Landmark, ListChecks, LoaderCircle, Pencil, Plus, RefreshCw, Target } from 'lucide-react';
+import {
+  BanknoteArrowDown,
+  BanknoteArrowUp,
+  ExternalLink,
+  Landmark,
+  LoaderCircle,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Target,
+} from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { isModuleOn } from '@/lib/modules';
@@ -17,7 +27,6 @@ import { IconTile } from '@/components/ui/IconTile';
 import { InfoTip } from '@/components/ui/InfoTip';
 import { useToast } from '@/components/ui/Toast';
 import {
-  accountsBalance,
   connectionHealth,
   consentDaysLeft,
   formatAgo,
@@ -27,8 +36,7 @@ import {
   type BankAccountKind,
   type BankConnection,
 } from '@/lib/banks';
-import { amountToInputValue, formatBRL, parseAmountInput } from '@/lib/budget/money';
-import { formatDayMonth, zonedToday } from '@/lib/reminders/time';
+import { amountToInputValue, parseAmountInput } from '@/lib/budget/money';
 import { banksRepository, type BankAlertsView, type BanksOverviewResult } from '@/lib/storage';
 import { NotificationsSection } from '@/components/settings/NotificationsSection';
 import { Switch } from '@/components/ui/Switch';
@@ -208,13 +216,33 @@ function Banks() {
       ) : (
         <section className="flex flex-col gap-3" data-tour="bancos-conexoes">
           <Card>
-            <p className="text-muted text-sm">Saldo nas contas</p>
-            <p className="text-foreground text-3xl font-bold tabular-nums">
-              {formatBRL(accountsBalance(connections))}
-            </p>
+            {(expensesOn || diagramOn) && (
+              <div className="flex flex-col gap-0.5">
+                <p className="text-foreground font-semibold">Conferir com o Capital</p>
+                <p className="text-muted text-sm">O que chegou dos bancos, ao lado do que você lançou.</p>
+              </div>
+            )}
+            {expensesOn && (
+              <>
+                <Link href="/bancos/conferir?tipo=gastos" className={primaryButton}>
+                  <BanknoteArrowUp className="h-4 w-4" aria-hidden />
+                  Conferir gastos
+                </Link>
+                <Link href="/bancos/conferir?tipo=recebimentos" className={secondaryButton}>
+                  <BanknoteArrowDown className="h-4 w-4" aria-hidden />
+                  Conferir recebimentos
+                </Link>
+              </>
+            )}
+            {diagramOn && (
+              <Link href="/diagrama?aba=ativos&conferir=1" className={secondaryButton}>
+                <Target className="h-4 w-4" aria-hidden />
+                Conferir investimentos
+              </Link>
+            )}
             <button
               type="button"
-              className={secondaryButton}
+              className={expensesOn || diagramOn ? 'text-primary flex min-h-[44px] items-center justify-center gap-2 text-sm font-medium disabled:opacity-50' : secondaryButton}
               disabled={busy !== null}
               onClick={() =>
                 void act('sync', async () => {
@@ -231,18 +259,6 @@ function Banks() {
               <RefreshCw className={`h-4 w-4 ${busy === 'sync' ? 'animate-spin' : ''}`} aria-hidden />
               Buscar novidades
             </button>
-            {expensesOn && (
-              <Link href="/bancos/conferir" className={primaryButton}>
-                <ListChecks className="h-4 w-4" aria-hidden />
-                Confira os gastos
-              </Link>
-            )}
-            {diagramOn && (
-              <Link href="/diagrama?aba=ativos&conferir=1" className={secondaryButton}>
-                <Target className="h-4 w-4" aria-hidden />
-                Conferir investimentos
-              </Link>
-            )}
           </Card>
           {connections.map((connection) => (
             <ConnectionCard
@@ -615,7 +631,7 @@ function ConnectionCard({
               key={account.id}
               account={account}
               // A bank that is just one card is named after it: no need to say the card's name twice.
-              name={connection.accounts.length === 1 && account.name === connection.name ? 'Fatura' : account.name}
+              name={connection.accounts.length === 1 && account.name === connection.name ? null : account.name}
             />
           ))}
         </ul>
@@ -624,24 +640,13 @@ function ConnectionCard({
   );
 }
 
-function AccountRow({ account, name }: { account: BankAccount; name: string }) {
-  // A card's balance is what is owed on it. Pluggy's due date is often the last closed bill's,
-  // already past: only a date still ahead is shown.
-  const detail =
-    account.kind !== 'card'
-      ? KIND_LABEL[account.kind]
-      : account.dueDate && account.dueDate >= zonedToday()
-        ? `cartão · em aberto · vence ${formatDayMonth(account.dueDate)}`
-        : 'cartão · em aberto';
+/** Just what the account is: no balance, no bill and no due date (the banks only check the Capital). */
+function AccountRow({ account, name }: { account: BankAccount; name: string | null }) {
+  const kind = KIND_LABEL[account.kind];
   return (
-    <li className="flex items-center justify-between gap-3 py-2 text-sm">
-      <span className="min-w-0">
-        <span className="text-foreground block truncate">{name}</span>
-        <span className="text-muted block text-xs">{detail}</span>
-      </span>
-      {account.balance !== null && (
-        <span className="text-foreground shrink-0 font-medium tabular-nums">{formatBRL(account.balance)}</span>
-      )}
+    <li className="flex items-baseline justify-between gap-3 py-2 text-sm">
+      <span className="text-foreground min-w-0 truncate">{name ?? kind[0].toUpperCase() + kind.slice(1)}</span>
+      {name !== null && <span className="text-muted shrink-0 text-xs">{kind}</span>}
     </li>
   );
 }

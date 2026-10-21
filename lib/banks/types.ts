@@ -13,18 +13,15 @@ export type BankConnectionStatus = 'pending' | 'ok' | 'error' | 'reconnect';
 
 export type BankAccountKind = 'checking' | 'savings' | 'card' | 'other';
 
+/**
+ * An account or card as the screens see it: no balance, limit or due date. The banks only check
+ * what was entered in the Capital; the balances stay on the server for the Reserva (`reserve()`),
+ * the only place they are shown, and only for the accounts the person marks.
+ */
 export interface BankAccount {
   id: string;
   kind: BankAccountKind;
   name: string;
-  /** The balance; on a card, what is owed on it. Null when the bank didn't send one. */
-  balance: number | null;
-  /** When the bank sent that balance. */
-  balanceAt: string | null;
-  /** Cards only. */
-  creditLimit: number | null;
-  availableCredit: number | null;
-  dueDate: string | null;
 }
 
 export interface BankConnection {

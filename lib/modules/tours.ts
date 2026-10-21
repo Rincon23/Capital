@@ -342,7 +342,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: () => '/bancos',
       anchor: 'bancos-conexoes',
       title: 'Seus bancos',
-      description: 'Siga os passos e traga um banco por vez do Meu Pluggy.',
+      description: 'Traga um banco por vez do Meu Pluggy; depois, confira aqui o mês com o que você lançou.',
       side: 'bottom',
     },
     {

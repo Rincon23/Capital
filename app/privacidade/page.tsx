@@ -129,7 +129,9 @@ export default function PrivacyPage() {
             Guarda a sua chave (o Client Secret fica cifrado no servidor e nunca é mostrado nem enviado a ninguém
             além da Pluggy), a lista dos bancos que você trouxe, com o nome que você der a cada um, as contas e
             cartões de cada banco, com nome e saldo, os investimentos com nome e saldo, e as transações dos
-            últimos 12 meses que os bancos mandam:
+            últimos 12 meses que os bancos mandam. O saldo fica guardado só para a Reserva e só aparece lá, nas
+            contas que você marcar; nenhum saldo, fatura ou limite do banco aparece no resto do app. As transações
+            trazem:
             descrição, valor, data, categoria, forma de pagamento e quem pagou ou recebeu (nome e documento,
             quando o banco informa). Uma vez por hora, o Capital pergunta à Pluggy se chegou algo novo e, se você
             quiser, avisa no celular um resumo do que chegou. Nada vira

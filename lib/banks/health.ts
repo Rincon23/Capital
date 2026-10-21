@@ -1,7 +1,6 @@
-import { sum } from '../budget/money';
 import { formatDayMonth, zonedMoment } from '../reminders/time';
 import { formatAgo } from './format';
-import type { BankAccount, BankConnection, BankReserve } from './types';
+import type { BankConnection, BankReserve } from './types';
 
 /**
  * How a bank is doing, as the screen tells it. Pluggy's own status is not enough: a connection can
@@ -36,11 +35,6 @@ export function consentDaysLeft(connection: Pick<BankConnection, 'consentExpires
   return left <= CONSENT_WARNING_DAYS ? Math.max(0, left) : null;
 }
 
-/** Money in the accounts (cards don't count: what they show is owed, not held). */
-export function accountsBalance(connections: Pick<BankConnection, 'accounts'>[]): number {
-  return sum(connections.flatMap((connection) => connection.accounts.map(heldBalance)));
-}
-
 /**
  * The line under "Reserva em conta" when the banks feed it: from where and how long ago ("BTG
  * Pactual · atualizado há 5 h"), or, when one of them stopped, that the value is the last one that
@@ -73,8 +67,4 @@ export function reserveStatusLine(
     .filter((date): date is string => date !== null)
     .sort()[0];
   return { text: `${names}${oldest ? ` · atualizado ${formatAgo(oldest, now)}` : ''}`, warning: false };
-}
-
-function heldBalance(account: Pick<BankAccount, 'kind' | 'balance'>): number {
-  return account.kind === 'card' || account.balance === null ? 0 : account.balance;
 }
