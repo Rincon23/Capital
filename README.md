@@ -375,7 +375,10 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
       de 12/10"). O par e o plano são calculados a cada leitura, nunca gravados: "Não é este" volta
       a linha para "Falta no Capital" sem apagar nada;
     - **Deixados de fora** (fechada): o que o app deixa de fora sozinho, sem pedir nada;
-    - **Ignorados** (fechada): o que a pessoa ignorou.
+    - **Ignorados** (fechada): o que a pessoa ignorou, com o motivo quando o app tinha um, e
+      **"Voltar para conferir"** (a ação `restore`, que só aceita o que está ignorado e volta a
+      transação para ninguém ter decidido). O que foi tirado dos Deixados de fora antes desta
+      mudança também está aqui, sem migração.
     - em "Falta no Capital", cada linha tem descrição, valor, data, banco e a categoria
       sugerida, com **"Lançar"** (um toque), o lápis (o formulário de gasto, de compra parcelada
       ou de renda, já preenchido) e "Ignorar". Débito sugere gasto, crédito sugere renda;

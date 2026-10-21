@@ -613,6 +613,40 @@ export class PostgresBanksRepository {
       );
   }
 
+  /**
+   * "Voltar para conferir": ignored transactions go back to nobody having decided about them. Only
+   * ignored ones: false when any of these is not (another device decided first) — and then none is.
+   */
+  async restore(transactionIds: string[]): Promise<boolean> {
+    return this.db.transaction(async (tx) => {
+      const restored = await tx
+        .update(bankTransactions)
+        .set({ outcome: null, entryId: null, entryMonth: null })
+        .where(
+          and(
+            eq(bankTransactions.userId, this.userId),
+            inArray(bankTransactions.transactionId, transactionIds),
+            eq(bankTransactions.outcome, 'ignored'),
+          ),
+        )
+        .returning({ id: bankTransactions.transactionId });
+      if (restored.length === new Set(transactionIds).size) return true;
+      await tx
+        .update(bankTransactions)
+        .set({ outcome: 'ignored' })
+        .where(
+          and(
+            eq(bankTransactions.userId, this.userId),
+            inArray(
+              bankTransactions.transactionId,
+              restored.map((row) => row.id),
+            ),
+          ),
+        );
+      return false;
+    });
+  }
+
   /** Gives claimed transactions back (the launch failed). */
   async release(transactionIds: string[]): Promise<void> {
     await this.db

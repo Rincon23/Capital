@@ -543,8 +543,18 @@ function Review() {
 
         <Folded key={`${scope}-ignored`} title="Ignorados" count={lines.ignored.length}>
           {lines.ignored.map((item) => (
-            <li key={item.key} className="border-border bg-card mx-4 flex flex-col gap-1.5 rounded-xl border p-3 text-sm shadow-sm">
-              <LineHead item={item} origin={origin(item)} detail={item.leftOut?.label ?? 'Você ignorou'} />
+            <li key={item.key} className="border-border bg-card mx-4 flex flex-col gap-2 rounded-xl border p-3 text-sm shadow-sm">
+              <LineHead item={item} origin={origin(item)} detail={item.leftOut?.label} />
+              <button
+                type="button"
+                disabled={busy !== null}
+                onClick={() =>
+                  void tap(item, { action: 'restore', transactionIds: item.transactionIds }, 'Voltou para conferir.')
+                }
+                className="text-primary self-start text-xs font-semibold"
+              >
+                Voltar para conferir
+              </button>
             </li>
           ))}
         </Folded>

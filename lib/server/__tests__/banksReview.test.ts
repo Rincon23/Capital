@@ -454,6 +454,32 @@ describe("the month's check", () => {
     ]);
     expect(review.expenses.missing).toEqual([]);
     expect(review.expenses.leftOut).toEqual([]);
+
+    // "Voltar para conferir": back where it was, the bill payment to Deixados de fora.
+    await applyReviewAction(deps, { action: 'restore', transactionIds: ['taxa'] });
+    await applyReviewAction(deps, { action: 'restore', transactionIds: ['fatura'] });
+    expect(await outcomeOf('taxa')).toEqual({ outcome: null, entryId: null });
+    const back = await check(deps);
+    expect(back.expenses.missing.map((item) => item.key)).toEqual(['taxa']);
+    expect(back.expenses.leftOut.map((item) => item.key)).toEqual(['fatura']);
+    expect(back.expenses.ignored).toEqual([]);
+  });
+
+  it('"Voltar para conferir" takes only what was ignored', async () => {
+    const { banks, deps } = await newPerson();
+    await banks.upsertTransactions([
+      tx({ transactionId: 'ignorada', amount: -5 }),
+      tx({ transactionId: 'aberta', amount: -6 }),
+    ]);
+    await applyReviewAction(deps, { action: 'ignore', transactionIds: ['ignorada'] });
+    // One of them was never ignored: nothing changes.
+    await expect(
+      applyReviewAction(deps, { action: 'restore', transactionIds: ['ignorada', 'aberta'] }),
+    ).rejects.toMatchObject({ code: 'ALREADY_REVIEWED' });
+    expect(await outcomeOf('ignorada')).toEqual({ outcome: 'ignored', entryId: null });
+    await expect(applyReviewAction(deps, { action: 'restore', transactionIds: ['aberta'] })).rejects.toMatchObject({
+      code: 'ALREADY_REVIEWED',
+    });
   });
 
   it('a Pix that pays back an "A receber" is offered as such, and marking it uses the same "Já me pagou"', async () => {

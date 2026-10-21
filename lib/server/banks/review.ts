@@ -482,6 +482,7 @@ export type ReviewAction =
   | { action: 'linked'; transactionIds: string[]; month: Month; entryId: string }
   | { action: 'reimbursed'; transactionIds: string[]; month: Month; expenseId: string }
   | { action: 'ignore'; transactionIds: string[] }
+  | { action: 'restore'; transactionIds: string[] }
   | { action: 'bill'; transactionIds: string[] }
   | {
       action: 'card';
@@ -500,6 +501,13 @@ export type ReviewAction =
 export async function applyReviewAction({ banks, repo, wallet }: ReviewDeps, input: ReviewAction): Promise<void> {
   if (input.action === 'card') {
     await moveToCard({ banks, repo, wallet }, input);
+    return;
+  }
+  if (input.action === 'restore') {
+    // "Voltar para conferir": only what was ignored, back to the month's check as it was.
+    if (!(await banks.restore([...new Set(input.transactionIds)]))) {
+      throw new HttpError(409, 'ALREADY_REVIEWED', 'Isso já foi conferido. A lista foi atualizada.');
+    }
     return;
   }
   const ids = [...new Set(input.transactionIds)];
