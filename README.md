@@ -385,8 +385,26 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
       (Diversos = comer fora, compras, lazer; Conhecimentos = cursos e livros; Metas = viagem;
       Custos Fixos = assinaturas, contas, aluguel). Sem palpite, o botão vira "Escolher
       categoria" e abre o formulário: nada é chutado;
-    - **cartão**: cada cartão do banco é ligado uma vez a um cartão do Capital (ou "Não
-      informar"). A pergunta só aparece para o cartão que tem compra na lista;
+    - **cartões** (o que importa é qual compra ficou de fora, nunca quanto se deve): a aba Gastos
+      tem **um bloco por origem**, cada cartão do Capital ligado a cartões do banco ("Nubank"),
+      depois os cartões do banco sem ligação e, por fim, "Conta (Pix e débito)". Cada bloco tem
+      as mesmas listas, com a contagem no título ("2 faltam · 14 conferem") e nenhum total em
+      reais. Cada cartão do banco é ligado uma vez a um cartão do Capital (ou "Não informar"); a
+      pergunta fica no topo do bloco dele e aparece **mesmo sem compra a lançar**, porque sem ela
+      o Capital não sabe em que cartão conferir. Com "Não informar", as compras conferem com
+      qualquer gasto de cartão. Para cada compra do cartão:
+      - **✓ Confere** quando está no Capital nesse cartão (par forte ou "É o mesmo") ou bate com
+        uma compra parcelada desse cartão;
+      - **Lançado fora do cartão** quando o par existe, mas no Capital está como Pix/débito, como
+        cartão não informado ou em outro cartão. A linha diz onde ("está no Amazon") e oferece
+        **"Pôr no Nubank"**, que salva pela mesma função do formulário (um mês fechado recusa) e
+        liga a transação ao gasto;
+      - **Lançado à vista, no banco é parcelado**: um gasto com o valor total, comprado até 3
+        dias antes ou depois. A linha avisa ("No Capital está à vista… No banco são 10× de R$
+        87,23"), com "Trocar por parcelado" (o formulário de compra parcelada já preenchido; ao
+        salvar, a compra parcelada entra no lugar do gasto à vista, numa gravação só), "Deixar à
+        vista" (liga os dois) e "É outra compra". Nada é trocado sozinho;
+      - **Falta no Capital** quando não há nada parecido; "Lançar" já vem com o cartão ligado.
     - **compra parcelada**: as parcelas da mesma compra viram uma linha só, a **parcela do mês**
       ("Parcela 5 de 10 · total R$ 872,30 · comprada em 12/06"). Há bancos que mandam uma parcela
       por mês, com a data da fatura, e bancos que mandam todas de uma vez, com a data do dia
@@ -400,8 +418,13 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
     - **deixados de fora, com o motivo à vista**: pagamento de fatura, dinheiro entre contas da
       pessoa, aplicação/resgate/rendimento e estorno. Não pedem nada; cada um tem só "Lançar
       mesmo assim" (e, na fatura, "Marcar a fatura como paga?");
-    - **fatura**: um pagamento de fatura que bate com uma fatura em aberto sugere "Marcar a fatura
-      de out (Nubank) como paga?", sempre com um toque. Nenhuma fatura sai sozinha;
+    - **fatura**: um pagamento de fatura que bate com uma fatura em aberto **do Capital** sugere
+      "Marcar a fatura de out (Nubank) como paga?", sempre com um toque. Nenhuma fatura sai sozinha
+      e a fatura do banco nunca aparece;
+    - **no módulo Cartão** (com Open Finance e conta VIP): na aba Fatura do mês atual e do
+      anterior, uma linha por cartão ligado, "2 compras do banco não estão aqui · Conferir" (abre
+      a aba Gastos nesse mês, já no bloco do cartão) ou "✓ Confere com o banco". Só contagens:
+      nenhum valor do banco;
     - **A receber** (com o módulo ligado): um Pix recebido perto do valor de um "A receber" em
       aberto pergunta "É a devolução de 'Jantar — João' (R$ 35,67)?". Perto é até 10% dele, ou
       R$ 5 quando isso for mais, para cima ou para baixo (quem devolve arredonda):
@@ -804,8 +827,16 @@ dela); o servidor não tem chave da Pluggy. O plano por fases está em
     `leftOut` e `ignored`. Carrega os lançamentos do mês e dos vizinhos e os parcelados;
   - `bankInstallmentIn` (mês da compra + n − 1), `planChargeIn` (a cobrança do plano no mês) e
     `strongPairs` (um candidato de cada lado) são puros;
-  - `GET /api/v1/banks/review?month=` e `GET /api/v1/banks/review/counts` (as contagens do mês
-    atual, pelo mesmo `buildReview`);
+  - `GET /api/v1/banks/review?month=` e `GET /api/v1/banks/review/counts?month=` (as contagens,
+    também por cartão do Capital, pelo mesmo `buildReview`);
+  - cartões: `onExpectedCard`/`entryWhere` dizem se o gasto está no cartão que o banco diz
+    (`CardExpectation`: o cartão ligado, qualquer cartão com "Não informar", ou "unknown" sem
+    ligação ou sem o módulo Cartão). O par forte procura primeiro no mesmo cartão e, num cartão
+    ligado, depois em qualquer outro; o par que não está no cartão vira `misplaced`, e a ação
+    `card` ("Pôr no…") salva por `saveExpense`/`saveInstallment`. `findUpfront` acha a compra
+    lançada à vista, e a ação `plan` com `replaces` troca o gasto pela compra parcelada numa
+    gravação só (`replaceExpenseWithInstallment`). Nenhuma resposta leva saldo, fatura ou limite
+    do banco (há teste para isso);
   - `applyReviewAction` lança com as **mesmas funções dos formulários** (`saveExpense`,
     `saveInstallment`, `saveIncome`), com `source: 'import'`;
   - antes de lançar, as transações são "reservadas" (`outcome = 'launching'`): um segundo toque

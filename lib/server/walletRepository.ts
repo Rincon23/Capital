@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { billTotals as combineBillTotals, chargeKey, pendingCharges } from '../budget/bill';
 import {
   cardBills,
@@ -60,6 +60,7 @@ import type {
   WalletRepository,
   WalletSnapshot,
 } from '../storage/wallet';
+import { MonthClosedError } from '../storage/repository';
 import type { MonthWriteContext, PostgresBudgetRepository } from './budgetRepository';
 import {
   cardBillPayments,
@@ -652,6 +653,31 @@ export class PostgresWalletRepository implements WalletRepository {
     await this.budget.writeWith(async (ctx) => {
       await this.writePlan(ctx, advancedPlanOf(plan, input.count));
       await ctx.addExpense(input.month, expense);
+    });
+  }
+
+  /**
+   * A purchase entered "à vista" that the bank shows split in instalments ("Trocar por parcelado"):
+   * the plan takes the expense's place in one write, so it never counts twice nor goes missing. A
+   * closed month — the expense's, or any the plan touches — refuses the whole thing.
+   */
+  async replaceExpenseWithInstallment(month: Month, expenseId: string, plan: InstallmentPlan): Promise<void> {
+    await this.budget.writeWith(async (ctx) => {
+      if (!(await ctx.openMonths()).includes(month)) throw new MonthClosedError(month);
+      const removed = await ctx.tx
+        .delete(expenses)
+        .where(
+          and(
+            eq(expenses.userId, this.userId),
+            eq(expenses.month, month),
+            eq(expenses.id, expenseId),
+            isNull(expenses.installmentId),
+          ),
+        )
+        .returning({ id: expenses.id });
+      if (removed.length === 0) throw new HttpError(404, 'NOT_FOUND', 'Esse gasto não existe mais.');
+      ctx.touch(month);
+      await this.writePlan(ctx, plan);
     });
   }
 

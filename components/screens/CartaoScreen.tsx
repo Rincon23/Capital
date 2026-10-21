@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import {
   billComposition,
   billKey,
@@ -38,8 +39,10 @@ import {
   type SpecialCategoryLabels,
   type TopicConfig,
 } from '@/lib/budget';
+import { reviewMonths, type BankReviewCounts } from '@/lib/banks';
 import { isModuleOn } from '@/lib/modules';
-import { budgetRepository, walletRepository } from '@/lib/storage';
+import { zonedToday } from '@/lib/reminders/time';
+import { banksRepository, budgetRepository, walletRepository } from '@/lib/storage';
 import { AdvanceInstallmentSheet } from '@/components/card/AdvanceInstallmentSheet';
 import { CardFormSheet, notifyBeforeLabel } from '@/components/card/CardFormSheet';
 import { InstallmentEditor, type InstallmentEditRequest } from '@/components/card/InstallmentEditor';
@@ -53,6 +56,7 @@ import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/Mod
 import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
 import { useHomeHref } from '@/components/modules/useHomeHref';
 import { useCards } from '@/components/cards/CardsProvider';
+import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { NotificationsSection } from '@/components/settings/NotificationsSection';
 import { Chip } from '@/components/ui/Chip';
@@ -336,6 +340,11 @@ function BillTab({
         )}
       </section>
 
+      <BankCheck
+        month={month}
+        cards={selected === 'all' ? snapshot.cards : snapshot.cards.filter((item) => item.id === selected)}
+      />
+
       <section className="flex flex-col gap-2 px-4" data-tour="cartao-lancamentos">
         <h2 className="text-muted text-sm font-semibold">Lançamentos desta fatura</h2>
         {visible.length === 0 ? (
@@ -413,6 +422,69 @@ function BillTab({
         />
       )}
     </div>
+  );
+}
+
+/**
+ * With Open Finance (VIP), under a month's bill: for each card tied to a bank card, whether the
+ * bank's purchases are all in the Capital ("✓ Confere com o banco") or how many are not ("2 compras
+ * do banco não estão aqui · Conferir", to the month's check of that card). Only counts: never a
+ * value from the bank. The check goes back to last month only.
+ */
+function BankCheck({ month, cards }: { month: Month; cards: CreditCard[] }) {
+  const { settings } = useSettings();
+  const { user } = useAuth();
+  const [months] = useState(() => reviewMonths(zonedToday()));
+  const on =
+    user.vip && isModuleOn(settings, 'banks') && isModuleOn(settings, 'expenses') && months.includes(month);
+  const [counts, setCounts] = useState<BankReviewCounts | null>(null);
+
+  useEffect(() => {
+    if (!on) return;
+    let active = true;
+    banksRepository
+      .getReviewCounts(month)
+      .then((next) => {
+        if (active) setCounts(next);
+      })
+      // The bill shows the same without it.
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [on, month]);
+
+  if (!on || counts?.month !== month) return null;
+  const shown = cards.filter((card) => counts.cards[card.id]);
+  if (shown.length === 0) return null;
+  const current = month === months[months.length - 1];
+  return (
+    <ul className="flex flex-col gap-2 px-4">
+      {shown.map((card) => {
+        const { missing } = counts.cards[card.id];
+        const name = shown.length > 1 || cards.length > 1 ? `${card.name}: ` : '';
+        return (
+          <li key={card.id}>
+            {missing > 0 ? (
+              <Link
+                href={`/bancos/conferir?tipo=gastos${current ? '' : `&mes=${month}`}&cartao=${card.id}`}
+                className="bg-warning-bg text-warning flex min-h-[44px] items-center justify-between gap-2 rounded-xl px-4 py-2 text-sm"
+              >
+                <span>
+                  {name}
+                  {missing === 1 ? '1 compra do banco não está aqui' : `${missing} compras do banco não estão aqui`}
+                </span>
+                <span className="shrink-0 font-semibold">Conferir</span>
+              </Link>
+            ) : (
+              <p className="text-success flex min-h-[44px] items-center rounded-xl px-4 text-sm font-medium">
+                {name}✓ Confere com o banco
+              </p>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

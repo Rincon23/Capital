@@ -363,6 +363,28 @@ export type ReviewMatch =
   /** A split purchase that is a plan of the Capital. */
   | { kind: 'plan'; planId: string; description: string };
 
+/**
+ * A purchase of a bank card that is in the Capital somewhere else ("Lançado fora do cartão"): by
+ * Pix/débito, on a card not said, or on another card. "Pôr no Nubank" moves it, by the same save
+ * as the form.
+ */
+export interface MisplacedEntry {
+  /** An expense, or a split purchase (a plan). */
+  entry: 'expense' | 'plan';
+  /** The expense's month (a plan has none). */
+  month: Month | null;
+  entryId: string;
+  description: string;
+  date: string;
+  where: EntryWhere;
+  /** The card it is on, when `where` is "otherCard". */
+  otherCardId: string | null;
+  /** Where it should be: the Capital card the bank card is tied to (null: "Não informado"). */
+  cardId: string | null;
+  /** The person tied or launched it here (not a pair worked out): no "Não é este". */
+  tied: boolean;
+}
+
 /** One line of the month's check (a split purchase is one line: the instalment of the month). */
 export interface ReviewItem {
   /** The first transaction's id: stable for the line. */
@@ -394,6 +416,10 @@ export interface ReviewItem {
   } | null;
   /** Already in the Capital ("✓ Confere"), and how. */
   match: ReviewMatch | null;
+  /** In the Capital, but not on this card (it still asks for a tap: "Pôr no Nubank"). */
+  misplaced: MisplacedEntry | null;
+  /** A split purchase entered "à vista": one expense of the whole amount ("Trocar por parcelado"). */
+  upfront: { month: Month; entryId: string; description: string; amount: number; date: string } | null;
   /** A manual entry this looks like ("É o mesmo" ties them). */
   duplicate: { month: Month; entryId: string; description: string; amount: number; date: string } | null;
   /**
@@ -450,11 +476,13 @@ export interface BankReview {
   cards: ReviewCard[];
 }
 
-/** How many lines of this month still ask for a tap, for the bank screen and the Início. */
+/** How many lines of a month still ask for a tap, for the bank screen, the Início and the Cartão. */
 export interface BankReviewCounts {
   month: Month;
   expenses: number;
   incomes: number;
+  /** By Capital card (the bank cards tied to it): what is missing there and what confers. */
+  cards: Record<string, { missing: number; matched: number }>;
 }
 
 /** The months the check shows, oldest first: the end of a month only arrives in the next one. */
@@ -490,6 +518,54 @@ export function findDuplicate(
     return candidate;
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Which card
+// ---------------------------------------------------------------------------
+
+/**
+ * Where the Capital should have a bank card's purchase: on the Capital card it is tied to, on a
+ * card at all ("Não informar"), or "unknown" while the person hasn't said (or has no cards).
+ */
+export type CardExpectation = { cardId: string } | 'anyCard' | 'unknown';
+
+/** Where an entry of the Capital is: paid by Pix/débito, on a card not said, or on a card. */
+export type EntryWhere = 'account' | 'unknownCard' | 'otherCard';
+
+export function entryWhere(entry: { cardId?: string | null; singleInstallmentCard?: boolean }): EntryWhere {
+  if (entry.cardId) return 'otherCard';
+  return entry.singleInstallmentCard ? 'unknownCard' : 'account';
+}
+
+/** Whether an entry is where the bank says the purchase was. */
+export function onExpectedCard(
+  entry: { cardId?: string | null; singleInstallmentCard?: boolean },
+  expectation: CardExpectation,
+): boolean {
+  if (expectation === 'unknown') return true;
+  if (expectation === 'anyCard') return Boolean(entry.cardId) || entry.singleInstallmentCard === true;
+  return entry.cardId === expectation.cardId;
+}
+
+/**
+ * A split purchase the person entered "à vista": an expense of the whole amount (a cent or 1%
+ * apart, as `matchingPlan`), bought within 3 days. Only ever a warning: nothing is swapped.
+ */
+export function findUpfront(
+  group: Pick<InstallmentGroup, 'total' | 'purchaseDate'>,
+  launched: LaunchedExpense[],
+  taken: Set<string>,
+): LaunchedExpense | null {
+  return (
+    launched.find(
+      ({ expense }) =>
+        !taken.has(expense.id) &&
+        !expense.installmentId &&
+        Math.abs(expense.amount - group.total) <= Math.max(0.05, group.total * 0.01) &&
+        Math.abs(daysBetween(expense.date, group.purchaseDate)) <= 3,
+    ) ?? null
+  );
 }
 
 /** A line that may be a manual entry. */

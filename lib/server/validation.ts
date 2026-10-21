@@ -400,7 +400,13 @@ const reviewIds = z.array(z.string().min(1).max(100)).min(1).max(48);
 /** A decision about one line of "Confira os gastos". */
 export const bankReviewActionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('expense'), transactionIds: reviewIds, month: monthKeySchema, expense: expenseSchema }),
-  z.object({ action: z.literal('plan'), transactionIds: reviewIds, plan: installmentPlanSchema }),
+  z.object({
+    action: z.literal('plan'),
+    transactionIds: reviewIds,
+    plan: installmentPlanSchema,
+    // "Trocar por parcelado": the expense entered "à vista" that the plan replaces.
+    replaces: z.object({ month: monthKeySchema, entryId: z.string().min(1).max(100) }).optional(),
+  }),
   z.object({ action: z.literal('income'), transactionIds: reviewIds, month: monthKeySchema, income: incomeSchema }),
   z.object({
     action: z.literal('linked'),
@@ -415,6 +421,16 @@ export const bankReviewActionSchema = z.discriminatedUnion('action', [
     expenseId: z.string().min(1).max(100),
   }),
   z.object({ action: z.literal('ignore'), transactionIds: reviewIds }),
+  // "Pôr no Nubank": the entry of a card purchase goes to the card the bank says (null: "Não
+  // informado"). Its line may be decided already, so it may carry no transaction to tie.
+  z.object({
+    action: z.literal('card'),
+    transactionIds: z.array(z.string().min(1).max(100)).max(48),
+    entry: z.enum(['expense', 'plan']),
+    month: monthKeySchema.nullable(),
+    entryId: z.string().min(1).max(100),
+    cardId: z.string().min(1).max(100).nullable(),
+  }),
   z.object({ action: z.literal('bill'), transactionIds: reviewIds }),
 ]);
 

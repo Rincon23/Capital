@@ -21,7 +21,9 @@ import {
   reviewMonths,
   tidyName,
   type BankReview,
+  type MisplacedEntry,
   type PaybackOption,
+  type ReviewCard,
   type ReviewItem,
   type ReviewMatch,
   type ReviewSide,
@@ -63,13 +65,33 @@ export function BankReviewScreen() {
   );
 }
 
+/** One origin of the money out: a Capital card, a bank card not tied to one, or the account. */
+interface Block {
+  key: string;
+  title: string;
+  detail: string | null;
+  /** A bank card not tied yet: the question goes at the top of its block. */
+  ask: ReviewCard | null;
+  /** How many bank cards are in it (a line names its own only when there are several). */
+  cards: number;
+  lines: ReviewSide;
+}
+
+const emptyLines = (): ReviewSide => ({ missing: [], matched: [], leftOut: [], ignored: [] });
+
 /** The two tabs, as the address says them. */
 type Side = 'expenses' | 'incomes';
 const SIDE_PARAM: Record<Side, string> = { expenses: 'gastos', incomes: 'recebimentos' };
 
 type FormState =
   | { kind: 'expense'; item: ReviewItem; draft: Partial<Expense> }
-  | { kind: 'plan'; item: ReviewItem; draft: Partial<InstallmentPlan> }
+  | {
+      kind: 'plan';
+      item: ReviewItem;
+      draft: Partial<InstallmentPlan>;
+      /** "Trocar por parcelado": the expense entered "à vista" the plan takes the place of. */
+      replaces?: { month: Month; entryId: string };
+    }
   | { kind: 'income'; item: ReviewItem; initial: Income };
 
 const primaryButton =
@@ -106,6 +128,12 @@ function Review() {
   const [notPayback, setNotPayback] = useState<Set<string>>(() => new Set());
   /** Strong pairs the person undid ("Não é este"): nothing is stored, they just go back to the missing. */
   const [notPair, setNotPair] = useState<Set<string>>(() => new Set());
+  /** "Lançado fora do cartão" pairs the person undid, the same way. */
+  const [notMisplaced, setNotMisplaced] = useState<Set<string>>(() => new Set());
+  /** Split purchases the person said are not the "à vista" entry the Capital pointed at. */
+  const [notUpfront, setNotUpfront] = useState<Set<string>>(() => new Set());
+  /** The Capital card a link from the Cartão asks for (`?cartao=`): its block comes into view. */
+  const focusCard = params.get('cartao');
 
   const load = useCallback(async () => {
     try {
@@ -120,6 +148,12 @@ function Review() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
   }, [load]);
+
+  const loaded = review !== null;
+  useEffect(() => {
+    if (!loaded || !focusCard) return;
+    document.getElementById(`bloco-card:${focusCard}`)?.scrollIntoView({ block: 'start' });
+  }, [loaded, focusCard]);
 
   /** The tab and the month live in the address, replaced (the phone's back goes to the banks). */
   const go = (next: { side?: Side; month?: Month }) => {
@@ -161,7 +195,7 @@ function Review() {
       if (err instanceof ApiRequestError && err.code === 'ALREADY_REVIEWED') void load();
       throw err;
     }
-    if (action.action === 'plan' || action.action === 'expense') void refreshWallet();
+    if (action.action === 'plan' || action.action === 'expense' || action.action === 'card') void refreshWallet();
   }
 
   async function tap(item: ReviewItem, action: BankReviewAction, done: string) {
@@ -257,21 +291,100 @@ function Review() {
   };
   const current = review ? shownSide(side) : null;
 
-  // Asked only for the bank cards with something to launch now, and only once each.
-  const cardsInUse = new Set((current?.missing ?? []).filter((item) => item.onCard).map((item) => item.accountId));
-  const unlinkedCards =
-    cardOn && cards.length > 0 && side === 'expenses'
-      ? (review?.cards ?? []).filter((card) => !card.linked && cardsInUse.has(card.accountId))
-      : [];
   const bills = snapshot?.bills ?? [];
+  const cardName = (id: string | null) => cards.find((card) => card.id === id)?.name ?? 'outro cartão';
+
+  /**
+   * Money out, one block per origin: each Capital card (with the bank cards tied to it), the bank
+   * cards not tied to one (asking which they are), then the account. Only counts: no sum in reais.
+   */
+  function blocksOf(lines: ReviewSide): Block[] {
+    const bankCards = review?.cards ?? [];
+    const asks = cardOn && cards.length > 0;
+    const capitalOf = (bankCard: ReviewCard | undefined) =>
+      cardOn && bankCard?.linked && bankCard.cardId && cards.some((card) => card.id === bankCard.cardId)
+        ? bankCard.cardId
+        : null;
+    const blocks: Block[] = [
+      ...cards
+        .filter((card) => bankCards.some((bankCard) => capitalOf(bankCard) === card.id))
+        .map((card) => ({
+          key: `card:${card.id}`,
+          title: card.name,
+          detail: bankCards
+            .filter((bankCard) => capitalOf(bankCard) === card.id)
+            .map((bankCard) => bankCard.name)
+            .join(' · '),
+          ask: null,
+          cards: bankCards.filter((bankCard) => capitalOf(bankCard) === card.id).length,
+          lines: emptyLines(),
+        })),
+      ...bankCards
+        .filter((bankCard) => !capitalOf(bankCard))
+        .map((bankCard) => ({
+          key: `bank:${bankCard.accountId}`,
+          title: bankCard.name,
+          detail: bankCard.linked
+            ? 'Não informado no Capital'
+            : bankCard.bankName === bankCard.name
+              ? null
+              : bankCard.bankName,
+          ask: asks && !bankCard.linked ? bankCard : null,
+          cards: 1,
+          lines: emptyLines(),
+        })),
+      { key: 'account', title: 'Conta (Pix e débito)', detail: null, ask: null, cards: 0, lines: emptyLines() },
+    ];
+    const blockOf = (item: ReviewItem) => {
+      if (!item.onCard) return blocks[blocks.length - 1];
+      const bankCard = bankCards.find((candidate) => candidate.accountId === item.accountId);
+      const capital = capitalOf(bankCard);
+      return (
+        blocks.find((block) => block.key === (capital ? `card:${capital}` : `bank:${item.accountId}`)) ??
+        blocks[blocks.length - 1]
+      );
+    };
+    for (const place of ['missing', 'matched', 'leftOut', 'ignored'] as const) {
+      for (const item of lines[place]) blockOf(item).lines[place].push(item);
+    }
+    // A card not tied yet shows even with nothing in the month: without the answer, nothing can confer.
+    return blocks.filter((block) => block.ask || Object.values(block.lines).some((list) => list.length > 0));
+  }
+
+  /** Which Capital card a bank card is, asked once (or "Não informar"). */
+  function linkQuestion(bankCard: ReviewCard) {
+    return (
+      <div className="border-border bg-card mx-4 flex flex-col gap-2 rounded-2xl border p-4 shadow-sm">
+        <p className="text-foreground text-sm font-semibold">Qual é este cartão no Capital?</p>
+        <div className="flex flex-wrap gap-2">
+          {[...cards.map((card) => ({ id: card.id as string | null, label: card.name })), { id: null, label: 'Não informar' }].map(
+            (option) => (
+              <Chip
+                key={option.id ?? 'none'}
+                label={option.label}
+                selected={false}
+                onClick={() =>
+                  void banksRepository
+                    .linkCard(bankCard.accountId, option.id)
+                    .then(load)
+                    .catch((err: unknown) => showToast(toStorageErrorMessage(err, 'Não foi possível salvar.'), 'error'))
+                }
+              />
+            ),
+          )}
+        </div>
+      </div>
+    );
+  }
   const shownMonth = review?.month ?? month;
   const noun = side === 'expenses' ? ['gasto confere', 'gastos conferem'] : ['recebimento confere', 'recebimentos conferem'];
 
   /** The four lists of the month for some lines: what is missing open, the rest folded. */
-  function lists(lines: ReviewSide, scope: string) {
+  function lists(lines: ReviewSide, scope: string, inBlock = false, origin: (item: ReviewItem) => string | null = originOf) {
     return (
       <>
         {lines.missing.length === 0 ? (
+          inBlock ? null : (
           <section className="border-border bg-card mx-4 flex flex-col gap-1 rounded-2xl border p-4 text-center shadow-sm">
             <p className="text-success font-semibold">{formatMonthName(shownMonth)} confere ✓</p>
             <p className="text-muted text-sm">
@@ -280,6 +393,7 @@ function Review() {
                 : 'Nada para conferir neste mês.'}
             </p>
           </section>
+          )
         ) : (
           <>
             <p className="text-foreground px-4 text-sm font-semibold">Falta no Capital ({lines.missing.length})</p>
@@ -288,10 +402,40 @@ function Review() {
                 <ReviewRow
                   key={item.key}
                   item={item}
+                  origin={origin(item)}
                   busy={busy !== null}
                   showDuplicate={item.duplicate !== null && !notSame.has(item.key)}
                   showPayback={item.reimbursement !== null && !notPayback.has(item.key)}
+                  showMisplaced={item.misplaced !== null && !notMisplaced.has(item.key)}
+                  showUpfront={item.upfront !== null && !notUpfront.has(item.key)}
+                  cardName={cardName}
                   unforeseenLabel={unforeseenLabel}
+                  onMove={(misplaced) =>
+                    void tap(
+                      item,
+                      {
+                        action: 'card',
+                        transactionIds: item.transactionIds,
+                        entry: misplaced.entry,
+                        month: misplaced.month,
+                        entryId: misplaced.entryId,
+                        cardId: misplaced.cardId,
+                      },
+                      misplaced.cardId ? `Pronto: agora está no ${cardName(misplaced.cardId)}.` : 'Pronto: agora está no cartão.',
+                    )
+                  }
+                  onNotMisplaced={() => setNotMisplaced((current) => new Set(current).add(item.key))}
+                  onReplace={(upfront) =>
+                    setForm({ kind: 'plan', item, draft: planOf(item), replaces: { month: upfront.month, entryId: upfront.entryId } })
+                  }
+                  onKeepUpfront={(upfront) =>
+                    void tap(
+                      item,
+                      { action: 'linked', transactionIds: item.transactionIds, month: upfront.month, entryId: upfront.entryId },
+                      'Pronto: fica à vista, ligada ao banco.',
+                    )
+                  }
+                  onNotUpfront={() => setNotUpfront((current) => new Set(current).add(item.key))}
                   onPayback={(option) =>
                     void tap(
                       item,
@@ -332,7 +476,7 @@ function Review() {
         <Folded key={`${scope}-matched`} title="✓ Confere" count={lines.matched.length}>
           {lines.matched.map((item) => (
             <li key={item.key} className="border-border bg-card mx-4 flex flex-col gap-1.5 rounded-xl border p-3 text-sm shadow-sm">
-              <LineHead item={item} />
+              <LineHead item={item} origin={origin(item)} />
               <div className="flex items-center justify-between gap-3">
                 <span className="text-success min-w-0 text-xs">{matchLabel(item.match)}</span>
                 {item.match?.kind === 'pair' && (
@@ -354,7 +498,7 @@ function Review() {
             const bill = item.leftOut?.reason === 'bill_payment' && cardOn ? billPaidBy(item, bills) : null;
             return (
               <li key={item.key} className="border-border bg-card mx-4 flex flex-col gap-2 rounded-xl border p-3 text-sm shadow-sm">
-                <LineHead item={item} detail={item.leftOut?.label} />
+                <LineHead item={item} origin={origin(item)} detail={item.leftOut?.label} />
                 {bill && (
                   <div className="bg-background flex items-center justify-between gap-2 rounded-lg px-3 py-2">
                     <span className="text-foreground text-xs">
@@ -400,7 +544,7 @@ function Review() {
         <Folded key={`${scope}-ignored`} title="Ignorados" count={lines.ignored.length}>
           {lines.ignored.map((item) => (
             <li key={item.key} className="border-border bg-card mx-4 flex flex-col gap-1.5 rounded-xl border p-3 text-sm shadow-sm">
-              <LineHead item={item} detail={item.leftOut?.label ?? 'Você ignorou'} />
+              <LineHead item={item} origin={origin(item)} detail={item.leftOut?.label ?? 'Você ignorou'} />
             </li>
           ))}
         </Folded>
@@ -454,39 +598,48 @@ function Review() {
         {error && <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{error}</p>}
         {!review && !error && <p className="text-muted py-16 text-center">Carregando…</p>}
 
-        {unlinkedCards.length > 0 && (
-          <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm">
-            <p className="text-foreground text-sm font-semibold">Qual é cada cartão no Capital?</p>
-            {unlinkedCards.map((bankCard) => (
-              <div key={bankCard.accountId} className="flex flex-col gap-1.5">
-                <p className="text-muted truncate text-xs">
-                  {bankCard.name} · {bankCard.bankName}
+        {current && side === 'incomes' && lists(current, side)}
+        {current && side === 'expenses' && (
+          <>
+            {current.missing.length === 0 && (
+              <section className="border-border bg-card mx-4 flex flex-col gap-1 rounded-2xl border p-4 text-center shadow-sm">
+                <p className="text-success font-semibold">{formatMonthName(shownMonth)} confere ✓</p>
+                <p className="text-muted text-sm">
+                  {current.matched.length > 0
+                    ? `${current.matched.length} ${current.matched.length === 1 ? noun[0] : noun[1]} com o Capital.`
+                    : 'Nada para conferir neste mês.'}
                 </p>
-                <div className="flex flex-wrap gap-2">
-                  {[...cards.map((card) => ({ id: card.id as string | null, label: card.name })), { id: null, label: 'Não informar' }].map(
-                    (option) => (
-                      <Chip
-                        key={option.id ?? 'none'}
-                        label={option.label}
-                        selected={false}
-                        onClick={() =>
-                          void banksRepository
-                            .linkCard(bankCard.accountId, option.id)
-                            .then(load)
-                            .catch((err: unknown) =>
-                              showToast(toStorageErrorMessage(err, 'Não foi possível salvar.'), 'error'),
-                            )
-                        }
-                      />
-                    ),
+              </section>
+            )}
+            {blocksOf(current).map((block) => {
+              const missing = block.lines.missing.length;
+              const matched = block.lines.matched.length;
+              return (
+                <section key={block.key} id={`bloco-${block.key}`} className="flex scroll-mt-16 flex-col gap-3">
+                  <div className="border-border mx-4 flex items-baseline justify-between gap-3 border-t pt-3">
+                    <span className="min-w-0">
+                      <span className="text-foreground block truncate font-semibold">{block.title}</span>
+                      {block.detail && <span className="text-muted block truncate text-xs">{block.detail}</span>}
+                    </span>
+                    <span className={`shrink-0 text-xs font-medium ${missing > 0 ? 'text-warning' : 'text-success'}`}>
+                      {[
+                        missing > 0 ? `${missing} ${missing === 1 ? 'falta' : 'faltam'}` : matched > 0 ? '✓' : '',
+                        matched > 0 ? `${matched} ${matched === 1 ? 'confere' : 'conferem'}` : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
+                  </div>
+                  {block.ask && linkQuestion(block.ask)}
+                  {lists(block.lines, `${side}-${block.key}`, true, (item) =>
+                    // In a card's block, only the bank card says more (when there are several).
+                    block.key === 'account' ? originOf(item) : block.cards > 1 ? item.accountName : null,
                   )}
-                </div>
-              </div>
-            ))}
-          </section>
+                </section>
+              );
+            })}
+          </>
         )}
-
-        {current && lists(current, side)}
       </MonthSwipe>
 
       {form?.kind === 'expense' && (
@@ -522,13 +675,14 @@ function Review() {
           today={snapshot?.today}
           onClose={() => setForm(null)}
           onSave={async (plan) => {
-            await send({ action: 'plan', transactionIds: form.item.transactionIds, plan });
+            await send({ action: 'plan', transactionIds: form.item.transactionIds, plan, replaces: form.replaces });
             // In the Capital the purchase counts from its first charge, which may be a later month.
             const firstMonth = plan.firstDebitDate.slice(0, 7);
+            const done = form.replaces ? 'Trocada por compra parcelada.' : 'Compra parcelada lançada.';
             showToast(
               review && firstMonth > review.month
-                ? `Compra parcelada lançada. No Capital, a 1ª parcela cai em ${formatMonthLabel(firstMonth)}.`
-                : 'Compra parcelada lançada.',
+                ? `${done} No Capital, a 1ª parcela cai em ${formatMonthLabel(firstMonth)}.`
+                : done,
             );
           }}
         />
@@ -577,14 +731,19 @@ function Folded({ title, count, children }: { title: string; count: number; chil
 }
 
 /** What a folded line shows: what it is, from where and when, and how much. */
-function LineHead({ item, detail }: { item: ReviewItem; detail?: string }) {
+/** Where a line came from: the bank, and the account when it says more than the bank's name. */
+function originOf(item: ReviewItem): string {
+  return item.accountName === item.bankName ? item.bankName : `${item.bankName} · ${item.accountName}`;
+}
+
+function LineHead({ item, origin, detail }: { item: ReviewItem; origin: string | null; detail?: string }) {
   const income = item.kind === 'income';
   return (
     <div className="flex items-start justify-between gap-3">
       <span className="min-w-0">
         <span className="text-foreground block truncate">{entryDescription(item.description)}</span>
         <span className="text-muted block text-xs">
-          {item.bankName} · {formatDayMonth(item.date)}
+          {[origin, formatDayMonth(item.date)].filter(Boolean).join(' · ')}
           {item.installments && ` · parcela ${item.installments.number}/${item.installments.count}`}
           {detail && ` · ${detail}`}
         </span>
@@ -637,12 +796,28 @@ function differenceLine(option: PaybackOption, unforeseenLabel: string): string 
   return null;
 }
 
+/** Where a purchase that is not on its card is, in the Capital's words. */
+function whereLabel(misplaced: MisplacedEntry, cardName: (id: string | null) => string): string {
+  if (misplaced.where === 'account') return 'como Pix/débito';
+  if (misplaced.where === 'unknownCard') return 'como cartão não informado';
+  return `no ${cardName(misplaced.otherCardId)}`;
+}
+
 function ReviewRow({
   item,
+  origin,
   busy,
   showDuplicate,
   showPayback,
+  showMisplaced,
+  showUpfront,
+  cardName,
   unforeseenLabel,
+  onMove,
+  onNotMisplaced,
+  onReplace,
+  onKeepUpfront,
+  onNotUpfront,
   onPayback,
   onNotPayback,
   onLaunch,
@@ -652,10 +827,20 @@ function ReviewRow({
   onNotSame,
 }: {
   item: ReviewItem;
+  /** Where it came from, when the block above doesn't say it already. */
+  origin: string | null;
   busy: boolean;
   showDuplicate: boolean;
   showPayback: boolean;
+  showMisplaced: boolean;
+  showUpfront: boolean;
+  cardName: (id: string | null) => string;
   unforeseenLabel: string;
+  onMove: (misplaced: MisplacedEntry) => void;
+  onNotMisplaced: () => void;
+  onReplace: (upfront: NonNullable<ReviewItem['upfront']>) => void;
+  onKeepUpfront: (upfront: NonNullable<ReviewItem['upfront']>) => void;
+  onNotUpfront: () => void;
   onPayback: (option: PaybackOption) => void;
   onNotPayback: () => void;
   onLaunch: () => void;
@@ -680,7 +865,7 @@ function ReviewRow({
         <div className="min-w-0">
           <p className="text-foreground truncate font-semibold">{entryDescription(item.description)}</p>
           <p className="text-muted truncate text-xs">
-            {item.bankName} · {item.accountName} · {formatDayMonth(item.date)}
+            {[origin, formatDayMonth(item.date)].filter(Boolean).join(' · ')}
           </p>
         </div>
         <p className={`shrink-0 font-semibold tabular-nums ${income ? 'text-success' : 'text-foreground'}`}>
@@ -695,14 +880,63 @@ function ReviewRow({
           {formatBRL(item.installments.total)} · comprada em {formatDayMonth(item.installments.purchaseDate)}
         </p>
       )}
-      {!income && (
+      {!income && !(showMisplaced && item.misplaced) && (
         <p className={`flex items-center gap-1.5 text-sm ${item.category ? 'text-foreground' : 'text-muted'}`}>
           <Tag aria-hidden className="h-3.5 w-3.5" />
           {item.category?.label ?? 'Categoria não informada'}
         </p>
       )}
 
-      {showPayback && item.reimbursement ? (
+      {showMisplaced && item.misplaced ? (
+        <div className="bg-warning-bg flex flex-col gap-2 rounded-lg px-3 py-2 text-sm">
+          <p className="text-warning">
+            Lançado fora do cartão: “{item.misplaced.description}” ({formatDayMonth(item.misplaced.date)}) está{' '}
+            {whereLabel(item.misplaced, cardName)}.
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => item.misplaced && onMove(item.misplaced)}
+              className={primaryButton}
+            >
+              {item.misplaced.cardId ? `Pôr no ${cardName(item.misplaced.cardId)}` : 'Pôr no cartão'}
+            </button>
+            {!item.misplaced.tied && (
+              <button type="button" disabled={busy} onClick={onNotMisplaced} className={`${quietButton} flex-1`}>
+                Não é este
+              </button>
+            )}
+          </div>
+        </div>
+      ) : showUpfront && item.upfront && item.installments ? (
+        <div className="bg-warning-bg flex flex-col gap-2 rounded-lg px-3 py-2 text-sm">
+          <p className="text-warning">
+            No Capital está à vista: “{item.upfront.description}” ({formatBRL(item.upfront.amount)},{' '}
+            {formatDayMonth(item.upfront.date)}). No banco são {item.installments.count}× de{' '}
+            {formatBRL(item.installments.installmentAmount)}.
+          </p>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => item.upfront && onReplace(item.upfront)}
+            className={primaryButton}
+          >
+            Trocar por parcelado
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => item.upfront && onKeepUpfront(item.upfront)}
+            className={quietButton}
+          >
+            Deixar à vista
+          </button>
+          <button type="button" onClick={onNotUpfront} className="text-primary self-start text-xs font-semibold">
+            É outra compra
+          </button>
+        </div>
+      ) : showPayback && item.reimbursement ? (
         <div className="bg-success-bg flex flex-col gap-2 rounded-lg px-3 py-2 text-sm">
           <p className="text-success">
             É a devolução de “{item.reimbursement.description}” ({formatBRL(item.reimbursement.amount)})?

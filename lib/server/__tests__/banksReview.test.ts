@@ -158,7 +158,7 @@ describe("the month's check", () => {
     // Another month's purchase is that month's: September shows it, October doesn't.
     expect(Object.values(review.expenses).flat().some((item) => item.key === 'antiga')).toBe(false);
     expect((await check(deps, '2026-09')).expenses.missing.map((item) => item.key)).toEqual(['antiga']);
-    expect(await reviewCounts(deps, TODAY)).toEqual({ month: '2026-10', expenses: 2, incomes: 1 });
+    expect(await reviewCounts(deps, { today: TODAY })).toEqual({ month: '2026-10', expenses: 2, incomes: 1, cards: {} });
     expect(review.cards).toEqual([
       { accountId: 'cartao', name: 'Cartão Gold', bankName: 'Nubank', cardId: null, linked: false },
     ]);
@@ -272,7 +272,7 @@ describe("the month's check", () => {
     ]);
     // Calculated, never stored: the transaction is still undecided.
     expect(await outcomeOf('assai')).toEqual({ outcome: null, entryId: null });
-    expect(await reviewCounts(deps, TODAY)).toMatchObject({ expenses: 3 });
+    expect(await reviewCounts(deps, { today: TODAY })).toMatchObject({ expenses: 3 });
   });
 
   it('a pair across the turn of the month is the same in both months', async () => {
@@ -569,5 +569,208 @@ describe("the month's check", () => {
 
     await applyReviewAction(deps, { action: 'ignore', transactionIds: ['fechado'] });
     expect(await outcomeOf('fechado')).toEqual({ outcome: 'ignored', entryId: null });
+  });
+});
+
+describe('the cards: what the bank card has that the Capital does not', () => {
+  /** A person with the Cartão on, two cards, and the bank card tied to "nubank" (or not, or "Não informar"). */
+  async function withCards(link: 'nubank' | 'none' | 'unlinked' = 'nubank') {
+    const person = await newPerson();
+    await person.repo.saveSettings({
+      ...(await person.repo.getSettings()),
+      modules: { expenses: true, card: true },
+    });
+    await person.wallet.saveCard({
+      id: 'amazon',
+      name: 'Amazon',
+      dueDay: 5,
+      dueMonth: 'next',
+      notifyEnabled: false,
+      notifyBeforeDays: 0,
+      isDefault: false,
+      order: 1,
+    });
+    if (link !== 'unlinked') await person.banks.linkCard('cartao', link === 'nubank' ? 'nubank' : null);
+    const topicId = (await person.repo.getSettings()).topics[0].id;
+    const spent = (id: string, amount: number, date: string, card: { cardId?: string; singleInstallmentCard?: boolean } = {}) =>
+      person.repo.saveExpense(date.slice(0, 7), { id, categoryKind: 'topic', topicId, description: id, amount, date, ...card });
+    return { ...person, spent };
+  }
+  const purchase = (id: string, amount: number, date: string) =>
+    tx({ transactionId: id, accountId: 'cartao', amount, description: id.toUpperCase(), date });
+
+  it('a purchase entered by Pix/débito is "fora do cartão", and "Pôr no Nubank" moves it by the form\'s save', async () => {
+    const { repo, banks, deps, spent } = await withCards();
+    await spent('padaria', 23.4, '2026-10-12');
+    await banks.upsertTransactions([purchase('padaria-1', 23.4, '2026-10-12')]);
+
+    const [line] = (await check(deps)).expenses.missing;
+    expect(line.misplaced).toMatchObject({
+      entry: 'expense',
+      month: '2026-10',
+      entryId: 'padaria',
+      where: 'account',
+      cardId: 'nubank',
+      tied: false,
+    });
+    expect((await reviewCounts(deps, { today: TODAY })).cards).toEqual({ nubank: { missing: 1, matched: 0 } });
+
+    await applyReviewAction(deps, {
+      action: 'card',
+      transactionIds: line.transactionIds,
+      entry: 'expense',
+      month: '2026-10',
+      entryId: 'padaria',
+      cardId: 'nubank',
+    });
+    const saved = (await repo.getMonth('2026-10'))!.expenses.find((expense) => expense.id === 'padaria');
+    expect(saved).toMatchObject({ cardId: 'nubank', singleInstallmentCard: true, amount: 23.4 });
+    expect(await outcomeOf('padaria-1')).toEqual({ outcome: 'linked', entryId: 'padaria' });
+    const after = await check(deps);
+    expect(after.expenses.missing).toEqual([]);
+    expect(after.expenses.matched.map((item) => item.key)).toEqual(['padaria-1']);
+    expect((await reviewCounts(deps, { today: TODAY })).cards).toEqual({ nubank: { missing: 0, matched: 1 } });
+  });
+
+  it('a purchase on another card says which, and a closed month refuses to move it', async () => {
+    const { repo, banks, deps, spent } = await withCards();
+    await spent('livro', 59.9, '2026-09-20', { cardId: 'amazon', singleInstallmentCard: true });
+    await banks.upsertTransactions([purchase('livro-1', 59.9, '2026-09-21')]);
+
+    const [line] = (await check(deps, '2026-09')).expenses.missing;
+    expect(line.misplaced).toMatchObject({ where: 'otherCard', otherCardId: 'amazon', cardId: 'nubank' });
+
+    await repo.closeMonth('2026-09');
+    await expect(
+      applyReviewAction(deps, {
+        action: 'card',
+        transactionIds: line.transactionIds,
+        entry: 'expense',
+        month: '2026-09',
+        entryId: 'livro',
+        cardId: 'nubank',
+      }),
+    ).rejects.toThrow();
+    expect((await repo.getMonth('2026-09'))!.expenses[0]).toMatchObject({ cardId: 'amazon' });
+    expect(await outcomeOf('livro-1')).toEqual({ outcome: null, entryId: null });
+  });
+
+  it('on the right card it confers; a purchase with nothing alike is missing, with the card for "Lançar"', async () => {
+    const { banks, deps, spent } = await withCards();
+    await spent('cinema', 40, '2026-10-10', { cardId: 'nubank', singleInstallmentCard: true });
+    await banks.upsertTransactions([purchase('cinema-1', 40, '2026-10-10'), purchase('nova', 12, '2026-10-11')]);
+    const review = await check(deps);
+    expect(review.expenses.matched.map((item) => [item.key, item.match?.kind])).toEqual([['cinema-1', 'pair']]);
+    expect(review.expenses.missing).toEqual([
+      expect.objectContaining({ key: 'nova', cardId: 'nubank', misplaced: null, upfront: null }),
+    ]);
+  });
+
+  it('a split purchase entered "à vista" says so, and "Trocar por parcelado" puts the plan in its place', async () => {
+    const { repo, wallet, banks, deps, spent } = await withCards();
+    await spent('notebook', 872.3, '2026-09-13', { cardId: 'nubank', singleInstallmentCard: true });
+    await banks.upsertTransactions(
+      [1, 2].map((number) =>
+        tx({
+          transactionId: `note-${number}`,
+          accountId: 'cartao',
+          description: 'LOJA NOTE',
+          amount: 87.23,
+          date: number === 1 ? '2026-09-13' : '2026-10-02',
+          purchaseDate: '2026-09-13',
+          installmentNumber: number,
+          totalInstallments: 10,
+        }),
+      ),
+    );
+    const [line] = (await check(deps)).expenses.missing;
+    expect(line).toMatchObject({
+      kind: 'plan',
+      installments: { number: 2, count: 10 },
+      upfront: { month: '2026-09', entryId: 'notebook', amount: 872.3, date: '2026-09-13' },
+    });
+
+    const topicId = (await repo.getSettings()).topics[0].id;
+    const plan: InstallmentPlan = {
+      id: 'plano-note',
+      name: 'Notebook',
+      categoryKind: 'topic',
+      topicId,
+      firstDebitDate: '2026-10-10',
+      purchaseDate: '2026-09-13',
+      count: 10,
+      totalAmount: 872.3,
+      accounting: 'upfront',
+      cardId: 'nubank',
+    };
+    await applyReviewAction(deps, {
+      action: 'plan',
+      transactionIds: line.transactionIds,
+      plan,
+      replaces: { month: '2026-09', entryId: 'notebook' },
+    });
+    // The "à vista" expense left, the plan came: never both, never none.
+    expect((await wallet.listInstallments()).map((saved) => saved.id)).toEqual(['plano-note']);
+    const september = (await repo.getMonth('2026-09'))!.expenses;
+    expect(september.some((expense) => expense.id === 'notebook')).toBe(false);
+    expect((await check(deps)).expenses.matched.map((item) => item.match?.kind)).toEqual(['plan']);
+  });
+
+  it('a bank card not tied yet compares with any card, and "Não informar" confers with a card not said', async () => {
+    const unlinked = await withCards('unlinked');
+    await unlinked.spent('pizza', 60, '2026-10-05');
+    await unlinked.banks.upsertTransactions([purchase('pizza-1', 60, '2026-10-05')]);
+    const open = await check(unlinked.deps);
+    expect(open.expenses.matched.map((item) => item.key)).toEqual(['pizza-1']);
+    expect(open.cards).toEqual([expect.objectContaining({ accountId: 'cartao', linked: false, cardId: null })]);
+
+    const none = await withCards('none');
+    await none.spent('bar', 30, '2026-10-06', { singleInstallmentCard: true });
+    await none.spent('posto', 150, '2026-10-07');
+    await none.banks.upsertTransactions([purchase('bar-1', 30, '2026-10-06'), purchase('posto-1', 150, '2026-10-07')]);
+    const review = await check(none.deps);
+    expect(review.expenses.matched.map((item) => item.key)).toEqual(['bar-1']);
+    expect(review.expenses.missing).toEqual([
+      expect.objectContaining({ key: 'posto-1', misplaced: expect.objectContaining({ where: 'account', cardId: null }) }),
+    ]);
+    await applyReviewAction(none.deps, {
+      action: 'card',
+      transactionIds: ['posto-1'],
+      entry: 'expense',
+      month: '2026-10',
+      entryId: 'posto',
+      cardId: null,
+    });
+    const posto = (await none.repo.getMonth('2026-10'))!.expenses.find((expense) => expense.id === 'posto');
+    expect(posto).toMatchObject({ singleInstallmentCard: true });
+    expect(posto?.cardId).toBeUndefined();
+  });
+
+  it('no answer carries a total from the bank: bill, balance or limit', async () => {
+    const { banks, deps, spent } = await withCards();
+    await banks.replaceAccounts('item', [
+      { accountId: 'conta', kind: 'checking', name: 'Conta Nubank', balance: 4321.09, currency: 'BRL' },
+      {
+        accountId: 'cartao',
+        kind: 'card',
+        name: 'Cartão Gold',
+        balance: 1987.65,
+        currency: 'BRL',
+        creditLimit: 8000,
+        availableCredit: 6012.35,
+        dueDate: '2026-11-10',
+      },
+    ]);
+    await spent('mercado', 87.96, '2026-10-12');
+    await banks.upsertTransactions([purchase('mercado-1', 87.96, '2026-10-12'), tx({ transactionId: 'pix', amount: -20 })]);
+    const answers = JSON.stringify([
+      await check(deps),
+      await check(deps, '2026-09'),
+      await reviewCounts(deps, { today: TODAY }),
+      await banks.listConnections(),
+    ]);
+    for (const leak of ['balance', 'creditLimit', 'availableCredit', 'dueDate', '4321.09', '1987.65', '8000', '6012.35']) {
+      expect(answers).not.toContain(leak);
+    }
   });
 });

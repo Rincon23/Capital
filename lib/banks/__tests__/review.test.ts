@@ -4,6 +4,9 @@ import type { Expense, InstallmentPlan } from '@/lib/budget';
 import {
   bankInstallmentIn,
   descriptionKey,
+  entryWhere,
+  findUpfront,
+  onExpectedCard,
   findDuplicate,
   findDuplicateIncome,
   findReimbursement,
@@ -231,6 +234,39 @@ describe('the strong pair ("✓ Confere" without a tap)', () => {
     expect(strongPairs([line('a')], [entry('e1'), entry('e2')], new Set()).size).toBe(0);
     // Two equal coffees on the same day and one entry: neither is the pair.
     expect(strongPairs([line('a'), line('b')], [entry('e')], new Set()).size).toBe(0);
+  });
+});
+
+describe('which card', () => {
+  it('says where an entry is: Pix/débito, a card not said, or a card', () => {
+    expect(entryWhere({})).toBe('account');
+    expect(entryWhere({ singleInstallmentCard: true })).toBe('unknownCard');
+    expect(entryWhere({ singleInstallmentCard: true, cardId: 'amazon' })).toBe('otherCard');
+  });
+
+  it('a card tied to the Nubank wants the Nubank; "Não informar" any card; not tied yet, anything', () => {
+    const nubank = { cardId: 'nubank' };
+    expect(onExpectedCard({ singleInstallmentCard: true, cardId: 'nubank' }, nubank)).toBe(true);
+    expect(onExpectedCard({ singleInstallmentCard: true, cardId: 'amazon' }, nubank)).toBe(false);
+    expect(onExpectedCard({ singleInstallmentCard: true }, nubank)).toBe(false);
+    expect(onExpectedCard({}, nubank)).toBe(false);
+    expect(onExpectedCard({ singleInstallmentCard: true }, 'anyCard')).toBe(true);
+    expect(onExpectedCard({ cardId: 'amazon', singleInstallmentCard: true }, 'anyCard')).toBe(true);
+    expect(onExpectedCard({}, 'anyCard')).toBe(false);
+    expect(onExpectedCard({}, 'unknown')).toBe(true);
+  });
+
+  it('finds the split purchase entered "à vista": the whole amount, bought within 3 days', () => {
+    const expense = (overrides: Partial<Expense>): { month: string; expense: Expense } => ({
+      month: '2026-09',
+      expense: { id: 'e', categoryKind: 'topic', topicId: 't', description: 'Notebook', amount: 872.3, date: '2026-09-13', ...overrides },
+    });
+    const group = { total: 872.3, purchaseDate: '2026-09-14' };
+    expect(findUpfront(group, [expense({})], new Set())?.expense.id).toBe('e');
+    expect(findUpfront(group, [expense({ date: '2026-09-09' })], new Set())).toBeNull();
+    expect(findUpfront(group, [expense({ amount: 87.23 })], new Set())).toBeNull();
+    expect(findUpfront(group, [expense({ installmentId: 'p' })], new Set())).toBeNull();
+    expect(findUpfront(group, [expense({})], new Set(['e']))).toBeNull();
   });
 });
 
