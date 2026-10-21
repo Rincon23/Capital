@@ -37,6 +37,7 @@ import {
   type BankConnection,
 } from '@/lib/banks';
 import { amountToInputValue, parseAmountInput } from '@/lib/budget/money';
+import type { BankReviewCounts } from '@/lib/banks';
 import { banksRepository, type BankAlertsView, type BanksOverviewResult } from '@/lib/storage';
 import { NotificationsSection } from '@/components/settings/NotificationsSection';
 import { Switch } from '@/components/ui/Switch';
@@ -85,6 +86,10 @@ function Banks() {
   const [renaming, setRenaming] = useState<BankConnection | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  /** How many lines of this month still ask for a tap, on the "Conferir" buttons. */
+  const [counts, setCounts] = useState<BankReviewCounts | null>(null);
+  /** Read the counts again (after "Buscar novidades"). */
+  const [countsKey, setCountsKey] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -117,6 +122,23 @@ function Banks() {
   }, [arriving, load]);
 
   useModuleIntro('banks', { ready: !!overview });
+
+  const expensesOn = isModuleOn(settings, 'expenses');
+  const hasBanks = (overview?.connections.length ?? 0) > 0;
+  useEffect(() => {
+    if (!expensesOn || !hasBanks) return;
+    let active = true;
+    banksRepository
+      .getReviewCounts()
+      .then((next) => {
+        if (active) setCounts(next);
+      })
+      // Without the counts the buttons still work: they just don't say how many.
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [expensesOn, hasBanks, countsKey]);
 
   async function bringBank() {
     setBusy('connect');
@@ -184,7 +206,6 @@ function Banks() {
 
   const { key, connections, limit } = overview;
   const atLimit = connections.length >= limit;
-  const expensesOn = isModuleOn(settings, 'expenses');
   // The stocks and ETFs the banks hold are compared with the Diagrama's quantities, in the Diagrama.
   const diagramOn = isModuleOn(settings, 'diagram');
 
@@ -227,10 +248,12 @@ function Banks() {
                 <Link href="/bancos/conferir?tipo=gastos" className={primaryButton}>
                   <BanknoteArrowUp className="h-4 w-4" aria-hidden />
                   Conferir gastos
+                  {counts && <MissingBadge count={counts.expenses} strong />}
                 </Link>
                 <Link href="/bancos/conferir?tipo=recebimentos" className={secondaryButton}>
                   <BanknoteArrowDown className="h-4 w-4" aria-hidden />
                   Conferir recebimentos
+                  {counts && <MissingBadge count={counts.incomes} />}
                 </Link>
               </>
             )}
@@ -247,6 +270,7 @@ function Banks() {
               onClick={() =>
                 void act('sync', async () => {
                   const { changed } = await banksRepository.sync();
+                  if (changed.length > 0) setCountsKey((key) => key + 1);
                   showToast(
                     changed.length > 0
                       ? 'Chegaram dados novos dos bancos.'
@@ -371,6 +395,20 @@ function Banks() {
         </ModuleSettingsSheet>
       )}
     </div>
+  );
+}
+
+/** How many lines of this month are missing in the Capital ("✓" when none). */
+function MissingBadge({ count, strong = false }: { count: number; strong?: boolean }) {
+  return (
+    <span
+      className={`min-w-[1.5rem] rounded-full px-1.5 text-center text-xs font-semibold tabular-nums ${
+        strong ? 'bg-primary-foreground/20' : 'bg-primary/10 text-primary'
+      }`}
+    >
+      {count > 0 ? count : '✓'}
+      <span className="sr-only">{count === 1 ? ' falta no Capital' : count > 0 ? ' faltam no Capital' : ' tudo confere'}</span>
+    </span>
   );
 }
 

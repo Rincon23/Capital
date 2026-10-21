@@ -1,29 +1,37 @@
 import 'server-only';
 import { categoryOptions } from '@/lib/ai';
 import {
+  bankInstallmentIn,
   findDuplicate,
   findDuplicateIncome,
   groupInstallments,
   IGNORE_LABELS,
   ignoreReason,
+  installmentDay,
   matchingPlan,
   memoryKey,
   paybackMemory,
   paybackTolerance,
   payerKey,
+  planChargeIn,
   reimbursementCandidates,
   reviewKind,
+  reviewMonths,
+  strongPairs,
   suggestCategory,
   type BankReview,
+  type BankReviewCounts,
   type CategoryChoice,
   type LaunchedExpense,
   type PaybackOption,
   type ReviewItem,
+  type ReviewMatch,
+  type ReviewSide,
 } from '@/lib/banks';
 import { nextMonth, presetOf, previousMonth, round2 } from '@/lib/budget';
 import { createId } from '@/lib/budget/id';
 import { isModuleOn } from '@/lib/modules';
-import { zonedToday } from '@/lib/reminders/time';
+import { addDays, daysInMonth, zonedToday } from '@/lib/reminders/time';
 import type { Expense, Income, InstallmentPlan, Month } from '@/lib/budget';
 import type { PostgresBudgetRepository } from '../budgetRepository';
 import { HttpError } from '../httpError';
@@ -31,10 +39,11 @@ import type { PostgresWalletRepository } from '../walletRepository';
 import type { PostgresBanksRepository, ReviewRow } from './repository';
 
 /**
- * "Confira os gastos" on the server: what arrived and is still to review, already sorted into
- * what to launch (with a suggested category and the manual entry it may duplicate) and what is
- * left out by default (with why); and each decision, applied with the same functions the forms use
- * (`saveExpense`, `saveInstallment`, `saveIncome`), so every rule of bills and months holds.
+ * The month's check on the server: what the banks sent in a month, sorted into what is missing in
+ * the Capital (with a suggested category and the manual entry it may duplicate), what is already
+ * there, what the app leaves out (with why) and what the person ignored; and each decision, applied
+ * with the same functions the forms use (`saveExpense`, `saveInstallment`, `saveIncome`), so every
+ * rule of bills and months holds.
  */
 
 interface ReviewDeps {
@@ -43,23 +52,22 @@ interface ReviewDeps {
   wallet: PostgresWalletRepository;
 }
 
-/** The months a set of days can fall in, with the neighbours (a duplicate is up to 2 days off). */
-function monthsAround(dates: string[]): Month[] {
-  const months = new Set<Month>();
-  for (const date of dates) {
-    const month = date.slice(0, 7);
-    months.add(month);
-    const day = Number(date.slice(8, 10));
-    if (day <= 2) months.add(previousMonth(month));
-    if (day >= 27) months.add(nextMonth(month));
-  }
-  return [...months];
+/** Outcomes that put a transaction in the Capital ("launching" is a launch on its way). */
+const DONE = new Set(['expense', 'plan', 'income', 'linked', 'reimbursed', 'bill', 'launching']);
+
+function isDone(outcome: string | null): boolean {
+  return outcome !== null && DONE.has(outcome);
+}
+
+function lastDayOf(month: Month): string {
+  const [year, number] = month.split('-').map(Number);
+  return `${month}-${String(daysInMonth(year, number)).padStart(2, '0')}`;
 }
 
 function baseItem(
   row: ReviewRow,
   transactionIds: string[],
-): Omit<ReviewItem, 'kind' | 'category' | 'installments' | 'duplicate' | 'ignored'> {
+): Omit<ReviewItem, 'kind' | 'category' | 'installments' | 'match' | 'duplicate' | 'leftOut'> {
   const onCard = row.accountKind === 'card';
   return {
     key: row.id,
@@ -77,10 +85,42 @@ function baseItem(
   };
 }
 
-export async function buildReview({ banks, repo, wallet }: ReviewDeps): Promise<BankReview> {
-  const rows = await banks.reviewTransactions();
+const emptySide = (): ReviewSide => ({ missing: [], matched: [], leftOut: [], ignored: [] });
+
+/** Which list a line goes to. */
+type Place = keyof ReviewSide;
+
+export interface ReviewOptions {
+  /** The month to check (default: this one). Only this month and the one before are accepted. */
+  month?: Month;
+  /** Today (tests). */
+  today?: string;
+}
+
+/**
+ * The month's check: what the banks sent in `month` — the account's money in and out, the card's
+ * purchases and the instalment of each split purchase that falls in it — each line sorted into
+ * "Falta no Capital", "✓ Confere", "Deixados de fora" or "Ignorados", money out apart from money
+ * in. Nothing is stored here: a plan that matches and a strong pair are worked out on every read.
+ */
+export async function buildReview(
+  { banks, repo, wallet }: ReviewDeps,
+  options: ReviewOptions = {},
+): Promise<BankReview> {
+  const today = options.today ?? zonedToday();
+  const months = reviewMonths(today);
+  const month = options.month ?? months[months.length - 1];
+  if (!months.includes(month)) {
+    throw new HttpError(400, 'MONTH_OUT_OF_RANGE', 'A conferência vai só até o mês anterior.');
+  }
+  const first = `${month}-01`;
+  const last = lastDayOf(month);
+  const inMonth = (date: string) => date >= first && date <= last;
+  // Two days around the month as well: whether a pair is the only one must not depend on the view.
+  const rows = await banks.reviewTransactions(addDays(first, -2), addDays(last, 2));
+
   const settings = await repo.getSettings();
-  const options = categoryOptions(settings);
+  const categories = categoryOptions(settings);
   // The default categories the person kept, by what they mean (see `suggestCategory`); older
   // data has no `preset` and is known by the default's name, as everywhere else in the app.
   const presets: Record<string, string> = {};
@@ -93,106 +133,223 @@ export async function buildReview({ banks, repo, wallet }: ReviewDeps): Promise<
   const taken = await banks.takenEntryIds();
   // The "A receber" still open, when that module is on: a Pix received may be one paid back.
   const pendingBack: LaunchedExpense[] = isModuleOn(settings, 'reimbursable')
-    ? await repo.pendingReimbursables(zonedToday().slice(0, 7))
+    ? await repo.pendingReimbursables(today.slice(0, 7))
     : [];
   // Who paid back what before: a payer the person already confirmed is recognised.
   const paidBack = pendingBack.length > 0 ? paybackMemory(await banks.paybackHistory()) : new Map();
 
+  // What is in the Capital around the month (a pair can be a day off, across the turn of the month).
   const launched: LaunchedExpense[] = [];
   const incomes: { month: Month; income: Income }[] = [];
-  for (const month of monthsAround(rows.map((row) => row.date))) {
-    const data = await repo.getMonth(month);
+  for (const around of [previousMonth(month), month, nextMonth(month)]) {
+    const data = await repo.getMonth(around);
     if (!data) continue;
-    for (const expense of data.expenses) launched.push({ month, expense });
-    for (const income of data.incomes) incomes.push({ month, income });
+    for (const expense of data.expenses) launched.push({ month: around, expense });
+    for (const income of data.incomes) incomes.push({ month: around, income });
   }
 
-  const items: ReviewItem[] = [];
-  const splits = rows.filter((row) => reviewKind(row) === 'plan' && !ignoreReason(row));
+  /** What a decided transaction became, in its own words when the entry is at hand. */
+  const decided = (row: Pick<ReviewRow, 'outcome' | 'entryId'>): ReviewMatch => {
+    const id = row.entryId;
+    const description =
+      (id &&
+        (plans.find((plan) => plan.id === id)?.name ??
+          launched.find(({ expense }) => expense.id === id)?.expense.description ??
+          incomes.find(({ income }) => income.id === id)?.income.source)) ||
+      null;
+    return { kind: 'decided', outcome: row.outcome ?? '', description };
+  };
 
+  const placed: { place: Place; item: ReviewItem }[] = [];
+
+  // Split purchases: every instalment the bank sent, of any date, read as one purchase; the line is
+  // the instalment that falls in the month.
+  const splits = rows.filter((row) => reviewKind(row) === 'plan' && !ignoreReason(row));
   for (const group of groupInstallments(splits)) {
-    const first = group.transactions[0] as ReviewRow;
-    const plan = matchingPlan(group, plans, first.capitalCardId);
-    items.push({
-      ...baseItem(first, group.transactions.map((member) => member.id)),
-      date: group.purchaseDate,
-      amount: group.total,
-      kind: 'plan',
-      category: suggestCategory(first, options, memory, presets),
-      installments: {
-        count: group.count,
-        numbers: group.numbers,
-        installmentAmount: group.installmentAmount,
-        total: group.total,
-        purchaseDate: group.purchaseDate,
+    const members = group.transactions as ReviewRow[];
+    const head = members[0];
+    const done = members.find((member) => isDone(member.outcome));
+    const plan =
+      plans.find((candidate) => done?.outcome === 'plan' && candidate.id === done.entryId) ??
+      matchingPlan(group, plans, head.capitalCardId);
+    let number: number;
+    let date: string;
+    if (plan) {
+      // In the Capital: its own count decides (the card's closing day sets the first charge).
+      const charge = planChargeIn(plan, month);
+      if (!charge) continue;
+      number = charge.number;
+      date = charge.dueDate;
+    } else {
+      const due = bankInstallmentIn(group, month);
+      if (due === null) continue;
+      number = due;
+      const sent = members.find((member) => (member.installmentNumber ?? 1) === number && inMonth(member.date));
+      date = sent?.date ?? installmentDay(group.purchaseDate, number);
+    }
+    const sent = members.find((member) => (member.installmentNumber ?? 1) === number);
+    const ignoredIds = members.filter((member) => member.outcome === 'ignored').map((member) => member.id);
+    const openIds = members.filter((member) => member.outcome === null).map((member) => member.id);
+    const place: Place = plan || done ? 'matched' : ignoredIds.length > 0 ? 'ignored' : 'missing';
+    placed.push({
+      place,
+      item: {
+        ...baseItem(head, place === 'ignored' ? ignoredIds : place === 'missing' ? openIds : members.map((m) => m.id)),
+        date,
+        amount: sent ? Math.abs(sent.amount) : group.installmentAmount,
+        kind: 'plan',
+        category: place === 'missing' ? suggestCategory(head, categories, memory, presets) : null,
+        installments: {
+          count: group.count,
+          numbers: group.numbers,
+          installmentAmount: group.installmentAmount,
+          total: group.total,
+          purchaseDate: group.purchaseDate,
+          number,
+        },
+        match: plan ? { kind: 'plan', planId: plan.id, description: plan.name } : done ? decided(done) : null,
+        duplicate: null,
+        leftOut: null,
       },
-      duplicate: null,
-      ignored: plan ? { reason: 'in_plan', label: `${IGNORE_LABELS.in_plan}: ${plan.name}` } : null,
     });
   }
 
-  for (const row of rows) {
+  // Everything else, one line per transaction of the month.
+  const singles = rows.filter((row) => !(reviewKind(row) === 'plan' && !ignoreReason(row)));
+  // What still asks for a tap, a couple of days around the month too (for the pairs).
+  const open = singles.filter((row) => row.outcome === null && !ignoreReason(row));
+  const openItems = new Map(open.map((row) => [row.id, baseItem(row, [row.id])]));
+
+  // A Pix received that pays an "A receber" back is that first (as the payback suggestion).
+  for (const row of open) {
+    const base = openItems.get(row.id)!;
+    if (!inMonth(row.date) || reviewKind(row) !== 'income') continue;
+    const payer = payerKey(row);
+    const paybacks = reimbursementCandidates(base, pendingBack, taken, payer ? paidBack.get(payer) : undefined);
+    if (paybacks.length === 0) continue;
+    const option = ({ month: owedMonth, expense }: LaunchedExpense): PaybackOption => ({
+      month: owedMonth,
+      expenseId: expense.id,
+      description: expense.description,
+      amount: expense.amount,
+      difference: round2(base.amount - expense.amount),
+    });
+    // One "A receber" is offered first to one Pix at most (the others stay a tap away).
+    taken.add(paybacks[0].expense.id);
+    base.reimbursement = { ...option(paybacks[0]), others: paybacks.slice(1, 6).map(option) };
+  }
+
+  // The strong pairs: "✓ Confere" with no tap. Instalment charges are the plans' business.
+  const pairable = (kind: 'income' | 'expense') =>
+    open
+      .filter((row) => (reviewKind(row) === 'income') === (kind === 'income'))
+      .map((row) => openItems.get(row.id)!)
+      .filter((item) => item.reimbursement === null);
+  const expensePairs = strongPairs(
+    pairable('expense'),
+    launched
+      .filter(({ expense }) => !expense.installmentId)
+      .map(({ expense }) => ({ id: expense.id, amount: expense.amount, date: expense.date, cardId: expense.cardId })),
+    taken,
+  );
+  const incomePairs = strongPairs(
+    pairable('income'),
+    incomes.map(({ income }) => ({ id: income.id, amount: income.amount, date: income.date ?? null })),
+    taken,
+  );
+  // A paired entry is nobody else's duplicate.
+  for (const id of [...expensePairs.values(), ...incomePairs.values()]) taken.add(id);
+
+  for (const row of singles) {
+    if (!inMonth(row.date)) continue;
     const reason = ignoreReason(row);
     const kind = reviewKind(row);
-    if (kind === 'plan' && !reason) continue;
-    const base = baseItem(row, [row.id]);
-    const payer = payerKey(row);
-    const paybacks =
-      kind === 'income' && !reason
-        ? reimbursementCandidates(base, pendingBack, taken, payer ? paidBack.get(payer) : undefined)
-        : [];
-    if (paybacks.length > 0) {
-      const option = ({ month, expense }: LaunchedExpense): PaybackOption => ({
-        month,
-        expenseId: expense.id,
-        description: expense.description,
-        amount: expense.amount,
-        difference: round2(base.amount - expense.amount),
-      });
-      // One "A receber" is offered first to one Pix at most (the others stay a tap away).
-      taken.add(paybacks[0].expense.id);
-      base.reimbursement = { ...option(paybacks[0]), others: paybacks.slice(1, 6).map(option) };
+    const base = openItems.get(row.id) ?? baseItem(row, [row.id]);
+    const leftOut = reason ? { reason, label: IGNORE_LABELS[reason] } : null;
+    const line = { ...base, kind: kind === 'plan' ? ('expense' as const) : kind, installments: null, leftOut };
+    if (isDone(row.outcome)) {
+      placed.push({ place: 'matched', item: { ...line, category: null, match: decided(row), duplicate: null } });
+      continue;
     }
+    if (row.outcome === 'ignored') {
+      placed.push({ place: 'ignored', item: { ...line, category: null, match: null, duplicate: null } });
+      continue;
+    }
+    if (reason) {
+      placed.push({ place: 'leftOut', item: { ...line, category: null, match: null, duplicate: null } });
+      continue;
+    }
+    const pairedId = kind === 'income' ? incomePairs.get(row.id) : expensePairs.get(row.id);
+    if (pairedId) {
+      const expense = launched.find((entry) => entry.expense.id === pairedId);
+      const income = incomes.find((entry) => entry.income.id === pairedId);
+      const pair: ReviewMatch = expense
+        ? {
+            kind: 'pair',
+            month: expense.month,
+            entryId: pairedId,
+            description: expense.expense.description,
+            date: expense.expense.date,
+          }
+        : {
+            kind: 'pair',
+            month: income!.month,
+            entryId: pairedId,
+            description: income!.income.source,
+            date: income!.income.date ?? `${income!.month}-01`,
+          };
+      placed.push({
+        place: 'matched',
+        item: { ...line, category: null, match: pair, duplicate: null },
+      });
+      continue;
+    }
+    // "Parece que você já lançou isso": up to 2 days, or more than one candidate.
     const duplicate =
-      reason !== null
+      base.reimbursement !== null
         ? null
         : kind === 'income'
           ? findDuplicateIncome(base, incomes, taken)
           : findDuplicate(base, launched, taken);
-    items.push({
-      ...base,
-      kind: kind === 'plan' ? 'expense' : kind,
-      category: kind === 'income' || reason ? null : suggestCategory(row, options, memory, presets),
-      installments: null,
-      duplicate: duplicate
-        ? 'expense' in duplicate
-          ? {
-              month: duplicate.month,
-              entryId: duplicate.expense.id,
-              description: duplicate.expense.description,
-              amount: duplicate.expense.amount,
-              date: duplicate.expense.date,
-            }
-          : {
-              month: duplicate.month,
-              entryId: duplicate.income.id,
-              description: duplicate.income.source,
-              amount: duplicate.income.amount,
-              date: duplicate.income.date ?? `${duplicate.month}-01`,
-            }
-        : null,
-      ignored: reason ? { reason, label: IGNORE_LABELS[reason] } : null,
+    placed.push({
+      place: 'missing',
+      item: {
+        ...line,
+        category: kind === 'income' ? null : suggestCategory(row, categories, memory, presets),
+        match: null,
+        duplicate: duplicate
+          ? 'expense' in duplicate
+            ? {
+                month: duplicate.month,
+                entryId: duplicate.expense.id,
+                description: duplicate.expense.description,
+                amount: duplicate.expense.amount,
+                date: duplicate.expense.date,
+              }
+            : {
+                month: duplicate.month,
+                entryId: duplicate.income.id,
+                description: duplicate.income.source,
+                amount: duplicate.income.amount,
+                date: duplicate.income.date ?? `${duplicate.month}-01`,
+              }
+          : null,
+      },
     });
     // One manual entry is the duplicate of one bank transaction at most.
     if (duplicate) taken.add('expense' in duplicate ? duplicate.expense.id : duplicate.income.id);
   }
 
-  items.sort((a, b) => b.date.localeCompare(a.date) || b.amount - a.amount);
-  return {
-    items: items.filter((item) => !item.ignored),
-    ignored: items.filter((item) => item.ignored),
-    cards: await banks.reviewCards(),
-  };
+  placed.sort((a, b) => b.item.date.localeCompare(a.item.date) || b.item.amount - a.item.amount);
+  const review: BankReview = { month, months, expenses: emptySide(), incomes: emptySide(), cards: await banks.reviewCards() };
+  for (const { place, item } of placed) review[item.kind === 'income' ? 'incomes' : 'expenses'][place].push(item);
+  return review;
+}
+
+/** How many lines of this month still ask for a tap, as the check itself counts them. */
+export async function reviewCounts(deps: ReviewDeps, today?: string): Promise<BankReviewCounts> {
+  const review = await buildReview(deps, { today });
+  return { month: review.month, expenses: review.expenses.missing.length, incomes: review.incomes.missing.length };
 }
 
 /** One decision about one line (all its transactions together). */

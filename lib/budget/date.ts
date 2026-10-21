@@ -54,6 +54,11 @@ export function formatMonthLabel(month: Month): string {
   return `${MONTH_LABELS[monthNum - 1]} ${year}`;
 }
 
+/** "2026-09" -> "Setembro": the month alone, for lines about this month or the last. */
+export function formatMonthName(month: Month): string {
+  return MONTH_LABELS[Number(month.split('-')[1]) - 1];
+}
+
 /** "2026-09" -> "set/26", for compact chart axes. */
 export function formatMonthShort(month: Month): string {
   const [year, monthNum] = month.split('-').map(Number);

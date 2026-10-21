@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ChevronDown, Pencil, Tag } from 'lucide-react';
 import { InstallmentFormSheet } from '@/components/card/InstallmentFormSheet';
@@ -13,7 +13,15 @@ import { useSettings } from '@/components/providers/SettingsProvider';
 import { Chip } from '@/components/ui/Chip';
 import { useToast } from '@/components/ui/Toast';
 import { useWallet, WalletProvider } from '@/components/wallet/WalletProvider';
-import { entryDescription, tidyName, type BankReview, type PaybackOption, type ReviewItem } from '@/lib/banks';
+import {
+  entryDescription,
+  tidyName,
+  type BankReview,
+  type PaybackOption,
+  type ReviewItem,
+  type ReviewMatch,
+  type ReviewSide,
+} from '@/lib/banks';
 import {
   formatBRL,
   formatDayMonth,
@@ -31,9 +39,10 @@ import { ApiRequestError } from '@/lib/storage/apiClient';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
 
 /**
- * "Confira os gastos": what arrived from the banks and is not in the Capital yet. Each line is
- * launched with one tap when the Capital has a category to suggest, opens the very form of a
- * purchase, a split purchase or an income otherwise (and through the pencil), and can be left out.
+ * The month's check: what the banks sent this month, beside what is in the Capital. What is
+ * missing is launched with one tap when the Capital has a category to suggest, opens the very form
+ * of a purchase, a split purchase or an income otherwise (and through the pencil), and can be
+ * ignored; what is already there, what the app leaves out and what was ignored wait folded below.
  * Nothing becomes an entry without a tap, and no bill leaves without "Marcar paga".
  */
 export function BankReviewScreen() {
@@ -78,7 +87,8 @@ function Review() {
   const [notSame, setNotSame] = useState<Set<string>>(() => new Set());
   /** Lines where the person said the Pix is not the "A receber" the Capital pointed at. */
   const [notPayback, setNotPayback] = useState<Set<string>>(() => new Set());
-  const [showIgnored, setShowIgnored] = useState(false);
+  /** Strong pairs the person undid ("Não é este"): nothing is stored, they just go back to the missing. */
+  const [notPair, setNotPair] = useState<Set<string>>(() => new Set());
 
   const load = useCallback(async () => {
     try {
@@ -94,7 +104,7 @@ function Review() {
     void load();
   }, [load]);
 
-  const header = <PageHeader title="Confira os gastos" backHref="/bancos" />;
+  const header = <PageHeader title="Conferir" backHref="/bancos" />;
   if (!settings) return header;
 
   if (!isModuleOn(settings, 'expenses')) {
@@ -120,7 +130,7 @@ function Review() {
   /** Sends a decision; errors go back to whoever asked (a form shows them, a tap toasts them). */
   async function send(action: BankReviewAction) {
     try {
-      setReview(await banksRepository.review(action));
+      setReview(await banksRepository.review(action, review?.month));
     } catch (err) {
       if (err instanceof ApiRequestError && err.code === 'ALREADY_REVIEWED') void load();
       throw err;
@@ -207,8 +217,23 @@ function Review() {
     );
   }
 
+  /** One list of the month, money out and money in together, newest first. */
+  const lines = (place: keyof ReviewSide): ReviewItem[] =>
+    review
+      ? [...review.expenses[place], ...review.incomes[place]].sort(
+          (a, b) => b.date.localeCompare(a.date) || b.amount - a.amount,
+        )
+      : [];
+  const undone = (item: ReviewItem) => item.match?.kind === 'pair' && notPair.has(item.key);
+  const missing = [...lines('missing'), ...lines('matched').filter(undone)].sort(
+    (a, b) => b.date.localeCompare(a.date) || b.amount - a.amount,
+  );
+  const matched = lines('matched').filter((item) => !undone(item));
+  const leftOut = lines('leftOut');
+  const ignored = lines('ignored');
+
   // Asked only for the bank cards with something to launch now, and only once each.
-  const cardsInUse = new Set((review?.items ?? []).filter((item) => item.onCard).map((item) => item.accountId));
+  const cardsInUse = new Set(missing.filter((item) => item.onCard).map((item) => item.accountId));
   const unlinkedCards =
     cardOn && cards.length > 0
       ? (review?.cards ?? []).filter((card) => !card.linked && cardsInUse.has(card.accountId))
@@ -223,7 +248,9 @@ function Review() {
 
       {review && (
         <>
-          <p className="text-muted px-4 text-sm">O que chegou dos bancos e ainda não está no Capital.</p>
+          <p className="text-muted px-4 text-sm">
+            {formatMonthLabel(review.month)}: o que os bancos mandaram, ao lado do que está no Capital.
+          </p>
 
           {unlinkedCards.length > 0 && (
             <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm">
@@ -257,14 +284,15 @@ function Review() {
             </section>
           )}
 
-          {review.items.length === 0 ? (
+          <p className="text-foreground px-4 text-sm font-semibold">Falta no Capital ({missing.length})</p>
+          {missing.length === 0 ? (
             <section className="border-border bg-card mx-4 flex flex-col gap-1 rounded-2xl border p-4 text-center shadow-sm">
               <p className="text-foreground font-semibold">Tudo conferido ✓</p>
               <p className="text-muted text-sm">Quando os bancos mandarem novidades, elas aparecem aqui.</p>
             </section>
           ) : (
             <ul className="flex flex-col gap-3">
-              {review.items.map((item) => (
+              {missing.map((item) => (
                 <ReviewRow
                   key={item.key}
                   item={item}
@@ -288,7 +316,7 @@ function Review() {
                   onLaunch={() => launch(item)}
                   onEdit={() => open(item)}
                   onIgnore={() =>
-                    void tap(item, { action: 'ignore', transactionIds: item.transactionIds }, 'Tirado da lista.')
+                    void tap(item, { action: 'ignore', transactionIds: item.transactionIds }, 'Ignorado.')
                   }
                   onSame={() =>
                     void tap(
@@ -308,119 +336,81 @@ function Review() {
             </ul>
           )}
 
-          {review.ignored.length > 0 && (
-            <section className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => setShowIgnored((value) => !value)}
-                aria-expanded={showIgnored}
-                className="text-muted flex min-h-[40px] items-center gap-1 px-4 text-sm font-semibold"
-              >
-                Deixados de fora ({review.ignored.length})
-                <ChevronDown aria-hidden className={`h-4 w-4 transition-transform ${showIgnored ? 'rotate-180' : ''}`} />
-              </button>
-              {showIgnored && review.ignored.length > 1 && (
-                <button
-                  type="button"
-                  disabled={busy !== null}
-                  onClick={() =>
-                    void (async () => {
-                      setBusy('all-ignored');
-                      try {
-                        // A request takes up to 48 transactions: the lines go in batches of that.
-                        const ids = review.ignored.flatMap((item) => item.transactionIds);
-                        for (let start = 0; start < ids.length; start += 48) {
-                          await send({ action: 'ignore', transactionIds: ids.slice(start, start + 48) });
-                        }
-                        showToast('Deixados de fora tirados da lista.');
-                      } catch (err) {
-                        showToast(toStorageErrorMessage(err, 'Não foi possível tirar todos.'), 'error');
-                      } finally {
-                        setBusy(null);
-                      }
-                    })()
-                  }
-                  className="text-primary self-start px-4 text-sm font-semibold disabled:opacity-50"
-                >
-                  Tirar todos da lista
-                </button>
-              )}
-              {showIgnored && (
-                <ul className="flex flex-col gap-2">
-                  {review.ignored.map((item) => {
-                    const bill = item.ignored?.reason === 'bill_payment' && cardOn ? billPaidBy(item, bills) : null;
-                    return (
-                      <li
-                        key={item.key}
-                        className="border-border bg-card mx-4 flex flex-col gap-2 rounded-xl border p-3 text-sm shadow-sm"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <span className="min-w-0">
-                            <span className="text-foreground block truncate">{entryDescription(item.description)}</span>
-                            <span className="text-muted block text-xs">
-                              {item.bankName} · {formatDayMonth(item.date)} · {item.ignored?.label}
-                            </span>
-                          </span>
-                          <span className="text-foreground shrink-0 tabular-nums">{formatBRL(item.amount)}</span>
-                        </div>
-                        {bill && (
-                          <div className="bg-background flex items-center justify-between gap-2 rounded-lg px-3 py-2">
-                            <span className="text-foreground text-xs">
-                              Marcar a fatura de {formatMonthLabel(bill.month)} ({bill.cardName}) como paga?
-                            </span>
-                            <button
-                              type="button"
-                              disabled={busy !== null}
-                              onClick={() =>
-                                void (async () => {
-                                  setBusy(item.key);
-                                  try {
-                                    await walletRepository.payBill({ cardId: bill.cardId, month: bill.month });
-                                    await send({ action: 'bill', transactionIds: item.transactionIds });
-                                    void refreshWallet();
-                                    showToast(`Fatura de ${formatMonthLabel(bill.month)} paga.`);
-                                  } catch (err) {
-                                    showToast(toStorageErrorMessage(err, 'Não foi possível marcar a fatura.'), 'error');
-                                  } finally {
-                                    setBusy(null);
-                                  }
-                                })()
-                              }
-                              className="text-primary shrink-0 text-xs font-semibold"
-                            >
-                              Marcar paga
-                            </button>
-                          </div>
-                        )}
-                        <div className="flex gap-4">
-                          {item.ignored?.reason !== 'in_plan' && (
-                            <button
-                              type="button"
-                              disabled={busy !== null}
-                              onClick={() => open(item)}
-                              className="text-primary text-xs font-semibold"
-                            >
-                              Lançar mesmo assim
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            disabled={busy !== null}
-                            onClick={() =>
-                              void tap(item, { action: 'ignore', transactionIds: item.transactionIds }, 'Tirado da lista.')
+          <Folded title="✓ Confere" count={matched.length}>
+            {matched.map((item) => (
+              <li key={item.key} className="border-border bg-card mx-4 flex flex-col gap-1.5 rounded-xl border p-3 text-sm shadow-sm">
+                <LineHead item={item} />
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-success min-w-0 text-xs">{matchLabel(item.match)}</span>
+                  {item.match?.kind === 'pair' && (
+                    <button
+                      type="button"
+                      onClick={() => setNotPair((current) => new Set(current).add(item.key))}
+                      className="text-primary shrink-0 text-xs font-semibold"
+                    >
+                      Não é este
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </Folded>
+
+          <Folded title="Deixados de fora" count={leftOut.length}>
+            {leftOut.map((item) => {
+              const bill = item.leftOut?.reason === 'bill_payment' && cardOn ? billPaidBy(item, bills) : null;
+              return (
+                <li key={item.key} className="border-border bg-card mx-4 flex flex-col gap-2 rounded-xl border p-3 text-sm shadow-sm">
+                  <LineHead item={item} detail={item.leftOut?.label} />
+                  {bill && (
+                    <div className="bg-background flex items-center justify-between gap-2 rounded-lg px-3 py-2">
+                      <span className="text-foreground text-xs">
+                        Marcar a fatura de {formatMonthLabel(bill.month)} ({bill.cardName}) como paga?
+                      </span>
+                      <button
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={() =>
+                          void (async () => {
+                            setBusy(item.key);
+                            try {
+                              await walletRepository.payBill({ cardId: bill.cardId, month: bill.month });
+                              await send({ action: 'bill', transactionIds: item.transactionIds });
+                              void refreshWallet();
+                              showToast(`Fatura de ${formatMonthLabel(bill.month)} paga.`);
+                            } catch (err) {
+                              showToast(toStorageErrorMessage(err, 'Não foi possível marcar a fatura.'), 'error');
+                            } finally {
+                              setBusy(null);
                             }
-                            className="text-muted text-xs font-medium"
-                          >
-                            Tirar da lista
-                          </button>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </section>
-          )}
+                          })()
+                        }
+                        className="text-primary shrink-0 text-xs font-semibold"
+                      >
+                        Marcar paga
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    disabled={busy !== null}
+                    onClick={() => open(item)}
+                    className="text-primary self-start text-xs font-semibold"
+                  >
+                    Lançar mesmo assim
+                  </button>
+                </li>
+              );
+            })}
+          </Folded>
+
+          <Folded title="Ignorados" count={ignored.length}>
+            {ignored.map((item) => (
+              <li key={item.key} className="border-border bg-card mx-4 flex flex-col gap-1.5 rounded-xl border p-3 text-sm shadow-sm">
+                <LineHead item={item} detail={item.leftOut?.label ?? 'Você ignorou'} />
+              </li>
+            ))}
+          </Folded>
         </>
       )}
 
@@ -458,7 +448,13 @@ function Review() {
           onClose={() => setForm(null)}
           onSave={async (plan) => {
             await send({ action: 'plan', transactionIds: form.item.transactionIds, plan });
-            showToast('Compra parcelada lançada.');
+            // In the Capital the purchase counts from its first charge, which may be a later month.
+            const firstMonth = plan.firstDebitDate.slice(0, 7);
+            showToast(
+              review && firstMonth > review.month
+                ? `Compra parcelada lançada. No Capital, a 1ª parcela cai em ${formatMonthLabel(firstMonth)}.`
+                : 'Compra parcelada lançada.',
+            );
           }}
         />
       )}
@@ -483,6 +479,66 @@ function Review() {
       )}
     </div>
   );
+}
+
+/** A folded list of the month, with how many lines it holds ("✓ Confere (14)"). */
+function Folded({ title, count, children }: { title: string; count: number; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  if (count === 0) return null;
+  return (
+    <section className="flex flex-col gap-2">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="text-muted flex min-h-[40px] items-center gap-1 px-4 text-sm font-semibold"
+      >
+        {title} ({count})
+        <ChevronDown aria-hidden className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && <ul className="flex flex-col gap-2">{children}</ul>}
+    </section>
+  );
+}
+
+/** What a folded line shows: what it is, from where and when, and how much. */
+function LineHead({ item, detail }: { item: ReviewItem; detail?: string }) {
+  const income = item.kind === 'income';
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <span className="min-w-0">
+        <span className="text-foreground block truncate">{entryDescription(item.description)}</span>
+        <span className="text-muted block text-xs">
+          {item.bankName} · {formatDayMonth(item.date)}
+          {item.installments && ` · parcela ${item.installments.number}/${item.installments.count}`}
+          {detail && ` · ${detail}`}
+        </span>
+      </span>
+      <span className={`shrink-0 tabular-nums ${income ? 'text-success' : 'text-foreground'}`}>
+        {income ? '+' : ''}
+        {formatBRL(item.amount)}
+      </span>
+    </div>
+  );
+}
+
+const DECIDED_LABELS: Record<string, string> = {
+  expense: 'Lançado',
+  plan: 'Lançado como compra parcelada',
+  income: 'Lançado como renda',
+  linked: 'Ligado ao que você lançou',
+  reimbursed: 'Devolução de um A receber',
+  bill: 'Fatura marcada como paga',
+  launching: 'Lançando…',
+};
+
+/** How a line is in the Capital, said in one line. */
+function matchLabel(match: ReviewMatch | null): string {
+  if (!match) return '✓ Confere';
+  if (match.kind === 'pair') return `✓ Confere com “${match.description}” de ${formatDayMonth(match.date)}`;
+  if (match.kind === 'plan') return `✓ Compra parcelada “${match.description}” no Capital`;
+  const label = DECIDED_LABELS[match.outcome] ?? 'Conferido';
+  return match.description ? `✓ ${label}: “${match.description}”` : `✓ ${label}`;
 }
 
 /** What "Marcar como recebido" did, said back. */
@@ -560,8 +616,8 @@ function ReviewRow({
 
       {item.installments && (
         <p className="text-muted text-xs">
-          {item.installments.count}× de {formatBRL(item.installments.installmentAmount)} · comprada em{' '}
-          {formatDayMonth(item.installments.purchaseDate)}
+          Parcela {item.installments.number} de {item.installments.count} · total{' '}
+          {formatBRL(item.installments.total)} · comprada em {formatDayMonth(item.installments.purchaseDate)}
         </p>
       )}
       {!income && (

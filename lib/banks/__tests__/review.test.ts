@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CategoryOption } from '@/lib/ai';
 import type { Expense, InstallmentPlan } from '@/lib/budget';
 import {
+  bankInstallmentIn,
   descriptionKey,
   findDuplicate,
   findDuplicateIncome,
@@ -13,8 +14,11 @@ import {
   paybackMemory,
   paybackTolerance,
   payerKey,
+  planChargeIn,
   reimbursementCandidates,
   reviewKind,
+  reviewMonths,
+  strongPairs,
   suggestCategory,
   type ReviewTransaction,
 } from '..';
@@ -123,6 +127,110 @@ describe('split purchases', () => {
     expect(matchingPlan(group, [plan], 'outro-cartao')).toBeNull();
     expect(matchingPlan(group, [{ ...plan, count: 12 }], 'nubank')).toBeNull();
     expect(matchingPlan(group, [{ ...plan, purchaseDate: '2025-08-01' }], 'nubank')).toBeNull();
+  });
+});
+
+describe("the month's instalment", () => {
+  // As the dev database has them: Nubank sends one a month, dated on the bill…
+  const oneAMonth = [
+    ['2026-06-12', 1, 87.29],
+    ['2026-07-02', 2, 87.23],
+    ['2026-08-02', 3, 87.23],
+    ['2026-09-02', 4, 87.23],
+    ['2026-10-02', 5, 87.23],
+  ].map(([date, number, amount]) =>
+    card({
+      description: 'Escolas Padre Anchieta',
+      date: date as string,
+      amount: amount as number,
+      purchaseDate: '2026-06-12',
+      installmentNumber: number as number,
+      totalInstallments: 10,
+    }),
+  );
+  // …and BTG sends them all at once, dated the day after the purchase.
+  const allAtOnce = [1, 2, 3, 4, 5].map((number) =>
+    card({
+      accountId: 'btg',
+      description: 'Escolas Padre Anchieta',
+      date: number === 1 ? '2026-05-10' : '2026-05-11',
+      amount: number === 1 ? 87.29 : 87.23,
+      purchaseDate: '2026-05-10',
+      installmentNumber: number,
+      totalInstallments: 10,
+    }),
+  );
+
+  it('is the month of the purchase plus (n − 1), however the bank sends them', () => {
+    const [nubank] = groupInstallments(oneAMonth);
+    expect(bankInstallmentIn(nubank, '2026-10')).toBe(5);
+    expect(bankInstallmentIn(nubank, '2026-09')).toBe(4);
+    const [btg] = groupInstallments(allAtOnce);
+    // The date says May for all of them; October is still the 6th.
+    expect(bankInstallmentIn(btg, '2026-10')).toBe(6);
+    expect(bankInstallmentIn(btg, '2026-05')).toBe(1);
+  });
+
+  it('is none before the purchase or after the last one', () => {
+    const [nubank] = groupInstallments(oneAMonth);
+    expect(bankInstallmentIn(nubank, '2026-05')).toBeNull();
+    expect(bankInstallmentIn(nubank, '2027-03')).toBe(10);
+    expect(bankInstallmentIn(nubank, '2027-04')).toBeNull();
+    // Across the turn of the year.
+    expect(bankInstallmentIn({ purchaseDate: '2025-12-10', count: 10 }, '2026-01')).toBe(2);
+  });
+
+  it("in the Capital, it is the plan's own charge in the month", () => {
+    const plan = { firstDebitDate: '2026-07-10', count: 10 };
+    expect(planChargeIn(plan, '2026-10')).toEqual({ number: 4, dueDate: '2026-10-10' });
+    expect(planChargeIn(plan, '2026-06')).toBeNull();
+    expect(planChargeIn(plan, '2027-05')).toBeNull();
+  });
+
+  it('the check shows this month and the one before, across the turn of the year', () => {
+    expect(reviewMonths('2026-10-21')).toEqual(['2026-09', '2026-10']);
+    expect(reviewMonths('2027-01-01')).toEqual(['2026-12', '2027-01']);
+  });
+});
+
+describe('the strong pair ("✓ Confere" without a tap)', () => {
+  const line = (key: string, overrides: Partial<{ amount: number; date: string; onCard: boolean; cardId: string | null }> = {}) => ({
+    key,
+    amount: 87.96,
+    date: '2026-10-12',
+    onCard: false,
+    cardId: null,
+    ...overrides,
+  });
+  const entry = (id: string, overrides: Partial<{ amount: number; date: string | null; cardId: string | null }> = {}) => ({
+    id,
+    amount: 87.96,
+    date: '2026-10-12',
+    cardId: null,
+    ...overrides,
+  });
+
+  it('same amount to the cent, at most a day apart, one candidate', () => {
+    expect(strongPairs([line('a')], [entry('e', { date: '2026-10-13' })], new Set())).toEqual(new Map([['a', 'e']]));
+    // Two days: only "Parece que você já lançou isso".
+    expect(strongPairs([line('a')], [entry('e', { date: '2026-10-14' })], new Set()).size).toBe(0);
+    // A cent off, an entry already tied to another bank line, or no date: no pair.
+    expect(strongPairs([line('a')], [entry('e', { amount: 87.95 })], new Set()).size).toBe(0);
+    expect(strongPairs([line('a')], [entry('e')], new Set(['e'])).size).toBe(0);
+    expect(strongPairs([line('a')], [entry('e', { date: null })], new Set()).size).toBe(0);
+  });
+
+  it('on the same card when both say one', () => {
+    const onCard = line('a', { onCard: true, cardId: 'nubank' });
+    expect(strongPairs([onCard], [entry('e', { cardId: 'btg' })], new Set()).size).toBe(0);
+    expect(strongPairs([onCard], [entry('e', { cardId: 'nubank' })], new Set()).get('a')).toBe('e');
+    expect(strongPairs([onCard], [entry('e')], new Set()).get('a')).toBe('e');
+  });
+
+  it('never with two candidates on either side', () => {
+    expect(strongPairs([line('a')], [entry('e1'), entry('e2')], new Set()).size).toBe(0);
+    // Two equal coffees on the same day and one entry: neither is the pair.
+    expect(strongPairs([line('a'), line('b')], [entry('e')], new Set()).size).toBe(0);
   });
 });
 

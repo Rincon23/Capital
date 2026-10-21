@@ -1,11 +1,11 @@
 import type { BankAlertSettings } from '../banks/alerts';
 import type { BankHoldings } from '../banks/holdings';
-import type { BankReview } from '../banks/review';
+import type { BankReview, BankReviewCounts } from '../banks/review';
 import type { BankReserve, BanksOverview } from '../banks/types';
 import type { Expense, Income, InstallmentPlan, Month } from '../budget/types';
 import { apiRequest, seg } from './apiClient';
 
-/** One decision about one line of "Confira os gastos" (see app/api/v1/banks/review). */
+/** One decision about one line of the month's check (see app/api/v1/banks/review). */
 export type BankReviewAction =
   | { action: 'expense'; transactionIds: string[]; month: Month; expense: Expense }
   | { action: 'plan'; transactionIds: string[]; plan: InstallmentPlan }
@@ -39,10 +39,12 @@ export interface BanksRepository {
   remove(itemId: string): Promise<void>;
   getAlerts(): Promise<BankAlertsView>;
   saveAlerts(choices: BankAlertChoices): Promise<BankAlertsView>;
-  /** "Confira os gastos": what arrived and is still to review. */
-  getReview(): Promise<BankReview>;
-  /** One decision about one line; answers the list again. */
-  review(action: BankReviewAction): Promise<BankReview>;
+  /** The month's check (none: this month; only this one and the one before). */
+  getReview(month?: Month): Promise<BankReview>;
+  /** One decision about one line; answers the month's check again. */
+  review(action: BankReviewAction, month?: Month): Promise<BankReview>;
+  /** How many lines of this month still ask for a tap. */
+  getReviewCounts(): Promise<BankReviewCounts>;
   /** Ties a bank card to a Capital card (null: "não informado"). */
   linkCard(accountId: string, cardId: string | null): Promise<void>;
   /** What can feed the Reserva and what is marked. */
@@ -87,12 +89,16 @@ export class HttpBanksRepository implements BanksRepository {
     return apiRequest('PUT', '/banks/alerts', choices);
   }
 
-  getReview(): Promise<BankReview> {
-    return apiRequest('GET', '/banks/review');
+  getReview(month?: Month): Promise<BankReview> {
+    return apiRequest('GET', `/banks/review${month ? `?month=${seg(month)}` : ''}`);
   }
 
-  review(action: BankReviewAction): Promise<BankReview> {
-    return apiRequest('POST', '/banks/review', action);
+  review(action: BankReviewAction, month?: Month): Promise<BankReview> {
+    return apiRequest('POST', `/banks/review${month ? `?month=${seg(month)}` : ''}`, action);
+  }
+
+  getReviewCounts(): Promise<BankReviewCounts> {
+    return apiRequest('GET', '/banks/review/counts');
   }
 
   linkCard(accountId: string, cardId: string | null): Promise<void> {

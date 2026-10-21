@@ -1,5 +1,5 @@
 import 'server-only';
-import { and, asc, desc, eq, gte, inArray, isNull, ne, notInArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lte, ne, notInArray, or, sql } from 'drizzle-orm';
 import {
   alertSettingsOf,
   investmentLabel,
@@ -55,6 +55,10 @@ export interface ReviewRow extends ReviewTransaction {
   bankName: string;
   capitalCardId: string | null;
   cardLinked: boolean;
+  /** What it became in the Capital (null: nobody decided yet). */
+  outcome: string | null;
+  entryId: string | null;
+  entryMonth: string | null;
 }
 
 export interface StoredInvestment {
@@ -463,14 +467,15 @@ export class PostgresBanksRepository {
   }
 
   // -------------------------------------------------------------------------
-  // "Confira os gastos"
+  // The month's check
   // -------------------------------------------------------------------------
 
   /**
-   * What is still to review: transactions nobody decided about, from a week before each bank was
-   * brought in (the year of history before that is not news to review).
+   * What a month's check reads, whatever was decided about it: every transaction dated from `from`
+   * to `to`, and every instalment of a split card purchase of any date (the instalment of a month
+   * may have come months before, or not at all yet).
    */
-  async reviewTransactions(): Promise<ReviewRow[]> {
+  async reviewTransactions(from: string, to: string): Promise<ReviewRow[]> {
     return this.db
       .select({
         id: bankTransactions.transactionId,
@@ -494,6 +499,9 @@ export class PostgresBanksRepository {
         installmentNumber: bankTransactions.installmentNumber,
         totalInstallments: bankTransactions.totalInstallments,
         purchaseDate: bankTransactions.purchaseDate,
+        outcome: bankTransactions.outcome,
+        entryId: bankTransactions.entryId,
+        entryMonth: bankTransactions.entryMonth,
       })
       .from(bankTransactions)
       .innerJoin(
@@ -507,8 +515,10 @@ export class PostgresBanksRepository {
       .where(
         and(
           eq(bankTransactions.userId, this.userId),
-          isNull(bankTransactions.outcome),
-          sql`${bankTransactions.date} >= (${bankConnections.createdAt} at time zone 'America/Sao_Paulo')::date - 7`,
+          or(
+            and(gte(bankTransactions.date, from), lte(bankTransactions.date, to)),
+            and(eq(bankAccounts.kind, 'card'), gt(bankTransactions.totalInstallments, 1)),
+          ),
         ),
       )
       .orderBy(desc(bankTransactions.date));

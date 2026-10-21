@@ -6,18 +6,20 @@ import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { BankReview } from '@/lib/banks';
 import type { InstallmentPlan } from '@/lib/budget';
-import { addDays, zonedToday } from '@/lib/reminders/time';
+import { addDays } from '@/lib/reminders/time';
 import { PostgresBanksRepository, type StoredTransaction } from '../banks/repository';
-import { applyReviewAction, buildReview } from '../banks/review';
+import { applyReviewAction, buildReview, reviewCounts } from '../banks/review';
 import { PostgresBudgetRepository } from '../budgetRepository';
 import * as schema from '../db/schema';
 import type { Database } from '../db/types';
 import { PostgresWalletRepository } from '../walletRepository';
 
 /**
- * F5 of Open Finance: "Confira os gastos". The transactions are stored as the sync stores them;
- * the review sorts them, and each decision goes through the same functions the forms use.
+ * The month's check of Open Finance (F5, then C2). The transactions are stored as the sync stores
+ * them; the check sorts the month's, and each decision goes through the same functions the forms
+ * use. Today is fixed, so the turn of the month is always the same.
  */
 
 let db: Database;
@@ -39,8 +41,16 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const TODAY = zonedToday();
+const TODAY = '2026-10-21';
 const day = (offset: number) => addDays(TODAY, offset);
+
+type Deps = Parameters<typeof buildReview>[0];
+
+/** The month's check as of TODAY (this month by default). */
+function check(deps: Deps, month?: string): Promise<BankReview> {
+  return buildReview(deps, { today: TODAY, month });
+}
+
 
 async function newPerson() {
   const id = randomUUID();
@@ -104,7 +114,7 @@ async function outcomeOf(transactionId: string) {
   return row;
 }
 
-describe('"Confira os gastos"', () => {
+describe("the month's check", () => {
   it('sorts what arrived: what to launch, a split purchase in one line, and what is left out', async () => {
     const { banks, deps } = await newPerson();
     const instalments = Array.from({ length: 10 }, (_, index) =>
@@ -128,20 +138,27 @@ describe('"Confira os gastos"', () => {
       ...instalments,
     ]);
 
-    const review = await buildReview(deps);
-    // Newest first; on the same day, the bigger amount first.
-    expect(review.items.map((item) => [item.key, item.kind, item.amount])).toEqual([
-      ['pix-in', 'income', 50],
+    const review = await check(deps);
+    expect(review).toMatchObject({ month: '2026-10', months: ['2026-09', '2026-10'] });
+    // Money out apart from money in; newest first, and on the same day the bigger amount first.
+    expect(review.expenses.missing.map((item) => [item.key, item.kind, item.amount])).toEqual([
       ['compra', 'expense', 45.9],
-      ['parc-1', 'plan', 872.36],
+      ['parc-1', 'plan', 87.29],
     ]);
-    expect(review.items.find((item) => item.kind === 'plan')?.transactionIds).toHaveLength(10);
-    expect(review.ignored.map((item) => [item.key, item.ignored?.reason])).toEqual([
+    expect(review.incomes.missing.map((item) => [item.key, item.kind, item.amount])).toEqual([['pix-in', 'income', 50]]);
+    // The split purchase is one line, the instalment of the month, and a tap takes all of them.
+    const split = review.expenses.missing.find((item) => item.kind === 'plan')!;
+    expect(split.transactionIds).toHaveLength(10);
+    expect(split.installments).toMatchObject({ number: 1, count: 10, total: 872.36 });
+    // Left out by the app, asking for nothing.
+    expect(review.expenses.leftOut.map((item) => [item.key, item.leftOut?.reason])).toEqual([
       ['fatura', 'bill_payment'],
       ['minha', 'own_transfer'],
     ]);
-    // Older than a week before the bank was brought in: history, not news.
-    expect([...review.items, ...review.ignored].some((item) => item.key === 'antiga')).toBe(false);
+    // Another month's purchase is that month's: September shows it, October doesn't.
+    expect(Object.values(review.expenses).flat().some((item) => item.key === 'antiga')).toBe(false);
+    expect((await check(deps, '2026-09')).expenses.missing.map((item) => item.key)).toEqual(['antiga']);
+    expect(await reviewCounts(deps, TODAY)).toEqual({ month: '2026-10', expenses: 2, incomes: 1 });
     expect(review.cards).toEqual([
       { accountId: 'cartao', name: 'Cartão Gold', bankName: 'Nubank', cardId: null, linked: false },
     ]);
@@ -153,7 +170,7 @@ describe('"Confira os gastos"', () => {
     await banks.upsertTransactions([
       tx({ transactionId: 'mercado', accountId: 'cartao', amount: 87.96, description: 'ASSAI ATACADISTA 123', date: day(-1) }),
     ]);
-    const [item] = (await buildReview(deps)).items;
+    const [item] = (await check(deps)).expenses.missing;
     expect(item).toMatchObject({ onCard: true, cardId: 'nubank', category: null });
 
     const settings = await repo.getSettings();
@@ -174,6 +191,10 @@ describe('"Confira os gastos"', () => {
     const saved = (await repo.getMonth(month))!.expenses.find((entry) => entry.id === expense.id);
     expect(saved).toMatchObject({ amount: 87.96, cardId: 'nubank', singleInstallmentCard: true, source: 'import' });
     expect(await outcomeOf('mercado')).toEqual({ outcome: 'expense', entryId: expense.id });
+    // Launched, it confers: "✓ Lançado: Mercado".
+    expect((await check(deps)).expenses.matched).toEqual([
+      expect.objectContaining({ key: 'mercado', match: { kind: 'decided', outcome: 'expense', description: 'Mercado' } }),
+    ]);
 
     // A second tap (or another device) never makes a second entry.
     await expect(
@@ -185,13 +206,13 @@ describe('"Confira os gastos"', () => {
     await banks.upsertTransactions([
       tx({ transactionId: 'mercado-2', accountId: 'cartao', amount: 30, description: 'ASSAI ATACADISTA 456', date: TODAY }),
     ]);
-    const [next] = (await buildReview(deps)).items;
+    const [next] = (await check(deps)).expenses.missing;
     expect(next.category).toMatchObject({ categoryKind: 'topic', topicId: diversos });
   });
 
   it('spots the entry the person already made, and "É o mesmo" ties them', async () => {
     const { repo, banks, deps } = await newPerson();
-    const month = day(-1).slice(0, 7);
+    const month = day(-2).slice(0, 7);
     const settings = await repo.getSettings();
     await repo.saveExpense(month, {
       id: 'manual',
@@ -199,40 +220,165 @@ describe('"Confira os gastos"', () => {
       topicId: settings.topics[0].id,
       description: 'Pizza',
       amount: 60,
-      date: day(-1),
+      date: day(-2),
     });
+    // Two days apart: only a weak pair, "Parece que você já lançou isso".
     await banks.upsertTransactions([tx({ transactionId: 'pizza', amount: -60, description: 'PIX PIZZARIA', date: day(0) })]);
 
-    const [item] = (await buildReview(deps)).items;
+    const [item] = (await check(deps)).expenses.missing;
     expect(item.duplicate).toMatchObject({ entryId: 'manual', description: 'Pizza', amount: 60 });
     await applyReviewAction(deps, { action: 'linked', transactionIds: ['pizza'], month, entryId: 'manual' });
     expect(await outcomeOf('pizza')).toEqual({ outcome: 'linked', entryId: 'manual' });
     expect((await repo.getMonth(month))!.expenses).toHaveLength(1);
+    expect((await check(deps)).expenses.matched[0].match).toEqual({
+      kind: 'decided',
+      outcome: 'linked',
+      description: 'Pizza',
+    });
   });
 
-  it('a split purchase becomes a plan, and its next instalments are recognised', async () => {
-    const { wallet, banks, deps, repo } = await newPerson();
-    await banks.linkCard('cartao', 'nubank');
+  it('a strong pair confers without a tap, and nothing is stored; a weak one still asks', async () => {
+    const { repo, banks, deps } = await newPerson();
+    const topicId = (await repo.getSettings()).topics[0].id;
+    const spent = (id: string, description: string, amount: number, date: string) =>
+      repo.saveExpense(date.slice(0, 7), { id, categoryKind: 'topic', topicId, description, amount, date });
+    await spent('mercado', 'Mercado', 87.96, '2026-10-12');
+    await spent('cafe', 'Café', 8, '2026-10-15');
+    await spent('uber-1', 'Uber', 23.5, '2026-10-16');
+    await spent('uber-2', 'Uber de volta', 23.5, '2026-10-16');
     await banks.upsertTransactions([
-      tx({
-        transactionId: 'curso-1',
-        accountId: 'cartao',
-        description: 'CURSO 01/03',
-        amount: 100,
-        date: day(-1),
-        purchaseDate: day(-1),
-        installmentNumber: 1,
-        totalInstallments: 3,
+      // The same amount to the cent, a day apart, one candidate: "✓ Confere com 'Mercado' de 12/10".
+      tx({ transactionId: 'assai', amount: -87.96, description: 'ASSAI', date: '2026-10-13' }),
+      // Two equal coffees and one entry: neither is sure, both ask.
+      tx({ transactionId: 'cafe-1', amount: -8, description: 'CAFE', date: '2026-10-15' }),
+      tx({ transactionId: 'cafe-2', amount: -8, description: 'CAFE', date: '2026-10-15' }),
+      // One Uber and two entries of that amount: not sure either.
+      tx({ transactionId: 'uber', amount: -23.5, description: 'UBER', date: '2026-10-16' }),
+    ]);
+
+    const review = await check(deps);
+    expect(review.expenses.matched).toEqual([
+      expect.objectContaining({
+        key: 'assai',
+        match: { kind: 'pair', month: '2026-10', entryId: 'mercado', description: 'Mercado', date: '2026-10-12' },
       }),
     ]);
-    const [item] = (await buildReview(deps)).items;
+    // Each still asks; the coffee entry is offered to one of the coffees only.
+    expect(review.expenses.missing.map((item) => item.key).sort()).toEqual(['cafe-1', 'cafe-2', 'uber']);
+    expect(review.expenses.missing.map((item) => item.duplicate?.entryId ?? null).sort()).toEqual([
+      'cafe',
+      null,
+      'uber-1',
+    ]);
+    // Calculated, never stored: the transaction is still undecided.
+    expect(await outcomeOf('assai')).toEqual({ outcome: null, entryId: null });
+    expect(await reviewCounts(deps, TODAY)).toMatchObject({ expenses: 3 });
+  });
+
+  it('a pair across the turn of the month is the same in both months', async () => {
+    const { repo, banks, deps } = await newPerson();
+    const topicId = (await repo.getSettings()).topics[0].id;
+    await repo.saveExpense('2026-10', { id: 'pizza', categoryKind: 'topic', topicId, description: 'Pizza', amount: 60, date: '2026-10-01' });
+    await banks.upsertTransactions([tx({ transactionId: 'pix-30', amount: -60, date: '2026-09-30' })]);
+
+    // The Pix of 30/09 is September's, and pairs with the pizza entered on 01/10.
+    const september = await check(deps, '2026-09');
+    expect(september.expenses.matched.map((item) => [item.key, item.match?.kind])).toEqual([['pix-30', 'pair']]);
+    expect(Object.values((await check(deps)).expenses).flat()).toEqual([]);
+
+    // A second Pix of 60 on 01/10 makes both unsure, whichever month is looked at.
+    await banks.upsertTransactions([tx({ transactionId: 'pix-01', amount: -60, date: '2026-10-01' })]);
+    expect((await check(deps, '2026-09')).expenses.matched).toEqual([]);
+    expect((await check(deps)).expenses.matched).toEqual([]);
+  });
+
+  it('shows this month and the one before; older months and next month are refused', async () => {
+    const { deps } = await newPerson();
+    await expect(check(deps, '2026-09')).resolves.toMatchObject({ month: '2026-09' });
+    await expect(check(deps, '2026-08')).rejects.toMatchObject({ code: 'MONTH_OUT_OF_RANGE' });
+    await expect(check(deps, '2026-11')).rejects.toMatchObject({ code: 'MONTH_OUT_OF_RANGE' });
+    // On the 1st of January, December is the month before.
+    await expect(buildReview(deps, { today: '2027-01-01', month: '2026-12' })).resolves.toMatchObject({
+      months: ['2026-12', '2027-01'],
+    });
+  });
+
+  it('each way banks send the instalments gives the instalment of the month', async () => {
+    const { banks, deps } = await newPerson();
+    // As the dev database has them: one a month, dated on the bill (Nubank)…
+    const nubank = [
+      ['2026-06-12', 1, 87.29],
+      ['2026-07-02', 2, 87.23],
+      ['2026-08-02', 3, 87.23],
+      ['2026-09-02', 4, 87.23],
+      ['2026-10-02', 5, 87.23],
+    ].map(([date, number, amount]) =>
+      tx({
+        transactionId: `nu-${number}`,
+        accountId: 'cartao',
+        description: 'Escolas Padre Anchieta',
+        date: date as string,
+        amount: amount as number,
+        purchaseDate: '2026-06-12',
+        installmentNumber: number as number,
+        totalInstallments: 10,
+      }),
+    );
+    // …or all at once, dated the day after the purchase (BTG), as far as the bank sent them.
+    const btg = [1, 2, 3, 4, 5].map((number) =>
+      tx({
+        transactionId: `btg-${number}`,
+        accountId: 'cartao',
+        description: 'Unianchieta',
+        date: number === 1 ? '2026-05-10' : '2026-05-11',
+        amount: number === 1 ? 87.29 : 87.23,
+        purchaseDate: '2026-05-10',
+        installmentNumber: number,
+        totalInstallments: 10,
+      }),
+    );
+    await banks.upsertTransactions([...nubank, ...btg]);
+
+    const line = (review: BankReview, key: string) => review.expenses.missing.find((item) => item.key === key)!;
+    const october = await check(deps);
+    expect(line(october, 'nu-1')).toMatchObject({ date: '2026-10-02', amount: 87.23, installments: { number: 5 } });
+    // The 6th never came (the date says May for all of them): it is October's all the same.
+    expect(line(october, 'btg-1')).toMatchObject({ date: '2026-10-10', amount: 87.23, installments: { number: 6 } });
+    const september = await check(deps, '2026-09');
+    expect(line(september, 'nu-1')).toMatchObject({ date: '2026-09-02', installments: { number: 4 } });
+    expect(line(september, 'btg-1')).toMatchObject({ date: '2026-09-10', installments: { number: 5 } });
+    // One line per purchase, whatever month.
+    expect(october.expenses.missing).toHaveLength(2);
+  });
+
+  it('a split purchase becomes a plan, and then confers by the count of the Capital', async () => {
+    const { wallet, banks, deps, repo } = await newPerson();
+    await banks.linkCard('cartao', 'nubank');
+    // Bought in September; the bank sends the 2nd instalment on October's bill.
+    const instalment = (number: number, date: string) =>
+      tx({
+        transactionId: `curso-${number}`,
+        accountId: 'cartao',
+        description: `CURSO 0${number}/03`,
+        amount: 100,
+        date,
+        purchaseDate: '2026-09-15',
+        installmentNumber: number,
+        totalInstallments: 3,
+      });
+    await banks.upsertTransactions([instalment(1, '2026-09-15'), instalment(2, '2026-10-02')]);
+    const [item] = (await check(deps)).expenses.missing;
+    expect(item.installments).toMatchObject({ number: 2, count: 3 });
+    expect(item.transactionIds.sort()).toEqual(['curso-1', 'curso-2']);
+
     const settings = await repo.getSettings();
     const plan: InstallmentPlan = {
       id: randomUUID(),
       name: 'Curso',
       categoryKind: 'topic',
       topicId: settings.topics[0].id,
-      firstDebitDate: addDays(TODAY, 20),
+      // On this card the purchase of 15/09 is first charged on 10/10.
+      firstDebitDate: '2026-10-10',
       purchaseDate: item.installments!.purchaseDate,
       count: 3,
       totalAmount: item.installments!.total,
@@ -242,22 +388,72 @@ describe('"Confira os gastos"', () => {
     await applyReviewAction(deps, { action: 'plan', transactionIds: item.transactionIds, plan });
     expect((await wallet.listInstallments()).map((saved) => saved.id)).toEqual([plan.id]);
 
-    // Next month the bank sends instalment 2: it is the same purchase, left out with the reason.
-    await banks.upsertTransactions([
-      tx({
-        transactionId: 'curso-2',
-        accountId: 'cartao',
-        description: 'CURSO 02/03',
-        amount: 100,
-        date: TODAY,
-        purchaseDate: item.installments!.purchaseDate,
-        installmentNumber: 2,
-        totalInstallments: 3,
+    // In the Capital its first charge is October's: "✓" with the Capital's number, and nothing in
+    // September, where the Capital has no charge of it.
+    const october = await check(deps);
+    expect(october.expenses.missing).toEqual([]);
+    expect(october.expenses.matched).toEqual([
+      expect.objectContaining({
+        key: 'curso-1',
+        date: '2026-10-10',
+        installments: expect.objectContaining({ number: 1 }),
+        match: { kind: 'plan', planId: plan.id, description: 'Curso' },
       }),
     ]);
-    const review = await buildReview(deps);
-    expect(review.items).toEqual([]);
-    expect(review.ignored[0].ignored).toMatchObject({ reason: 'in_plan' });
+    expect(Object.values((await check(deps, '2026-09')).expenses).flat()).toEqual([]);
+
+    // The 3rd instalment arrives later, undecided: still the same purchase in the Capital.
+    await banks.upsertTransactions([instalment(3, '2026-11-02')]);
+    expect((await check(deps)).expenses.matched.map((line) => line.match?.kind)).toEqual(['plan']);
+  });
+
+  it('a split purchase the person entered by hand confers with it, nothing stored', async () => {
+    const { wallet, banks, deps, repo } = await newPerson();
+    const settings = await repo.getSettings();
+    await wallet.saveInstallment({
+      id: 'tv',
+      name: 'TV',
+      categoryKind: 'topic',
+      topicId: settings.topics[0].id,
+      firstDebitDate: '2026-08-10',
+      purchaseDate: '2026-07-20',
+      count: 10,
+      totalAmount: 2000,
+      accounting: 'installment',
+      cardId: 'nubank',
+    });
+    await banks.upsertTransactions([
+      tx({
+        transactionId: 'tv-4',
+        accountId: 'cartao',
+        description: 'MAGAZINE 04/10',
+        amount: 200,
+        date: '2026-10-02',
+        purchaseDate: '2026-07-20',
+        installmentNumber: 4,
+        totalInstallments: 10,
+      }),
+    ]);
+    const [line] = (await check(deps)).expenses.matched;
+    expect(line).toMatchObject({ installments: { number: 3 }, match: { kind: 'plan', planId: 'tv' } });
+    expect(await outcomeOf('tv-4')).toEqual({ outcome: null, entryId: null });
+  });
+
+  it('what the person ignored goes to Ignorados, with its reason when the app had one', async () => {
+    const { banks, deps } = await newPerson();
+    await banks.upsertTransactions([
+      tx({ transactionId: 'taxa', amount: -9.9, description: 'TARIFA' }),
+      tx({ transactionId: 'fatura', amount: -500, category: 'Credit card payment' }),
+    ]);
+    await applyReviewAction(deps, { action: 'ignore', transactionIds: ['taxa'] });
+    await applyReviewAction(deps, { action: 'ignore', transactionIds: ['fatura'] });
+    const review = await check(deps);
+    expect(review.expenses.ignored.map((item) => [item.key, item.leftOut?.reason ?? null])).toEqual([
+      ['fatura', 'bill_payment'],
+      ['taxa', null],
+    ]);
+    expect(review.expenses.missing).toEqual([]);
+    expect(review.expenses.leftOut).toEqual([]);
   });
 
   it('a Pix that pays back an "A receber" is offered as such, and marking it uses the same "Já me pagou"', async () => {
@@ -276,7 +472,7 @@ describe('"Confira os gastos"', () => {
       tx({ transactionId: 'pix-joao', amount: 50, type: 'CREDIT', paymentMethod: 'PIX', payerName: 'JOAO SILVA' }),
     ]);
 
-    const [item] = (await buildReview(deps)).items;
+    const [item] = (await check(deps)).incomes.missing;
     expect(item).toMatchObject({
       kind: 'income',
       reimbursement: { expenseId: 'jantar', description: 'Jantar — João', amount: 50, month },
@@ -287,6 +483,8 @@ describe('"Confira os gastos"', () => {
     expect((await repo.pendingReimbursables(month)).map((pending) => pending.expense.id)).toEqual([]);
     // Nothing else was launched: no income, the dinner is just marked as paid back.
     expect((await repo.getMonth(month))!.incomes).toEqual([]);
+    // Received, the Pix confers.
+    expect((await check(deps)).incomes.matched[0].match).toMatchObject({ kind: 'decided', outcome: 'reimbursed' });
   });
 
   it('a Pix a little off settles an "A receber": the rest becomes income, what was missing Imprevistos', async () => {
@@ -302,8 +500,8 @@ describe('"Confira os gastos"', () => {
       tx({ transactionId: 'pix-50', amount: 50, type: 'CREDIT', paymentMethod: 'PIX', payerDocument: '***222***' }),
     ]);
 
-    const review = await buildReview(deps);
-    const byId = (id: string) => review.items.find((item) => item.transactionIds[0] === id)!;
+    const review = await check(deps);
+    const byId = (id: string) => review.incomes.missing.find((item) => item.transactionIds[0] === id)!;
     expect(byId('pix-36').reimbursement).toMatchObject({ expenseId: 'jantar', difference: 0.33, others: [] });
     expect(byId('pix-50').reimbursement).toMatchObject({ expenseId: 'cinema', difference: -2.4 });
 
@@ -325,7 +523,7 @@ describe('"Confira os gastos"', () => {
     await banks.upsertTransactions([
       tx({ transactionId: 'pix-20', amount: 20, type: 'CREDIT', paymentMethod: 'PIX', payerDocument: '***111***' }),
     ]);
-    const [again] = (await buildReview(deps)).items;
+    const [again] = (await check(deps)).incomes.missing;
     expect(again.reimbursement).toMatchObject({
       expenseId: 'uber-joao',
       difference: -1,

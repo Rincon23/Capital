@@ -2,16 +2,18 @@ import { findCategory } from '../ai/categories';
 import { foldText } from '../ai/text';
 import type { CategoryOption } from '../ai/types';
 import { daysBetween } from '../budget/cards';
-import { installmentAmount } from '../budget/installments';
+import { previousMonth } from '../budget/date';
+import { addMonthsClamped, installmentAmount, installmentDueDates } from '../budget/installments';
 import { round2 } from '../budget/money';
 import type { CategoryKind, Expense, Income, InstallmentPlan, Month } from '../budget/types';
 import { tidyName } from './names';
 import type { BankAccountKind } from './types';
 
 /**
- * "Confira os gastos": what arrived from the banks, reviewed before it becomes an entry. Nothing
- * here knows where a transaction came from beyond these fields, so a statement import (OFX/CSV)
- * can go through the same review later.
+ * The month's check ("Conferir gastos" and "Conferir recebimentos"): what the banks sent in a
+ * month, beside what is in the Capital, before anything becomes an entry. Nothing here knows where
+ * a transaction came from beyond these fields, so a statement import (OFX/CSV) can go through the
+ * same review later.
  */
 
 /** A transaction as the review reads it. */
@@ -42,15 +44,14 @@ export interface ReviewTransaction {
 /** What a transaction suggests becoming. */
 export type ReviewKind = 'expense' | 'income' | 'plan';
 
-/** Why something is left out by default (the person can still launch it). */
-export type IgnoreReason = 'bill_payment' | 'own_transfer' | 'investment' | 'card_credit' | 'in_plan';
+/** Why something is left out by the app itself (the person can still launch it). */
+export type IgnoreReason = 'bill_payment' | 'own_transfer' | 'investment' | 'card_credit';
 
 export const IGNORE_LABELS: Record<IgnoreReason, string> = {
   bill_payment: 'Pagamento de fatura: as compras já contam no cartão',
   own_transfer: 'Dinheiro entre contas suas',
   investment: 'Aplicação, resgate ou rendimento de investimento',
   card_credit: 'Estorno ou crédito no cartão',
-  in_plan: 'Parcela de uma compra que já está no Capital',
 };
 
 const INVESTMENT_CATEGORIES = new Set([
@@ -62,7 +63,7 @@ const INVESTMENT_CATEGORIES = new Set([
   'Tax on financial operations',
 ]);
 
-/** Why the review leaves this out by default, if it does (not "in_plan": that needs the plans). */
+/** Why the review leaves this out by itself, if it does. */
 export function ignoreReason(transaction: ReviewTransaction): IgnoreReason | null {
   const operation = transaction.operationType ?? '';
   if (transaction.category === 'Credit card payment' || operation === 'PAGAMENTO_FATURA') return 'bill_payment';
@@ -157,6 +158,43 @@ export function groupInstallments(transactions: ReviewTransaction[]): Installmen
       purchaseDate: members[0].purchaseDate ?? members[0].date,
     };
   });
+}
+
+/** How many months from `from` to `to` ("2026-06" to "2026-10" is 4). */
+export function monthsFrom(from: Month, to: Month): number {
+  const [fromYear, fromMonth] = from.split('-').map(Number);
+  const [toYear, toMonth] = to.split('-').map(Number);
+  return (toYear - fromYear) * 12 + (toMonth - fromMonth);
+}
+
+/**
+ * The instalment of a split purchase that falls in `month`, by the bank: the month of the purchase
+ * plus (n − 1). It holds for both ways banks send them — one a month, dated on the bill (5/10 of a
+ * purchase of 12/06 comes dated 02/10), or every one at once, dated the day after the purchase
+ * (the 10 of a purchase of 10/05 all come dated 11/05), where the date says nothing. Null when the
+ * purchase has none in that month.
+ */
+export function bankInstallmentIn(group: Pick<InstallmentGroup, 'purchaseDate' | 'count'>, month: Month): number | null {
+  const number = monthsFrom(group.purchaseDate.slice(0, 7), month) + 1;
+  return number >= 1 && number <= group.count ? number : null;
+}
+
+/**
+ * The charge of a plan that falls in `month`, by the Capital's own due dates (the card's closing
+ * day decides them): the number the bill of that month counts. Null when none does.
+ */
+export function planChargeIn(
+  plan: Pick<InstallmentPlan, 'firstDebitDate' | 'count'>,
+  month: Month,
+): { number: number; dueDate: string } | null {
+  const dates = installmentDueDates(plan);
+  const index = dates.findIndex((date) => date.startsWith(month));
+  return index < 0 ? null : { number: index + 1, dueDate: dates[index] };
+}
+
+/** The day instalment `number` stands for when the bank sent no date in its month. */
+export function installmentDay(purchaseDate: string, number: number): string {
+  return addMonthsClamped(purchaseDate, number - 1);
 }
 
 /**
@@ -313,10 +351,23 @@ export function suggestCategory(
 // What the screen gets
 // ---------------------------------------------------------------------------
 
-/** One line of "Confira os gastos" (a split purchase is one line for all its instalments). */
+/**
+ * Why a line is already in the Capital ("✓ Confere"). The pair and the plan are worked out on every
+ * read, never stored: "Não é este" undoes them without deleting anything.
+ */
+export type ReviewMatch =
+  /** Decided here: launched, tied to an entry, a payback received or a bill marked as paid. */
+  | { kind: 'decided'; outcome: string; description: string | null }
+  /** One manual entry with the same amount to the cent, at most a day apart (`strongPairs`). */
+  | { kind: 'pair'; month: Month; entryId: string; description: string; date: string }
+  /** A split purchase that is a plan of the Capital. */
+  | { kind: 'plan'; planId: string; description: string };
+
+/** One line of the month's check (a split purchase is one line: the instalment of the month). */
 export interface ReviewItem {
   /** The first transaction's id: stable for the line. */
   key: string;
+  /** What a decision about the line takes: the transactions nobody decided about yet (or the ignored ones). */
   transactionIds: string[];
   bankName: string;
   accountId: string;
@@ -327,7 +378,7 @@ export interface ReviewItem {
   kind: ReviewKind;
   date: string;
   description: string;
-  /** Always positive: what was spent or received. */
+  /** Always positive: what was spent or received (on a split purchase, the month's instalment). */
   amount: number;
   /** Who paid it, for money in. */
   payer: string | null;
@@ -338,7 +389,11 @@ export interface ReviewItem {
     installmentAmount: number;
     total: number;
     purchaseDate: string;
+    /** The instalment that falls in the month (the Capital's count when the purchase is a plan). */
+    number: number;
   } | null;
+  /** Already in the Capital ("✓ Confere"), and how. */
+  match: ReviewMatch | null;
   /** A manual entry this looks like ("É o mesmo" ties them). */
   duplicate: { month: Month; entryId: string; description: string; amount: number; date: string } | null;
   /**
@@ -346,7 +401,8 @@ export interface ReviewItem {
    * open ones close enough in value ("É outro A receber").
    */
   reimbursement: (PaybackOption & { others: PaybackOption[] }) | null;
-  ignored: { reason: IgnoreReason; label: string } | null;
+  /** Left out by the app itself, with why ("Deixados de fora"; an ignored line keeps it too). */
+  leftOut: { reason: IgnoreReason; label: string } | null;
 }
 
 /** An "A receber" a Pix may pay back. */
@@ -371,12 +427,40 @@ export interface ReviewCard {
   linked: boolean;
 }
 
-export interface BankReview {
-  /** To launch, newest first. */
-  items: ReviewItem[];
-  /** Left out by default, with the reason in sight. */
+/** Where each line of one side of the month (money out or money in) stands, newest first. */
+export interface ReviewSide {
+  /** "Falta no Capital": what asks for a tap. */
+  missing: ReviewItem[];
+  /** "✓ Confere": already in the Capital. */
+  matched: ReviewItem[];
+  /** "Deixados de fora": left out by the app (bill payments, own transfers…); asks for nothing. */
+  leftOut: ReviewItem[];
+  /** "Ignorados": what the person ignored. */
   ignored: ReviewItem[];
+}
+
+export interface BankReview {
+  month: Month;
+  /** The months the check shows, oldest first: the one before and this one. */
+  months: Month[];
+  /** Money out and card purchases (a card refund stays here, left out). */
+  expenses: ReviewSide;
+  /** Money in to the accounts, "A receber" paid back included. */
+  incomes: ReviewSide;
   cards: ReviewCard[];
+}
+
+/** How many lines of this month still ask for a tap, for the bank screen and the Início. */
+export interface BankReviewCounts {
+  month: Month;
+  expenses: number;
+  incomes: number;
+}
+
+/** The months the check shows, oldest first: the end of a month only arrives in the next one. */
+export function reviewMonths(today: string): Month[] {
+  const current = today.slice(0, 7);
+  return [previousMonth(current), current];
 }
 
 // ---------------------------------------------------------------------------
@@ -406,6 +490,51 @@ export function findDuplicate(
     return candidate;
   }
   return null;
+}
+
+/** A line that may be a manual entry. */
+export interface PairItem {
+  key: string;
+  amount: number;
+  date: string;
+  onCard: boolean;
+  cardId: string | null;
+}
+
+/** A manual entry (instalment charges and entries tied to another bank line left out). */
+export interface PairEntry {
+  id: string;
+  amount: number;
+  date: string | null;
+  cardId?: string | null;
+}
+
+/**
+ * "✓ Confere" without a tap: a manual entry with the same amount to the cent, at most a day apart,
+ * on the same card when both say one — and the only candidate on both sides (two equal coffees on
+ * the same day and one entry are no pair). Answers the entry id of each paired line. Worked out on
+ * every read, never stored.
+ */
+export function strongPairs(items: PairItem[], entries: PairEntry[], taken: Set<string>): Map<string, string> {
+  const candidates = new Map<string, string[]>();
+  const claimedBy = new Map<string, number>();
+  for (const item of items) {
+    const found = entries.filter(
+      (entry) =>
+        !taken.has(entry.id) &&
+        entry.date !== null &&
+        Math.abs(entry.amount - item.amount) < 0.005 &&
+        Math.abs(daysBetween(entry.date, item.date)) <= 1 &&
+        !(item.onCard && item.cardId && entry.cardId && entry.cardId !== item.cardId),
+    );
+    candidates.set(item.key, found.map((entry) => entry.id));
+    for (const entry of found) claimedBy.set(entry.id, (claimedBy.get(entry.id) ?? 0) + 1);
+  }
+  const pairs = new Map<string, string>();
+  for (const [key, ids] of candidates) {
+    if (ids.length === 1 && claimedBy.get(ids[0]) === 1) pairs.set(key, ids[0]);
+  }
+  return pairs;
 }
 
 /**

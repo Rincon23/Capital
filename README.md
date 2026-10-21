@@ -356,12 +356,27 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
       pagamento de fatura, o estorno e o dinheiro movido entre contas da própria pessoa;
     - na engrenagem: compras, Pix enviados, Pix recebidos e um valor mínimo opcional. (Houve um
       aviso próprio do salário; o dono o tirou em 2026-10-20 por não ver utilidade.)
-  - **"Confira os gastos"** (`/bancos/conferir`, precisa de Lançamentos; o aviso "Chegaram…" abre
-    aqui). O que chegou dos bancos e ainda não está no Capital, desde uma semana antes de cada
-    banco ser conectado (o ano de histórico não entra):
-    - cada linha tem descrição, valor, data, banco e a categoria sugerida, com **"Lançar"** (um
-      toque), o lápis (o formulário de gasto, de compra parcelada ou de renda, já preenchido) e
-      "Ignorar". Débito sugere gasto, crédito sugere renda;
+  - **Conferir o mês** (`/bancos/conferir`, precisa de Lançamentos; o aviso "Chegaram…" abre
+    aqui). O que os bancos mandaram **no mês**, ao lado do que está no Capital. Abre no mês atual
+    e aceita só o anterior (o que acontece no dia 31 só chega no dia 1º). Entram o dinheiro que
+    sai e entra nas contas, as compras à vista no cartão com data no mês e **a parcela do mês** de
+    cada compra parcelada; Pix e compras à vista de outros meses não. Os **gastos** (dinheiro
+    saindo e compras no cartão) ficam separados dos **recebimentos** (dinheiro entrando nas
+    contas), cada um com quantos faltam; a tela dos bancos mostra a conta nos botões "Conferir
+    gastos" e "Conferir recebimentos", e a Início, "N para conferir em outubro". Cada linha cai
+    em uma lista:
+    - **Falta no Capital**: o que pede um toque;
+    - **✓ Confere** (fechada): já está no Capital. É o que foi lançado, ligado, recebido ou a
+      fatura marcada por aqui; a compra parcelada que bate com uma compra do Capital; e o **par
+      forte**: um lançamento feito à mão com o mesmo valor ao centavo, até 1 dia de diferença, no
+      mesmo cartão quando os dois dizem, e só um candidato de cada lado ("✓ Confere com 'Mercado'
+      de 12/10"). O par e o plano são calculados a cada leitura, nunca gravados: "Não é este" volta
+      a linha para "Falta no Capital" sem apagar nada;
+    - **Deixados de fora** (fechada): o que o app deixa de fora sozinho, sem pedir nada;
+    - **Ignorados** (fechada): o que a pessoa ignorou.
+    - em "Falta no Capital", cada linha tem descrição, valor, data, banco e a categoria
+      sugerida, com **"Lançar"** (um toque), o lápis (o formulário de gasto, de compra parcelada
+      ou de renda, já preenchido) e "Ignorar". Débito sugere gasto, crédito sugere renda;
     - **categoria sugerida**, nesta ordem: o que a pessoa escolheu antes para a mesma descrição;
       uma categoria dita na descrição (as regras de `lib/ai`, sem IA); a categoria da Pluggy
       traduzida para os nomes das categorias da pessoa; e o que as categorias padrão significam
@@ -370,17 +385,19 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
       categoria" e abre o formulário: nada é chutado;
     - **cartão**: cada cartão do banco é ligado uma vez a um cartão do Capital (ou "Não
       informar"). A pergunta só aparece para o cartão que tem compra na lista;
-    - **compra parcelada**: as parcelas da mesma compra viram uma linha só, venha o banco com
-      todas de uma vez ou uma por mês ("10× de R$ 87,23 · comprada em 09/02"). "Conferir
-      parcelado" abre o formulário de compra parcelada, que já sabe quantas parcelas caíram
-      ("Começar a contar de agora"). As próximas parcelas de uma compra que já está no Capital
-      são reconhecidas e ficam de fora;
-    - **duplicados**: um gasto (ou renda) lançado à mão com o mesmo valor, até 2 dias de
-      diferença e no mesmo cartão vira "Parece que você já lançou isso", com "É o mesmo" (só liga
-      os dois) ou "É outro";
+    - **compra parcelada**: as parcelas da mesma compra viram uma linha só, a **parcela do mês**
+      ("Parcela 5 de 10 · total R$ 872,30 · comprada em 12/06"). Há bancos que mandam uma parcela
+      por mês, com a data da fatura, e bancos que mandam todas de uma vez, com a data do dia
+      seguinte à compra; por isso a parcela do mês é **o mês da compra + (n − 1)**, venha como
+      vier. Quando a compra já está no Capital, vale a conta do próprio Capital (a parcela cuja
+      cobrança cai no mês, pelo fechamento do cartão). "Conferir parcelado" abre o formulário de
+      compra parcelada, que já sabe quantas parcelas caíram ("Começar a contar de agora");
+    - **duplicados fracos**: um gasto (ou renda) lançado à mão com o mesmo valor, até 2 dias de
+      diferença e no mesmo cartão, que não é par forte (2 dias, ou mais de um candidato), vira
+      "Parece que você já lançou isso", com "É o mesmo" (só liga os dois) ou "É outro";
     - **deixados de fora, com o motivo à vista**: pagamento de fatura, dinheiro entre contas da
-      pessoa, aplicação/resgate/rendimento, estorno e parcela de compra já lançada. Cada um tem
-      "Lançar mesmo assim" e "Tirar da lista", e há "Tirar todos da lista";
+      pessoa, aplicação/resgate/rendimento e estorno. Não pedem nada; cada um tem só "Lançar
+      mesmo assim" (e, na fatura, "Marcar a fatura como paga?");
     - **fatura**: um pagamento de fatura que bate com uma fatura em aberto sugere "Marcar a fatura
       de out (Nubank) como paga?", sempre com um toque. Nenhuma fatura sai sozinha;
     - **A receber** (com o módulo ligado): um Pix recebido perto do valor de um "A receber" em
@@ -776,10 +793,17 @@ dela); o servidor não tem chave da Pluggy. O plano por fases está em
   - um item que sumiu da Pluggy (404) vira "Trazer de novo";
   - uma leitura que volta sem contas mantém as que havia.
 - "Parado" (48 h sem dados) e o aviso de autorização (15 dias antes) saem de `lib/banks/health.ts`.
-- **"Confira os gastos"** (`review.ts`, lógica pura em `lib/banks/review.ts`, pensada para servir
+- **Conferir o mês** (`review.ts`, lógica pura em `lib/banks/review.ts`, pensada para servir
   também a um "Importar extrato" OFX/CSV depois):
-  - `buildReview` monta a lista com os lançamentos dos meses envolvidos (para os duplicados) e os
-    parcelados (para reconhecer parcelas);
+  - `buildReview(deps, { month })` (padrão: o mês atual em `zonedToday()`; só aceita o atual e o
+    anterior, senão `MONTH_OUT_OF_RANGE`) lê as transações do mês, com 2 dias a mais de cada
+    lado (para o par forte não depender do mês olhado), e todas as parcelas de compras no
+    cartão, de qualquer data; separa `expenses` e `incomes`, cada um em `missing`, `matched`,
+    `leftOut` e `ignored`. Carrega os lançamentos do mês e dos vizinhos e os parcelados;
+  - `bankInstallmentIn` (mês da compra + n − 1), `planChargeIn` (a cobrança do plano no mês) e
+    `strongPairs` (um candidato de cada lado) são puros;
+  - `GET /api/v1/banks/review?month=` e `GET /api/v1/banks/review/counts` (as contagens do mês
+    atual, pelo mesmo `buildReview`);
   - `applyReviewAction` lança com as **mesmas funções dos formulários** (`saveExpense`,
     `saveInstallment`, `saveIncome`), com `source: 'import'`;
   - antes de lançar, as transações são "reservadas" (`outcome = 'launching'`): um segundo toque
