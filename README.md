@@ -436,9 +436,16 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
       anterior, uma linha por cartão ligado, "2 compras do banco não estão aqui · Conferir" (abre
       a aba Gastos nesse mês, já no bloco do cartão) ou "✓ Confere com o banco". Só contagens:
       nenhum valor do banco;
+    - **quem mandou ou recebeu o Pix**: a linha diz "Pix de Daniel Ferrari" ou "Pix para Ana
+      Souza" (primeiro e último nome; empresa com o nome inteiro), e o lançamento já vem com esse
+      nome. O nome vem do banco ou, quando um banco só manda o CPF (o BTG), do que outro banco
+      disse para o mesmo CPF (o Nubank põe o nome depois de "|"). Um CPF nunca aparece;
+    - **dinheiro entre contas suas**: além da categoria da Pluggy, quem pagou e quem recebeu com
+      o **mesmo CPF** fica em Deixados de fora, sem perguntar nada;
     - **A receber** (com o módulo ligado): um Pix recebido perto do valor de um "A receber" em
-      aberto pergunta "É a devolução de 'Jantar — João' (R$ 35,67)?". Perto é até 10% dele, ou
-      R$ 5 quando isso for mais, para cima ou para baixo (quem devolve arredonda):
+      aberto, lançado no dia do Pix ou antes, pergunta "É a devolução de 'Jantar — João' (R$
+      35,67)?". Perto é até 10% dele, ou R$ 5 quando isso for mais, para cima ou para baixo
+      (quem devolve arredonda):
       - ao confirmar, a **sobra** (Pix de R$ 36: R$ 0,33) entra como renda ("Devolução a mais:
         Jantar — João") e a **falta** (Pix de R$ 35: R$ 0,67) entra como gasto em Imprevistos
         ("Faltou na devolução: …"), no dia do Pix. A caixa avisa disso antes do toque;

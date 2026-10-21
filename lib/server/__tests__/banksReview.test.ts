@@ -557,6 +557,67 @@ describe("the month's check", () => {
     });
   });
 
+  it('a Pix says who it came from, by the name another bank told for the CPF, and finds the "A receber"', async () => {
+    const { repo, banks, deps } = await newPerson();
+    await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });
+    const owe = (id: string, description: string, date: string) =>
+      repo.saveExpense(date.slice(0, 7), { id, categoryKind: 'reimbursable', description, amount: 30, date });
+    await owe('uber-ana', 'Uber — Ana', '2026-10-03');
+    // Spent after the Pix: it can't be what the Pix paid back.
+    await owe('cinema', 'Cinema', '2026-10-12');
+    const own = { receiverDocument: '526.496.198-05' };
+    await banks.upsertTransactions([
+      // Last month, a bank that names the person.
+      tx({
+        transactionId: 'nu-ana',
+        type: 'CREDIT',
+        amount: 12,
+        date: '2026-09-05',
+        description: 'Transferência Recebida',
+        descriptionRaw: 'Transferência Recebida|ANA LIMA SOUZA',
+        paymentMethod: 'PIX',
+        payerDocument: '248.795.238-52',
+        ...own,
+      }),
+      // This month, a bank that sends only the CPF.
+      tx({
+        transactionId: 'btg-ana',
+        type: 'CREDIT',
+        amount: 31,
+        date: '2026-10-08',
+        description: 'Pix',
+        paymentMethod: 'PIX',
+        payerDocument: '248.795.238-52',
+        ...own,
+      }),
+      // Money between the person's own accounts, same CPF on both sides: never asked about.
+      tx({
+        transactionId: 'minha',
+        type: 'CREDIT',
+        amount: 30,
+        date: '2026-10-09',
+        description: 'Pix',
+        category: 'Transfer - PIX',
+        paymentMethod: 'PIX',
+        payerDocument: '526.496.198-05',
+        ...own,
+      }),
+    ]);
+
+    const review = await check(deps);
+    expect(review.incomes.missing).toEqual([
+      expect.objectContaining({
+        key: 'btg-ana',
+        counterpart: 'Ana Souza',
+        payer: 'Ana Lima Souza',
+        reimbursement: expect.objectContaining({ expenseId: 'uber-ana', difference: 1, others: [] }),
+      }),
+    ]);
+    expect(review.incomes.leftOut).toEqual([
+      expect.objectContaining({ key: 'minha', reimbursement: null, leftOut: expect.objectContaining({ reason: 'own_transfer' }) }),
+    ]);
+  });
+
   it('refuses an "A receber" too far from the Pix, and launches nothing', async () => {
     const { repo, banks, deps } = await newPerson();
     await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });

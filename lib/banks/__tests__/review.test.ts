@@ -3,7 +3,9 @@ import type { CategoryOption } from '@/lib/ai';
 import type { Expense, InstallmentPlan } from '@/lib/budget';
 import {
   bankInstallmentIn,
+  counterpartName,
   descriptionKey,
+  documentKey,
   entryWhere,
   findUpfront,
   onExpectedCard,
@@ -14,6 +16,9 @@ import {
   ignoreReason,
   matchingPlan,
   memoryKey,
+  namesByDocument,
+  rawCounterpart,
+  shortName,
   paybackMemory,
   paybackTolerance,
   payerKey,
@@ -237,6 +242,59 @@ describe('the strong pair ("✓ Confere" without a tap)', () => {
   });
 });
 
+describe('who is on the other side of a Pix', () => {
+  it('money paid and received by the same CPF is the person\'s own, whatever the category says', () => {
+    expect(documentKey('526.496.198-05')).toBe('52649619805');
+    expect(documentKey('***123***')).toBeNull();
+    const own = tx({
+      type: 'CREDIT',
+      amount: 186.72,
+      category: 'Transfer - PIX',
+      paymentMethod: 'PIX',
+      payerDocument: '526.496.198-05',
+      receiverDocument: '52649619805',
+    });
+    expect(ignoreReason(own)).toBe('own_transfer');
+    expect(ignoreReason({ ...own, payerDocument: '248.795.238-52' })).toBeNull();
+  });
+
+  it('reads the name some banks put after a "|", never a code or a date', () => {
+    expect(rawCounterpart('Transferência Recebida|Edilaine Carla Fracaro')).toBe('Edilaine Carla Fracaro');
+    expect(rawCounterpart('Pagamento efetuado|BANCO IBI S A')).toBe('BANCO IBI S A');
+    expect(rawCounterpart('15549979 - Cashback Gestão de Carteira | Apr-26')).toBeNull();
+    expect(rawCounterpart('Pix')).toBeNull();
+    expect(rawCounterpart(null)).toBeNull();
+  });
+
+  it('a name one bank told names the same CPF in another bank', () => {
+    // As in the dev database: Nubank names the person, BTG sends only the CPF.
+    const nubank = tx({
+      type: 'CREDIT',
+      amount: 102,
+      descriptionRaw: 'Transferência Recebida|VINÍCIUS HENRIQUE RODRIGUES',
+      payerDocument: '508.479.978-63',
+      receiverDocument: '526.496.198-05',
+    });
+    const btg = tx({ type: 'CREDIT', amount: 24, payerDocument: '508.479.978-63', receiverDocument: '526.496.198-05' });
+    const sent = tx({ type: 'DEBIT', amount: -29.04, payerDocument: '526.496.198-05', receiverDocument: '508.479.978-63' });
+    const known = namesByDocument([nubank]);
+    expect(counterpartName(btg, known)).toBe('Vinícius Henrique Rodrigues');
+    expect(counterpartName(sent, known)).toBe('Vinícius Henrique Rodrigues');
+    // The bank's own name comes first; with no name anywhere, nothing (a CPF is never shown).
+    expect(counterpartName({ ...btg, payerName: 'WYNTECH LTDA' }, known)).toBe('Wyntech Ltda');
+    expect(counterpartName({ ...btg, payerDocument: '111.222.333-44' }, known)).toBeNull();
+  });
+
+  it('calls a person by first and last name, a company by its whole name', () => {
+    expect(shortName('Daniel Carlos Sousa Ferrari', '412.926.728-03')).toBe('Daniel Ferrari');
+    expect(shortName('Ana Lima')).toBe('Ana Lima');
+    expect(shortName('Wyntech Servicos Em Tecnologia Da Informacao Ltda', '08.911.585/0001-03')).toBe(
+      'Wyntech Servicos Em Tecnologia Da Informacao Ltda',
+    );
+    expect(shortName('Amazon Servicos De Varejo Do Brasil Ltda.')).toBe('Amazon Servicos De Varejo Do Brasil Ltda.');
+  });
+});
+
 describe('which card', () => {
   it('says where an entry is: Pix/débito, a card not said, or a card', () => {
     expect(entryWhere({})).toBe('account');
@@ -361,6 +419,19 @@ describe('"Parece que você já lançou isso"', () => {
     expect(findReimbursement({ amount: 50, payer: null }, pending, new Set())?.expense.id).toBe('jantar-maria');
     expect(findReimbursement({ amount: 56, payer: 'JOAO' }, pending, new Set())).toBeNull();
     expect(findReimbursement({ amount: 50, payer: 'JOAO' }, pending, new Set(['jantar-joao', 'jantar-maria']))).toBeNull();
+  });
+
+  it('only an "A receber" spent on the day of the Pix or before', () => {
+    const owed = (id: string, date: string) => ({
+      month: '2026-10',
+      expense: { id, categoryKind: 'reimbursable' as const, description: 'Jantar', amount: 50, date },
+    });
+    const pix = { amount: 50, payer: null, date: '2026-10-10' };
+    const ids = (date?: string) =>
+      reimbursementCandidates({ ...pix, date }, [owed('antes', '2026-10-08'), owed('mesmo-dia', '2026-10-10'), owed('depois', '2026-10-12')], new Set()).map(
+        (candidate) => candidate.expense.id,
+      );
+    expect(ids('2026-10-10').sort()).toEqual(['antes', 'mesmo-dia']);
   });
 
   it('a Pix a little off still pays an "A receber" back: 10% of it, or R$ 5 when that is more', () => {

@@ -212,13 +212,14 @@ function Review() {
 
   const incomeOf = (item: ReviewItem): Income => ({
     id: crypto.randomUUID(),
-    source: item.payer ? tidyName(item.payer) : entryDescription(item.description),
+    source: item.counterpart ?? (item.payer ? tidyName(item.payer) : entryDescription(item.description)),
     amount: item.amount,
     date: item.date,
   });
 
   const draftOf = (item: ReviewItem): Partial<Expense> => ({
-    description: entryDescription(item.description),
+    // A Pix sent is named after whom it went to, when a bank said it.
+    description: item.counterpart ?? entryDescription(item.description),
     amount: item.amount,
     date: item.date,
     ...(item.category ? { categoryKind: item.category.categoryKind, topicId: item.category.topicId } : {}),
@@ -741,6 +742,12 @@ function Folded({ title, count, children }: { title: string; count: number; chil
 }
 
 /** What a folded line shows: what it is, from where and when, and how much. */
+/** What a line is: a Pix says who it came from or went to ("Pix de Ana Lima"), when a bank said it. */
+function lineTitle(item: ReviewItem): string {
+  if (!item.counterpart) return entryDescription(item.description);
+  return `${item.kind === 'income' ? 'Pix de' : 'Pix para'} ${item.counterpart}`;
+}
+
 /** Where a line came from: the bank, and the account when it says more than the bank's name. */
 function originOf(item: ReviewItem): string {
   return item.accountName === item.bankName ? item.bankName : `${item.bankName} · ${item.accountName}`;
@@ -751,7 +758,7 @@ function LineHead({ item, origin, detail }: { item: ReviewItem; origin: string |
   return (
     <div className="flex items-start justify-between gap-3">
       <span className="min-w-0">
-        <span className="text-foreground block truncate">{entryDescription(item.description)}</span>
+        <span className="text-foreground block truncate">{lineTitle(item)}</span>
         <span className="text-muted block text-xs">
           {[origin, formatDayMonth(item.date)].filter(Boolean).join(' · ')}
           {item.installments && ` · parcela ${item.installments.number}/${item.installments.count}`}
@@ -873,7 +880,7 @@ function ReviewRow({
     <li className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-foreground truncate font-semibold">{entryDescription(item.description)}</p>
+          <p className="text-foreground truncate font-semibold">{lineTitle(item)}</p>
           <p className="text-muted truncate text-xs">
             {[origin, formatDayMonth(item.date)].filter(Boolean).join(' · ')}
           </p>

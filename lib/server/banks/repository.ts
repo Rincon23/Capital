@@ -465,6 +465,8 @@ export class PostgresBanksRepository {
         payerName: bankTransactions.payerName,
         payerDocument: bankTransactions.payerDocument,
         receiverName: bankTransactions.receiverName,
+        receiverDocument: bankTransactions.receiverDocument,
+        descriptionRaw: bankTransactions.descriptionRaw,
         merchantName: bankTransactions.merchantName,
         installmentNumber: bankTransactions.installmentNumber,
         totalInstallments: bankTransactions.totalInstallments,
@@ -492,6 +494,29 @@ export class PostgresBanksRepository {
         ),
       )
       .orderBy(desc(bankTransactions.date));
+  }
+
+  /**
+   * Every transaction that says who is on the other side, for the names the banks told by CPF/CNPJ
+   * (`namesByDocument`): one bank names a person, another sends only the CPF.
+   */
+  async counterparts() {
+    return this.db
+      .select({
+        type: bankTransactions.type,
+        payerName: bankTransactions.payerName,
+        payerDocument: bankTransactions.payerDocument,
+        receiverName: bankTransactions.receiverName,
+        receiverDocument: bankTransactions.receiverDocument,
+        descriptionRaw: bankTransactions.descriptionRaw,
+      })
+      .from(bankTransactions)
+      .where(
+        and(
+          eq(bankTransactions.userId, this.userId),
+          sql`(${bankTransactions.payerName} is not null or ${bankTransactions.receiverName} is not null or ${bankTransactions.descriptionRaw} like '%|%')`,
+        ),
+      );
   }
 
   /** The entries already tied to a bank transaction: never offered as the duplicate of another. */

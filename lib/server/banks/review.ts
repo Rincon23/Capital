@@ -2,6 +2,7 @@ import 'server-only';
 import { categoryOptions } from '@/lib/ai';
 import {
   bankInstallmentIn,
+  counterpartName,
   entryWhere,
   findDuplicate,
   findDuplicateIncome,
@@ -10,8 +11,10 @@ import {
   IGNORE_LABELS,
   ignoreReason,
   installmentDay,
+  isPix,
   matchingPlan,
   memoryKey,
+  namesByDocument,
   onExpectedCard,
   paybackMemory,
   paybackTolerance,
@@ -20,6 +23,7 @@ import {
   reimbursementCandidates,
   reviewKind,
   reviewMonths,
+  shortName,
   strongPairs,
   suggestCategory,
   type BankReview,
@@ -74,8 +78,11 @@ function lastDayOf(month: Month): string {
 function baseItem(
   row: ReviewRow,
   transactionIds: string[],
+  known: Map<string, string> = new Map(),
 ): Omit<ReviewItem, 'kind' | 'category' | 'installments' | 'match' | 'duplicate' | 'leftOut'> {
   const onCard = row.accountKind === 'card';
+  // Who is on the other side, by name: the bank's, or one another bank told for the same CPF.
+  const counterpart = onCard ? null : counterpartName(row, known);
   return {
     key: row.id,
     transactionIds,
@@ -87,7 +94,11 @@ function baseItem(
     date: row.date,
     description: row.description,
     amount: Math.abs(row.amount),
-    payer: row.payerName,
+    payer: row.type === 'CREDIT' ? (counterpart ?? row.payerName) : null,
+    counterpart:
+      counterpart && isPix(row)
+        ? shortName(counterpart, row.type === 'CREDIT' ? row.payerDocument : row.receiverDocument)
+        : null,
     reimbursement: null,
     misplaced: null,
     upfront: null,
@@ -149,6 +160,8 @@ export async function buildReview(
     : [];
   // Who paid back what before: a payer the person already confirmed is recognised.
   const paidBack = pendingBack.length > 0 ? paybackMemory(await banks.paybackHistory()) : new Map();
+  // The names the banks told, by CPF: a Pix of one bank is named by what another one said.
+  const known = namesByDocument(await banks.counterparts());
   // Without the Cartão there are no cards to put a purchase on: no line is "fora do cartão".
   const cardOn = isModuleOn(settings, 'card');
   const expectation = (row: ReviewRow): CardExpectation =>
@@ -296,7 +309,7 @@ export async function buildReview(
   const singles = rows.filter((row) => !(reviewKind(row) === 'plan' && !ignoreReason(row)));
   // What still asks for a tap, a couple of days around the month too (for the pairs).
   const open = singles.filter((row) => row.outcome === null && !ignoreReason(row));
-  const openItems = new Map(open.map((row) => [row.id, baseItem(row, [row.id])]));
+  const openItems = new Map(open.map((row) => [row.id, baseItem(row, [row.id], known)]));
   const rowOf = new Map(singles.map((row) => [row.id, row]));
 
   // A Pix received that pays an "A receber" back is that first (as the payback suggestion).
@@ -356,7 +369,7 @@ export async function buildReview(
     if (!inMonth(row.date)) continue;
     const reason = ignoreReason(row);
     const kind = reviewKind(row);
-    const base = openItems.get(row.id) ?? baseItem(row, [row.id]);
+    const base = openItems.get(row.id) ?? baseItem(row, [row.id], known);
     const leftOut = reason ? { reason, label: IGNORE_LABELS[reason] } : null;
     const line = { ...base, kind: kind === 'plan' ? ('expense' as const) : kind, installments: null, leftOut };
     if (isDone(row.outcome)) {

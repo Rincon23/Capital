@@ -35,6 +35,10 @@ export interface ReviewTransaction {
   /** The payer's CPF/CNPJ (the bank sends it far more often than a name): who paid an "A receber" back. */
   payerDocument?: string | null;
   receiverName: string | null;
+  /** The receiver's CPF/CNPJ: the same as the payer's is money between the person's own accounts. */
+  receiverDocument?: string | null;
+  /** The bank's own text; some put the other person's name in it ("Transferência Recebida|Ana Lima"). */
+  descriptionRaw?: string | null;
   merchantName: string | null;
   installmentNumber: number | null;
   totalInstallments: number | null;
@@ -63,11 +67,23 @@ const INVESTMENT_CATEGORIES = new Set([
   'Tax on financial operations',
 ]);
 
+/** A CPF/CNPJ as digits only, so "526.496.198-05" and "52649619805" are the same person. */
+export function documentKey(document: string | null | undefined): string | null {
+  const digits = (document ?? '').replace(/\D/g, '');
+  return digits.length >= 11 ? digits : null;
+}
+
 /** Why the review leaves this out by itself, if it does. */
 export function ignoreReason(transaction: ReviewTransaction): IgnoreReason | null {
   const operation = transaction.operationType ?? '';
   if (transaction.category === 'Credit card payment' || operation === 'PAGAMENTO_FATURA') return 'bill_payment';
-  if (transaction.category === 'Same person transfer' || operation === 'TRANSFERENCIA_MESMA_INSTITUICAO') {
+  const payer = documentKey(transaction.payerDocument);
+  if (
+    transaction.category === 'Same person transfer' ||
+    operation === 'TRANSFERENCIA_MESMA_INSTITUICAO' ||
+    // Paid and received by the same CPF: the person's own accounts, never an "A receber".
+    (payer !== null && payer === documentKey(transaction.receiverDocument))
+  ) {
     return 'own_transfer';
   }
   if (INVESTMENT_CATEGORIES.has(transaction.category ?? '') || /APLICACAO|RESGATE|RENDIMENTO/.test(operation)) {
@@ -83,6 +99,68 @@ export function reviewKind(transaction: ReviewTransaction): ReviewKind {
     return (transaction.totalInstallments ?? 0) > 1 ? 'plan' : 'expense';
   }
   return transaction.type === 'CREDIT' ? 'income' : 'expense';
+}
+
+// ---------------------------------------------------------------------------
+// Who is on the other side of a Pix
+// ---------------------------------------------------------------------------
+
+/** Pix, by how the bank says it was paid. */
+export function isPix(transaction: Pick<ReviewTransaction, 'paymentMethod' | 'operationType'>): boolean {
+  return transaction.paymentMethod === 'PIX' || (transaction.operationType ?? '').includes('PIX');
+}
+
+/** The name some banks put after a "|" ("Transferência Recebida|Ana Lima"); never a date or a code. */
+export function rawCounterpart(descriptionRaw: string | null | undefined): string | null {
+  const name = (descriptionRaw ?? '').split('|')[1]?.trim() ?? '';
+  return /^\p{L}[\p{L} .'&-]+$/u.test(name) ? name : null;
+}
+
+/** The side of a transaction that is not the person: who paid them, or whom they paid. */
+function otherSide(transaction: Pick<ReviewTransaction, 'type' | 'payerName' | 'receiverName' | 'payerDocument' | 'receiverDocument' | 'descriptionRaw'>) {
+  const incoming = transaction.type === 'CREDIT';
+  return {
+    name: (incoming ? transaction.payerName : transaction.receiverName) ?? rawCounterpart(transaction.descriptionRaw),
+    document: documentKey(incoming ? transaction.payerDocument : transaction.receiverDocument),
+  };
+}
+
+/**
+ * The names the banks told, by CPF/CNPJ: one bank names the person ("Transferência Recebida|Ana
+ * Lima"), another sends only the CPF, and the name carries over.
+ */
+export function namesByDocument(
+  transactions: Pick<ReviewTransaction, 'type' | 'payerName' | 'receiverName' | 'payerDocument' | 'receiverDocument' | 'descriptionRaw'>[],
+): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const transaction of transactions) {
+    const { name, document } = otherSide(transaction);
+    if (name && document && !names.has(document)) names.set(document, tidyName(name));
+  }
+  return names;
+}
+
+/**
+ * Who a Pix came from or went to, as a name: the bank's, or one another bank told for the same
+ * CPF. Null when nobody said a name (a CPF is never shown).
+ */
+export function counterpartName(
+  transaction: Pick<ReviewTransaction, 'type' | 'payerName' | 'receiverName' | 'payerDocument' | 'receiverDocument' | 'descriptionRaw'>,
+  known: Map<string, string>,
+): string | null {
+  const { name, document } = otherSide(transaction);
+  if (name) return tidyName(name);
+  return (document && known.get(document)) || null;
+}
+
+/**
+ * How a person is called on a line: first and last name ("Daniel Carlos Sousa Ferrari" → "Daniel
+ * Ferrari"). A company (a CNPJ, or a name that says so) keeps its whole name.
+ */
+export function shortName(name: string, document?: string | null): string {
+  const company = documentKey(document)?.length === 14 || /\b(ltda|s\.?\s?a|me|eireli|banco)\b\.?$/i.test(name);
+  const words = name.split(' ').filter(Boolean);
+  return company || words.length <= 2 ? name : `${words[0]} ${words[words.length - 1]}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -402,8 +480,10 @@ export interface ReviewItem {
   description: string;
   /** Always positive: what was spent or received (on a split purchase, the month's instalment). */
   amount: number;
-  /** Who paid it, for money in. */
+  /** Who paid it, for money in (a name: the bank's, or learned from another bank by CPF). */
   payer: string | null;
+  /** On a Pix, who it came from or went to, when some bank said a name ("Pix de Ana Souza"). */
+  counterpart: string | null;
   category: CategoryOption | null;
   installments: {
     count: number;
@@ -660,12 +740,12 @@ export function paybackMemory(history: PaybackHistory[]): Map<string, Map<string
 
 /**
  * The "A receber" a Pix received may be paying back, best first: the ones still open within
- * `paybackTolerance` of it. First the one that says who paid — the payer's name in its description
+ * `paybackTolerance` of it and spent on the Pix's day or before. First the one that says who paid — the payer's name in its description
  * ("Jantar — João" for a Pix from João Silva), or the words of what this payer paid back before —
  * then the closest amount, then the most recent. Only ever a suggestion.
  */
 export function reimbursementCandidates(
-  item: { amount: number; payer: string | null },
+  item: { amount: number; payer: string | null; date?: string },
   pending: LaunchedExpense[],
   taken: Set<string>,
   learned: Map<string, number> = new Map(),
@@ -681,6 +761,8 @@ export function reimbursementCandidates(
         expense.categoryKind === 'reimbursable' &&
         !expense.reimbursedAt &&
         !taken.has(expense.id) &&
+        // Paid back after it was spent (the same day too), never before.
+        (!item.date || expense.date <= item.date) &&
         Math.abs(expense.amount - item.amount) <= paybackTolerance(expense.amount) + 0.009,
     )
     .map((candidate) => ({
@@ -699,7 +781,7 @@ export function reimbursementCandidates(
 
 /** The best of `reimbursementCandidates`, or null. */
 export function findReimbursement(
-  item: { amount: number; payer: string | null },
+  item: { amount: number; payer: string | null; date?: string },
   pending: LaunchedExpense[],
   taken: Set<string>,
   learned?: Map<string, number>,
