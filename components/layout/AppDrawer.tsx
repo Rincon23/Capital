@@ -334,7 +334,7 @@ function DrawerPanel({
               {
                 key: 'admin',
                 label: 'Administração',
-                description: 'Saúde do servidor, contas e VIPs',
+                description: 'Saúde do servidor, contas e acessos',
                 icon: Server,
                 tone: 'amber' as const,
                 href: '/admin',

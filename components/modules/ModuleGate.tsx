@@ -2,15 +2,14 @@
 
 import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Crown, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import type { ModuleKey } from '@/lib/budget';
 import {
+  isModuleHidden,
   isModuleOn,
   moduleDefinition,
   moduleNames,
   modulesToTurnOnFirst,
-  vipLockOf,
-  vipLockText,
 } from '@/lib/modules';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useAuth } from '@/components/providers/AuthProvider';
@@ -38,38 +37,24 @@ export function ModuleGate({ module, children }: { module: ModuleKey; children: 
 
   if (isModuleOn(settings, module)) return <>{children}</>;
 
-  const info = moduleDefinition(module);
-  const missing = modulesToTurnOnFirst(settings, module);
-
-  // A module only for VIP accounts (or built on one) explains itself to everyone else, with nothing
-  // to turn on.
-  const vipLock = vipLockOf(user, module);
-  if (vipLock) {
+  // A restricted module (or one built on it) does not exist for an account without access: its
+  // address says only that the page was not found, without its name.
+  if (isModuleHidden(user, module)) {
     return (
       <div className="flex flex-1 flex-col gap-4 pb-10">
-        <PageHeader title={info.name} backHref={homeHref} />
+        <PageHeader title="Página não encontrada" backHref={homeHref} />
         <div className="border-border bg-card mx-4 flex flex-col gap-4 rounded-2xl border p-4 shadow-sm">
-          <div className="flex items-center gap-3">
-            <IconTile icon={MODULE_VISUALS[module].icon} tone={MODULE_VISUALS[module].tone} size="lg" />
-            <div className="min-w-0">
-              <p className="text-foreground font-semibold">
-                {info.name}
-                <span className="bg-primary/10 text-primary ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 align-middle text-[11px] font-semibold">
-                  <Crown aria-hidden className="h-3 w-3" />
-                  VIP
-                </span>
-              </p>
-              <p className="text-muted text-sm">{vipLockText(module, vipLock)}</p>
-            </div>
-          </div>
-          <p className="text-muted text-sm">{info.description}</p>
-          <Link href="/modulos" className="text-primary text-center text-sm font-semibold">
-            Ver todos os módulos
+          <p className="text-muted text-sm">Esta página não existe.</p>
+          <Link href={homeHref} className="text-primary text-center text-sm font-semibold">
+            Voltar para a Início
           </Link>
         </div>
       </div>
     );
   }
+
+  const info = moduleDefinition(module);
+  const missing = modulesToTurnOnFirst(settings, module);
 
   async function handleTurnOn() {
     setTurning(true);

@@ -3,13 +3,13 @@
 import { useRef, useState, type RefObject } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import Link from 'next/link';
-import { ChevronDown, ChevronUp, Crown, Lock, Plus } from 'lucide-react';
+import { ChevronDown, ChevronUp, Lock, Plus } from 'lucide-react';
 import type { HomeWidgetKey } from '@/lib/budget';
 import {
+  isModuleHidden,
   moduleDefinition,
   moduleNames,
   nearestMissing,
-  vipLockOf,
   widgetDescription,
   widgetModule,
   widgetName,
@@ -43,8 +43,8 @@ const REST_TRANSITION = `transform ${BACK_MS}ms ${EASE}`;
  *
  * It lists the widgets that are on no tela (the ones taken off) — a tap puts one at the end of
  * the tela on screen, a hold-and-drag drops it exactly where it goes — and, below, the widgets of
- * modules that are still off, which point to Módulos (with the VIP mark and the padlock of a
- * module that needs another first). A widget only comes here by its "−": dragging one onto the
+ * modules that are still off, which point to Módulos (with the padlock of a module that needs
+ * another first). A restricted module's widgets never show up for an account without access. A widget only comes here by its "−": dragging one onto the
  * tray never takes it off the Início. (The back button closes the tray before it leaves edit
  * mode: `HomeScreen` handles that, with edit mode's own history entry.)
  */
@@ -106,6 +106,8 @@ export function WidgetTray({
   });
 
   const count = hidden.length;
+  const { user } = useAuth();
+  const offShown = offModule.filter((key) => !isModuleHidden(user, widgetModule(key)));
 
   return (
     <div
@@ -190,13 +192,13 @@ export function WidgetTray({
             </section>
           )}
 
-          {offModule.length > 0 && (
+          {offShown.length > 0 && (
             <section className="flex flex-col gap-2">
               <h3 className="text-muted px-1 text-xs font-semibold tracking-wide uppercase">
                 De módulos desligados
               </h3>
               <ul className="flex flex-col gap-2">
-                {offModule.map((key) => (
+                {offShown.map((key) => (
                   <OffModuleWidget key={key} widget={key} />
                 ))}
               </ul>
@@ -271,14 +273,11 @@ function TrayWidget({
 /** A widget of a module that is off: a tap explains it and points to Módulos. */
 function OffModuleWidget({ widget }: { widget: HomeWidgetKey }) {
   const { settings } = useSettings();
-  const { user } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const owner = widgetModule(widget);
   const info = moduleDefinition(owner);
   const visual = widgetVisual(widget);
-  const vipLock = vipLockOf(user, owner);
-  const vipLocked = vipLock !== null;
-  const blockers = vipLocked ? [] : nearestMissing(settings, owner);
+  const blockers = nearestMissing(settings, owner);
 
   return (
     <li className="border-border bg-background rounded-xl border">
@@ -300,27 +299,13 @@ function OffModuleWidget({ widget }: { widget: HomeWidgetKey }) {
           )}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="text-muted block font-medium">
-            {widgetName(widget)}
-            {(vipLocked || user.vipModules.includes(owner)) && (
-              <span className="bg-primary/10 text-primary ml-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 align-middle text-[11px] font-semibold">
-                <Crown aria-hidden className="h-3 w-3" />
-                VIP
-              </span>
-            )}
-          </span>
+          <span className="text-muted block font-medium">{widgetName(widget)}</span>
           <span className="text-muted block text-xs">{widgetDescription(widget)}</span>
         </span>
       </button>
       {expanded && (
         <div className="flex flex-col gap-2 px-3 pb-3 text-xs">
-          {vipLock ? (
-            <p className="text-muted">
-              {vipLock === owner
-                ? `É do módulo ${info.name}, disponível só para contas VIP.`
-                : `É do módulo ${info.name}, que precisa de ${moduleDefinition(vipLock).name}, disponível só para contas VIP.`}
-            </p>
-          ) : blockers.length > 0 ? (
+          {blockers.length > 0 ? (
             <p className="text-foreground flex items-start gap-1.5">
               <Lock aria-hidden className="text-muted mt-0.5 h-3 w-3 shrink-0" />
               <span>
@@ -333,14 +318,12 @@ function OffModuleWidget({ widget }: { widget: HomeWidgetKey }) {
               É do módulo {info.name}, que está desligado. Ligou, ele vem para a Início.
             </p>
           )}
-          {!vipLocked && (
-            <Link
-              href="/modulos"
-              className="bg-primary text-primary-foreground flex min-h-[40px] items-center justify-center rounded-lg px-3 text-sm font-semibold"
-            >
-              Ligar em Módulos
-            </Link>
-          )}
+          <Link
+            href="/modulos"
+            className="bg-primary text-primary-foreground flex min-h-[40px] items-center justify-center rounded-lg px-3 text-sm font-semibold"
+          >
+            Ligar em Módulos
+          </Link>
         </div>
       )}
     </li>

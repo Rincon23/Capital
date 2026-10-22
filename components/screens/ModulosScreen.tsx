@@ -1,19 +1,18 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Crown, Lock } from 'lucide-react';
+import { ChevronDown, EyeOff, Lock } from 'lucide-react';
 import type { ModuleFlags, ModuleKey } from '@/lib/budget';
 import {
   MODULES,
   MODULE_GROUPS,
   dependentsOf,
+  isModuleHidden,
   moduleDefinition,
   moduleNames,
   modulesToTurnOnFirst,
   nearestMissing,
   resolveModules,
-  vipLockOf,
-  vipLockText,
   type ModuleAccess,
 } from '@/lib/modules';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -32,7 +31,9 @@ const ATTENTION_MS = 1800;
  * Turning modules on and off: a card per module, in the groups of the app drawer — icon, name,
  * what it is in a few words and the switch; a tap on the card shows the full description. A module
  * that needs another one off says "Precisa de …", and trying it asks, in one sentence, to turn it
- * on together with what it needs ("Ligar os dois") — never turning anything on by itself.
+ * on together with what it needs ("Ligar os dois") — never turning anything on by itself. A
+ * restricted module (and what is built on it) is left out for an account without access, and a
+ * group left empty goes with it.
  */
 export function ModulosScreen() {
   const { settings } = useSettings();
@@ -54,6 +55,12 @@ export function ModulosScreen() {
   }
 
   const modules = resolveModules(settings);
+  const groups = MODULE_GROUPS.map((group) => ({
+    group,
+    members: MODULES.filter(
+      (definition) => definition.group === group.key && !isModuleHidden(user, definition.key),
+    ),
+  })).filter(({ members }) => members.length > 0);
 
   /** The modules that can be turned on now glow for a moment. */
   function callAttention(keys: ModuleKey[]) {
@@ -75,7 +82,7 @@ export function ModulosScreen() {
   }
 
   async function handleToggle(key: ModuleKey, next: boolean) {
-    if (next && vipLockOf(user, key)) return;
+    if (next && isModuleHidden(user, key)) return;
     if (!next) {
       await turnOff(key);
       return;
@@ -98,7 +105,7 @@ export function ModulosScreen() {
 
       <p className="text-muted px-4 text-sm">Ligue só o que você usa. Desligar não apaga nada.</p>
 
-      {MODULE_GROUPS.map((group, index) => (
+      {groups.map(({ group, members }, index) => (
         <section
           key={group.key}
           className="flex flex-col gap-2 px-4"
@@ -106,7 +113,7 @@ export function ModulosScreen() {
         >
           <h2 className="text-muted px-1 text-xs font-semibold tracking-wide uppercase">{group.label}</h2>
           <ul className="border-border bg-card divide-border divide-y rounded-2xl border shadow-sm">
-            {MODULES.filter((definition) => definition.group === group.key).map((definition) => (
+            {members.map((definition) => (
               <ModuleCard
                 key={definition.key}
                 moduleKey={definition.key}
@@ -140,7 +147,7 @@ function ModuleCard({
 }: {
   moduleKey: ModuleKey;
   modules: ModuleFlags;
-  /** Whether this account is VIP, and which modules are only for VIP accounts. */
+  /** Which modules are restricted: this account sees them only with access. */
   access: ModuleAccess;
   busy: boolean;
   /** The full description is showing. */
@@ -154,17 +161,14 @@ function ModuleCard({
   const info = moduleDefinition(moduleKey);
   const visual = MODULE_VISUALS[moduleKey];
   const on = modules[moduleKey];
-  // Reserved for VIP accounts (or built on a module that is): everyone else sees it marked "VIP",
-  // but can't turn it on.
-  const vipLock = vipLockOf(access, moduleKey);
-  const vipLocked = vipLock !== null;
-  const blockers = on || vipLocked ? [] : nearestMissing({ modules }, moduleKey);
+  const blockers = on ? [] : nearestMissing({ modules }, moduleKey);
   const locked = blockers.length > 0;
-  const dimmed = locked || vipLocked;
   const detailsId = `modulo-${moduleKey}`;
 
   return (
-    <li className={`flex flex-col gap-2 p-3 transition-colors ${glowing ? 'bg-primary/5 animate-attention' : ''}`}>
+    <li
+      className={`flex flex-col gap-2 p-3 transition-colors ${glowing ? 'bg-primary/5 animate-attention' : ''}`}
+    >
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -173,18 +177,18 @@ function ModuleCard({
           aria-controls={detailsId}
           className="flex min-w-0 flex-1 items-center gap-3 text-left"
         >
-          <span className={`shrink-0 ${dimmed ? 'opacity-45 grayscale' : ''}`}>
+          <span className={`shrink-0 ${locked ? 'opacity-45 grayscale' : ''}`}>
             <IconTile icon={visual.icon} tone={visual.tone} />
           </span>
           <span className="min-w-0 flex-1">
             <span
-              className={`flex items-center gap-1.5 text-sm leading-tight font-semibold ${dimmed ? 'text-muted' : 'text-foreground'}`}
+              className={`flex items-center gap-1.5 text-sm leading-tight font-semibold ${locked ? 'text-muted' : 'text-foreground'}`}
             >
               <span className="truncate">{info.name}</span>
-              {access.vip && access.vipModules.includes(moduleKey) && (
+              {access.vipModules.includes(moduleKey) && (
                 <span className="bg-primary/10 text-primary inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold">
-                  <Crown aria-hidden className="h-3 w-3" />
-                  VIP
+                  <EyeOff aria-hidden className="h-3 w-3" />
+                  Restrito
                 </span>
               )}
               <ChevronDown
@@ -195,12 +199,7 @@ function ModuleCard({
             <span className="text-muted mt-0.5 block text-xs">{info.tagline}</span>
           </span>
         </button>
-        {vipLocked ? (
-          <span className="bg-primary/10 text-primary inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-semibold">
-            <Crown aria-hidden className="h-3.5 w-3.5" />
-            VIP
-          </span>
-        ) : locked ? (
+        {locked ? (
           <button
             type="button"
             role="switch"
@@ -234,7 +233,6 @@ function ModuleCard({
       )}
       <div id={detailsId} hidden={!open} className="text-muted ml-[52px] text-xs leading-relaxed">
         {info.description}
-        {vipLock && <span className="mt-1 block">{vipLockText(moduleKey, vipLock)}</span>}
       </div>
     </li>
   );

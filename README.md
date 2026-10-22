@@ -69,25 +69,28 @@ desligado (`ModuleGate`) ou nos kits do primeiro acesso. Desligar um módulo de 
 pede confirmação e desliga os filhos junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no servidor:
 `resolveModules` só considera ligado um módulo cujos pais estão ligados.
 
-**Módulos só para VIP.** O dono do servidor (`OWNER_EMAIL`) escolhe em **Administração**, no card
-"Módulos só para VIP", quais módulos ficam só para as contas VIP: um switch **"Só VIP"** por
+**Módulos restritos.** O dono do servidor (`OWNER_EMAIL`) escolhe em **Administração**, no card
+"Módulos restritos", quais módulos ficam só para as contas com acesso: um switch **"Restrito"** por
 módulo. A escolha fica no banco (`module_access`, uma linha por módulo que o dono mexeu); um módulo
 sem linha segue o padrão do catálogo (`vipByDefault`), que é **Open Finance** e **Lançar por voz ou
-texto**. As contas VIP ficam em `vip_users` (o dono é sempre VIP).
+texto**. As contas com acesso ficam em `vip_users` (o dono sempre tem). No código e no banco o
+acesso ainda se chama "vip"; na tela, é "Restrito" e "Acesso aos restritos".
 
-- Quem não é VIP vê o módulo com o selo **"VIP"** no lugar do switch (em Módulos, na tela do
-  módulo e na bandeja de widgets) e não consegue ligar. Um módulo que depende de um "Só VIP" fica
-  trancado do mesmo jeito: "Precisa de Lançamentos, disponível só para contas VIP."
-- **Virou "Só VIP":** o módulo desliga para todas as contas sem VIP, junto com os que dependem
+- **Quem não tem acesso não fica sabendo que o módulo existe.** Ele some de Módulos (e o grupo que
+  fica vazio some junto), da bandeja de widgets, da política de privacidade (`/privacidade`, que lê
+  quem está vendo) e das perguntas automáticas do Diagrama (Graham, P/VP); o endereço do módulo
+  mostra só "Página não encontrada". Um módulo que depende de um restrito some do mesmo jeito
+  (`isModuleHidden` em `lib/modules/flags.ts`). Quem tem acesso vê a marca **"Restrito"** em Módulos.
+- **Virou restrito:** o módulo desliga para todas as contas sem acesso, junto com os que dependem
   dele, e nenhum dado é apagado (`setModuleVip` em `lib/server/adminRepository.ts`). Se alguém sem
-  VIP usa o módulo, a Administração pede confirmação dizendo quantas contas são.
-- **Deixou de ser "Só VIP":** nada muda sozinho; quem quiser liga em Módulos.
-- **Uma conta perde o VIP:** os módulos "Só VIP" dela desligam, com os dados guardados.
+  acesso usa o módulo, a Administração pede confirmação dizendo quantas contas são.
+- **Deixou de ser restrito:** nada muda sozinho; quem quiser liga em Módulos.
+- **Uma conta perde o acesso:** os módulos restritos dela desligam, com os dados guardados.
 - No servidor, `withAccessRules` (em `lib/modules/flags.ts`) mantém desligado o que a conta não
   pode usar, em qualquer leitura ou gravação das configurações e na importação de backup, e as
-  rotas de Open Finance, IA e Gmail recusam com `VIP_ONLY` (`requireNotVipLocked` em
-  `lib/server/access.ts`). O app recebe a lista no layout (`vipModules` do `AuthUser`) e usa
-  `mayUseModule` e `vipLockOf`.
+  rotas de Open Finance, IA, Gmail e das perguntas automáticas respondem **404 "Não encontrado."**,
+  sem o nome do módulo (`requireNotVipLocked` em `lib/server/access.ts`). O app recebe a lista no
+  layout (`vipModules` do `AuthUser`) e usa `mayUseModule` e `isModuleHidden`.
 
 **Dinheiro do mês**
 
@@ -335,7 +338,7 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
   nunca o mesmo e-mail duas vezes; tocar abre o e-mail no Gmail. Mostra o histórico de alertas.
   Ignora o que você enviou, rascunhos e spam. Se o Google recusar a conexão, avisa uma vez e pede
   para conectar de novo.
-- **Open Finance** (`/bancos`, começa "Só VIP"): traz os bancos da pessoa pelo **Meu Pluggy**, grátis e
+- **Open Finance** (`/bancos`, começa restrito): traz os bancos da pessoa pelo **Meu Pluggy**, grátis e
   só leitura, com a chave da própria pessoa, e serve **só para conferir** o que foi lançado no
   Capital: gastos, recebimentos e (no Diagrama) as quantidades de ações e cotas. Nenhum saldo,
   fatura, valor em aberto ou limite do banco aparece, a não ser os saldos das contas que a
@@ -872,7 +875,7 @@ dela); o servidor não tem chave da Pluggy. Como o módulo nasceu (F0–F6) est�
   - `outcome`/`entry_id` dizem o que viraram no Capital (F5), e uma leitura nova nunca mexe nisso;
   - nada disso é lançamento.
 - **Sincronização** (`job.ts`, uma vez por hora na agenda, com `job_runs`), para cada conta que
-  pode usar o módulo (VIP, enquanto ele for "Só VIP"), com ele ligado e a chave salva:
+  pode usar o módulo (com acesso, enquanto ele for restrito), com ele ligado e a chave salva:
   - pergunta `GET /items/{id}` de cada banco;
   - **só quando `lastUpdatedAt` mudou** (o banco mandou dados), relê contas e transações: um ano
     na primeira vez, depois desde a última leitura menos 7 dias;
@@ -948,7 +951,7 @@ dela); o servidor não tem chave da Pluggy. Como o módulo nasceu (F0–F6) est�
     sincronização da hora relê tudo uma vez (como se o banco tivesse mandado dados) e as
     quantidades chegam sem esperar o banco. Até lá, a tela não mostra conferência nenhuma.
 - O `apiKey` (2 h) fica só em memória, por pessoa.
-- Toda rota confere o "Só VIP" e o módulo ligado (`access.ts`) e tem limite de tentativas.
+- Toda rota confere o "Restrito" e o módulo ligado (`access.ts`) e tem limite de tentativas.
 - A Pluggy devolve a pessoa para `<BETTER_AUTH_URL>/bancos`, ou para `PLUGGY_REDIRECT_URI`, que
   precisa ser https (no desenvolvimento, o endereço publicado; depois, volte à aba do localhost).
 - "Apagar todos os dados" leva o Open Finance junto e tira os itens da Pluggy.
@@ -1165,9 +1168,11 @@ Os demais testes:
   resposta e as etapas transmitidas, com a IA simulada. `aiOllama.integration.test.ts` roda os
   mesmos exemplos contra o Ollama real, só com `OLLAMA_TEST_URL` definido.
 - **`lib/server/__tests__/moduleAccess.test.ts` e `lib/modules/__tests__/flags.test.ts`:** o
-  "Só VIP" da Administração: o padrão (Open Finance e Lançar por voz ou texto), a escolha do dono
-  módulo por módulo, o módulo que vira "Só VIP" desligando para quem não é VIP (e os que dependem
-  dele) sem apagar nada, o que volta a ser de todos e a conta que perde o VIP.
+  "Restrito" da Administração: o padrão (Open Finance e Lançar por voz ou texto), a escolha do dono
+  módulo por módulo, o módulo que vira restrito desligando para quem não tem acesso (e os que
+  dependem dele) sem apagar nada, o que volta a ser de todos, a conta que perde o acesso e o 404
+  sem nome do servidor. `ModuleGate.test.tsx` e `ModulosScreen.test.tsx`: quem não tem acesso não
+  vê o módulo restrito em lugar nenhum, nem o que depende dele.
 - **`lib/gmail/__tests__/match.test.ts` e `lib/server/__tests__/gmail.test.ts`:** palavras-chave
   (maiúsculas, acentos, remetente, prévia), um aviso por e-mail com todas as palavras e nunca
   repetido, e-mails enviados e spam ignorados, `historyId` expirado, conexão recusada (avisa uma

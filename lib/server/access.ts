@@ -1,7 +1,7 @@
 import 'server-only';
 import { eq } from 'drizzle-orm';
 import type { ModuleKey } from '../budget/types';
-import { mayUseModule, moduleDefinition, vipModulesFrom, type ModuleAccess } from '../modules';
+import { mayUseModule, vipModulesFrom, type ModuleAccess } from '../modules';
 import { moduleAccess, vipUsers } from './db/schema';
 import type { Database } from './db/types';
 import { HttpError } from './httpError';
@@ -33,9 +33,11 @@ export async function userAccess(db: Database, userId: string, email: string | n
   return { owner: false, vip: row !== undefined, vipModules: list };
 }
 
-/** Refuses (403) a module this account may not use because it is only for VIP accounts. */
+/**
+ * Refuses a restricted module ("Restrito" in Administração) to an account without access. Like
+ * Administração for anyone but the owner, its addresses simply do not exist (404), with no name:
+ * nobody without access learns the module is there.
+ */
 export function requireNotVipLocked(access: ModuleAccess, key: ModuleKey): void {
-  if (!mayUseModule(access, key)) {
-    throw new HttpError(403, 'VIP_ONLY', `${moduleDefinition(key).name} é só para contas VIP.`);
-  }
+  if (!mayUseModule(access, key)) throw new HttpError(404, 'NOT_FOUND', 'Não encontrado.');
 }

@@ -77,18 +77,23 @@ export function vipLockOf(access: ModuleAccess, key: ModuleKey): ModuleKey | nul
   return null;
 }
 
-/** Why a module is out of reach: "Disponível só para contas VIP." or the VIP-only one it needs. */
-export function vipLockText(key: ModuleKey, lock: ModuleKey): string {
-  return lock === key
-    ? 'Disponível só para contas VIP.'
-    : `Precisa de ${moduleDefinition(lock).name}, disponível só para contas VIP.`;
+/**
+ * Whether `key` is hidden from this account: a restricted module ("Restrito" in Administração), or
+ * one built on it, never shows up for an account without access — not in Módulos, not in the
+ * widget tray, and its address answers "not found". Nobody else learns it exists.
+ */
+export function isModuleHidden(access: ModuleAccess, key: ModuleKey): boolean {
+  return vipLockOf(access, key) !== null;
 }
 
 /**
  * The settings as this account may have them: for anyone who is not VIP, the VIP-only modules
  * are off, whatever was saved (an old backup, a direct API call, a VIP status taken back).
  */
-export function withAccessRules<T extends Pick<BudgetSettings, 'modules'>>(settings: T, access: ModuleAccess): T {
+export function withAccessRules<T extends Pick<BudgetSettings, 'modules'>>(
+  settings: T,
+  access: ModuleAccess,
+): T {
   if (access.vip || !settings.modules) return settings;
   const modules = { ...settings.modules };
   for (const key of access.vipModules) if (modules[key]) modules[key] = false;

@@ -5,8 +5,8 @@ import { ArrowDown, ArrowUp, Plus } from 'lucide-react';
 import {
   AUTO_QUESTIONS,
   assetType,
+  countedQuestions,
   isFixedIncomeType,
-  questionsOf,
   RECOMMENDED_QUESTIONS,
   QUESTION_TYPES,
   typesInUse,
@@ -51,10 +51,11 @@ export function QuestionsSheet({
   const [editing, setEditing] = useState<DiagramQuestion | 'new' | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const questions = questionsOf(overview.questions, type);
+  // The automatic questions (Graham, P/VP) are restricted: without access they never show up.
+  const questions = countedQuestions(overview, type);
   const recommended = RECOMMENDED_QUESTIONS[type];
-  // The automatic question this type can have (Graham, P/VP), and whether it is already on.
-  const automatic = AUTO_QUESTIONS.find((definition) => definition.type === type);
+  // The automatic question this type can have, and whether it is already on.
+  const automatic = overview.vip ? AUTO_QUESTIONS.find((definition) => definition.type === type) : undefined;
   const automaticOn = automatic ? questions.some((question) => question.auto === automatic.kind) : false;
   const label = assetType(type).label;
 
@@ -130,7 +131,7 @@ export function QuestionsSheet({
                     {question.criterion}
                     {question.auto && (
                       <span className="bg-primary/10 text-primary rounded-full px-1.5 py-0.5 text-[10px] tracking-normal normal-case">
-                        {overview.vip ? 'Automática' : 'VIP'}
+                        Automática
                       </span>
                     )}
                     {question.weight <= 0
@@ -168,11 +169,8 @@ export function QuestionsSheet({
 
         {automatic && !automaticOn && (
           <div className="border-border flex flex-col gap-2 rounded-xl border p-3">
-            <p className="text-foreground flex items-center gap-2 text-sm font-semibold">
+            <p className="text-foreground text-sm font-semibold">
               Pergunta automática: {automatic.criterion}
-              <span className="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-[11px] font-semibold">
-                VIP
-              </span>
             </p>
             <p className="text-muted text-xs">
               {automatic.kind === 'graham'
@@ -184,23 +182,19 @@ export function QuestionsSheet({
                 ? ` A sua pergunta "${automatic.criterion}" passa a ser respondida sozinha.`
                 : ''}
             </p>
-            {overview.vip ? (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  void act(
-                    () => diagramRepository.enableAutoQuestion(automatic.kind),
-                    `${automatic.criterion} automático ligado.`,
-                  )
-                }
-                className="bg-primary text-primary-foreground min-h-[40px] self-start rounded-lg px-4 text-sm font-semibold disabled:opacity-50"
-              >
-                Ligar
-              </button>
-            ) : (
-              <p className="text-muted text-xs font-medium">Disponível para contas VIP.</p>
-            )}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                void act(
+                  () => diagramRepository.enableAutoQuestion(automatic.kind),
+                  `${automatic.criterion} automático ligado.`,
+                )
+              }
+              className="bg-primary text-primary-foreground min-h-[40px] self-start rounded-lg px-4 text-sm font-semibold disabled:opacity-50"
+            >
+              Ligar
+            </button>
           </div>
         )}
 
@@ -246,7 +240,6 @@ export function QuestionsSheet({
         <QuestionFormSheet
           initial={editing === 'new' ? undefined : editing}
           typeLabel={label}
-          vip={overview.vip}
           onClose={() => setEditing(null)}
           onDelete={editing === 'new' ? undefined : () => void handleDelete(editing)}
           onSave={async (values) => {
@@ -268,14 +261,12 @@ export function QuestionsSheet({
 function QuestionFormSheet({
   initial,
   typeLabel,
-  vip,
   onClose,
   onSave,
   onDelete,
 }: {
   initial?: DiagramQuestion;
   typeLabel: string;
-  vip: boolean;
   onClose: () => void;
   onSave: (values: {
     criterion: string;
@@ -322,9 +313,7 @@ function QuestionFormSheet({
             <span className="flex flex-col">
               <span className="text-foreground text-sm font-medium">Responder sozinha</span>
               <span className="text-muted text-xs">
-                {vip
-                  ? 'Com os dados do mercado (VIP). Desligada, vira uma pergunta normal, respondida à mão.'
-                  : 'Só para contas VIP: por enquanto, não entra na nota.'}
+                Com os dados do mercado. Desligada, vira uma pergunta normal, respondida à mão.
               </span>
             </span>
             <Switch checked={automatic} onChange={setAutomatic} label="Responder sozinha" />

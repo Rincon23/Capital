@@ -88,8 +88,9 @@ describe('módulos só para VIP', () => {
       .where(eq(schema.gmailKeywords.userId, common));
     expect(keywords).toHaveLength(1);
 
-    // And the server refuses it to them from then on.
+    // And the server refuses it to them from then on, as an address that does not exist.
     expect(() => requireNotVipLocked({ vip: false, vipModules: ['budget'] }, 'budget')).toThrow(HttpError);
+    expect(() => requireNotVipLocked({ vip: false, vipModules: ['budget'] }, 'budget')).toThrow('Não encontrado.');
     expect(() => requireNotVipLocked({ vip: true, vipModules: ['budget'] }, 'budget')).not.toThrow();
   });
 

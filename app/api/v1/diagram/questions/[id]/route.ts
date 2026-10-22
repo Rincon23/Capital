@@ -5,7 +5,7 @@ import { diagramQuestionUpdateSchema } from '@/lib/server/validation';
 export const PUT = apiRoute<{ id: string }>(async ({ request, params, diagram, access }) => {
   const input = await readJson(request, diagramQuestionUpdateSchema);
   if (input.auto && !(await access()).vip) {
-    throw new HttpError(403, 'VIP_ONLY', 'As perguntas automáticas são só para contas VIP.');
+    throw new HttpError(404, 'NOT_FOUND', 'Não encontrado.');
   }
   await diagram.updateQuestion(params.id, input);
 });

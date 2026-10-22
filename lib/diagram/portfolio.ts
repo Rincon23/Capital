@@ -20,8 +20,8 @@ export function assetValue(asset: DiagramAsset, source: Pick<DiagramOverview, 'q
 }
 
 /**
- * The questions of a type that count for this account: an automatic one (Graham, P/VP) only
- * counts for VIP accounts — for the others it is shown, marked VIP, and left out of the score.
+ * The questions of a type that this account sees and that count: an automatic one (Graham, P/VP)
+ * is restricted — an account without access never sees it, and it stays out of the score.
  */
 export function countedQuestions(
   source: Pick<DiagramOverview, 'questions' | 'vip'>,

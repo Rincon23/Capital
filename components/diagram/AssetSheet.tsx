@@ -7,10 +7,10 @@ import {
   activeQuestions,
   assetScore,
   assetType,
+  countedQuestions,
   formatScore,
   grahamAnswer,
   isFixedIncomeType,
-  questionsOf,
   RECOMMENDED_QUESTIONS,
   SCORE_SCALE,
   type Answer,
@@ -84,7 +84,13 @@ export function OptionalText({
 }
 
 /** The direct score, −10 … 10 on screen (kept from −1 to 1), with a slider and the number. */
-export function DirectScoreField({ value, onChange }: { value: number | null; onChange: (value: number) => void }) {
+export function DirectScoreField({
+  value,
+  onChange,
+}: {
+  value: number | null;
+  onChange: (value: number) => void;
+}) {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between">
@@ -117,11 +123,16 @@ const ANSWERS: { value: Answer | null; label: string; aria: string }[] = [
 ];
 
 /** The numbers behind an automatic answer, in one short line. */
-function autoDetail(question: DiagramQuestion, vip: boolean, indicators: AssetIndicators | undefined, price: number | null) {
-  if (!vip) return 'Só para contas VIP: não entra na nota.';
+function autoDetail(
+  question: DiagramQuestion,
+  indicators: AssetIndicators | undefined,
+  price: number | null,
+) {
   if (!indicators) return 'Esperando os dados do Fundamentus.';
   if (question.auto === 'pvp') {
-    return indicators.pvp === null ? 'Sem P/VP no Fundamentus.' : `P/VP ${indicators.pvp.toLocaleString('pt-BR')}`;
+    return indicators.pvp === null
+      ? 'Sem P/VP no Fundamentus.'
+      : `P/VP ${indicators.pvp.toLocaleString('pt-BR')}`;
   }
   const graham = grahamAnswer(price, indicators.lpa, indicators.vpa);
   if (!graham) return 'Sem preço ou sem LPA/VPA.';
@@ -152,7 +163,11 @@ function QuestionRow({
         <p className="text-foreground min-w-0 flex-1 text-sm">
           <span className="text-muted mr-1.5 text-[11px] font-semibold uppercase">{question.criterion}</span>
           {question.text}
-          {off ? <span className="text-muted"> (desligada)</span> : question.weight !== 1 ? <span className="text-muted"> (peso {question.weight.toLocaleString('pt-BR')})</span> : null}
+          {off ? (
+            <span className="text-muted"> (desligada)</span>
+          ) : question.weight !== 1 ? (
+            <span className="text-muted"> (peso {question.weight.toLocaleString('pt-BR')})</span>
+          ) : null}
         </p>
         {question.help && (
           <button
@@ -197,44 +212,40 @@ function QuestionRow({
   );
 }
 
-/** A question the app answers by itself (VIP): the answer and the numbers it came from. */
+/** A question the app answers by itself (restricted): the answer and the numbers it came from. */
 function AutoQuestionRow({
   question,
-  vip,
   answer,
   indicators,
   price,
 }: {
   question: DiagramQuestion;
-  vip: boolean;
   answer: Answer | null;
   indicators: AssetIndicators | undefined;
   price: number | null;
 }) {
   return (
-    <li className={`flex items-start gap-3 ${vip ? '' : 'opacity-60'}`}>
+    <li className="flex items-start gap-3">
       <div className="min-w-0 flex-1">
         <p className="text-foreground text-sm">
           <span className="text-muted mr-1.5 text-[11px] font-semibold uppercase">{question.criterion}</span>
           {question.text}
         </p>
         <p className="text-muted text-xs">
-          {autoDetail(question, vip, indicators, price)}
-          {vip && indicators ? ` · ${formatWhen(indicators.fetchedAt)}` : ''}
+          {autoDetail(question, indicators, price)}
+          {indicators ? ` · ${formatWhen(indicators.fetchedAt)}` : ''}
         </p>
       </div>
       <span
         className={`shrink-0 rounded-lg border px-2.5 py-1 text-xs font-semibold ${
-          !vip
-            ? 'border-border text-primary'
-            : answer === 1
-              ? 'border-success bg-success-bg text-success'
-              : answer === -1
-                ? 'border-danger bg-danger-bg text-danger'
-                : 'border-border text-muted'
+          answer === 1
+            ? 'border-success bg-success-bg text-success'
+            : answer === -1
+              ? 'border-danger bg-danger-bg text-danger'
+              : 'border-border text-muted'
         }`}
       >
-        {!vip ? 'VIP' : answer === 1 ? 'Sim' : answer === -1 ? 'Não' : '—'}
+        {answer === 1 ? 'Sim' : answer === -1 ? 'Não' : '—'}
       </span>
     </li>
   );
@@ -262,9 +273,8 @@ export function AssetSheet({
   const { showToast } = useToast();
   const type = assetType(asset.type);
   const fixedIncome = isFixedIncomeType(asset.type);
-  const questions = fixedIncome ? [] : questionsOf(overview.questions, asset.type);
-  // An automatic question (Graham, P/VP) only counts for VIP accounts.
-  const counted = questions.filter((question) => !question.auto || overview.vip);
+  // The automatic questions (Graham, P/VP) are restricted: without access they never show up.
+  const questions = fixedIncome ? [] : countedQuestions(overview, asset.type);
   const savedAnswers = useMemo(() => overview.answers[asset.id] ?? {}, [overview.answers, asset.id]);
   const quote = overview.quotes[asset.id];
 
@@ -282,8 +292,8 @@ export function AssetSheet({
   const [copying, setCopying] = useState(false);
 
   const parsedQuantity = Math.max(0, parseAmountInput(quantity));
-  const score = assetScore({ isEtf: isEtf || fixedIncome, directScore }, counted, answers);
-  const noQuestions = activeQuestions(counted).length === 0;
+  const score = assetScore({ isEtf: isEtf || fixedIncome, directScore }, questions, answers);
+  const noQuestions = activeQuestions(questions).length === 0;
   const direct = fixedIncome || isEtf || noQuestions;
   const recommended = !fixedIncome && RECOMMENDED_QUESTIONS[asset.type as QuestionType].length > 0;
 
@@ -301,7 +311,11 @@ export function AssetSheet({
     try {
       const { added } = await diagramRepository.useRecommended(asset.type as QuestionType);
       await onChanged();
-      showToast(added > 0 ? `${added} perguntas recomendadas entraram em ${type.label}.` : 'As recomendadas já estão lá.');
+      showToast(
+        added > 0
+          ? `${added} perguntas recomendadas entraram em ${type.label}.`
+          : 'As recomendadas já estão lá.',
+      );
     } catch {
       showToast('Não foi possível copiar as perguntas.', 'error');
     } finally {
@@ -360,7 +374,8 @@ export function AssetSheet({
               todayISO(),
             );
             const changed = questions.filter(
-              (question) => !question.auto && (answers[question.id] ?? null) !== (savedAnswers[question.id] ?? null),
+              (question) =>
+                !question.auto && (answers[question.id] ?? null) !== (savedAnswers[question.id] ?? null),
             );
             for (const question of changed) {
               await diagramRepository.setAnswer(asset.id, question.id, answers[question.id] ?? null);
@@ -389,7 +404,9 @@ export function AssetSheet({
             </p>
             <p className="text-foreground">
               {quote ? `${formatBRL(quote.price)} por cota` : 'Sem cotação ainda'}
-              {quote && asset.quantity > 0 ? ` · ${quotasLabel(asset.quantity, asset.type)} = ${formatBRL(asset.quantity * quote.price)}` : ''}
+              {quote && asset.quantity > 0
+                ? ` · ${quotasLabel(asset.quantity, asset.type)} = ${formatBRL(asset.quantity * quote.price)}`
+                : ''}
             </p>
             {score.source === 'questions' && (
               <p className="text-muted">
@@ -421,12 +438,17 @@ export function AssetSheet({
         </div>
 
         {direct && (
-          <DirectScoreField value={directScore} onChange={(value) => setDirectScore(Math.round(value * 100) / 100)} />
+          <DirectScoreField
+            value={directScore}
+            onChange={(value) => setDirectScore(Math.round(value * 100) / 100)}
+          />
         )}
 
         {!fixedIncome && !isEtf && noQuestions && (
           <div className="border-border flex flex-wrap items-center gap-2 rounded-xl border border-dashed p-3">
-            <p className="text-muted w-full text-xs">{type.label} ainda não tem perguntas: use a nota acima.</p>
+            <p className="text-muted w-full text-xs">
+              {type.label} ainda não tem perguntas: use a nota acima.
+            </p>
             <button
               type="button"
               onClick={() => onOpenQuestions(asset.type as QuestionType)}
@@ -454,7 +476,6 @@ export function AssetSheet({
                 <AutoQuestionRow
                   key={question.id}
                   question={question}
-                  vip={overview.vip}
                   answer={answers[question.id] ?? null}
                   indicators={overview.indicators[asset.id]}
                   price={quote?.price ?? null}
@@ -481,7 +502,9 @@ export function AssetSheet({
             placeholder="0"
             className={`${FIELD} min-h-[44px]`}
           />
-          <span className="text-muted text-xs font-normal">Atualizada em {formatDate(asset.quantityUpdatedOn)}</span>
+          <span className="text-muted text-xs font-normal">
+            Atualizada em {formatDate(asset.quantityUpdatedOn)}
+          </span>
         </label>
 
         <div className="flex flex-col gap-3">
@@ -491,7 +514,10 @@ export function AssetSheet({
             aria-expanded={details}
             className="text-muted flex items-center gap-1 self-start text-sm font-medium"
           >
-            <ChevronDown aria-hidden className={`h-4 w-4 transition-transform ${details ? 'rotate-180' : ''}`} />
+            <ChevronDown
+              aria-hidden
+              className={`h-4 w-4 transition-transform ${details ? 'rotate-180' : ''}`}
+            />
             Setor e observação
           </button>
           {details && (
@@ -510,7 +536,11 @@ export function AssetSheet({
         >
           {saving ? 'Salvando…' : 'Salvar'}
         </button>
-        <button type="button" onClick={() => void handleDelete()} className="text-danger min-h-[40px] text-sm font-semibold">
+        <button
+          type="button"
+          onClick={() => void handleDelete()}
+          className="text-danger min-h-[40px] text-sm font-semibold"
+        >
           Remover ativo
         </button>
       </form>

@@ -5,6 +5,7 @@ import { MODULES, MODULE_KEYS, moduleNames } from '../catalog';
 import {
   DEFAULT_VIP_MODULES,
   dependentsOf,
+  isModuleHidden,
   isModuleOn,
   mayUseModule,
   missingDependencies,
@@ -18,7 +19,6 @@ import {
   turnModuleOn,
   turnModulesOn,
   vipLockOf,
-  vipLockText,
   vipModulesFrom,
   withAccessRules,
 } from '../flags';
@@ -210,8 +210,13 @@ describe('módulos só para VIP', () => {
     expect(vipLockOf(notVip('expenses'), 'history')).toBe('expenses');
     expect(vipLockOf(notVip('expenses'), 'cash')).toBeNull();
     expect(vipLockOf({ vip: true, vipModules: ['expenses'] }, 'history')).toBeNull();
-    expect(vipLockText('voice', 'voice')).toBe('Disponível só para contas VIP.');
-    expect(vipLockText('history', 'expenses')).toBe('Precisa de Lançamentos, disponível só para contas VIP.');
+  });
+
+  it('esconde o módulo restrito e o que depende dele de quem não tem acesso', () => {
+    expect(isModuleHidden(notVip('expenses'), 'expenses')).toBe(true);
+    expect(isModuleHidden(notVip('expenses'), 'history')).toBe(true);
+    expect(isModuleHidden(notVip('expenses'), 'cash')).toBe(false);
+    expect(isModuleHidden({ vip: true, vipModules: ['expenses'] }, 'history')).toBe(false);
   });
 });
 

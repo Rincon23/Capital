@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { DEFAULT_SPECIAL_CATEGORY_LABELS, type BudgetSettings, type ModuleKey } from '@/lib/budget';
 import { ModuleGate } from '../ModuleGate';
 
-/** Who is looking: an account without VIP, and the modules the owner made "Só VIP". */
+/** Who is looking: an account without access, and the modules the owner made "Restrito". */
 const auth = { user: { vip: false, vipModules: [] as ModuleKey[] } };
 vi.mock('@/components/providers/AuthProvider', () => ({ useAuth: () => auth }));
 
@@ -25,26 +25,27 @@ function renderGate(module: ModuleKey, access: { vip: boolean; vipModules: Modul
   );
 }
 
-describe('ModuleGate e o "Só VIP" da Administração', () => {
-  it('mostra o selo VIP, sem botão de ligar, a quem não é VIP', () => {
+describe('ModuleGate e os módulos restritos da Administração', () => {
+  it('para quem não tem acesso, o módulo restrito não existe: nem nome, nem botão de ligar', () => {
     renderGate('gmail', { vip: false, vipModules: ['gmail'] });
-    expect(screen.getByText('VIP')).toBeInTheDocument();
-    expect(screen.getByText('Disponível só para contas VIP.')).toBeInTheDocument();
+    expect(screen.getByText('Página não encontrada')).toBeInTheDocument();
+    expect(screen.queryByText(/Gmail/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/VIP|Restrito/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Ligar/ })).not.toBeInTheDocument();
   });
 
-  it('tranca também o que depende de um módulo só VIP', () => {
+  it('esconde também o que depende de um módulo restrito', () => {
     renderGate('history', { vip: false, vipModules: ['expenses'] });
-    expect(screen.getByText('Precisa de Lançamentos, disponível só para contas VIP.')).toBeInTheDocument();
+    expect(screen.getByText('Página não encontrada')).toBeInTheDocument();
+    expect(screen.queryByText(/Lançamentos|Histórico/)).not.toBeInTheDocument();
   });
 
-  it('um módulo que deixou de ser VIP pode ser ligado por qualquer conta', () => {
+  it('um módulo que deixou de ser restrito pode ser ligado por qualquer conta', () => {
     renderGate('banks', { vip: false, vipModules: ['voice'] });
     expect(screen.getByRole('button', { name: 'Ligar Open Finance' })).toBeInTheDocument();
-    expect(screen.queryByText('VIP')).not.toBeInTheDocument();
   });
 
-  it('a conta VIP liga mesmo o que é "Só VIP"', () => {
+  it('a conta com acesso liga mesmo o que é restrito', () => {
     renderGate('banks', { vip: true, vipModules: ['banks', 'voice'] });
     expect(screen.getByRole('button', { name: 'Ligar Open Finance' })).toBeInTheDocument();
   });

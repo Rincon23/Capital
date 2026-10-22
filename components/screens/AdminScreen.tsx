@@ -6,7 +6,8 @@ import {
   Activity,
   Ban,
   CheckCircle2,
-  Crown,
+  EyeOff,
+  KeyRound,
   PauseCircle,
   Search,
   Server,
@@ -97,15 +98,16 @@ function Card({
   );
 }
 
-/** "1 conta sem VIP", "3 contas sem VIP". */
+/** "1 conta sem acesso", "3 contas sem acesso" (to the restricted modules). */
 function accountsWithoutVip(count: number): string {
-  return count === 1 ? '1 conta sem VIP' : `${count} contas sem VIP`;
+  return count === 1 ? '1 conta sem acesso' : `${count} contas sem acesso`;
 }
 
 /**
  * Administração, only for whoever runs the server (OWNER_EMAIL): how the board is doing right now
- * (requests per second, temperature, pauses), the recent warnings, which modules are only for VIP
- * accounts ("Só VIP", one switch per module) and every account with the switch that makes it VIP.
+ * (requests per second, temperature, pauses), the recent warnings, which modules are restricted
+ * ("Restrito", one switch per module: hidden from every account without access) and every account
+ * with the switch that gives it access. (In the code and the database the access is still "vip".)
  */
 export function AdminScreen() {
   const { showToast } = useToast();
@@ -117,9 +119,9 @@ export function AdminScreen() {
   const [now, setNow] = useState(() => Date.now());
   const [query, setQuery] = useState('');
   const [showAllEvents, setShowAllEvents] = useState(false);
-  /** The account whose VIP switch is being saved: a refresh meanwhile keeps its local value. */
+  /** The account whose access switch is being saved: a refresh meanwhile keeps its local value. */
   const saving = useRef<string | null>(null);
-  /** The same for the module whose "Só VIP" is being saved. */
+  /** The same for the module whose "Restrito" is being saved. */
   const savingModule = useRef<ModuleKey | null>(null);
   const [busyModule, setBusyModule] = useState<ModuleKey | null>(null);
 
@@ -133,7 +135,9 @@ export function AdminScreen() {
         return {
           ...next,
           users: next.users.map((item) => (local && item.id === local.id ? local : item)),
-          modules: next.modules.map((item) => (localModule && item.key === localModule.key ? localModule : item)),
+          modules: next.modules.map((item) =>
+            localModule && item.key === localModule.key ? localModule : item,
+          ),
         };
       });
       setError(null);
@@ -166,8 +170,8 @@ export function AdminScreen() {
       await adminRepository.setVip(target.id, vip);
       showToast(
         vip
-          ? `${target.email} agora é VIP.`
-          : `${target.email} não é mais VIP. Os módulos só VIP desligaram para essa conta, sem apagar nada.`,
+          ? `${target.email} agora vê os módulos restritos.`
+          : `${target.email} não vê mais os módulos restritos. Eles desligaram para essa conta, sem apagar nada.`,
         'success',
       );
     } catch (err) {
@@ -183,9 +187,9 @@ export function AdminScreen() {
     const using = target.usersWithoutVip;
     if (vipOnly && using > 0) {
       const confirmed = await confirm({
-        title: `Deixar ${name} só para VIP?`,
-        message: `${accountsWithoutVip(using)} ${using === 1 ? 'usa' : 'usam'} este módulo agora, e ele vai desligar para ${using === 1 ? 'ela' : 'elas'}. Nenhum dado é apagado: se ele voltar a ser de todos, é só ligar de novo.`,
-        confirmLabel: 'Deixar só VIP',
+        title: `Restringir ${name}?`,
+        message: `${accountsWithoutVip(using)} ${using === 1 ? 'usa' : 'usam'} este módulo agora, e ele vai desligar e sumir para ${using === 1 ? 'ela' : 'elas'}. Nenhum dado é apagado: se ele voltar a ser de todos, é só ligar de novo.`,
+        confirmLabel: 'Restringir',
         cancelLabel: 'Agora não',
       });
       if (!confirmed) return;
@@ -207,11 +211,11 @@ export function AdminScreen() {
       const { turnedOff } = await adminRepository.setModuleVip(target.key, vipOnly);
       showToast(
         vipOnly
-          ? `${name} agora é só para VIP.${turnedOff > 0 ? ` Desligado para ${accountsWithoutVip(turnedOff)}, sem apagar nada.` : ''}`
+          ? `${name} agora é restrito.${turnedOff > 0 ? ` Desligado para ${accountsWithoutVip(turnedOff)}, sem apagar nada.` : ''}`
           : `${name} liberado para todas as contas.`,
         'success',
       );
-      // The owner's own screens (the "VIP" marks in Módulos) read the new choice too.
+      // The owner's own screens (the "Restrito" marks in Módulos) read the new choice too.
       router.refresh();
     } catch (err) {
       apply(!vipOnly);
@@ -326,10 +330,11 @@ export function AdminScreen() {
         )}
       </Card>
 
-      <Card title="Módulos só para VIP" icon={Crown} tone="purple">
+      <Card title="Módulos restritos" icon={EyeOff} tone="purple">
         <p className="text-muted text-sm">
-          Com &quot;Só VIP&quot; ligado, as outras contas veem o módulo com o selo VIP e não conseguem
-          ligar. Quem já usava fica com ele desligado, sem perder nenhum dado.
+          Um módulo restrito some para as contas sem acesso: não aparece em Módulos, nos widgets nem em nenhum
+          outro lugar, e elas não ficam sabendo que ele existe. Quem já usava fica com ele desligado, sem
+          perder nenhum dado.
         </p>
         <ul className="divide-border -mx-1 flex flex-col divide-y">
           {overview.modules.map((item) => (
@@ -346,9 +351,9 @@ export function AdminScreen() {
       <Card title={`Contas (${overview.users.length})`} icon={Users} tone="blue">
         <p className="text-muted text-sm">
           {vipModules.length > 0
-            ? `VIP libera os módulos marcados "Só VIP": hoje, ${moduleNames(vipModules)}.`
-            : 'Nenhum módulo está marcado "Só VIP" agora.'}{' '}
-          {vipCount} {vipCount === 1 ? 'conta é VIP' : 'contas são VIP'}, contando a sua.
+            ? `O acesso libera os módulos restritos: hoje, ${moduleNames(vipModules)}.`
+            : 'Nenhum módulo está restrito agora.'}{' '}
+          {vipCount} {vipCount === 1 ? 'conta tem acesso' : 'contas têm acesso'}, contando a sua.
         </p>
 
         {overview.users.length > 5 && (
@@ -452,16 +457,16 @@ function ModuleRow({
         <p className="text-foreground text-sm font-medium">{info.name}</p>
         <p className="text-muted text-xs">
           {item.vipOnly
-            ? 'Só as contas VIP'
+            ? 'Só as contas com acesso'
             : using > 0
               ? `Todas as contas · ${accountsWithoutVip(using)} ${using === 1 ? 'usa' : 'usam'}`
               : 'Todas as contas'}
         </p>
       </div>
       <div className="flex shrink-0 flex-col items-center gap-1">
-        <Switch checked={item.vipOnly} onChange={onToggle} label={`Só VIP: ${info.name}`} disabled={busy} />
+        <Switch checked={item.vipOnly} onChange={onToggle} label={`Restrito: ${info.name}`} disabled={busy} />
         <span aria-hidden className="text-muted text-[10px] leading-none font-medium">
-          Só VIP
+          Restrito
         </span>
       </div>
     </li>
@@ -489,8 +494,8 @@ function UserRow({
           )}
           {account.vip && !account.owner && (
             <span className="bg-primary/10 text-primary inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold">
-              <Crown aria-hidden className="h-3 w-3" />
-              VIP
+              <KeyRound aria-hidden className="h-3 w-3" />
+              Acesso aos restritos
             </span>
           )}
           {!account.emailVerified && (
@@ -501,13 +506,19 @@ function UserRow({
         </div>
         <p className="text-muted mt-1 text-xs">
           Criada em {dateFormatter.format(new Date(account.createdAt))} ·{' '}
-          {account.lastSeenAt ? `último acesso ${formatAgo(account.lastSeenAt, now)}` : 'nenhuma sessão aberta'}
+          {account.lastSeenAt
+            ? `último acesso ${formatAgo(account.lastSeenAt, now)}`
+            : 'nenhuma sessão aberta'}
         </p>
       </div>
       <Switch
         checked={account.vip}
         onChange={onToggle}
-        label={account.owner ? 'Sua conta é sempre VIP' : `VIP para ${account.email}`}
+        label={
+          account.owner
+            ? 'Sua conta sempre tem acesso aos restritos'
+            : `Acesso aos restritos para ${account.email}`
+        }
         disabled={account.owner}
       />
     </li>
