@@ -153,7 +153,8 @@ export async function buildReview(
   }
   const memory = await banks.categoryMemory();
   const plans = await wallet.listInstallments();
-  const taken = await banks.takenEntryIds();
+  const tied = await banks.tiedEntries();
+  const taken = new Set(tied.keys());
   // The "A receber" still open, when that module is on: a Pix received may be one paid back.
   const pendingBack: LaunchedExpense[] = isModuleOn(settings, 'reimbursable')
     ? await repo.pendingReimbursables(today.slice(0, 7))
@@ -346,12 +347,12 @@ export async function buildReview(
   });
   const expensePairs = strongPairs(pairable('expense'), manual.map(toPair), taken);
   // Then, for a card tied to a Capital card, the same purchase entered on another card.
-  const paired = new Set(expensePairs.values());
+  const pairedSame = new Set(expensePairs.values());
   const elsewhere = strongPairs(
     pairable('expense')
       .filter((item) => !expensePairs.has(item.key) && typeof expectation(rowOf.get(item.key)!) === 'object')
       .map((item) => ({ ...item, onCard: false })),
-    manual.filter(({ expense }) => !paired.has(expense.id)).map(toPair),
+    manual.filter(({ expense }) => !pairedSame.has(expense.id)).map(toPair),
     taken,
   );
   for (const [key, id] of elsewhere) expensePairs.set(key, id);
@@ -360,8 +361,13 @@ export async function buildReview(
     incomes.map(({ income }) => ({ id: income.id, amount: income.amount, date: income.date ?? null })),
     taken,
   );
-  // A paired entry is nobody else's duplicate.
-  for (const id of [...expensePairs.values(), ...incomePairs.values()]) taken.add(id);
+  // A paired entry is nobody else's duplicate, and shows as taken in "Procurar nos gastos".
+  const paired = new Map<string, { bankName: string; date: string }>();
+  for (const [key, id] of [...expensePairs, ...incomePairs]) {
+    taken.add(id);
+    const item = openItems.get(key);
+    if (item) paired.set(id, { bankName: item.bankName, date: item.date });
+  }
 
   const expenseEntry = (id: string | null) => launched.find(({ expense }) => expense.id === id) ?? null;
 
@@ -454,7 +460,45 @@ export async function buildReview(
   }
 
   placed.sort((a, b) => b.item.date.localeCompare(a.item.date) || b.item.amount - a.item.amount);
-  const review: BankReview = { month, months, expenses: emptySide(), incomes: emptySide(), cards: await banks.reviewCards() };
+  const tiedTo = (id: string) => tied.get(id) ?? paired.get(id) ?? null;
+  const entries: BankReview['entries'] = {
+    // Instalment charges are the plans' business: a bank line is never tied to one by hand.
+    expenses: launched
+      .filter((entry) => entry.month === month && !entry.expense.installmentId)
+      .map(({ expense }) => ({
+        month,
+        id: expense.id,
+        description: expense.description,
+        amount: expense.amount,
+        date: expense.date,
+        onCard: Boolean(expense.singleInstallmentCard || expense.cardId),
+        cardId: expense.cardId ?? null,
+        tied: tiedTo(expense.id),
+      })),
+    incomes: incomes
+      .filter((entry) => entry.month === month)
+      .map(({ income }) => ({
+        month,
+        id: income.id,
+        description: income.source,
+        amount: income.amount,
+        date: income.date ?? null,
+        onCard: false,
+        cardId: null,
+        tied: tiedTo(income.id),
+      })),
+  };
+  for (const list of [entries.expenses, entries.incomes]) {
+    list.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || b.amount - a.amount);
+  }
+  const review: BankReview = {
+    month,
+    months,
+    expenses: emptySide(),
+    incomes: emptySide(),
+    cards: await banks.reviewCards(),
+    entries,
+  };
   for (const { place, item } of placed) review[item.kind === 'income' ? 'incomes' : 'expenses'][place].push(item);
   return review;
 }

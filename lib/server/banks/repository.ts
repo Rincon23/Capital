@@ -519,13 +519,28 @@ export class PostgresBanksRepository {
       );
   }
 
-  /** The entries already tied to a bank transaction: never offered as the duplicate of another. */
-  async takenEntryIds(): Promise<Set<string>> {
+  /**
+   * The entries already tied to a bank transaction, with the bank and day of it: never offered as
+   * the duplicate of another, and shown as taken in "Procurar nos gastos".
+   */
+  async tiedEntries(): Promise<Map<string, { bankName: string; date: string }>> {
     const rows = await this.db
-      .select({ entryId: bankTransactions.entryId })
+      .select({
+        entryId: bankTransactions.entryId,
+        date: bankTransactions.date,
+        bankName: sql<string>`coalesce(${bankConnections.name}, ${bankConnections.suggestedName}, 'Banco')`,
+      })
       .from(bankTransactions)
+      .innerJoin(
+        bankAccounts,
+        and(eq(bankAccounts.userId, bankTransactions.userId), eq(bankAccounts.accountId, bankTransactions.accountId)),
+      )
+      .innerJoin(
+        bankConnections,
+        and(eq(bankConnections.userId, bankAccounts.userId), eq(bankConnections.itemId, bankAccounts.itemId)),
+      )
       .where(and(eq(bankTransactions.userId, this.userId), sql`${bankTransactions.entryId} is not null`));
-    return new Set(rows.map((row) => row.entryId!));
+    return new Map(rows.map((row) => [row.entryId!, { bankName: row.bankName, date: row.date }]));
   }
 
   /** The bank cards, with the Capital card each is tied to. */

@@ -533,6 +533,21 @@ export interface ReviewCard {
   linked: boolean;
 }
 
+/** An entry of the month in the Capital, for "Procurar nos gastos" (and "nas rendas"). */
+export interface ReviewEntry {
+  month: Month;
+  id: string;
+  description: string;
+  amount: number;
+  /** Null: an income without a day. */
+  date: string | null;
+  /** A card purchase (`cardId` says which; null: "não informado"); false: Pix/débito, or money in. */
+  onCard: boolean;
+  cardId: string | null;
+  /** Already tied to a bank line, by a tap here or a strong pair: which bank, and the day. */
+  tied: { bankName: string; date: string } | null;
+}
+
 /** Where each line of one side of the month (money out or money in) stands, newest first. */
 export interface ReviewSide {
   /** "Falta no Capital": what asks for a tap. */
@@ -554,6 +569,8 @@ export interface BankReview {
   /** Money in to the accounts, "A receber" paid back included. */
   incomes: ReviewSide;
   cards: ReviewCard[];
+  /** What the person entered in the month, to tie a bank line to by hand ("Procurar nos gastos"). */
+  entries: { expenses: ReviewEntry[]; incomes: ReviewEntry[] };
 }
 
 /** How many lines of a month still ask for a tap, for the bank screen, the Início and the Cartão. */

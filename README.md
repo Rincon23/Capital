@@ -394,7 +394,10 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
     bancos mostra a conta nos botões "Conferir gastos" e "Conferir recebimentos", que abrem cada
     aba, e a Início, "N para conferir em outubro". O mês fica no topo, com ‹ › e deslizar
     (`MonthSwipe` com `min`/`max`: além do mês anterior ou do atual, volta sozinho; `?mes=`).
-    Com tudo conferido, a aba diz "Outubro confere ✓". Cada linha cai em uma lista:
+    No topo de cada aba, um resumo só com contagens e uma barra ("3 faltam no Capital · 12 de 15
+    conferem"), ou "Outubro confere ✓". As linhas vêm em **blocos por origem**, cada um com ícone
+    e um selo ("2 faltam" / "✓ confere"): nos gastos, os cartões e, por banco, a conta (Pix e
+    débito); nos recebimentos, **um bloco por banco**. Cada linha cai em uma lista:
     - **Falta no Capital**: o que pede um toque;
     - **✓ Confere** (fechada): já está no Capital. É o que foi lançado, ligado, recebido ou a
       fatura marcada por aqui; a compra parcelada que bate com uma compra do Capital; e o **par
@@ -402,14 +405,22 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
       mesmo cartão quando os dois dizem, e só um candidato de cada lado ("✓ Confere com 'Mercado'
       de 12/10"). O par e o plano são calculados a cada leitura, nunca gravados: "Não é este" volta
       a linha para "Falta no Capital" sem apagar nada;
-    - **Deixados de fora** (fechada): o que o app deixa de fora sozinho, sem pedir nada;
+    - **Deixados de fora** (fechada): o que o app deixa de fora sozinho, sem pedir nada (as
+      listas fechadas são botões com a contagem, "✓ Confere 14", e abrem uma de cada vez);
     - **Ignorados** (fechada): o que a pessoa ignorou, com o motivo quando o app tinha um, e
       **"Voltar para conferir"** (a ação `restore`, que só aceita o que está ignorado e volta a
       transação para ninguém ter decidido). O que foi tirado dos Deixados de fora antes desta
       mudança também está aqui, sem migração.
     - em "Falta no Capital", cada linha tem descrição, valor, data, banco e a categoria
       sugerida, com **"Lançar"** (um toque), o lápis (o formulário de gasto, de compra parcelada
-      ou de renda, já preenchido) e "Ignorar". Débito sugere gasto, crédito sugere renda;
+      ou de renda, já preenchido) e, embaixo, "Procurar nos gastos" e "Ignorar". Débito sugere
+      gasto, crédito sugere renda;
+    - **"Procurar nos gastos"** (nos recebimentos, "Procurar nas rendas"): lista o que a pessoa
+      lançou no mês, com busca pela descrição ou pelo valor e o selo "mesmo valor". O que já
+      está ligado a uma linha do banco (por um toque ou pelo par forte) aparece apagado, sem
+      toque ("ligado ao BTG Pactual de 12/10"); o resto liga com um toque, como "É o mesmo".
+      Serve para quando o Capital não acha o par (outro dia, outro valor). As parcelas de
+      compras parceladas não entram (são da compra parcelada);
     - **categoria sugerida**, nesta ordem: o que a pessoa escolheu antes para a mesma descrição;
       uma categoria dita na descrição (as regras de `lib/ai`, sem IA); a categoria da Pluggy
       traduzida para os nomes das categorias da pessoa; e o que as categorias padrão significam
@@ -864,6 +875,9 @@ dela); o servidor não tem chave da Pluggy. Como o módulo nasceu (F0–F6) est�
     lado (para o par forte não depender do mês olhado), e todas as parcelas de compras no
     cartão, de qualquer data; separa `expenses` e `incomes`, cada um em `missing`, `matched`,
     `leftOut` e `ignored`. Carrega os lançamentos do mês e dos vizinhos e os parcelados;
+  - a resposta traz também `entries` (gastos e rendas do mês, com `tied`: o banco e o dia da
+    linha a que cada um já está ligado, por `tiedEntries` ou pelo par forte), para "Procurar nos
+    gastos";
   - `bankInstallmentIn` (mês da compra + n − 1), `planChargeIn` (a cobrança do plano no mês) e
     `strongPairs` (um candidato de cada lado) são puros;
   - `GET /api/v1/banks/review?month=` e `GET /api/v1/banks/review/counts?month=` (as contagens,

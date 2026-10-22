@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ChevronDown, Pencil, Tag } from 'lucide-react';
+import { CheckCheck, ChevronDown, CreditCard, Landmark, Pencil, Search, Tag } from 'lucide-react';
 import { InstallmentFormSheet } from '@/components/card/InstallmentFormSheet';
 import { useCards } from '@/components/cards/CardsProvider';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -13,7 +13,10 @@ import { MonthSwipe } from '@/components/month/MonthSwipe';
 import { MonthSwitcher } from '@/components/month/MonthSwitcher';
 import { ModuleGate } from '@/components/modules/ModuleGate';
 import { useSettings } from '@/components/providers/SettingsProvider';
+import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Chip } from '@/components/ui/Chip';
+import { IconTile } from '@/components/ui/IconTile';
+import { ProgressBar } from '@/components/ui/ProgressBar';
 import { useToast } from '@/components/ui/Toast';
 import { useWallet, WalletProvider } from '@/components/wallet/WalletProvider';
 import {
@@ -24,6 +27,7 @@ import {
   type MisplacedEntry,
   type PaybackOption,
   type ReviewCard,
+  type ReviewEntry,
   type ReviewItem,
   type ReviewMatch,
   type ReviewSide,
@@ -41,6 +45,7 @@ import {
   type InstallmentPlan,
   type Month,
 } from '@/lib/budget';
+import { foldText } from '@/lib/ai/text';
 import { isModuleOn } from '@/lib/modules';
 import { zonedToday } from '@/lib/reminders/time';
 import { banksRepository, walletRepository, type BankReviewAction } from '@/lib/storage';
@@ -65,15 +70,19 @@ export function BankReviewScreen() {
   );
 }
 
-/** One origin of the money out: a Capital card, a bank card not tied to one, or the account. */
+/**
+ * One origin of the month's lines: a Capital card, a bank card not tied to one, or a bank's
+ * accounts (money out by Pix and débito, or money in).
+ */
 interface Block {
   key: string;
   title: string;
   detail: string | null;
+  icon: 'card' | 'bank';
   /** A bank card not tied yet: the question goes at the top of its block. */
   ask: ReviewCard | null;
-  /** How many bank cards are in it (a line names its own only when there are several). */
-  cards: number;
+  /** How many bank accounts or cards are in it (a line names its own only when there are several). */
+  accounts: number;
   lines: ReviewSide;
 }
 
@@ -132,6 +141,8 @@ function Review() {
   const [notMisplaced, setNotMisplaced] = useState<Set<string>>(() => new Set());
   /** Split purchases the person said are not the "à vista" entry the Capital pointed at. */
   const [notUpfront, setNotUpfront] = useState<Set<string>>(() => new Set());
+  /** "Procurar nos gastos": the bank line being tied by hand to something entered in the month. */
+  const [searching, setSearching] = useState<ReviewItem | null>(null);
   /** The Capital card a link from the Cartão asks for (`?cartao=`): its block comes into view. */
   const focusCard = params.get('cartao');
 
@@ -296,8 +307,9 @@ function Review() {
   const cardName = (id: string | null) => cards.find((card) => card.id === id)?.name ?? 'outro cartão';
 
   /**
-   * Money out, one block per origin: each Capital card (with the bank cards tied to it), the bank
-   * cards not tied to one (asking which they are), then the account. Only counts: no sum in reais.
+   * The month in blocks, one per origin. Money out: each Capital card (with the bank cards tied to
+   * it), the bank cards not tied to one (asking which they are), then each bank's account (Pix and
+   * débito). Money in: one block per bank. Only counts: no sum in reais.
    */
   function blocksOf(lines: ReviewSide): Block[] {
     const bankCards = review?.cards ?? [];
@@ -306,40 +318,59 @@ function Review() {
       cardOn && bankCard?.linked && bankCard.cardId && cards.some((card) => card.id === bankCard.cardId)
         ? bankCard.cardId
         : null;
-    const blocks: Block[] = [
-      ...cards
-        .filter((card) => bankCards.some((bankCard) => capitalOf(bankCard) === card.id))
-        .map((card) => ({
-          key: `card:${card.id}`,
-          title: card.name,
-          detail: bankCards
-            .filter((bankCard) => capitalOf(bankCard) === card.id)
-            .map((bankCard) => bankCard.name)
-            .join(' · '),
-          ask: null,
-          cards: bankCards.filter((bankCard) => capitalOf(bankCard) === card.id).length,
-          lines: emptyLines(),
-        })),
-      ...bankCards
-        .filter((bankCard) => !capitalOf(bankCard))
-        .map((bankCard) => ({
-          key: `bank:${bankCard.accountId}`,
-          title: bankCard.name,
-          detail: bankCard.linked
-            ? 'Não informado no Capital'
-            : bankCard.bankName === bankCard.name
-              ? null
-              : bankCard.bankName,
-          ask: asks && !bankCard.linked ? bankCard : null,
-          cards: 1,
-          lines: emptyLines(),
-        })),
-      { key: 'account', title: 'Conta (Pix e débito)', detail: null, ask: null, cards: 0, lines: emptyLines() },
-    ];
+    const all = Object.values(lines).flat();
+    const banks = [...new Set(all.filter((item) => !item.onCard).map((item) => item.bankName))].sort((a, b) =>
+      a.localeCompare(b, 'pt-BR'),
+    );
+    const accountsOf = (bank: string) =>
+      new Set(all.filter((item) => !item.onCard && item.bankName === bank).map((item) => item.accountId)).size;
+    const accountBlocks: Block[] = banks.map((bank) => ({
+      key: `account:${bank}`,
+      title: bank,
+      detail: side === 'expenses' ? 'Conta (Pix e débito)' : null,
+      icon: 'bank',
+      ask: null,
+      accounts: accountsOf(bank),
+      lines: emptyLines(),
+    }));
+    const blocks: Block[] =
+      side === 'incomes'
+        ? accountBlocks
+        : [
+            ...cards
+              .filter((card) => bankCards.some((bankCard) => capitalOf(bankCard) === card.id))
+              .map((card) => {
+                const tied = bankCards.filter((bankCard) => capitalOf(bankCard) === card.id);
+                return {
+                  key: `card:${card.id}`,
+                  title: card.name,
+                  detail: tied.map((bankCard) => bankCard.name).join(' · '),
+                  icon: 'card' as const,
+                  ask: null,
+                  accounts: tied.length,
+                  lines: emptyLines(),
+                };
+              }),
+            ...bankCards
+              .filter((bankCard) => !capitalOf(bankCard))
+              .map((bankCard) => ({
+                key: `bank:${bankCard.accountId}`,
+                title: bankCard.name,
+                detail: bankCard.linked
+                  ? 'Não informado no Capital'
+                  : bankCard.bankName === bankCard.name
+                    ? null
+                    : bankCard.bankName,
+                icon: 'card' as const,
+                ask: asks && !bankCard.linked ? bankCard : null,
+                accounts: 1,
+                lines: emptyLines(),
+              })),
+            ...accountBlocks,
+          ];
     const blockOf = (item: ReviewItem) => {
-      if (!item.onCard) return blocks[blocks.length - 1];
-      const bankCard = bankCards.find((candidate) => candidate.accountId === item.accountId);
-      const capital = capitalOf(bankCard);
+      if (!item.onCard) return blocks.find((block) => block.key === `account:${item.bankName}`)!;
+      const capital = capitalOf(bankCards.find((candidate) => candidate.accountId === item.accountId));
       return (
         blocks.find((block) => block.key === (capital ? `card:${capital}` : `bank:${item.accountId}`)) ??
         blocks[blocks.length - 1]
@@ -380,185 +411,183 @@ function Review() {
   const shownMonth = review?.month ?? month;
   const noun = side === 'expenses' ? ['gasto confere', 'gastos conferem'] : ['recebimento confere', 'recebimentos conferem'];
 
-  /** The four lists of the month for some lines: what is missing open, the rest folded. */
-  function lists(lines: ReviewSide, scope: string, inBlock = false, origin: (item: ReviewItem) => string | null = originOf) {
+  /** One block's lines: what is missing open, the rest a tap away. */
+  function lists(lines: ReviewSide, scope: string, origin: (item: ReviewItem) => string | null) {
     return (
       <>
-        {lines.missing.length === 0 ? (
-          inBlock ? null : (
-          <section className="border-border bg-card mx-4 flex flex-col gap-1 rounded-2xl border p-4 text-center shadow-sm">
-            <p className="text-success font-semibold">{formatMonthName(shownMonth)} confere ✓</p>
-            <p className="text-muted text-sm">
-              {lines.matched.length > 0
-                ? `${lines.matched.length} ${lines.matched.length === 1 ? noun[0] : noun[1]} com o Capital.`
-                : 'Nada para conferir neste mês.'}
-            </p>
-          </section>
-          )
-        ) : (
-          <>
-            <p className="text-foreground px-4 text-sm font-semibold">Falta no Capital ({lines.missing.length})</p>
-            <ul className="flex flex-col gap-3">
-              {lines.missing.map((item) => (
-                <ReviewRow
-                  key={item.key}
-                  item={item}
-                  origin={origin(item)}
-                  busy={busy !== null}
-                  showDuplicate={item.duplicate !== null && !notSame.has(item.key)}
-                  showPayback={item.reimbursement !== null && !notPayback.has(item.key)}
-                  showMisplaced={item.misplaced !== null && !notMisplaced.has(item.key)}
-                  showUpfront={item.upfront !== null && !notUpfront.has(item.key)}
-                  cardName={cardName}
-                  unforeseenLabel={unforeseenLabel}
-                  onMove={(misplaced) =>
-                    void tap(
-                      item,
-                      {
-                        action: 'card',
-                        transactionIds: item.transactionIds,
-                        entry: misplaced.entry,
-                        month: misplaced.month,
-                        entryId: misplaced.entryId,
-                        cardId: misplaced.cardId,
-                      },
-                      misplaced.cardId ? `Pronto: agora está no ${cardName(misplaced.cardId)}.` : 'Pronto: agora está no cartão.',
-                    )
-                  }
-                  onNotMisplaced={() => setNotMisplaced((current) => new Set(current).add(item.key))}
-                  onReplace={(upfront) =>
-                    setForm({ kind: 'plan', item, draft: planOf(item), replaces: { month: upfront.month, entryId: upfront.entryId } })
-                  }
-                  onKeepUpfront={(upfront) =>
-                    void tap(
-                      item,
-                      { action: 'linked', transactionIds: item.transactionIds, month: upfront.month, entryId: upfront.entryId },
-                      'Pronto: fica à vista, ligada ao banco.',
-                    )
-                  }
-                  onNotUpfront={() => setNotUpfront((current) => new Set(current).add(item.key))}
-                  onPayback={(option) =>
-                    void tap(
-                      item,
-                      {
-                        action: 'reimbursed',
-                        transactionIds: item.transactionIds,
-                        month: option.month,
-                        expenseId: option.expenseId,
-                      },
-                      paybackDone(option, unforeseenLabel),
-                    )
-                  }
-                  onNotPayback={() => setNotPayback((current) => new Set(current).add(item.key))}
-                  onLaunch={() => launch(item)}
-                  onEdit={() => open(item)}
-                  onIgnore={() =>
-                    void tap(item, { action: 'ignore', transactionIds: item.transactionIds }, 'Ignorado.')
-                  }
-                  onSame={() =>
-                    void tap(
-                      item,
-                      {
-                        action: 'linked',
-                        transactionIds: item.transactionIds,
-                        month: item.duplicate!.month,
-                        entryId: item.duplicate!.entryId,
-                      },
-                      'Pronto: ligado ao que você já tinha lançado.',
-                    )
-                  }
-                  onNotSame={() => setNotSame((current) => new Set(current).add(item.key))}
-                />
-              ))}
-            </ul>
-          </>
+        {lines.missing.length > 0 && (
+          <ul className="flex flex-col gap-3">
+            {lines.missing.map((item) => (
+              <ReviewRow
+                key={item.key}
+                item={item}
+                origin={origin(item)}
+                busy={busy !== null}
+                showDuplicate={item.duplicate !== null && !notSame.has(item.key)}
+                showPayback={item.reimbursement !== null && !notPayback.has(item.key)}
+                showMisplaced={item.misplaced !== null && !notMisplaced.has(item.key)}
+                showUpfront={item.upfront !== null && !notUpfront.has(item.key)}
+                cardName={cardName}
+                unforeseenLabel={unforeseenLabel}
+                searchLabel={item.kind === 'income' ? 'Procurar nas rendas' : 'Procurar nos gastos'}
+                onSearch={() => setSearching(item)}
+                onMove={(misplaced) =>
+                  void tap(
+                    item,
+                    {
+                      action: 'card',
+                      transactionIds: item.transactionIds,
+                      entry: misplaced.entry,
+                      month: misplaced.month,
+                      entryId: misplaced.entryId,
+                      cardId: misplaced.cardId,
+                    },
+                    misplaced.cardId ? `Pronto: agora está no ${cardName(misplaced.cardId)}.` : 'Pronto: agora está no cartão.',
+                  )
+                }
+                onNotMisplaced={() => setNotMisplaced((current) => new Set(current).add(item.key))}
+                onReplace={(upfront) =>
+                  setForm({ kind: 'plan', item, draft: planOf(item), replaces: { month: upfront.month, entryId: upfront.entryId } })
+                }
+                onKeepUpfront={(upfront) =>
+                  void tap(
+                    item,
+                    { action: 'linked', transactionIds: item.transactionIds, month: upfront.month, entryId: upfront.entryId },
+                    'Pronto: fica à vista, ligada ao banco.',
+                  )
+                }
+                onNotUpfront={() => setNotUpfront((current) => new Set(current).add(item.key))}
+                onPayback={(option) =>
+                  void tap(
+                    item,
+                    {
+                      action: 'reimbursed',
+                      transactionIds: item.transactionIds,
+                      month: option.month,
+                      expenseId: option.expenseId,
+                    },
+                    paybackDone(option, unforeseenLabel),
+                  )
+                }
+                onNotPayback={() => setNotPayback((current) => new Set(current).add(item.key))}
+                onLaunch={() => launch(item)}
+                onEdit={() => open(item)}
+                onIgnore={() => void tap(item, { action: 'ignore', transactionIds: item.transactionIds }, 'Ignorado.')}
+                onSame={() =>
+                  void tap(
+                    item,
+                    {
+                      action: 'linked',
+                      transactionIds: item.transactionIds,
+                      month: item.duplicate!.month,
+                      entryId: item.duplicate!.entryId,
+                    },
+                    'Pronto: ligado ao que você já tinha lançado.',
+                  )
+                }
+                onNotSame={() => setNotSame((current) => new Set(current).add(item.key))}
+              />
+            ))}
+          </ul>
         )}
 
-        <Folded key={`${scope}-matched`} title="✓ Confere" count={lines.matched.length}>
-          {lines.matched.map((item) => (
-            <li key={item.key} className="border-border bg-card mx-4 flex flex-col gap-1.5 rounded-xl border p-3 text-sm shadow-sm">
-              <LineHead item={item} origin={origin(item)} />
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-success min-w-0 text-xs">{matchLabel(item.match)}</span>
-                {item.match?.kind === 'pair' && (
-                  <button
-                    type="button"
-                    onClick={() => setNotPair((current) => new Set(current).add(item.key))}
-                    className="text-primary shrink-0 text-xs font-semibold"
-                  >
-                    Não é este
-                  </button>
-                )}
-              </div>
-            </li>
-          ))}
-        </Folded>
-
-        <Folded key={`${scope}-left-out`} title="Deixados de fora" count={lines.leftOut.length}>
-          {lines.leftOut.map((item) => {
-            const bill = item.leftOut?.reason === 'bill_payment' && cardOn ? billPaidBy(item, bills) : null;
-            return (
-              <li key={item.key} className="border-border bg-card mx-4 flex flex-col gap-2 rounded-xl border p-3 text-sm shadow-sm">
-                <LineHead item={item} origin={origin(item)} detail={item.leftOut?.label} />
-                {bill && (
-                  <div className="bg-background flex items-center justify-between gap-2 rounded-lg px-3 py-2">
-                    <span className="text-foreground text-xs">
-                      Marcar a fatura de {formatMonthLabel(bill.month)} ({bill.cardName}) como paga?
-                    </span>
+        <FoldedLists
+          key={scope}
+          lists={[
+            {
+              key: 'matched',
+              title: '✓ Confere',
+              items: lines.matched,
+              render: (item) => (
+                <li key={item.key} className={foldedLine}>
+                  <LineHead item={item} origin={origin(item)} />
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-success min-w-0 text-xs">{matchLabel(item.match)}</span>
+                    {item.match?.kind === 'pair' && (
+                      <button
+                        type="button"
+                        onClick={() => setNotPair((current) => new Set(current).add(item.key))}
+                        className="text-primary shrink-0 text-xs font-semibold"
+                      >
+                        Não é este
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ),
+            },
+            {
+              key: 'left-out',
+              title: 'Deixados de fora',
+              items: lines.leftOut,
+              render: (item) => {
+                const bill = item.leftOut?.reason === 'bill_payment' && cardOn ? billPaidBy(item, bills) : null;
+                return (
+                  <li key={item.key} className={foldedLine}>
+                    <LineHead item={item} origin={origin(item)} detail={item.leftOut?.label} />
+                    {bill && (
+                      <div className="bg-background flex items-center justify-between gap-2 rounded-lg px-3 py-2">
+                        <span className="text-foreground text-xs">
+                          Marcar a fatura de {formatMonthLabel(bill.month)} ({bill.cardName}) como paga?
+                        </span>
+                        <button
+                          type="button"
+                          disabled={busy !== null}
+                          onClick={() =>
+                            void (async () => {
+                              setBusy(item.key);
+                              try {
+                                await walletRepository.payBill({ cardId: bill.cardId, month: bill.month });
+                                await send({ action: 'bill', transactionIds: item.transactionIds });
+                                void refreshWallet();
+                                showToast(`Fatura de ${formatMonthLabel(bill.month)} paga.`);
+                              } catch (err) {
+                                showToast(toStorageErrorMessage(err, 'Não foi possível marcar a fatura.'), 'error');
+                              } finally {
+                                setBusy(null);
+                              }
+                            })()
+                          }
+                          className="text-primary shrink-0 text-xs font-semibold"
+                        >
+                          Marcar paga
+                        </button>
+                      </div>
+                    )}
                     <button
                       type="button"
                       disabled={busy !== null}
-                      onClick={() =>
-                        void (async () => {
-                          setBusy(item.key);
-                          try {
-                            await walletRepository.payBill({ cardId: bill.cardId, month: bill.month });
-                            await send({ action: 'bill', transactionIds: item.transactionIds });
-                            void refreshWallet();
-                            showToast(`Fatura de ${formatMonthLabel(bill.month)} paga.`);
-                          } catch (err) {
-                            showToast(toStorageErrorMessage(err, 'Não foi possível marcar a fatura.'), 'error');
-                          } finally {
-                            setBusy(null);
-                          }
-                        })()
-                      }
-                      className="text-primary shrink-0 text-xs font-semibold"
+                      onClick={() => open(item)}
+                      className="text-primary self-start text-xs font-semibold"
                     >
-                      Marcar paga
+                      Lançar mesmo assim
                     </button>
-                  </div>
-                )}
-                <button
-                  type="button"
-                  disabled={busy !== null}
-                  onClick={() => open(item)}
-                  className="text-primary self-start text-xs font-semibold"
-                >
-                  Lançar mesmo assim
-                </button>
-              </li>
-            );
-          })}
-        </Folded>
-
-        <Folded key={`${scope}-ignored`} title="Ignorados" count={lines.ignored.length}>
-          {lines.ignored.map((item) => (
-            <li key={item.key} className="border-border bg-card mx-4 flex flex-col gap-2 rounded-xl border p-3 text-sm shadow-sm">
-              <LineHead item={item} origin={origin(item)} detail={item.leftOut?.label} />
-              <button
-                type="button"
-                disabled={busy !== null}
-                onClick={() =>
-                  void tap(item, { action: 'restore', transactionIds: item.transactionIds }, 'Voltou para conferir.')
-                }
-                className="text-primary self-start text-xs font-semibold"
-              >
-                Voltar para conferir
-              </button>
-            </li>
-          ))}
-        </Folded>
+                  </li>
+                );
+              },
+            },
+            {
+              key: 'ignored',
+              title: 'Ignorados',
+              items: lines.ignored,
+              render: (item) => (
+                <li key={item.key} className={foldedLine}>
+                  <LineHead item={item} origin={origin(item)} detail={item.leftOut?.label} />
+                  <button
+                    type="button"
+                    disabled={busy !== null}
+                    onClick={() =>
+                      void tap(item, { action: 'restore', transactionIds: item.transactionIds }, 'Voltou para conferir.')
+                    }
+                    className="text-primary self-start text-xs font-semibold"
+                  >
+                    Voltar para conferir
+                  </button>
+                </li>
+              ),
+            },
+          ]}
+        />
       </>
     );
   }
@@ -609,42 +638,36 @@ function Review() {
         {error && <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{error}</p>}
         {!review && !error && <p className="text-muted py-16 text-center">Carregando…</p>}
 
-        {current && side === 'incomes' && lists(current, side)}
-        {current && side === 'expenses' && (
+        {current && (
           <>
-            {current.missing.length === 0 && (
-              <section className="border-border bg-card mx-4 flex flex-col gap-1 rounded-2xl border p-4 text-center shadow-sm">
-                <p className="text-success font-semibold">{formatMonthName(shownMonth)} confere ✓</p>
-                <p className="text-muted text-sm">
-                  {current.matched.length > 0
-                    ? `${current.matched.length} ${current.matched.length === 1 ? noun[0] : noun[1]} com o Capital.`
-                    : 'Nada para conferir neste mês.'}
-                </p>
-              </section>
-            )}
+            <MonthSummary month={shownMonth} lines={current} noun={noun} />
             {blocksOf(current).map((block) => {
               const missing = block.lines.missing.length;
               const matched = block.lines.matched.length;
               return (
-                <section key={block.key} id={`bloco-${block.key}`} className="flex scroll-mt-16 flex-col gap-3">
-                  <div className="border-border mx-4 flex items-baseline justify-between gap-3 border-t pt-3">
-                    <span className="min-w-0">
-                      <span className="text-foreground block truncate font-semibold">{block.title}</span>
+                <section key={block.key} id={`bloco-${block.key}`} className="flex scroll-mt-16 flex-col gap-3 pt-1">
+                  <div className="mx-4 flex items-center gap-3">
+                    <IconTile icon={block.icon === 'card' ? CreditCard : Landmark} tone={block.icon === 'card' ? 'purple' : 'blue'} size="sm" />
+                    <span className="min-w-0 flex-1">
+                      <span className="text-foreground block truncate text-sm font-semibold">{block.title}</span>
                       {block.detail && <span className="text-muted block truncate text-xs">{block.detail}</span>}
                     </span>
-                    <span className={`shrink-0 text-xs font-medium ${missing > 0 ? 'text-warning' : 'text-success'}`}>
-                      {[
-                        missing > 0 ? `${missing} ${missing === 1 ? 'falta' : 'faltam'}` : matched > 0 ? '✓' : '',
-                        matched > 0 ? `${matched} ${matched === 1 ? 'confere' : 'conferem'}` : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')}
-                    </span>
+                    {missing > 0 ? (
+                      <span className="bg-warning-bg text-warning shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold">
+                        {missing} {missing === 1 ? 'falta' : 'faltam'}
+                      </span>
+                    ) : (
+                      matched > 0 && (
+                        <span className="bg-success-bg text-success shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold">
+                          ✓ confere
+                        </span>
+                      )
+                    )}
                   </div>
                   {block.ask && linkQuestion(block.ask)}
-                  {lists(block.lines, `${side}-${block.key}`, true, (item) =>
-                    // In a card's block, only the bank card says more (when there are several).
-                    block.key === 'account' ? originOf(item) : block.cards > 1 ? item.accountName : null,
+                  {lists(block.lines, `${side}-${block.key}`, (item) =>
+                    // The block says where it came from; a line names its account or card only among several.
+                    block.accounts > 1 ? item.accountName : null,
                   )}
                 </section>
               );
@@ -652,6 +675,26 @@ function Review() {
           </>
         )}
       </MonthSwipe>
+
+      {searching && review && (
+        <SearchSheet
+          item={searching}
+          entries={searching.kind === 'income' ? review.entries.incomes : review.entries.expenses}
+          monthName={formatMonthName(review.month).toLowerCase()}
+          cardName={cardName}
+          busy={busy !== null}
+          onClose={() => setSearching(null)}
+          onPick={(entry) => {
+            const item = searching;
+            setSearching(null);
+            void tap(
+              item,
+              { action: 'linked', transactionIds: item.transactionIds, month: entry.month, entryId: entry.id },
+              `Pronto: ligado a “${entry.description}”.`,
+            );
+          }}
+        />
+      )}
 
       {form?.kind === 'expense' && (
         <ExpenseFormSheet
@@ -721,38 +764,204 @@ function Review() {
   );
 }
 
-/** A folded list of the month, with how many lines it holds ("✓ Confere (14)"). */
-function Folded({ title, count, children }: { title: string; count: number; children: ReactNode }) {
-  const [open, setOpen] = useState(false);
-  if (count === 0) return null;
+const foldedLine = 'border-border bg-card mx-4 flex flex-col gap-2 rounded-xl border p-3 text-sm shadow-sm';
+
+/**
+ * The lists of a block that ask for nothing, folded: one chip each with how many lines it holds
+ * ("✓ Confere 14"), and a tap opens it (one at a time).
+ */
+function FoldedLists({
+  lists,
+}: {
+  lists: { key: string; title: string; items: ReviewItem[]; render: (item: ReviewItem) => ReactNode }[];
+}) {
+  const [open, setOpen] = useState<string | null>(null);
+  const shown = lists.filter((list) => list.items.length > 0);
+  if (shown.length === 0) return null;
+  const opened = shown.find((list) => list.key === open);
   return (
-    <section className="flex flex-col gap-2">
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        aria-expanded={open}
-        className="text-muted flex min-h-[40px] items-center gap-1 px-4 text-sm font-semibold"
-      >
-        {title} ({count})
-        <ChevronDown aria-hidden className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && <ul className="flex flex-col gap-2">{children}</ul>}
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-2 px-4">
+        {shown.map((list) => (
+          <button
+            key={list.key}
+            type="button"
+            onClick={() => setOpen((current) => (current === list.key ? null : list.key))}
+            aria-expanded={open === list.key}
+            className={`flex min-h-[36px] items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition-colors ${
+              open === list.key ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card text-muted'
+            }`}
+          >
+            {list.title}
+            <span className="tabular-nums">{list.items.length}</span>
+            <ChevronDown aria-hidden className={`h-3.5 w-3.5 transition-transform ${open === list.key ? 'rotate-180' : ''}`} />
+          </button>
+        ))}
+      </div>
+      {opened && <ul className="flex flex-col gap-2">{opened.items.map(opened.render)}</ul>}
+    </div>
+  );
+}
+
+/** The month at a glance: how much of what the banks sent is in the Capital (only counts). */
+function MonthSummary({ month, lines, noun }: { month: Month; lines: ReviewSide; noun: string[] }) {
+  const missing = lines.missing.length;
+  const matched = lines.matched.length;
+  const total = missing + matched;
+  return (
+    <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm">
+      {total === 0 ? (
+        <p className="text-muted text-sm">Nada para conferir em {formatMonthName(month).toLowerCase()}.</p>
+      ) : missing === 0 ? (
+        <div className="flex items-center gap-3">
+          <IconTile icon={CheckCheck} tone="green" />
+          <div className="min-w-0">
+            <p className="text-success font-semibold">{formatMonthName(month)} confere ✓</p>
+            <p className="text-muted text-sm">
+              {matched} {matched === 1 ? noun[0] : noun[1]} com o Capital.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-foreground font-semibold">
+              {missing} {missing === 1 ? 'falta' : 'faltam'} no Capital
+            </p>
+            <p className="text-muted shrink-0 text-sm tabular-nums">
+              {matched} de {total} conferem
+            </p>
+          </div>
+          <ProgressBar usedPct={matched / total} state="ok" />
+        </>
+      )}
     </section>
   );
 }
 
-/** What a folded line shows: what it is, from where and when, and how much. */
+/**
+ * "Procurar nos gastos": what the person entered in the month, to tie the bank line to by hand
+ * when the Capital found no pair (another day, another amount). What is already tied to another
+ * bank line shows faded, without a tap; the rest ties with one ("É o mesmo").
+ */
+function SearchSheet({
+  item,
+  entries,
+  monthName,
+  cardName,
+  busy,
+  onClose,
+  onPick,
+}: {
+  item: ReviewItem;
+  entries: ReviewEntry[];
+  monthName: string;
+  cardName: (id: string | null) => string;
+  busy: boolean;
+  onClose: () => void;
+  onPick: (entry: ReviewEntry) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const income = item.kind === 'income';
+  const wanted = foldText(query.trim());
+  const shown = wanted
+    ? entries.filter(
+        (entry) =>
+          foldText(entry.description).includes(wanted) ||
+          formatBRL(entry.amount).replace(/\s/g, ' ').includes(query.trim()),
+      )
+    : entries;
+  const where = (entry: ReviewEntry) =>
+    income ? null : entry.onCard ? (entry.cardId ? cardName(entry.cardId) : 'cartão não informado') : 'Pix/débito';
+  return (
+    <BottomSheet
+      open
+      title={income ? 'Procurar nas rendas' : 'Procurar nos gastos'}
+      onClose={onClose}
+      confirmDiscard={false}
+    >
+      <div className="flex flex-col gap-3">
+        <div className="bg-background flex items-start justify-between gap-3 rounded-xl px-3 py-2 text-sm">
+          <span className="min-w-0">
+            <span className="text-muted block text-xs">Do banco · {formatDayMonth(item.date)}</span>
+            <span className="text-foreground block truncate font-medium">{lineTitle(item)}</span>
+          </span>
+          <span className={`shrink-0 font-semibold tabular-nums ${income ? 'text-success' : 'text-foreground'}`}>
+            {formatBRL(item.amount)}
+          </span>
+        </div>
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Buscar pela descrição ou valor"
+          className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] w-full rounded-lg border px-3 text-base outline-none focus:ring-2"
+        />
+        {entries.length === 0 ? (
+          <p className="text-muted py-6 text-center text-sm">
+            {income ? 'Nenhuma renda lançada' : 'Nenhum gasto lançado'} em {monthName}.
+          </p>
+        ) : shown.length === 0 ? (
+          <p className="text-muted py-6 text-center text-sm">Nada com “{query.trim()}”.</p>
+        ) : (
+          <ul className="divide-border flex flex-col divide-y">
+            {shown.map((entry) => {
+              const same = Math.abs(entry.amount - item.amount) < 0.005;
+              const detail = [entry.date ? formatDayMonth(entry.date) : 'sem data', where(entry)]
+                .filter(Boolean)
+                .join(' · ');
+              const body = (
+                <>
+                  <span className="min-w-0 flex-1">
+                    <span className="text-foreground block truncate">{entry.description}</span>
+                    <span className="text-muted block truncate text-xs">
+                      {entry.tied
+                        ? `${detail} · ligado ao ${entry.tied.bankName} de ${formatDayMonth(entry.tied.date)}`
+                        : detail}
+                    </span>
+                  </span>
+                  {same && !entry.tied && (
+                    <span className="bg-success-bg text-success shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold">
+                      mesmo valor
+                    </span>
+                  )}
+                  <span className="text-foreground shrink-0 tabular-nums">{formatBRL(entry.amount)}</span>
+                </>
+              );
+              return (
+                <li key={entry.id}>
+                  {entry.tied ? (
+                    <div className="flex min-h-[52px] items-center gap-3 py-2 text-sm opacity-45" aria-disabled>
+                      {body}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => onPick(entry)}
+                      className="hover:bg-background flex min-h-[52px] w-full items-center gap-3 py-2 text-left text-sm disabled:opacity-50"
+                    >
+                      {body}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        <p className="text-muted text-xs">Um toque liga a linha do banco ao que você lançou.</p>
+      </div>
+    </BottomSheet>
+  );
+}
+
 /** What a line is: a Pix says who it came from or went to ("Pix de Ana Lima"), when a bank said it. */
 function lineTitle(item: ReviewItem): string {
   if (!item.counterpart) return entryDescription(item.description);
   return `${item.kind === 'income' ? 'Pix de' : 'Pix para'} ${item.counterpart}`;
 }
 
-/** Where a line came from: the bank, and the account when it says more than the bank's name. */
-function originOf(item: ReviewItem): string {
-  return item.accountName === item.bankName ? item.bankName : `${item.bankName} · ${item.accountName}`;
-}
-
+/** What a folded line shows: what it is, from where and when, and how much. */
 function LineHead({ item, origin, detail }: { item: ReviewItem; origin: string | null; detail?: string }) {
   const income = item.kind === 'income';
   return (
@@ -830,6 +1039,8 @@ function ReviewRow({
   showUpfront,
   cardName,
   unforeseenLabel,
+  searchLabel,
+  onSearch,
   onMove,
   onNotMisplaced,
   onReplace,
@@ -853,6 +1064,9 @@ function ReviewRow({
   showUpfront: boolean;
   cardName: (id: string | null) => string;
   unforeseenLabel: string;
+  /** "Procurar nos gastos" (or "nas rendas"): tie it by hand to something entered in the month. */
+  searchLabel: string;
+  onSearch: () => void;
   onMove: (misplaced: MisplacedEntry) => void;
   onNotMisplaced: () => void;
   onReplace: (upfront: NonNullable<ReviewItem['upfront']>) => void;
@@ -898,10 +1112,14 @@ function ReviewRow({
         </p>
       )}
       {!income && !(showMisplaced && item.misplaced) && (
-        <p className={`flex items-center gap-1.5 text-sm ${item.category ? 'text-foreground' : 'text-muted'}`}>
+        <span
+          className={`border-border flex items-center gap-1.5 self-start rounded-full border px-2.5 py-1 text-xs font-medium ${
+            item.category ? 'text-foreground' : 'text-muted'
+          }`}
+        >
           <Tag aria-hidden className="h-3.5 w-3.5" />
           {item.category?.label ?? 'Categoria não informada'}
-        </p>
+        </span>
       )}
 
       {showMisplaced && item.misplaced ? (
@@ -1033,11 +1251,29 @@ function ReviewRow({
           <button type="button" disabled={busy} onClick={onEdit} aria-label="Editar antes de lançar" className={quietButton}>
             <Pencil aria-hidden className="h-4 w-4" />
           </button>
-          <button type="button" disabled={busy} onClick={onIgnore} className={quietButton}>
-            Ignorar
-          </button>
         </div>
       )}
+
+      {/* What every line can do besides: tie it by hand, or ignore it. */}
+      <div className="border-border -mx-4 -mb-1 flex items-center justify-between gap-3 border-t px-4 pt-2">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onSearch}
+          className="text-primary flex min-h-[36px] items-center gap-1.5 text-sm font-semibold disabled:opacity-50"
+        >
+          <Search aria-hidden className="h-4 w-4" />
+          {searchLabel}
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onIgnore}
+          className="text-muted min-h-[36px] text-sm font-medium disabled:opacity-50"
+        >
+          Ignorar
+        </button>
+      </div>
     </li>
   );
 }

@@ -275,6 +275,38 @@ describe("the month's check", () => {
     expect(await reviewCounts(deps, { today: TODAY })).toMatchObject({ expenses: 3 });
   });
 
+  it('"Procurar nos gastos" lists the month\'s entries, with what is already tied to a bank line', async () => {
+    const { repo, banks, deps } = await newPerson();
+    const topicId = (await repo.getSettings()).topics[0].id;
+    const spent = (id: string, description: string, amount: number, date: string) =>
+      repo.saveExpense(date.slice(0, 7), { id, categoryKind: 'topic', topicId, description, amount, date });
+    await spent('pizza', 'Pizza', 60, '2026-10-10');
+    await spent('padaria', 'Padaria', 23.4, '2026-10-09');
+    await spent('mercado', 'Mercado', 230, '2026-10-05');
+    await spent('setembro', 'Setembro', 10, '2026-09-20');
+    await banks.upsertTransactions([
+      // A strong pair: the pizza is taken.
+      tx({ transactionId: 'pix-pizza', amount: -60, date: '2026-10-10' }),
+      // Three days off: no pair, so it is tied by hand.
+      tx({ transactionId: 'pix-padaria', amount: -23.4, date: '2026-10-12' }),
+    ]);
+
+    const review = await check(deps);
+    expect(review.entries.expenses.map((entry) => [entry.id, entry.tied?.date ?? null])).toEqual([
+      ['pizza', '2026-10-10'],
+      ['padaria', null],
+      ['mercado', null],
+    ]);
+    const [padaria] = review.expenses.missing;
+    await applyReviewAction(deps, { action: 'linked', transactionIds: padaria.transactionIds, month: '2026-10', entryId: 'padaria' });
+    const after = await check(deps);
+    expect(after.expenses.missing).toEqual([]);
+    expect(after.entries.expenses.find((entry) => entry.id === 'padaria')?.tied).toEqual({
+      bankName: 'Nubank',
+      date: '2026-10-12',
+    });
+  });
+
   it('a pair across the turn of the month is the same in both months', async () => {
     const { repo, banks, deps } = await newPerson();
     const topicId = (await repo.getSettings()).topics[0].id;
