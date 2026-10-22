@@ -1073,6 +1073,30 @@ export const bankTransactions = pgTable(
   ],
 );
 
+/**
+ * A bank transaction tied by hand to entries of the Capital ("Procurar nos gastos"): one or more
+ * (a R$ 200 purchase is two "A receber" of R$ 100), covering it in full or in part. Whether it
+ * confers is worked out on every read from the entries' amounts; removing the rows undoes it.
+ */
+export const bankLinks = pgTable(
+  'bank_links',
+  {
+    userId: uuid('user_id').notNull(),
+    transactionId: text('transaction_id').notNull(),
+    /** An expense (an "A receber" too) or an income. */
+    entryId: text('entry_id').notNull(),
+    entryMonth: text('entry_month').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.transactionId, t.entryId] }),
+    foreignKey({
+      columns: [t.userId, t.transactionId],
+      foreignColumns: [bankTransactions.userId, bankTransactions.transactionId],
+    }).onDelete('cascade'),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Diagrama (lib/diagram): targets per type, assets with scores, fixed-income totals, the
 // questions of each type and the aportes registered. Separate from the Reserva investida and from

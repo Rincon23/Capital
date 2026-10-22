@@ -18,11 +18,13 @@ import {
   type HoldingsBank,
   payerKey,
   type PaybackHistory,
+  type LinkedEntry,
 } from '@/lib/banks';
 import { round2 } from '@/lib/budget/money';
 import {
   bankAccounts,
   bankCategoryMemory,
+  bankLinks,
   bankConnections,
   bankInvestments,
   bankKeys,
@@ -30,6 +32,7 @@ import {
   bankTransactions,
   cashSettings,
   expenses,
+  incomes,
   investmentReserves,
 } from '../db/schema';
 import type { Database } from '../db/types';
@@ -46,6 +49,17 @@ export interface StoredAccount {
   creditLimit?: number | null;
   availableCredit?: number | null;
   dueDate?: string | null;
+}
+
+/** A tie made by hand from a bank transaction to an entry, with the entry as it is now. */
+export interface BankLink extends LinkedEntry {
+  transactionId: string;
+  kind: 'expense' | 'income';
+  /** An "A receber" (an expense the person is owed). */
+  reimbursable: boolean;
+  /** The bank and day of the transaction. */
+  bankName: string;
+  date: string;
 }
 
 /** A transaction to review, with what the review shows about its account and bank. */
@@ -523,10 +537,11 @@ export class PostgresBanksRepository {
    * The entries already tied to a bank transaction, with the bank and day of it: never offered as
    * the duplicate of another, and shown as taken in "Procurar nos gastos".
    */
-  async tiedEntries(): Promise<Map<string, { bankName: string; date: string }>> {
+  async tiedEntries(): Promise<Map<string, { bankName: string; date: string; transactionId: string }>> {
     const rows = await this.db
       .select({
         entryId: bankTransactions.entryId,
+        transactionId: bankTransactions.transactionId,
         date: bankTransactions.date,
         bankName: sql<string>`coalesce(${bankConnections.name}, ${bankConnections.suggestedName}, 'Banco')`,
       })
@@ -540,7 +555,101 @@ export class PostgresBanksRepository {
         and(eq(bankConnections.userId, bankAccounts.userId), eq(bankConnections.itemId, bankAccounts.itemId)),
       )
       .where(and(eq(bankTransactions.userId, this.userId), sql`${bankTransactions.entryId} is not null`));
-    return new Map(rows.map((row) => [row.entryId!, { bankName: row.bankName, date: row.date }]));
+    return new Map(
+      rows.map((row) => [row.entryId!, { bankName: row.bankName, date: row.date, transactionId: row.transactionId }]),
+    );
+  }
+
+  /**
+   * The ties made by hand ("Procurar nos gastos"), with the entry each points at as it is now — a
+   * tie whose entry is gone is left out — and the bank and day of the transaction.
+   */
+  async links(): Promise<BankLink[]> {
+    const rows = await this.db
+      .select({
+        transactionId: bankLinks.transactionId,
+        entryId: bankLinks.entryId,
+        month: bankLinks.entryMonth,
+        date: bankTransactions.date,
+        bankName: sql<string>`coalesce(${bankConnections.name}, ${bankConnections.suggestedName}, 'Banco')`,
+        expenseDescription: expenses.description,
+        expenseAmount: expenses.amount,
+        expenseKind: expenses.categoryKind,
+        incomeSource: incomes.source,
+        incomeAmount: incomes.amount,
+      })
+      .from(bankLinks)
+      .innerJoin(
+        bankTransactions,
+        and(eq(bankTransactions.userId, bankLinks.userId), eq(bankTransactions.transactionId, bankLinks.transactionId)),
+      )
+      .innerJoin(
+        bankAccounts,
+        and(eq(bankAccounts.userId, bankTransactions.userId), eq(bankAccounts.accountId, bankTransactions.accountId)),
+      )
+      .innerJoin(
+        bankConnections,
+        and(eq(bankConnections.userId, bankAccounts.userId), eq(bankConnections.itemId, bankAccounts.itemId)),
+      )
+      .leftJoin(
+        expenses,
+        and(eq(expenses.userId, bankLinks.userId), eq(expenses.id, bankLinks.entryId), eq(expenses.month, bankLinks.entryMonth)),
+      )
+      .leftJoin(
+        incomes,
+        and(eq(incomes.userId, bankLinks.userId), eq(incomes.id, bankLinks.entryId), eq(incomes.month, bankLinks.entryMonth)),
+      )
+      .where(eq(bankLinks.userId, this.userId))
+      .orderBy(asc(bankLinks.createdAt));
+    return rows.flatMap((row): BankLink[] => {
+      const base = { transactionId: row.transactionId, entryId: row.entryId, month: row.month, bankName: row.bankName, date: row.date };
+      if (row.expenseDescription !== null && row.expenseAmount !== null) {
+        return [
+          {
+            ...base,
+            kind: 'expense',
+            description: row.expenseDescription,
+            amount: row.expenseAmount,
+            reimbursable: row.expenseKind === 'reimbursable',
+          },
+        ];
+      }
+      if (row.incomeSource !== null && row.incomeAmount !== null) {
+        return [{ ...base, kind: 'income', description: row.incomeSource, amount: row.incomeAmount, reimbursable: false }];
+      }
+      return [];
+    });
+  }
+
+  /** Ties these transactions (one line) to these entries; tying twice changes nothing. */
+  async addLinks(transactionIds: string[], entries: { month: string; entryId: string }[]): Promise<void> {
+    const values = transactionIds.flatMap((transactionId) =>
+      entries.map((entry) => ({ userId: this.userId, transactionId, entryId: entry.entryId, entryMonth: entry.month })),
+    );
+    if (values.length > 0) await this.db.insert(bankLinks).values(values).onConflictDoNothing();
+  }
+
+  /** "Desfazer": the line's ties by hand go away (nothing else is touched). */
+  async removeLinks(transactionIds: string[]): Promise<void> {
+    if (transactionIds.length === 0) return;
+    await this.db
+      .delete(bankLinks)
+      .where(and(eq(bankLinks.userId, this.userId), inArray(bankLinks.transactionId, transactionIds)));
+  }
+
+  /** Whether every one of these transactions exists and nobody decided about it yet. */
+  async undecided(transactionIds: string[]): Promise<boolean> {
+    const rows = await this.db
+      .select({ id: bankTransactions.transactionId })
+      .from(bankTransactions)
+      .where(
+        and(
+          eq(bankTransactions.userId, this.userId),
+          inArray(bankTransactions.transactionId, transactionIds),
+          isNull(bankTransactions.outcome),
+        ),
+      );
+    return rows.length === new Set(transactionIds).size;
   }
 
   /** The bank cards, with the Capital card each is tied to. */
@@ -705,7 +814,30 @@ export class PostgresBanksRepository {
         ),
       )
       .where(and(eq(bankTransactions.userId, this.userId), eq(bankTransactions.outcome, 'reimbursed')));
-    return rows.flatMap((row) => {
+    // A Pix tied by hand to an "A receber" teaches the same.
+    const tiedByHand = await this.db
+      .select({
+        payerDocument: bankTransactions.payerDocument,
+        payerName: bankTransactions.payerName,
+        description: expenses.description,
+      })
+      .from(bankLinks)
+      .innerJoin(
+        bankTransactions,
+        and(eq(bankTransactions.userId, bankLinks.userId), eq(bankTransactions.transactionId, bankLinks.transactionId)),
+      )
+      .innerJoin(
+        expenses,
+        and(eq(expenses.userId, bankLinks.userId), eq(expenses.id, bankLinks.entryId), eq(expenses.month, bankLinks.entryMonth)),
+      )
+      .where(
+        and(
+          eq(bankLinks.userId, this.userId),
+          eq(bankTransactions.type, 'CREDIT'),
+          eq(expenses.categoryKind, 'reimbursable'),
+        ),
+      );
+    return [...rows, ...tiedByHand].flatMap((row) => {
       const payer = payerKey(row);
       return payer ? [{ payer, description: row.description }] : [];
     });

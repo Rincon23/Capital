@@ -272,6 +272,25 @@ export class PostgresBudgetRepository implements BudgetRepository {
   }
 
   /**
+   * The "A receber" already marked as received since `since` (an ISO day): a Pix the bank brings
+   * later may be what paid one of them back.
+   */
+  async receivedReimbursables(since: string): Promise<PendingReimbursable[]> {
+    const rows = await this.db
+      .select()
+      .from(expenses)
+      .where(
+        and(
+          eq(expenses.userId, this.userId),
+          eq(expenses.categoryKind, 'reimbursable'),
+          gte(expenses.reimbursedAt, new Date(`${since}T00:00:00Z`)),
+        ),
+      )
+      .orderBy(desc(expenses.date), desc(expenses.position));
+    return rows.map((row) => ({ month: row.month, expense: toExpense(row) }));
+  }
+
+  /**
    * "Já me pagou" (or undoing it). Allowed in a closed month too: it changes no number of the
    * budget — an "A receber" never consumed a category —, it only says who still owes.
    */

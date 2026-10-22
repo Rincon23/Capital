@@ -422,6 +422,16 @@ export const bankReviewActionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('ignore'), transactionIds: reviewIds }),
   // "Voltar para conferir": only ignored transactions.
   z.object({ action: z.literal('restore'), transactionIds: reviewIds }),
+  // "Procurar nos gastos": tie a line by hand to one or more entries (in full or in part), or undo it.
+  z.object({
+    action: z.literal('link'),
+    transactionIds: reviewIds,
+    entries: z
+      .array(z.object({ month: monthKeySchema, entryId: z.string().min(1).max(100) }))
+      .min(1)
+      .max(10),
+  }),
+  z.object({ action: z.literal('unlink'), transactionIds: reviewIds }),
   // "Pôr no Nubank": the entry of a card purchase goes to the card the bank says (null: "Não
   // informado"). Its line may be decided already, so it may carry no transaction to tie.
   z.object({

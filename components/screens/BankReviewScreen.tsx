@@ -24,6 +24,7 @@ import {
   reviewMonths,
   tidyName,
   type BankReview,
+  type LinkedEntry,
   type MisplacedEntry,
   type PaybackOption,
   type ReviewCard,
@@ -141,6 +142,10 @@ function Review() {
   const [notMisplaced, setNotMisplaced] = useState<Set<string>>(() => new Set());
   /** Split purchases the person said are not the "à vista" entry the Capital pointed at. */
   const [notUpfront, setNotUpfront] = useState<Set<string>>(() => new Set());
+  /** "São estes 2 gastos?" the person said no to. */
+  const [notSplit, setNotSplit] = useState<Set<string>>(() => new Set());
+  /** "Já marcado como recebido" the person said no to. */
+  const [notReceived, setNotReceived] = useState<Set<string>>(() => new Set());
   /** "Procurar nos gastos": the bank line being tied by hand to something entered in the month. */
   const [searching, setSearching] = useState<ReviewItem | null>(null);
   /** The Capital card a link from the Cartão asks for (`?cartao=`): its block comes into view. */
@@ -224,14 +229,15 @@ function Review() {
   const incomeOf = (item: ReviewItem): Income => ({
     id: crypto.randomUUID(),
     source: item.counterpart ?? (item.payer ? tidyName(item.payer) : entryDescription(item.description)),
-    amount: item.amount,
+    // Tied in part: what is still missing.
+    amount: item.partial?.remaining ?? item.amount,
     date: item.date,
   });
 
   const draftOf = (item: ReviewItem): Partial<Expense> => ({
     // A Pix sent is named after whom it went to, when a bank said it.
     description: item.counterpart ?? entryDescription(item.description),
-    amount: item.amount,
+    amount: item.partial?.remaining ?? item.amount,
     date: item.date,
     ...(item.category ? { categoryKind: item.category.categoryKind, topicId: item.category.topicId } : {}),
     singleInstallmentCard: item.onCard && cardOn,
@@ -291,7 +297,8 @@ function Review() {
 
   const byDate = (a: ReviewItem, b: ReviewItem) => b.date.localeCompare(a.date) || b.amount - a.amount;
   /** A strong pair the person undid goes back to what is missing, on this screen only. */
-  const undone = (item: ReviewItem) => item.match?.kind === 'pair' && notPair.has(item.key);
+  const undone = (item: ReviewItem) =>
+    (item.match?.kind === 'pair' || item.match?.kind === 'received') && notPair.has(item.key);
   const shownSide = (which: Side): ReviewSide => {
     const lists = review![which];
     return {
@@ -431,6 +438,36 @@ function Review() {
                 unforeseenLabel={unforeseenLabel}
                 searchLabel={item.kind === 'income' ? 'Procurar nas rendas' : 'Procurar nos gastos'}
                 onSearch={() => setSearching(item)}
+                showSplit={item.split !== null && !notSplit.has(item.key)}
+                showReceived={item.received !== null && !notReceived.has(item.key)}
+                onLink={(entries, done) =>
+                  void tap(
+                    item,
+                    {
+                      action: 'link',
+                      transactionIds: item.transactionIds,
+                      entries: entries.map((entry) => ({ month: entry.month, entryId: entry.entryId })),
+                    },
+                    done,
+                  )
+                }
+                onNotSplit={() => setNotSplit((current) => new Set(current).add(item.key))}
+                onNotReceived={() => setNotReceived((current) => new Set(current).add(item.key))}
+                onUnlink={() =>
+                  void tap(item, { action: 'unlink', transactionIds: item.transactionIds }, 'Desfeito: a linha voltou para conferir.')
+                }
+                onAcceptPartial={() =>
+                  void tap(
+                    item,
+                    {
+                      action: 'linked',
+                      transactionIds: item.transactionIds,
+                      month: item.partial!.entries[0].month,
+                      entryId: item.partial!.entries[0].entryId,
+                    },
+                    'Pronto: fica assim.',
+                  )
+                }
                 onMove={(misplaced) =>
                   void tap(
                     item,
@@ -503,13 +540,25 @@ function Review() {
                   <LineHead item={item} origin={origin(item)} />
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-success min-w-0 text-xs">{matchLabel(item.match)}</span>
-                    {item.match?.kind === 'pair' && (
+                    {(item.match?.kind === 'pair' || item.match?.kind === 'received') && (
                       <button
                         type="button"
                         onClick={() => setNotPair((current) => new Set(current).add(item.key))}
                         className="text-primary shrink-0 text-xs font-semibold"
                       >
                         Não é este
+                      </button>
+                    )}
+                    {item.match?.kind === 'links' && (
+                      <button
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={() =>
+                          void tap(item, { action: 'unlink', transactionIds: item.transactionIds }, 'Desfeito: a linha voltou para conferir.')
+                        }
+                        className="text-primary shrink-0 text-xs font-semibold"
+                      >
+                        Desfazer
                       </button>
                     )}
                   </div>
@@ -684,13 +733,17 @@ function Review() {
           cardName={cardName}
           busy={busy !== null}
           onClose={() => setSearching(null)}
-          onPick={(entry) => {
+          onPick={(picked) => {
             const item = searching;
             setSearching(null);
             void tap(
               item,
-              { action: 'linked', transactionIds: item.transactionIds, month: entry.month, entryId: entry.id },
-              `Pronto: ligado a “${entry.description}”.`,
+              {
+                action: 'link',
+                transactionIds: item.transactionIds,
+                entries: picked.map((entry) => ({ month: entry.month, entryId: entry.id })),
+              },
+              picked.length === 1 ? `Pronto: ligado a “${picked[0].description}”.` : `Pronto: ligado a ${picked.length} lançamentos.`,
             );
           }}
         />
@@ -840,9 +893,10 @@ function MonthSummary({ month, lines, noun }: { month: Month; lines: ReviewSide;
 }
 
 /**
- * "Procurar nos gastos": what the person entered in the month, to tie the bank line to by hand
- * when the Capital found no pair (another day, another amount). What is already tied to another
- * bank line shows faded, without a tap; the rest ties with one ("É o mesmo").
+ * "Procurar nos gastos": what the person entered in the month (for money in, the incomes and the
+ * "A receber", open or already received), to tie the bank line to by hand when the Capital found no
+ * pair. One or more, in full or in part: a R$ 200 purchase can be two "A receber" of R$ 100. What
+ * is already tied to another bank line shows faded, without a tap.
  */
 function SearchSheet({
   item,
@@ -859,10 +913,17 @@ function SearchSheet({
   cardName: (id: string | null) => string;
   busy: boolean;
   onClose: () => void;
-  onPick: (entry: ReviewEntry) => void;
+  onPick: (entries: ReviewEntry[]) => void;
 }) {
   const [query, setQuery] = useState('');
+  const [picked, setPicked] = useState<string[]>([]);
   const income = item.kind === 'income';
+  const chosen = entries.filter((entry) => picked.includes(entry.id));
+  const total = chosen.reduce((sum, entry) => sum + entry.amount, 0);
+  const toggle = (id: string) =>
+    setPicked((current) => (current.includes(id) ? current.filter((other) => other !== id) : [...current, id]));
+  /** Already tied to this very line (in part): shown, not offered again. */
+  const ownLine = (entry: ReviewEntry) => entry.tied?.transactionId !== undefined && item.transactionIds.includes(entry.tied.transactionId);
   const wanted = foldText(query.trim());
   const shown = wanted
     ? entries.filter(
@@ -872,7 +933,17 @@ function SearchSheet({
       )
     : entries;
   const where = (entry: ReviewEntry) =>
-    income ? null : entry.onCard ? (entry.cardId ? cardName(entry.cardId) : 'cartão não informado') : 'Pix/débito';
+    entry.reimbursable === 'open'
+      ? 'A receber'
+      : entry.reimbursable === 'received'
+        ? 'A receber · recebido'
+        : income
+          ? null
+          : entry.onCard
+            ? entry.cardId
+              ? cardName(entry.cardId)
+              : 'cartão não informado'
+            : 'Pix/débito';
   return (
     <BottomSheet
       open
@@ -916,7 +987,9 @@ function SearchSheet({
                     <span className="text-foreground block truncate">{entry.description}</span>
                     <span className="text-muted block truncate text-xs">
                       {entry.tied
-                        ? `${detail} · ligado ao ${entry.tied.bankName} de ${formatDayMonth(entry.tied.date)}`
+                        ? ownLine(entry)
+                          ? `${detail} · ligado a esta linha`
+                          : `${detail} · ligado ao ${entry.tied.bankName} de ${formatDayMonth(entry.tied.date)}`
                         : detail}
                     </span>
                   </span>
@@ -938,9 +1011,20 @@ function SearchSheet({
                     <button
                       type="button"
                       disabled={busy}
-                      onClick={() => onPick(entry)}
-                      className="hover:bg-background flex min-h-[52px] w-full items-center gap-3 py-2 text-left text-sm disabled:opacity-50"
+                      onClick={() => toggle(entry.id)}
+                      aria-pressed={picked.includes(entry.id)}
+                      className={`flex min-h-[52px] w-full items-center gap-3 rounded-lg py-2 text-left text-sm disabled:opacity-50 ${
+                        picked.includes(entry.id) ? 'bg-primary/10 -mx-2 px-2' : 'hover:bg-background'
+                      }`}
                     >
+                      <span
+                        aria-hidden
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-[11px] font-bold ${
+                          picked.includes(entry.id) ? 'border-primary bg-primary text-primary-foreground' : 'border-border'
+                        }`}
+                      >
+                        {picked.includes(entry.id) ? '✓' : ''}
+                      </span>
                       {body}
                     </button>
                   )}
@@ -949,7 +1033,25 @@ function SearchSheet({
             })}
           </ul>
         )}
-        <p className="text-muted text-xs">Um toque liga a linha do banco ao que você lançou.</p>
+        <p className="text-muted text-xs">
+          Marque um ou mais: uma compra de R$ 200 pode ser dois A receber de R$ 100. Pode ser só uma parte.
+        </p>
+        <div className="bg-card border-border sticky bottom-0 -mx-4 flex flex-col gap-1 border-t px-4 pt-3 pb-1">
+          {chosen.length > 0 && (
+            <p className="text-muted text-center text-xs tabular-nums">
+              {formatBRL(total)} de {formatBRL(item.amount)}
+              {total < item.amount - 0.005 ? ` · faltam ${formatBRL(item.amount - total)}` : ''}
+            </p>
+          )}
+          <button
+            type="button"
+            disabled={busy || chosen.length === 0}
+            onClick={() => onPick(chosen)}
+            className="bg-primary text-primary-foreground flex min-h-[44px] items-center justify-center rounded-lg px-3 text-sm font-semibold disabled:opacity-50"
+          >
+            {chosen.length <= 1 ? 'Ligar' : `Ligar os ${chosen.length}`}
+          </button>
+        </div>
       </div>
     </BottomSheet>
   );
@@ -992,10 +1094,18 @@ const DECIDED_LABELS: Record<string, string> = {
   launching: 'Lançando…',
 };
 
+/** "“Jogo — João” e “Jogo — Pedro”". */
+function namesOf(entries: LinkedEntry[]): string {
+  const names = entries.map((entry) => `“${entry.description}”`);
+  return names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} e ${names[names.length - 1]}`;
+}
+
 /** How a line is in the Capital, said in one line. */
 function matchLabel(match: ReviewMatch | null): string {
   if (!match) return '✓ Confere';
   if (match.kind === 'pair') return `✓ Confere com “${match.description}” de ${formatDayMonth(match.date)}`;
+  if (match.kind === 'links') return `✓ Ligado a ${namesOf(match.entries)}`;
+  if (match.kind === 'received') return `✓ Devolução de “${match.entry.description}”, já recebida`;
   if (match.kind === 'plan') return `✓ Compra parcelada “${match.description}” no Capital`;
   const label = DECIDED_LABELS[match.outcome] ?? 'Conferido';
   return match.description ? `✓ ${label}: “${match.description}”` : `✓ ${label}`;
@@ -1041,6 +1151,13 @@ function ReviewRow({
   unforeseenLabel,
   searchLabel,
   onSearch,
+  showSplit,
+  showReceived,
+  onLink,
+  onNotSplit,
+  onNotReceived,
+  onUnlink,
+  onAcceptPartial,
   onMove,
   onNotMisplaced,
   onReplace,
@@ -1067,6 +1184,16 @@ function ReviewRow({
   /** "Procurar nos gastos" (or "nas rendas"): tie it by hand to something entered in the month. */
   searchLabel: string;
   onSearch: () => void;
+  showSplit: boolean;
+  showReceived: boolean;
+  /** Ties the line to these entries (a split, an "A receber" already received). */
+  onLink: (entries: LinkedEntry[], done: string) => void;
+  onNotSplit: () => void;
+  onNotReceived: () => void;
+  /** "Desfazer": the ties by hand go away. */
+  onUnlink: () => void;
+  /** "Está certo assim": tied in part, and that is how it stays. */
+  onAcceptPartial: () => void;
   onMove: (misplaced: MisplacedEntry) => void;
   onNotMisplaced: () => void;
   onReplace: (upfront: NonNullable<ReviewItem['upfront']>) => void;
@@ -1171,6 +1298,45 @@ function ReviewRow({
             É outra compra
           </button>
         </div>
+      ) : item.partial ? (
+        <div className="bg-warning-bg flex flex-col gap-2 rounded-lg px-3 py-2 text-sm">
+          <p className="text-warning">
+            Ligado a {namesOf(item.partial.entries)} (
+            {formatBRL(item.partial.entries.reduce((sum, entry) => sum + entry.amount, 0))}). Faltam{' '}
+            {formatBRL(item.partial.remaining)} no Capital.
+          </p>
+          <div className="flex gap-2">
+            <button type="button" disabled={busy} onClick={onLaunch} className={primaryButton}>
+              Lançar o resto
+            </button>
+            <button type="button" disabled={busy} onClick={onAcceptPartial} className={`${quietButton} flex-1`}>
+              Está certo assim
+            </button>
+          </div>
+          <button type="button" disabled={busy} onClick={onUnlink} className="text-primary self-start text-xs font-semibold">
+            Desfazer
+          </button>
+        </div>
+      ) : showReceived && item.received ? (
+        <div className="bg-success-bg flex flex-col gap-2 rounded-lg px-3 py-2 text-sm">
+          <p className="text-success">
+            É a devolução de “{item.received.description}” ({formatBRL(item.received.amount)}), que você já marcou como
+            recebido?
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => item.received && onLink([item.received], 'Pronto: ligado à devolução.')}
+              className={primaryButton}
+            >
+              É sim
+            </button>
+            <button type="button" disabled={busy} onClick={onNotReceived} className={`${quietButton} flex-1`}>
+              É outra coisa
+            </button>
+          </div>
+        </div>
       ) : showPayback && item.reimbursement ? (
         <div className="bg-success-bg flex flex-col gap-2 rounded-lg px-3 py-2 text-sm">
           <p className="text-success">
@@ -1227,6 +1393,26 @@ function ReviewRow({
               ))}
             </ul>
           )}
+        </div>
+      ) : showSplit && item.split ? (
+        <div className="bg-warning-bg flex flex-col gap-2 rounded-lg px-3 py-2 text-sm">
+          <p className="text-warning">
+            Parecem ser estes {item.split.length} lançamentos: {namesOf(item.split)} (
+            {item.split.map((entry) => formatBRL(entry.amount)).join(' + ')}).
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => item.split && onLink(item.split, `Pronto: ligado aos ${item.split.length} lançamentos.`)}
+              className={primaryButton}
+            >
+              São estes
+            </button>
+            <button type="button" disabled={busy} onClick={onNotSplit} className={`${quietButton} flex-1`}>
+              Não são
+            </button>
+          </div>
         </div>
       ) : showDuplicate && item.duplicate ? (
         <div className="bg-warning-bg flex flex-col gap-2 rounded-lg px-3 py-2 text-sm">

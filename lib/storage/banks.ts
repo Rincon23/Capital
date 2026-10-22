@@ -20,6 +20,8 @@ export type BankReviewAction =
   | { action: 'reimbursed'; transactionIds: string[]; month: Month; expenseId: string }
   | { action: 'ignore'; transactionIds: string[] }
   | { action: 'restore'; transactionIds: string[] }
+  | { action: 'link'; transactionIds: string[]; entries: { month: Month; entryId: string }[] }
+  | { action: 'unlink'; transactionIds: string[] }
   | {
       action: 'card';
       transactionIds: string[];

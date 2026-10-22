@@ -429,11 +429,23 @@ export function suggestCategory(
 // What the screen gets
 // ---------------------------------------------------------------------------
 
+/** An entry of the Capital a bank line is tied to by hand, or may be. */
+export interface LinkedEntry {
+  month: Month;
+  entryId: string;
+  description: string;
+  amount: number;
+}
+
 /**
  * Why a line is already in the Capital ("✓ Confere"). The pair and the plan are worked out on every
  * read, never stored: "Não é este" undoes them without deleting anything.
  */
 export type ReviewMatch =
+  /** Tied by hand to entries that add up to it (or more): "Desfazer" takes the ties away. */
+  | { kind: 'links'; entries: LinkedEntry[] }
+  /** An "A receber" already marked as received, the same amount to the cent, a day apart at most. */
+  | { kind: 'received'; entry: LinkedEntry }
   /** Decided here: launched, tied to an entry, a payback received or a bill marked as paid. */
   | { kind: 'decided'; outcome: string; description: string | null }
   /** One manual entry with the same amount to the cent, at most a day apart (`strongPairs`). */
@@ -498,6 +510,12 @@ export interface ReviewItem {
   match: ReviewMatch | null;
   /** In the Capital, but not on this card (it still asks for a tap: "Pôr no Nubank"). */
   misplaced: MisplacedEntry | null;
+  /** Tied by hand to entries that cover only part of it: what is tied, and what is still missing. */
+  partial: { entries: LinkedEntry[]; remaining: number } | null;
+  /** Several entries that add up to it to the cent ("São estes 2 gastos?"): one R$ 200 purchase, two "A receber" of R$ 100. */
+  split: LinkedEntry[] | null;
+  /** A Pix received that may pay back an "A receber" already marked as received ("É sim" ties them). */
+  received: LinkedEntry | null;
   /** A split purchase entered "à vista": one expense of the whole amount ("Trocar por parcelado"). */
   upfront: { month: Month; entryId: string; description: string; amount: number; date: string } | null;
   /** A manual entry this looks like ("É o mesmo" ties them). */
@@ -544,8 +562,12 @@ export interface ReviewEntry {
   /** A card purchase (`cardId` says which; null: "não informado"); false: Pix/débito, or money in. */
   onCard: boolean;
   cardId: string | null;
+  /** An expense (an "A receber" too) or an income. */
+  kind: 'expense' | 'income';
+  /** An "A receber": still open, or already received. */
+  reimbursable: 'open' | 'received' | null;
   /** Already tied to a bank line, by a tap here or a strong pair: which bank, and the day. */
-  tied: { bankName: string; date: string } | null;
+  tied: { bankName: string; date: string; transactionId?: string } | null;
 }
 
 /** Where each line of one side of the month (money out or money in) stands, newest first. */
@@ -710,6 +732,57 @@ export function strongPairs(items: PairItem[], entries: PairEntry[], taken: Set<
   return pairs;
 }
 
+// ---------------------------------------------------------------------------
+// Tied by hand, in full or in part
+// ---------------------------------------------------------------------------
+
+/** Whether entries tied to a line cover it: their sum against its amount (a cent of slack). */
+export function coverage(entries: Pick<LinkedEntry, 'amount'>[], amount: number): { covered: boolean; remaining: number } {
+  const remaining = round2(amount - entries.reduce((sum, entry) => sum + entry.amount, 0));
+  return { covered: remaining < 0.01, remaining: Math.max(0, remaining) };
+}
+
+/** How many entries a split may have, and how many candidates are tried (the closest in date). */
+const SPLIT_MAX = 4;
+const SPLIT_CANDIDATES = 12;
+
+/**
+ * Several manual entries that add up to a bank line to the cent — a R$ 200 purchase entered as two
+ * "A receber" of R$ 100 — at most a day apart, on the same card when both say one. Only when that
+ * is the one way to make the amount; answers their ids (two to four), else null.
+ */
+export function findSplit(item: PairItem, entries: PairEntry[], taken: Set<string>): string[] | null {
+  const target = Math.round(item.amount * 100);
+  const candidates = entries
+    .filter(
+      (entry) =>
+        !taken.has(entry.id) &&
+        entry.date !== null &&
+        entry.amount > 0 &&
+        Math.round(entry.amount * 100) < target &&
+        Math.abs(daysBetween(entry.date, item.date)) <= 1 &&
+        !(item.onCard && item.cardId && entry.cardId && entry.cardId !== item.cardId),
+    )
+    .sort((a, b) => Math.abs(daysBetween(a.date!, item.date)) - Math.abs(daysBetween(b.date!, item.date)))
+    .slice(0, SPLIT_CANDIDATES);
+  const cents = candidates.map((entry) => Math.round(entry.amount * 100));
+  const found: number[][] = [];
+  const walk = (start: number, picked: number[], sum: number) => {
+    if (found.length > 1) return;
+    if (picked.length >= 2 && sum === target) {
+      found.push([...picked]);
+      return;
+    }
+    if (picked.length === SPLIT_MAX) return;
+    for (let index = start; index < candidates.length; index += 1) {
+      if (sum + cents[index] > target) continue;
+      walk(index + 1, [...picked, index], sum + cents[index]);
+    }
+  };
+  walk(0, [], 0);
+  return found.length === 1 ? found[0].map((index) => candidates[index].id) : null;
+}
+
 /**
  * How far a Pix can be from an "A receber" and still be offered as paying it back: 10% of it, or
  * R$ 5 when that is more (R$ 35,67 takes a Pix from R$ 30,67 to R$ 40,67). People round.
@@ -794,6 +867,46 @@ export function reimbursementCandidates(
         b.known - a.known || a.off - b.off || b.candidate.expense.date.localeCompare(a.candidate.expense.date),
     )
     .map(({ candidate }) => candidate);
+}
+
+/**
+ * The "A receber" already marked as received that a Pix received may be (the person marked it when
+ * the friend paid, before the bank told): within `paybackTolerance`, spent on the Pix's day or
+ * before, and marked as received a week around it. Best first, as `reimbursementCandidates`.
+ */
+export function receivedCandidates(
+  item: { amount: number; payer: string | null; date: string },
+  received: LaunchedExpense[],
+  taken: Set<string>,
+  learned: Map<string, number> = new Map(),
+): LaunchedExpense[] {
+  const near = received.filter(({ expense }) => {
+    const marked = expense.reimbursedAt?.slice(0, 10);
+    return (
+      expense.categoryKind === 'reimbursable' &&
+      marked !== undefined &&
+      Math.abs(daysBetween(marked, item.date)) <= 7 &&
+      expense.date <= item.date
+    );
+  });
+  // The same ranking as an open "A receber" (who paid first, then the closest amount).
+  return reimbursementCandidates(
+    { amount: item.amount, payer: item.payer, date: item.date },
+    near.map(({ month, expense }) => ({ month, expense: { ...expense, reimbursedAt: undefined } })),
+    taken,
+    learned,
+  ).map(({ expense }) => near.find((candidate) => candidate.expense.id === expense.id)!);
+}
+
+/**
+ * The strong case of `receivedCandidates`: the same amount to the cent, marked as received a day
+ * from the Pix at most, and the only one — "✓ Confere" with no tap, like a strong pair.
+ */
+export function isStrongReceived(item: { amount: number; date: string }, candidates: LaunchedExpense[]): boolean {
+  if (candidates.length !== 1) return false;
+  const { expense } = candidates[0];
+  const marked = expense.reimbursedAt?.slice(0, 10);
+  return Math.abs(expense.amount - item.amount) < 0.005 && marked !== undefined && Math.abs(daysBetween(marked, item.date)) <= 1;
 }
 
 /** The best of `reimbursementCandidates`, or null. */

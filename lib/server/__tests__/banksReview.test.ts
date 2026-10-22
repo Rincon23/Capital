@@ -301,10 +301,111 @@ describe("the month's check", () => {
     await applyReviewAction(deps, { action: 'linked', transactionIds: padaria.transactionIds, month: '2026-10', entryId: 'padaria' });
     const after = await check(deps);
     expect(after.expenses.missing).toEqual([]);
-    expect(after.entries.expenses.find((entry) => entry.id === 'padaria')?.tied).toEqual({
+    expect(after.entries.expenses.find((entry) => entry.id === 'padaria')?.tied).toMatchObject({
       bankName: 'Nubank',
       date: '2026-10-12',
     });
+  });
+
+  it('a R$ 200 purchase entered as two "A receber" of R$ 100: suggested, tied, undone, and in part', async () => {
+    const { repo, banks, deps } = await newPerson();
+    await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });
+    const owe = (id: string, description: string, amount: number) =>
+      repo.saveExpense('2026-10', { id, categoryKind: 'reimbursable', description, amount, date: '2026-10-20' });
+    await owe('joao', 'Jogo — João', 100);
+    await owe('pedro', 'Jogo — Pedro', 100);
+    await banks.upsertTransactions([tx({ transactionId: 'jogos', accountId: 'cartao', amount: 200, date: '2026-10-20' })]);
+
+    const [line] = (await check(deps)).expenses.missing;
+    expect(line.split?.map((entry) => entry.entryId).sort()).toEqual(['joao', 'pedro']);
+
+    // "São estes": tied, and it confers.
+    await applyReviewAction(deps, { action: 'link', transactionIds: ['jogos'], entries: line.split! });
+    let review = await check(deps);
+    expect(review.expenses.missing).toEqual([]);
+    expect(review.expenses.matched[0].match).toMatchObject({ kind: 'links', entries: [{ amount: 100 }, { amount: 100 }] });
+    expect(review.entries.expenses.filter((entry) => entry.tied?.transactionId === 'jogos')).toHaveLength(2);
+    // Nothing else changed: the "A receber" are still open, the transaction undecided.
+    expect((await repo.pendingReimbursables('2026-10')).map((pending) => pending.expense.id).sort()).toEqual(['joao', 'pedro']);
+    expect(await outcomeOf('jogos')).toEqual({ outcome: null, entryId: null });
+
+    // "Desfazer", then tied to one only: in part, R$ 100 still missing.
+    await applyReviewAction(deps, { action: 'unlink', transactionIds: ['jogos'] });
+    await applyReviewAction(deps, { action: 'link', transactionIds: ['jogos'], entries: [{ month: '2026-10', entryId: 'joao' }] });
+    review = await check(deps);
+    expect(review.expenses.missing[0].partial).toEqual({
+      entries: [{ month: '2026-10', entryId: 'joao', description: 'Jogo — João', amount: 100 }],
+      remaining: 100,
+    });
+
+    // "Lançar o resto": the rest is launched, and the line confers with both.
+    const topicId = (await repo.getSettings()).topics[0].id;
+    await applyReviewAction(deps, {
+      action: 'expense',
+      transactionIds: ['jogos'],
+      month: '2026-10',
+      expense: { id: 'resto', categoryKind: 'topic', topicId, description: 'Jogo meu', amount: 100, date: '2026-10-20' },
+    });
+    expect((await check(deps)).expenses.matched[0].match).toEqual({
+      kind: 'decided',
+      outcome: 'expense',
+      description: 'Jogo — João + Jogo meu',
+    });
+  });
+
+  it('an entry tied to one bank line is not tied to another', async () => {
+    const { repo, banks, deps } = await newPerson();
+    const topicId = (await repo.getSettings()).topics[0].id;
+    await repo.saveExpense('2026-10', { id: 'mercado', categoryKind: 'topic', topicId, description: 'Mercado', amount: 90, date: '2026-10-03' });
+    await banks.upsertTransactions([
+      tx({ transactionId: 'pix-a', amount: -40, date: '2026-10-08' }),
+      tx({ transactionId: 'pix-b', amount: -50, date: '2026-10-09' }),
+    ]);
+    await applyReviewAction(deps, { action: 'link', transactionIds: ['pix-a'], entries: [{ month: '2026-10', entryId: 'mercado' }] });
+    await expect(
+      applyReviewAction(deps, { action: 'link', transactionIds: ['pix-b'], entries: [{ month: '2026-10', entryId: 'mercado' }] }),
+    ).rejects.toMatchObject({ code: 'ENTRY_TAKEN' });
+    // An entry that is not there.
+    await expect(
+      applyReviewAction(deps, { action: 'link', transactionIds: ['pix-b'], entries: [{ month: '2026-10', entryId: 'nada' }] }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('a Pix for an "A receber" already marked as received: confers, or asks, and the list offers it', async () => {
+    const { repo, banks, deps } = await newPerson();
+    await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });
+    const owe = (id: string, description: string, amount: number) =>
+      repo.saveExpense('2026-10', { id, categoryKind: 'reimbursable', description, amount, date: '2026-10-10' });
+    await owe('joao', 'Jogo — João', 100);
+    await owe('pedro', 'Jogo — Pedro', 80);
+    await owe('aberto', 'Cinema — Ana', 30);
+    // The friends paid and the person marked it right away, before the bank told.
+    await repo.setReimbursed('2026-10', 'joao', '2026-10-15T12:00:00.000Z');
+    await repo.setReimbursed('2026-10', 'pedro', '2026-10-15T12:00:00.000Z');
+    await banks.upsertTransactions([
+      tx({ transactionId: 'pix-jogo-joao', type: 'CREDIT', amount: 100, date: '2026-10-15', paymentMethod: 'PIX' }),
+      tx({ transactionId: 'pix-jogo-pedro', type: 'CREDIT', amount: 78, date: '2026-10-17', paymentMethod: 'PIX' }),
+    ]);
+
+    const review = await check(deps);
+    // The same amount, marked the same day, the only one: confers with no tap.
+    expect(review.incomes.matched).toEqual([
+      expect.objectContaining({ key: 'pix-jogo-joao', match: { kind: 'received', entry: expect.objectContaining({ entryId: 'joao' }) } }),
+    ]);
+    // Two reais off and two days later: asked ("É sim" ties them).
+    const [pedro] = review.incomes.missing;
+    expect(pedro).toMatchObject({ key: 'pix-jogo-pedro', received: { entryId: 'pedro', amount: 80 } });
+    await applyReviewAction(deps, { action: 'link', transactionIds: ['pix-jogo-pedro'], entries: [pedro.received!] });
+    expect((await check(deps)).incomes.missing).toEqual([]);
+
+    // "Procurar nas rendas" offers the "A receber", open and received.
+    expect(
+      review.entries.incomes.map((entry) => [entry.id, entry.kind, entry.reimbursable]).sort(),
+    ).toEqual([
+      ['aberto', 'expense', 'open'],
+      ['joao', 'expense', 'received'],
+      ['pedro', 'expense', 'received'],
+    ]);
   });
 
   it('a pair across the turn of the month is the same in both months', async () => {

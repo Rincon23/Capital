@@ -416,11 +416,26 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
       ou de renda, já preenchido) e, embaixo, "Procurar nos gastos" e "Ignorar". Débito sugere
       gasto, crédito sugere renda;
     - **"Procurar nos gastos"** (nos recebimentos, "Procurar nas rendas"): lista o que a pessoa
-      lançou no mês, com busca pela descrição ou pelo valor e o selo "mesmo valor". O que já
-      está ligado a uma linha do banco (por um toque ou pelo par forte) aparece apagado, sem
-      toque ("ligado ao BTG Pactual de 12/10"); o resto liga com um toque, como "É o mesmo".
-      Serve para quando o Capital não acha o par (outro dia, outro valor). As parcelas de
+      lançou no mês (nos recebimentos, as rendas do mês e os "A receber", em aberto ou já
+      recebidos), com busca pela descrição ou pelo valor e o selo "mesmo valor". O que já está
+      ligado a outra linha do banco aparece apagado, sem toque ("ligado ao BTG Pactual de
+      12/10"). A pessoa **marca um ou mais** e toca em "Ligar": uma compra de R$ 200 no cartão
+      pode ser dois "A receber" de R$ 100, e pode ser só uma parte. Ligar não muda nada nos
+      lançamentos (um "A receber" continua em aberto ou recebido como estava). As parcelas de
       compras parceladas não entram (são da compra parcelada);
+    - **ligado em parte**: quando o que foi ligado soma menos que a linha, ela continua em
+      "Falta no Capital" com "Ligado a 'Jogo — João' (R$ 100). Faltam R$ 100", e "Lançar o
+      resto" (o formulário já com o que falta), "Está certo assim" e "Desfazer". Quando soma o
+      valor da linha (ou mais), vai para "✓ Confere", com "Desfazer";
+    - **vários lançamentos que somam a linha**: dois a quatro lançamentos feitos à mão que somam o
+      valor ao centavo, até 1 dia de diferença, no mesmo cartão quando os dois dizem, e só essa
+      combinação: "Parecem ser estes 2 lançamentos: 'Jogo — João' e 'Jogo — Pedro'", com "São
+      estes" e "Não são";
+    - **"A receber" já marcado como recebido**: muitas vezes a pessoa marca "Já me pagou" quando
+      o amigo paga, antes de o banco contar. Um Pix recebido perto do valor de um "A receber"
+      marcado como recebido até 7 dias antes ou depois pergunta "É a devolução de 'Jogo — João',
+      que você já marcou como recebido?" ("É sim" liga os dois). Com o mesmo valor ao centavo,
+      marcado até 1 dia do Pix e só um candidato, confere sozinho, como o par forte;
     - **categoria sugerida**, nesta ordem: o que a pessoa escolheu antes para a mesma descrição;
       uma categoria dita na descrição (as regras de `lib/ai`, sem IA); a categoria da Pluggy
       traduzida para os nomes das categorias da pessoa; e o que as categorias padrão significam
@@ -875,9 +890,15 @@ dela); o servidor não tem chave da Pluggy. Como o módulo nasceu (F0–F6) est�
     lado (para o par forte não depender do mês olhado), e todas as parcelas de compras no
     cartão, de qualquer data; separa `expenses` e `incomes`, cada um em `missing`, `matched`,
     `leftOut` e `ignored`. Carrega os lançamentos do mês e dos vizinhos e os parcelados;
-  - a resposta traz também `entries` (gastos e rendas do mês, com `tied`: o banco e o dia da
-    linha a que cada um já está ligado, por `tiedEntries` ou pelo par forte), para "Procurar nos
-    gastos";
+  - a resposta traz também `entries` (gastos e rendas do mês e os "A receber", com `tied`: o
+    banco e o dia da linha a que cada um já está ligado), para "Procurar nos gastos";
+  - os vínculos feitos à mão ficam em `bank_links` (migração `0032`: transação × lançamento,
+    vários por linha); a ação `link` confere que a linha está sem decisão e que o lançamento não
+    está ligado a outra linha (`ENTRY_TAKEN`), e `unlink` desfaz. Se a linha confere é calculado
+    a cada leitura (`coverage`); `findSplit` acha a combinação que soma a linha e
+    `receivedCandidates`/`isStrongReceived`, o "A receber" já recebido
+    (`receivedReimbursables`). Um Pix ligado a um "A receber" também ensina quem pagou
+    (`paybackHistory`);
   - `bankInstallmentIn` (mês da compra + n − 1), `planChargeIn` (a cobrança do plano no mês) e
     `strongPairs` (um candidato de cada lado) são puros;
   - `GET /api/v1/banks/review?month=` e `GET /api/v1/banks/review/counts?month=` (as contagens,

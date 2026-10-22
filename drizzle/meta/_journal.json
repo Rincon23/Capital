@@ -225,6 +225,13 @@
       "when": 1792592091169,
       "tag": "0031_module_access",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1792694345349,
+      "tag": "0032_open_finance_links",
+      "breakpoints": true
     }
   ]
 }

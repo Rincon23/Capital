@@ -4,6 +4,7 @@ import type { Expense, InstallmentPlan } from '@/lib/budget';
 import {
   bankInstallmentIn,
   counterpartName,
+  coverage,
   descriptionKey,
   documentKey,
   entryWhere,
@@ -12,6 +13,8 @@ import {
   findDuplicate,
   findDuplicateIncome,
   findReimbursement,
+  findSplit,
+  isStrongReceived,
   groupInstallments,
   ignoreReason,
   matchingPlan,
@@ -23,6 +26,7 @@ import {
   paybackTolerance,
   payerKey,
   planChargeIn,
+  receivedCandidates,
   reimbursementCandidates,
   reviewKind,
   reviewMonths,
@@ -292,6 +296,62 @@ describe('who is on the other side of a Pix', () => {
       'Wyntech Servicos Em Tecnologia Da Informacao Ltda',
     );
     expect(shortName('Amazon Servicos De Varejo Do Brasil Ltda.')).toBe('Amazon Servicos De Varejo Do Brasil Ltda.');
+  });
+});
+
+describe('tied by hand, in full or in part', () => {
+  it('confers when what is tied adds up to the line, and says what is missing otherwise', () => {
+    expect(coverage([{ amount: 100 }, { amount: 100 }], 200)).toEqual({ covered: true, remaining: 0 });
+    expect(coverage([{ amount: 100 }], 200)).toEqual({ covered: false, remaining: 100 });
+    // A Pix of R$ 50 that pays part of an "A receber" of R$ 100 is all explained.
+    expect(coverage([{ amount: 100 }], 50)).toEqual({ covered: true, remaining: 0 });
+  });
+
+  it('finds the entries that add up to a purchase, only when that is the one way', () => {
+    const line = { key: 'jogos', amount: 200, date: '2026-10-20', onCard: true, cardId: 'nubank' };
+    const entry = (id: string, amount: number, overrides: { date?: string; cardId?: string | null } = {}) => ({
+      id,
+      amount,
+      date: '2026-10-20',
+      cardId: 'nubank',
+      ...overrides,
+    });
+    // R$ 200 of games, entered as two "A receber" of R$ 100.
+    expect(findSplit(line, [entry('joao', 100), entry('pedro', 100), entry('cafe', 8)], new Set())?.sort()).toEqual([
+      'joao',
+      'pedro',
+    ]);
+    // Two ways to make it: nothing is suggested.
+    expect(findSplit(line, [entry('a', 100), entry('b', 100), entry('c', 100)], new Set())).toBeNull();
+    // Another card, two days off, or taken: not a candidate.
+    expect(findSplit(line, [entry('joao', 100), entry('pedro', 100, { cardId: 'amazon' })], new Set())).toBeNull();
+    expect(findSplit(line, [entry('joao', 100), entry('pedro', 100, { date: '2026-10-22' })], new Set())).toBeNull();
+    expect(findSplit(line, [entry('joao', 100), entry('pedro', 100)], new Set(['pedro']))).toBeNull();
+    // Up to four.
+    expect(findSplit(line, [entry('a', 50), entry('b', 50), entry('c', 50), entry('d', 50)], new Set())).toHaveLength(4);
+  });
+
+  it('a Pix may pay back an "A receber" already marked as received, the strong case with no tap', () => {
+    const received = (id: string, amount: number, reimbursedAt: string) => ({
+      month: '2026-10',
+      expense: {
+        id,
+        categoryKind: 'reimbursable' as const,
+        description: `Jogo — ${id}`,
+        amount,
+        date: '2026-10-10',
+        reimbursedAt,
+      },
+    });
+    const pix = { amount: 100, payer: 'JOAO SILVA', date: '2026-10-15' };
+    const found = receivedCandidates(pix, [received('João', 100, '2026-10-15T12:00:00.000Z')], new Set());
+    expect(found.map((candidate) => candidate.expense.id)).toEqual(['João']);
+    expect(isStrongReceived(pix, found)).toBe(true);
+    // Marked three days from the Pix: still a candidate, but asked.
+    const later = receivedCandidates(pix, [received('João', 100, '2026-10-18T12:00:00.000Z')], new Set());
+    expect(isStrongReceived(pix, later)).toBe(false);
+    // Marked a month away: not the same payback.
+    expect(receivedCandidates(pix, [received('João', 100, '2026-11-20T12:00:00.000Z')], new Set())).toEqual([]);
   });
 });
 
