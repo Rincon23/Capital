@@ -351,6 +351,11 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
     3. colar o Client ID e o Client Secret, que a Pluggy confere antes de salvar;
     4. **"Trazer um banco"**: o app manda a pessoa ao Meu Pluggy para escolher **um** banco e
        autorizar, e a Pluggy a devolve para `/bancos`.
+  - **"Ver como fazer"** em cada passo abre, numa folha, um vídeo vertical sem som com as telas
+    (`public/videos/open-finance/parte-N.mp4`, 720×1280, com legendas no próprio vídeo): o passo 1
+    abre a parte 1, o 2 a parte 2, o 3 a parte 2 a partir de 0:49 (quando o Client Secret aparece)
+    e o 4 a parte 3. As telas da Pluggy são recriadas, com e-mails e chaves de exemplo; o service
+    worker não guarda vídeos.
   - **Chegada do banco:** ele aparece como "Chegando…" e a tela relê a cada 5 s até as contas
     chegarem (~2 min).
   - **Nome do banco:** o Capital sugere, pelo código do banco na conta ou pelo nome da conta, e a

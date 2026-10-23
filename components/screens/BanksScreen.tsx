@@ -5,6 +5,7 @@ import Link from 'next/link';
 import {
   BanknoteArrowDown,
   BanknoteArrowUp,
+  CirclePlay,
   ExternalLink,
   Landmark,
   LoaderCircle,
@@ -411,12 +412,67 @@ function MissingBadge({ count, strong = false }: { count: number; strong?: boole
   );
 }
 
-function StepHeader({ step, title }: { step: number; title: string }) {
+function StepHeader({ step, title }: { step: SetupStep; title: string }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <p className="text-muted text-xs font-semibold tracking-wide uppercase">Passo {step} de 4</p>
-      <p className="text-foreground font-semibold">{title}</p>
+    <div className="flex items-start gap-2">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <p className="text-muted text-xs font-semibold tracking-wide uppercase">Passo {step} de 4</p>
+        <p className="text-foreground font-semibold">{title}</p>
+      </div>
+      <HowToButton step={step} />
     </div>
+  );
+}
+
+type SetupStep = 1 | 2 | 3 | 4;
+
+/**
+ * The silent walkthroughs in public/videos/open-finance, one per part of the setup. Step 3 is the
+ * second half of the key video: it starts where the Client Secret shows up.
+ */
+const HOW_TO: Record<SetupStep, { title: string; video: number; start?: number }> = {
+  1: { title: 'Conectar os bancos no Meu Pluggy', video: 1 },
+  2: { title: 'Criar a sua chave', video: 2 },
+  3: { title: 'Colar a sua chave', video: 2, start: 49 },
+  4: { title: 'Trazer os bancos', video: 3 },
+};
+
+/** "Ver como fazer": the video of this step, in a sheet. */
+function HowToButton({ step }: { step: SetupStep }) {
+  const [open, setOpen] = useState(false);
+  const { title, video, start } = HOW_TO[step];
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-primary -my-2 -mr-2 flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg px-2 text-sm font-medium"
+      >
+        <CirclePlay className="h-4 w-4" aria-hidden />
+        Ver como fazer
+      </button>
+      {open && (
+        <BottomSheet open title={title} confirmDiscard={false} onClose={() => setOpen(false)}>
+          <div className="flex flex-col items-center gap-3">
+            <video
+              className="aspect-[9/16] max-h-[68vh] w-auto max-w-full rounded-xl bg-black"
+              src={`/videos/open-finance/parte-${video}.mp4${start ? `#t=${start}` : ''}`}
+              poster={start ? undefined : `/videos/open-finance/parte-${video}.jpg`}
+              controls
+              autoPlay
+              muted
+              playsInline
+              preload="metadata"
+            >
+              Este navegador não mostra vídeos.
+            </video>
+            <p className="text-muted text-center text-xs">
+              Sem som: as explicações estão escritas no vídeo. E-mails e chaves são de exemplo.
+            </p>
+          </div>
+        </BottomSheet>
+      )}
+    </>
   );
 }
 
