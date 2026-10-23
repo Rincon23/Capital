@@ -7,6 +7,7 @@ import { useHomeHref } from '@/components/modules/useHomeHref';
 import { useAuth } from '@/components/providers/AuthProvider';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { useTheme } from '@/components/providers/ThemeProvider';
+import { InstallAppButton } from '@/components/pwa/InstallAppButton';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { useToast } from '@/components/ui/Toast';
@@ -84,6 +85,8 @@ export function ConfiguracoesScreen() {
       <PageHeader title="Configurações" backHref={homeHref} />
 
       <AccountSection />
+
+      <InstallAppButton className="mx-4 w-auto" />
 
       <section className="flex flex-col gap-3 px-4">
         <h2 className="text-muted text-sm font-semibold">Tema</h2>

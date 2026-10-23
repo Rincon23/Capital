@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { RegisterServiceWorker } from '@/components/pwa/RegisterServiceWorker';
+import { INSTALL_CAPTURE_SCRIPT } from '@/components/pwa/useInstallApp';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -49,6 +50,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <head>
         {/* Applied before hydration to avoid a light/dark flash on load. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {/* Keeps the browser's install offer for the "Instalar o app" button (it comes only once). */}
+        <script dangerouslySetInnerHTML={{ __html: INSTALL_CAPTURE_SCRIPT }} />
       </head>
       <body className="bg-background text-foreground flex min-h-full flex-col">
         <ThemeProvider>

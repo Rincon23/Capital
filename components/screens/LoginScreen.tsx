@@ -8,6 +8,7 @@ import {
   signUp,
   type AuthActionState,
 } from '@/lib/auth/actions';
+import { InstallAppButton } from '@/components/pwa/InstallAppButton';
 
 const EMPTY: AuthActionState = {};
 
@@ -42,6 +43,8 @@ export function LoginScreen({
       )}
       {mode === 'sign-up' && <SignUpForm onModeChange={setMode} />}
       {mode === 'forgot' && <ForgotForm onModeChange={setMode} />}
+
+      <InstallAppButton />
     </main>
   );
 }
