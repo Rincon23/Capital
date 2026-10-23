@@ -349,7 +349,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: () => '/bancos',
       anchor: 'bancos-uma-vez-por-dia',
       title: 'Uma vez por dia',
-      description: 'Os bancos mandam os dados uma vez por dia; o Capital não consegue pedir antes.',
+      description: 'Os bancos mandam os dados uma vez por dia; o Capital + não consegue pedir antes.',
       side: 'top',
     },
     {

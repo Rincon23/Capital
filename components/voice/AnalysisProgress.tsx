@@ -74,7 +74,7 @@ export function AnalysisProgress({
         <p className="text-muted mt-2 text-xs">
           {state && state.stages.length > 0
             ? `${formatRemaining(progress.remainingMs)}, pelo tempo real da IA no servidor`
-            : 'A IA roda no próprio servidor do Capital.'}
+            : 'A IA roda no próprio servidor do Capital +.'}
         </p>
       </div>
 

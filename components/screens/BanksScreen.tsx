@@ -226,7 +226,7 @@ function Banks() {
         </Card>
       ) : connections.length === 0 ? (
         <Card tour="bancos-conexoes">
-          <StepHeader step={4} title="Traga seus bancos para o Capital" />
+          <StepHeader step={4} title="Traga seus bancos para o Capital +" />
           <p className="text-muted text-sm">Você escolhe um banco no Meu Pluggy e volta para cá. Um por vez.</p>
           <button type="button" className={primaryButton} disabled={busy !== null} onClick={() => void bringBank()}>
             {busy === 'connect' ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden /> : <Landmark className="h-4 w-4" aria-hidden />}
@@ -238,7 +238,7 @@ function Banks() {
           <Card>
             {(expensesOn || diagramOn) && (
               <div className="flex flex-col gap-0.5">
-                <p className="text-foreground font-semibold">Conferir com o Capital</p>
+                <p className="text-foreground font-semibold">Conferir com o Capital +</p>
                 <p className="text-muted text-sm">O que chegou dos bancos, ao lado do que você lançou.</p>
               </div>
             )}
@@ -294,7 +294,7 @@ function Banks() {
               onRenew={async () => {
                 const ok = await confirm({
                   title: 'Renovar a autorização',
-                  message: `• Banco: ${connection.name}. Para renovar, ele sai do Capital e você autoriza de novo no Meu Pluggy; os dados voltam na próxima leitura.`,
+                  message: `• Banco: ${connection.name}. Para renovar, ele sai do Capital + e você autoriza de novo no Meu Pluggy; os dados voltam na próxima leitura.`,
                   confirmLabel: 'Renovar',
                 });
                 if (ok) void retry(connection);
@@ -328,7 +328,7 @@ function Banks() {
       <div className="text-muted mx-4 text-sm" data-tour="bancos-uma-vez-por-dia">
         <InfoTip
           label="Por que uma vez por dia?"
-          info="O Meu Pluggy atualiza cada banco uma vez por dia, e o Capital lê o que chegou. Ninguém consegue pedir antes: nem o Capital, nem a Pluggy."
+          info="O Meu Pluggy atualiza cada banco uma vez por dia, e o Capital + lê o que chegou. Ninguém consegue pedir antes: nem o Capital +, nem a Pluggy."
         >
           <span>Os bancos mandam os dados uma vez por dia.</span>
         </InfoTip>
@@ -348,7 +348,7 @@ function Banks() {
           onRemove={async () => {
             const ok = await confirm({
               title: 'Tirar este banco',
-              message: `• Banco: ${renaming.name}. Ele sai do Capital e da sua chave da Pluggy, mas continua conectado no Meu Pluggy.`,
+              message: `• Banco: ${renaming.name}. Ele sai do Capital + e da sua chave da Pluggy, mas continua conectado no Meu Pluggy.`,
               confirmLabel: 'Tirar',
               destructive: true,
             });
@@ -359,7 +359,7 @@ function Banks() {
                 await banksRepository.remove(renaming.itemId);
                 setRenaming(null);
               },
-              `${renaming.name} saiu do Capital.`,
+              `${renaming.name} saiu do Capital +.`,
             );
           }}
         />
@@ -381,8 +381,8 @@ function Banks() {
                 title: 'Desconectar o Open Finance',
                 message:
                   connections.length > 0
-                    ? `A sua chave e ${connections.length === 1 ? 'o banco' : `os ${connections.length} bancos`} saem do Capital. Eles continuam conectados no Meu Pluggy, onde você pode tirá-los também.`
-                    : 'A sua chave sai do Capital.',
+                    ? `A sua chave e ${connections.length === 1 ? 'o banco' : `os ${connections.length} bancos`} saem do Capital +. Eles continuam conectados no Meu Pluggy, onde você pode tirá-los também.`
+                    : 'A sua chave sai do Capital +.',
                 confirmLabel: 'Desconectar',
                 destructive: true,
               });
@@ -406,7 +406,7 @@ function MissingBadge({ count, strong = false }: { count: number; strong?: boole
       }`}
     >
       {count > 0 ? count : '✓'}
-      <span className="sr-only">{count === 1 ? ' falta no Capital' : count > 0 ? ' faltam no Capital' : ' tudo confere'}</span>
+      <span className="sr-only">{count === 1 ? ' falta no Capital +' : count > 0 ? ' faltam no Capital +' : ' tudo confere'}</span>
     </span>
   );
 }
@@ -538,7 +538,7 @@ function Setup({
       }}
     >
       <StepHeader step={3} title="Cole aqui a sua chave" />
-      <p className="text-muted text-sm">Fica guardada cifrada. O Capital só lê, não move dinheiro.</p>
+      <p className="text-muted text-sm">Fica guardada cifrada. O Capital + só lê, não move dinheiro.</p>
       <label className="text-foreground flex flex-col gap-1 text-sm font-medium">
         Client ID
         <input
@@ -731,7 +731,7 @@ function RenameSheet({
         disabled={busy}
         className="border-danger text-danger mt-4 min-h-[44px] w-full rounded-lg border px-3 text-sm font-medium disabled:opacity-50"
       >
-        Tirar este banco do Capital
+        Tirar este banco do Capital +
       </button>
     </BottomSheet>
   );

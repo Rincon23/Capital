@@ -1,8 +1,8 @@
 // Generates the PWA/app icons in /public (plus app/icon.png and app/apple-icon.png) from inline SVG sources.
 // Run with: node scripts/generate-icons.mjs
 //
-// The mark is a yin-yang: one half holds a shopping bag (spending), the other a piggy bank (saving) —
-// both matter and each completes the other.
+// The mark is "Capital +": a white C with a black outline, centred, and a small yellow "+" raised at
+// its top-right like an exponent.
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +12,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, '..');
 const publicDir = path.join(rootDir, 'public');
 
-const OUTLINE = '#111111';
+const INK = '#111111';
+const OUTLINE = 11;
 
 const DEFS = `
   <defs>
@@ -20,56 +21,37 @@ const DEFS = `
       <stop offset="0" stop-color="#22a35a" />
       <stop offset="1" stop-color="#0a5730" />
     </linearGradient>
-    <linearGradient id="gold" x1="0.2" y1="0" x2="0.8" y2="1">
+    <linearGradient id="gold" gradientUnits="userSpaceOnUse" x1="-40" y1="-80" x2="40" y2="80">
       <stop offset="0" stop-color="#fde68a" />
-      <stop offset="0.5" stop-color="#f5b014" />
-      <stop offset="1" stop-color="#c27803" />
-    </linearGradient>
-    <linearGradient id="white" x1="0.2" y1="0" x2="0.8" y2="1">
-      <stop offset="0" stop-color="#ffffff" />
-      <stop offset="1" stop-color="#e8efe9" />
+      <stop offset="0.55" stop-color="#facc15" />
+      <stop offset="1" stop-color="#eaa300" />
     </linearGradient>
   </defs>
 `;
 
-/** Shopping bag centred on 0,0. */
-function bag(fill) {
-  return `
-    <path d="M-16 -30 V-42 A16 16 0 0 1 16 -42 V-30" fill="none" stroke="${fill}" stroke-width="9" stroke-linecap="round" />
-    <path d="M-34 -32 H34 L40 32 H-40 Z" fill="${fill}" stroke="${fill}" stroke-width="8" stroke-linejoin="round" />
-  `;
+/** Ring of radii R/r opening to the right by ±`open` degrees, centred on 0,0. */
+function cPath(R, r, open) {
+  const p = (rad, a) => [rad * Math.cos((a * Math.PI) / 180), -rad * Math.sin((a * Math.PI) / 180)];
+  const [x0, y0] = p(R, open);
+  const [x1, y1] = p(R, -open);
+  const [x2, y2] = p(r, -open);
+  const [x3, y3] = p(r, open);
+  return `M${x0} ${y0} A${R} ${R} 0 1 0 ${x1} ${y1} L${x2} ${y2} A${r} ${r} 0 1 1 ${x3} ${y3} Z`;
 }
 
-/** Piggy bank centred on 0,0, facing right; `hole` colours the coin slot and the eye. */
-function piggy(fill, hole) {
+const C_PATH = cPath(172, 96, 36);
+const PLUS_PATH = 'M-32 0 H32 M0 -32 V32';
+
+/** The C and the "+", in the 512 grid, centred on the C; `scale` shrinks it for safe zones. */
+function mark(scale, { fill = '#ffffff', plus = 'url(#gold)', ink = INK } = {}) {
   return `
-    <path d="M-58 -6 C-76 -8 -78 -28 -64 -28" fill="none" stroke="${fill}" stroke-width="7" stroke-linecap="round" />
-    <path d="M8 -36 L24 -64 L38 -32 Z" fill="${fill}" stroke="${fill}" stroke-width="6" stroke-linejoin="round" />
-    <rect x="-40" y="22" width="20" height="34" rx="8" fill="${fill}" />
-    <rect x="16" y="22" width="20" height="34" rx="8" fill="${fill}" />
-    <ellipse cx="0" cy="2" rx="62" ry="46" fill="${fill}" />
-    <ellipse cx="62" cy="2" rx="14" ry="19" fill="${fill}" />
-    <path d="M-18 -34 H8" stroke="${hole}" stroke-width="7" stroke-linecap="round" />
-    <circle cx="36" cy="-12" r="5.5" fill="${hole}" />
-  `;
-}
-
-const HALF = 'M256 92 A164 164 0 0 1 256 420 A82 82 0 0 1 256 256 A82 82 0 0 0 256 92 Z';
-
-/** Keeps a symbol upright inside the tilted yin-yang. */
-function upright(x, y, scale, inner) {
-  return `<g transform="translate(${x} ${y}) rotate(20) scale(${scale})">${inner}</g>`;
-}
-
-/** The yin-yang, centred on 256,256; `scale` shrinks it for safe zones. */
-function mark(scale) {
-  return `
-    <g transform="translate(256 256) scale(${scale}) translate(-256 -256) rotate(-20 256 256)">
-      <circle cx="256" cy="256" r="164" fill="url(#white)" />
-      <path d="${HALF}" fill="url(#gold)" />
-      ${upright(256, 178, 0.95, bag('url(#gold)'))}
-      ${upright(250, 340, 0.82, piggy('url(#white)', 'url(#gold)'))}
-      <circle cx="256" cy="256" r="164" fill="none" stroke="${OUTLINE}" stroke-width="10" />
+    <g transform="translate(256 256) scale(${scale})">
+      <path d="${C_PATH}" fill="${ink}" stroke="${ink}" stroke-width="${OUTLINE * 2}" stroke-linejoin="round" />
+      <path d="${C_PATH}" fill="${fill}" />
+      <g transform="translate(176 -158)">
+        <path d="${PLUS_PATH}" fill="none" stroke="${ink}" stroke-width="${23 + OUTLINE * 2}" stroke-linecap="round" />
+        <path d="${PLUS_PATH}" fill="none" stroke="${plus}" stroke-width="23" stroke-linecap="round" />
+      </g>
     </g>
   `;
 }
@@ -98,23 +80,12 @@ function roundedSvg() {
 
 /**
  * Notification badge (Android status bar): the system only uses the alpha channel, so it is the
- * yin-yang in white on transparency — the piggy's half solid with the piggy cut out, the bag's
- * half empty with the bag drawn in.
+ * C and the "+" in plain white on transparency, without the outline.
  */
 function badgeSvg() {
   return `
     <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-      <defs>
-        <mask id="cut">
-          <rect width="512" height="512" fill="#fff" />
-          ${upright(250, 340, 0.82, piggy('#000', '#fff'))}
-        </mask>
-      </defs>
-      <g transform="translate(256 256) scale(1.4) translate(-256 -256) rotate(-20 256 256)">
-        <path d="${HALF}" fill="#fff" mask="url(#cut)" />
-        ${upright(256, 178, 0.95, bag('#fff'))}
-        <circle cx="256" cy="256" r="164" fill="none" stroke="#fff" stroke-width="14" />
-      </g>
+      <g transform="translate(-24 20)">${mark(1, { plus: '#fff', ink: 'none' })}</g>
     </svg>
   `;
 }
@@ -130,12 +101,12 @@ async function main() {
   await render(roundedSvg(), 512, 'public/icon-512.png');
   await render(roundedSvg(), 192, 'public/icon-192.png');
   await render(roundedSvg(), 512, 'app/icon.png');
-  // Maskable icons need the mark inside the ~80% "safe zone", full-bleed background.
-  await render(fullBleedSvg(0.8), 512, 'public/icon-maskable-512.png');
-  await render(fullBleedSvg(0.8), 192, 'public/icon-maskable-192.png');
+  // Maskable icons need the mark (the "+" included) inside the ~80% "safe zone", full-bleed background.
+  await render(fullBleedSvg(0.72), 512, 'public/icon-maskable-512.png');
+  await render(fullBleedSvg(0.72), 192, 'public/icon-maskable-192.png');
   // iOS home-screen icon: no transparency, iOS applies its own rounding.
-  await render(fullBleedSvg(0.95), 180, 'public/apple-touch-icon.png');
-  await render(fullBleedSvg(0.95), 180, 'app/apple-icon.png');
+  await render(fullBleedSvg(0.9), 180, 'public/apple-touch-icon.png');
+  await render(fullBleedSvg(0.9), 180, 'app/apple-icon.png');
   await render(badgeSvg(), 96, 'public/badge-96.png');
 }
 

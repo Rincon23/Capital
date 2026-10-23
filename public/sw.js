@@ -5,7 +5,7 @@
 // a shared device after signing out. With no connection, the offline page is shown.
 //
 // It also shows the push notifications (reminders, Gmail alerts) and runs their buttons.
-const CACHE_VERSION = 'capital-v8';
+const CACHE_VERSION = 'capital-v9';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const OFFLINE_URL = '/offline.html';
@@ -125,7 +125,7 @@ async function showNotification(data) {
 
 async function showOne(message) {
   const actions = Array.isArray(message.actions) ? message.actions : [];
-  await self.registration.showNotification(message.title || 'Capital', {
+  await self.registration.showNotification(message.title || 'Capital +', {
     body: message.body || '',
     icon: '/icon-192.png',
     badge: '/badge-96.png',

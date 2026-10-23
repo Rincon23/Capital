@@ -364,7 +364,7 @@ function Review() {
                 key: `bank:${bankCard.accountId}`,
                 title: bankCard.name,
                 detail: bankCard.linked
-                  ? 'Não informado no Capital'
+                  ? 'Não informado no Capital +'
                   : bankCard.bankName === bankCard.name
                     ? null
                     : bankCard.bankName,
@@ -394,7 +394,7 @@ function Review() {
   function linkQuestion(bankCard: ReviewCard) {
     return (
       <div className="border-border bg-card mx-4 flex flex-col gap-2 rounded-2xl border p-4 shadow-sm">
-        <p className="text-foreground text-sm font-semibold">Qual é este cartão no Capital?</p>
+        <p className="text-foreground text-sm font-semibold">Qual é este cartão no Capital +?</p>
         <div className="flex flex-wrap gap-2">
           {[...cards.map((card) => ({ id: card.id as string | null, label: card.name })), { id: null, label: 'Não informar' }].map(
             (option) => (
@@ -681,7 +681,7 @@ function Review() {
               );
             })}
           </div>
-          <p className="text-muted text-sm">O que os bancos mandaram no mês, ao lado do que está no Capital.</p>
+          <p className="text-muted text-sm">O que os bancos mandaram no mês, ao lado do que está no Capital +.</p>
         </div>
 
         {error && <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{error}</p>}
@@ -788,7 +788,7 @@ function Review() {
             const done = form.replaces ? 'Trocada por compra parcelada.' : 'Compra parcelada lançada.';
             showToast(
               review && firstMonth > review.month
-                ? `${done} No Capital, a 1ª parcela cai em ${formatMonthLabel(firstMonth)}.`
+                ? `${done} No Capital +, a 1ª parcela cai em ${formatMonthLabel(firstMonth)}.`
                 : done,
             );
           }}
@@ -871,7 +871,7 @@ function MonthSummary({ month, lines, noun }: { month: Month; lines: ReviewSide;
           <div className="min-w-0">
             <p className="text-success font-semibold">{formatMonthName(month)} confere ✓</p>
             <p className="text-muted text-sm">
-              {matched} {matched === 1 ? noun[0] : noun[1]} com o Capital.
+              {matched} {matched === 1 ? noun[0] : noun[1]} com o Capital +.
             </p>
           </div>
         </div>
@@ -879,7 +879,7 @@ function MonthSummary({ month, lines, noun }: { month: Month; lines: ReviewSide;
         <>
           <div className="flex items-baseline justify-between gap-3">
             <p className="text-foreground font-semibold">
-              {missing} {missing === 1 ? 'falta' : 'faltam'} no Capital
+              {missing} {missing === 1 ? 'falta' : 'faltam'} no Capital +
             </p>
             <p className="text-muted shrink-0 text-sm tabular-nums">
               {matched} de {total} conferem
@@ -1106,7 +1106,7 @@ function matchLabel(match: ReviewMatch | null): string {
   if (match.kind === 'pair') return `✓ Confere com “${match.description}” de ${formatDayMonth(match.date)}`;
   if (match.kind === 'links') return `✓ Ligado a ${namesOf(match.entries)}`;
   if (match.kind === 'received') return `✓ Devolução de “${match.entry.description}”, já recebida`;
-  if (match.kind === 'plan') return `✓ Compra parcelada “${match.description}” no Capital`;
+  if (match.kind === 'plan') return `✓ Compra parcelada “${match.description}” no Capital +`;
   const label = DECIDED_LABELS[match.outcome] ?? 'Conferido';
   return match.description ? `✓ ${label}: “${match.description}”` : `✓ ${label}`;
 }
@@ -1274,7 +1274,7 @@ function ReviewRow({
       ) : showUpfront && item.upfront && item.installments ? (
         <div className="bg-warning-bg flex flex-col gap-2 rounded-lg px-3 py-2 text-sm">
           <p className="text-warning">
-            No Capital está à vista: “{item.upfront.description}” ({formatBRL(item.upfront.amount)},{' '}
+            No Capital + está à vista: “{item.upfront.description}” ({formatBRL(item.upfront.amount)},{' '}
             {formatDayMonth(item.upfront.date)}). No banco são {item.installments.count}× de{' '}
             {formatBRL(item.installments.installmentAmount)}.
           </p>
@@ -1303,7 +1303,7 @@ function ReviewRow({
           <p className="text-warning">
             Ligado a {namesOf(item.partial.entries)} (
             {formatBRL(item.partial.entries.reduce((sum, entry) => sum + entry.amount, 0))}). Faltam{' '}
-            {formatBRL(item.partial.remaining)} no Capital.
+            {formatBRL(item.partial.remaining)} no Capital +.
           </p>
           <div className="flex gap-2">
             <button type="button" disabled={busy} onClick={onLaunch} className={primaryButton}>

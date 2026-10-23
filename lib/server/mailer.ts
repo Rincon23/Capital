@@ -60,7 +60,7 @@ function withinQuota(to: string): boolean {
     void notifyOwner(
       getDb(),
       'mail-limit',
-      `O Capital parou de enviar e-mails por enquanto: passou de ${perHour} por hora ou ${perDay} por dia. ` +
+      `O Capital + parou de enviar e-mails por enquanto: passou de ${perHour} por hora ou ${perDay} por dia. ` +
         'Pode ser um pico de cadastros ou alguém tentando usar o servidor para mandar spam.',
     ).catch((err: unknown) => console.error('[e-mail] falha ao avisar o dono:', err));
   }
@@ -80,7 +80,7 @@ export async function sendMail(mail: Mail): Promise<void> {
     return;
   }
   await smtp.sendMail({
-    from: process.env.MAIL_FROM || `Capital <${process.env.SMTP_USER}>`,
+    from: process.env.MAIL_FROM || `Capital + <${process.env.SMTP_USER}>`,
     to: mail.to,
     subject: mail.subject,
     text: mail.text,
@@ -90,9 +90,9 @@ export async function sendMail(mail: Mail): Promise<void> {
 export function confirmEmailMessage(to: string, url: string): Mail {
   return {
     to,
-    subject: 'Confirme seu e-mail no Capital',
+    subject: 'Confirme seu e-mail no Capital +',
     text:
-      'Olá!\n\nPara ativar sua conta no Capital, abra o link abaixo:\n\n' +
+      'Olá!\n\nPara ativar sua conta no Capital +, abra o link abaixo:\n\n' +
       `${url}\n\nO link vale por 1 hora. Se você não criou uma conta, ignore este e-mail.`,
   };
 }
@@ -100,9 +100,9 @@ export function confirmEmailMessage(to: string, url: string): Mail {
 export function resetPasswordMessage(to: string, url: string): Mail {
   return {
     to,
-    subject: 'Redefinir sua senha do Capital',
+    subject: 'Redefinir sua senha do Capital +',
     text:
-      'Olá!\n\nRecebemos um pedido para redefinir a senha da sua conta no Capital. ' +
+      'Olá!\n\nRecebemos um pedido para redefinir a senha da sua conta no Capital +. ' +
       `Para escolher uma nova senha, abra o link abaixo:\n\n${url}\n\n` +
       'O link vale por 1 hora. Se não foi você, ignore este e-mail: sua senha continua a mesma.',
   };

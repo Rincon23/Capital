@@ -234,7 +234,7 @@ function Gmail() {
                   onClick={async () => {
                     const ok = await confirm({
                       title: 'Desconectar o Gmail',
-                      message: `O Capital para de olhar ${account.email}; palavras-chave e alertas continuam.`,
+                      message: `O Capital + para de olhar ${account.email}; palavras-chave e alertas continuam.`,
                       confirmLabel: 'Desconectar',
                       destructive: true,
                     });

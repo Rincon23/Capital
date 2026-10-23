@@ -22,7 +22,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   if (!verified.ok) {
     const message =
       verified.reason === 'expired'
-        ? 'Esse aviso expirou. Abra o Capital para marcar como feito.'
+        ? 'Esse aviso expirou. Abra o Capital + para marcar como feito.'
         : 'Link de ação inválido.';
     return NextResponse.json({ error: message, code: verified.reason.toUpperCase() }, { status: 401, headers });
   }

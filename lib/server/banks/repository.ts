@@ -681,7 +681,7 @@ export class PostgresBanksRepository {
         and(eq(bankAccounts.userId, this.userId), eq(bankAccounts.accountId, accountId), eq(bankAccounts.kind, 'card')),
       )
       .returning({ id: bankAccounts.accountId });
-    if (updated.length === 0) throw new HttpError(404, 'NOT_FOUND', 'Este cartão não está mais no Capital.');
+    if (updated.length === 0) throw new HttpError(404, 'NOT_FOUND', 'Este cartão não está mais no Capital +.');
   }
 
   /**
@@ -980,7 +980,7 @@ export class PostgresBanksRepository {
       .set({ name })
       .where(and(eq(bankConnections.userId, this.userId), eq(bankConnections.itemId, itemId)))
       .returning({ itemId: bankConnections.itemId });
-    if (updated.length === 0) throw new HttpError(404, 'NOT_FOUND', 'Este banco não está mais no Capital.');
+    if (updated.length === 0) throw new HttpError(404, 'NOT_FOUND', 'Este banco não está mais no Capital +.');
   }
 
   async deleteConnections(itemIds: string[]): Promise<void> {

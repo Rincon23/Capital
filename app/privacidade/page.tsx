@@ -8,8 +8,8 @@ import { getAuth } from '@/lib/server/auth';
 import { getDb } from '@/lib/server/db';
 
 export const metadata: Metadata = {
-  title: 'Privacidade — Capital',
-  description: 'Como o Capital trata os seus dados.',
+  title: 'Privacidade — Capital +',
+  description: 'Como o Capital + trata os seus dados.',
 };
 
 // Depends on who reads it (the restricted modules' sections); never prerendered at build time.
@@ -54,14 +54,14 @@ export default async function PrivacyPage() {
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-10">
       <header className="flex flex-col gap-1">
-        <p className="text-primary text-sm font-semibold">Capital</p>
+        <p className="text-primary text-sm font-semibold">Capital +</p>
         <h1 className="text-foreground text-2xl font-bold">Política de privacidade</h1>
         <p className="text-muted text-sm">Última atualização: 22 de outubro de 2026.</p>
       </header>
 
-      <Section title="O que é o Capital">
+      <Section title="O que é o Capital +">
         <p>
-          O Capital é um app de orçamento doméstico. Ele roda num servidor próprio, com banco de dados
+          O Capital + é um app de orçamento doméstico. Ele roda num servidor próprio, com banco de dados
           próprio: os dados não ficam em serviços de banco na nuvem e não são vendidos nem compartilhados com
           ninguém. Cada conta só enxerga os próprios dados.
         </p>
@@ -85,7 +85,7 @@ export default async function PrivacyPage() {
       {shows('voice') && (
         <Section title="Lançar por voz ou texto">
           <p>
-            O áudio ou o texto é analisado por uma IA que roda no próprio servidor do Capital. O áudio não é
+            O áudio ou o texto é analisado por uma IA que roda no próprio servidor do Capital +. O áudio não é
             guardado: só o gasto que você conferir e salvar fica registrado.
           </p>
         </Section>
@@ -94,14 +94,14 @@ export default async function PrivacyPage() {
       {shows('gmail') && (
         <Section title="Monitor de Gmail">
           <p>
-            Se você ligar o monitor e conectar o seu Gmail, o Capital pede ao Google só a permissão de leitura
+            Se você ligar o monitor e conectar o seu Gmail, o Capital + pede ao Google só a permissão de leitura
             (<code>gmail.readonly</code>). Ele usa essa permissão apenas para isto: a cada minuto, ler o
             assunto, o remetente e a prévia dos e-mails novos, comparar com as palavras-chave que você
             cadastrou e avisar você no celular quando alguma aparecer.
           </p>
           <ul className="list-disc pl-5">
             <li>
-              O Capital não apaga, não envia, não marca e não altera nada na sua caixa, e não guarda o
+              O Capital + não apaga, não envia, não marca e não altera nada na sua caixa, e não guarda o
               conteúdo dos e-mails.
             </li>
             <li>
@@ -132,7 +132,7 @@ export default async function PrivacyPage() {
           </p>
           <p>
             Você pode tocar em &quot;Desconectar&quot; no Monitor de Gmail a qualquer momento, e também
-            remover o acesso do Capital na sua Conta Google, em{' '}
+            remover o acesso do Capital + na sua Conta Google, em{' '}
             <a
               href="https://myaccount.google.com/connections"
               className="text-primary underline"
@@ -149,7 +149,7 @@ export default async function PrivacyPage() {
       {shows('banks') && (
         <Section title="Open Finance (Meu Pluggy)">
           <p>
-            Se você ligar o Open Finance, o Capital lê os seus bancos pelo{' '}
+            Se você ligar o Open Finance, o Capital + lê os seus bancos pelo{' '}
             <a
               href="https://meu.pluggy.ai"
               className="text-primary underline"
@@ -159,12 +159,12 @@ export default async function PrivacyPage() {
               Meu Pluggy
             </a>
             , um serviço gratuito da Pluggy em que você mesmo conecta os seus bancos pelo Open Finance. O
-            Capital usa a sua própria chave da Pluggy (Client ID e Client Secret), que você cria no dashboard
+            Capital + usa a sua própria chave da Pluggy (Client ID e Client Secret), que você cria no dashboard
             da Pluggy e cola no app.
           </p>
           <ul className="list-disc pl-5">
             <li>
-              É só leitura: o Capital não move dinheiro, não paga nada e não altera nada nos seus bancos.
+              É só leitura: o Capital + não move dinheiro, não paga nada e não altera nada nos seus bancos.
             </li>
             <li>
               Guarda a sua chave (o Client Secret fica cifrado no servidor e nunca é mostrado nem enviado a
@@ -173,11 +173,11 @@ export default async function PrivacyPage() {
               transações dos últimos 12 meses que os bancos mandam. O saldo fica guardado só para a Reserva e
               só aparece lá, nas contas que você marcar; nenhum saldo, fatura ou limite do banco aparece no
               resto do app. As transações trazem: descrição, valor, data, categoria, forma de pagamento e quem
-              pagou ou recebeu (nome e documento, quando o banco informa). Uma vez por hora, o Capital
+              pagou ou recebeu (nome e documento, quando o banco informa). Uma vez por hora, o Capital +
               pergunta à Pluggy se chegou algo novo e, se você quiser, avisa no celular quando há algo para
-              conferir (o aviso pode ser silencioso). O Capital usa essas transações só para conferir, mês a
+              conferir (o aviso pode ser silencioso). O Capital + usa essas transações só para conferir, mês a
               mês, o que você lançou. Nada vira lançamento sozinho: você confere e lança com um toque; o
-              Capital lembra a categoria que você escolheu para cada descrição, para sugerir de novo.
+              Capital + lembra a categoria que você escolheu para cada descrição, para sugerir de novo.
             </li>
             <li>
               Esses dados não são vendidos, não são usados para publicidade e não são usados para treinar
@@ -185,8 +185,8 @@ export default async function PrivacyPage() {
             </li>
           </ul>
           <p>
-            Na engrenagem do Open Finance, &quot;Desconectar tudo&quot; apaga a chave e os bancos do Capital e
-            tira o acesso do Capital na Pluggy. Os bancos continuam conectados no Meu Pluggy, onde você pode
+            Na engrenagem do Open Finance, &quot;Desconectar tudo&quot; apaga a chave e os bancos do Capital + e
+            tira o acesso do Capital + na Pluggy. Os bancos continuam conectados no Meu Pluggy, onde você pode
             removê-los também.
           </p>
         </Section>
@@ -206,7 +206,7 @@ export default async function PrivacyPage() {
       <p className="text-muted text-sm">
         {/* "/" opens the app for a signed-in person and the login for anyone else (see proxy.ts). */}
         <Link href="/" className="text-primary underline">
-          Voltar ao Capital
+          Voltar ao Capital +
         </Link>
       </p>
     </main>

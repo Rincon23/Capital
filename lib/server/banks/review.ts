@@ -804,7 +804,7 @@ async function settlePayback(
   );
   if (!owed) throw new HttpError(404, 'NOT_FOUND', 'Esse A receber não existe mais ou já foi recebido.');
   const paid = await banks.paidIn(ids);
-  if (!paid) throw new HttpError(404, 'NOT_FOUND', 'Essa transação não está mais no Capital.');
+  if (!paid) throw new HttpError(404, 'NOT_FOUND', 'Essa transação não está mais no Capital +.');
   const difference = round2(paid.amount - owed.expense.amount);
   if (Math.abs(difference) > paybackTolerance(owed.expense.amount) + 0.009) {
     throw new HttpError(400, 'TOO_FAR', 'O valor do Pix está longe demais desse A receber.');

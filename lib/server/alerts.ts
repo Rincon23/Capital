@@ -13,9 +13,9 @@ import { sendUserNotification } from './notify';
 export type ServerAlertKind = GuardEventKind | 'mail-limit';
 
 const TITLES: Record<ServerAlertKind, string> = {
-  'rps-alert': '⚠️ Acesso alto no Capital',
-  'shed-start': '🛑 Capital pausado para proteger o servidor',
-  'shed-end': '✅ Capital voltou ao normal',
+  'rps-alert': '⚠️ Acesso alto no Capital +',
+  'shed-start': '🛑 Capital + pausado para proteger o servidor',
+  'shed-end': '✅ Capital + voltou ao normal',
   'ip-blocked': '🚫 Um IP foi bloqueado por excesso de acessos',
   'temp-alert': '🌡️ O Orange Pi está esquentando',
   'mail-limit': '📧 Limite de e-mails atingido',

@@ -268,7 +268,7 @@ function ThisDevice({
   if (state.support === 'unsupported') {
     return (
       <p className="text-muted text-sm">
-        Este navegador não recebe notificações. No celular, abra o Capital pelo Chrome.
+        Este navegador não recebe notificações. No celular, abra o Capital + pelo Chrome.
       </p>
     );
   }

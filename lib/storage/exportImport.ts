@@ -16,7 +16,7 @@ export function downloadBackup(payload: BackupPayload): void {
 
 export class InvalidBackupFileError extends Error {
   constructor() {
-    super('Arquivo inválido. Selecione um backup JSON exportado pelo Capital.');
+    super('Arquivo inválido. Selecione um backup JSON exportado pelo Capital +.');
     this.name = 'InvalidBackupFileError';
   }
 }

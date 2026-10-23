@@ -36,7 +36,7 @@ const BUSY_PAGE = (title: string, message: string, retryAfter: number) => `<!doc
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="refresh" content="${retryAfter}">
-<title>Capital — volte em instantes</title>
+<title>Capital + — volte em instantes</title>
 <style>
   :root { color-scheme: light dark; --bg: #f4f4f6; --card: #ffffff; --fg: #18181b; --muted: #71717a; }
   @media (prefers-color-scheme: dark) { :root { --bg: #0b0b0d; --card: #18181b; --fg: #f4f4f5; --muted: #a1a1aa; } }
@@ -66,7 +66,7 @@ function busyResponse(request: NextRequest, verdict: Exclude<Verdict, { action: 
   const headers = { 'Retry-After': String(retryAfter), 'Cache-Control': 'no-store' };
   const message = blocked
     ? `Muitos acessos seguidos deste aparelho. Espere ${retryAfter} segundos e tente de novo.`
-    : `O Capital recebeu acessos demais de uma vez e pausou por alguns instantes para não cair. Tente de novo em ${retryAfter} segundos.`;
+    : `O Capital + recebeu acessos demais de uma vez e pausou por alguns instantes para não cair. Tente de novo em ${retryAfter} segundos.`;
 
   if (request.nextUrl.pathname.startsWith('/api/')) {
     return NextResponse.json(
@@ -74,7 +74,7 @@ function busyResponse(request: NextRequest, verdict: Exclude<Verdict, { action: 
       { status, headers },
     );
   }
-  const title = blocked ? 'Muitos acessos seguidos' : 'O Capital está descansando um pouquinho';
+  const title = blocked ? 'Muitos acessos seguidos' : 'O Capital + está descansando um pouquinho';
   return new NextResponse(BUSY_PAGE(title, message, retryAfter), {
     status,
     headers: { ...headers, 'Content-Type': 'text/html; charset=utf-8' },

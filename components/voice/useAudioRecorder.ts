@@ -18,7 +18,7 @@ function pickMimeType(): string | undefined {
 function microphoneError(err: unknown): string {
   const name = err instanceof DOMException ? err.name : '';
   if (name === 'NotAllowedError' || name === 'SecurityError') {
-    return 'O microfone está bloqueado para o Capital. Libere nas permissões do navegador e tente de novo.';
+    return 'O microfone está bloqueado para o Capital +. Libere nas permissões do navegador e tente de novo.';
   }
   if (name === 'NotFoundError' || name === 'OverconstrainedError')
     return 'Nenhum microfone encontrado neste aparelho.';

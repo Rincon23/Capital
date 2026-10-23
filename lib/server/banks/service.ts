@@ -121,7 +121,7 @@ export async function startConnection(
 ): Promise<{ authorizeUrl: string }> {
   const redirectUri = banksRedirectUri();
   if (!redirectUri) {
-    throw new HttpError(503, 'NEEDS_HTTPS', 'Trazer bancos só funciona pelo endereço seguro (https) do Capital.');
+    throw new HttpError(503, 'NEEDS_HTTPS', 'Trazer bancos só funciona pelo endereço seguro (https) do Capital +.');
   }
   if ((await repo.itemIds()).length >= MEU_PLUGGY_LIMIT) {
     throw new HttpError(
@@ -536,7 +536,7 @@ export async function removeConnection(
   fetchImpl: FetchLike = fetch,
 ): Promise<void> {
   if (!(await repo.hasConnection(itemId))) {
-    throw new HttpError(404, 'NOT_FOUND', 'Este banco não está mais no Capital.');
+    throw new HttpError(404, 'NOT_FOUND', 'Este banco não está mais no Capital +.');
   }
   try {
     await removeItems(await clientFor(repo, userId, fetchImpl), [itemId]);

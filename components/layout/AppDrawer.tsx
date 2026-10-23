@@ -307,7 +307,7 @@ function DrawerPanel({
         {
           key: 'modulos',
           label: 'Módulos',
-          description: 'Escolha o que o seu Capital tem',
+          description: 'Escolha o que o seu Capital + tem',
           icon: Blocks,
           tone: 'blue',
           href: '/modulos',
@@ -315,7 +315,7 @@ function DrawerPanel({
         {
           key: 'privacidade',
           label: 'Privacidade',
-          description: 'Como o Capital trata os seus dados',
+          description: 'Como o Capital + trata os seus dados',
           icon: ShieldCheck,
           tone: 'green',
           href: '/privacidade',

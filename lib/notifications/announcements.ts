@@ -22,14 +22,14 @@ export const FEATURE_ANNOUNCEMENTS: FeatureAnnouncement[] = [
   {
     key: 'notification-center',
     title: '🔔 Central de notificações',
-    body: 'Agora o Capital guarda um histórico de tudo que já te avisou. Toque no sino para ver.',
+    body: 'Agora o Capital + guarda um histórico de tudo que já te avisou. Toque no sino para ver.',
     href: '/notificacoes',
     publishedAt: '2026-09-18T12:00:00Z',
   },
   {
     key: 'cards-module',
     title: '💳 Módulo Cartões',
-    body: 'Cadastre seus cartões, veja quando cada fatura vence e marque como paga — o Capital avisa antes do vencimento.',
+    body: 'Cadastre seus cartões, veja quando cada fatura vence e marque como paga — o Capital + avisa antes do vencimento.',
     href: '/carteira/cartoes',
     publishedAt: '2026-09-19T12:00:00Z',
   },

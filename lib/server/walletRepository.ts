@@ -594,7 +594,7 @@ export class PostgresWalletRepository implements WalletRepository {
     const item = (await this.listRecurring()).find((template) => template.id === id);
     if (!item) throw new HttpError(404, 'NOT_FOUND', 'Essa conta não existe mais.');
     if (item.card && item.installmentCount) {
-      throw new HttpError(409, 'NEEDS_FORM', 'Abra o Capital para lançar essa compra parcelada.');
+      throw new HttpError(409, 'NEEDS_FORM', 'Abra o Capital + para lançar essa compra parcelada.');
     }
     const launched = (await this.listRecurringExpenseLaunches()).some(
       (launch) => launch.recurringId === id && launch.month === month,

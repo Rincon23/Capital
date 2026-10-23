@@ -101,7 +101,7 @@ export function ModulosScreen() {
 
   return (
     <div className="flex flex-1 flex-col gap-5 pb-10">
-      <PageHeader title="Módulos" subtitle="Escolha o que o seu Capital tem" backHref={homeHref} />
+      <PageHeader title="Módulos" subtitle="Escolha o que o seu Capital + tem" backHref={homeHref} />
 
       <p className="text-muted px-4 text-sm">Ligue só o que você usa. Desligar não apaga nada.</p>
 

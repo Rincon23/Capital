@@ -157,8 +157,8 @@ export const MODULES: ModuleDefinition[] = [
     key: 'banks',
     name: 'Open Finance',
     description:
-      'Traz seus bancos e cartões para o Capital pelo Meu Pluggy, de graça e só para leitura. Os bancos mandam os dados uma vez por dia.',
-    tagline: 'Seus bancos no Capital, uma vez por dia',
+      'Traz seus bancos e cartões para o Capital + pelo Meu Pluggy, de graça e só para leitura. Os bancos mandam os dados uma vez por dia.',
+    tagline: 'Seus bancos no Capital +, uma vez por dia',
     group: 'wallet',
     dependsOn: [],
     screen: {

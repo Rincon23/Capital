@@ -16,14 +16,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Capital — Orçamento doméstico',
+  title: 'Capital + — Orçamento doméstico',
   description:
     'Organize sua renda em categorias e acompanhe quanto ainda pode gastar em cada uma, mês a mês.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Capital',
+    title: 'Capital +',
   },
 };
 

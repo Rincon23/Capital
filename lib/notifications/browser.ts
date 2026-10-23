@@ -25,7 +25,7 @@ export function pushSupport(): PushSupport {
 /** The user said no (or blocked the site): only the browser's own settings can undo it. */
 export class NotificationsBlockedError extends Error {
   constructor() {
-    super('As notificações estão bloqueadas para o Capital neste navegador.');
+    super('As notificações estão bloqueadas para o Capital + neste navegador.');
     this.name = 'NotificationsBlockedError';
   }
 }

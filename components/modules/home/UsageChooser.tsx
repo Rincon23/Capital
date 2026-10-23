@@ -51,7 +51,7 @@ export function UsageChooser({ onKit }: { onKit: () => void }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <h1 className="text-foreground px-1 pt-2 pb-1 text-2xl font-bold">Como você quer usar o Capital?</h1>
+      <h1 className="text-foreground px-1 pt-2 pb-1 text-2xl font-bold">Como você quer usar o Capital +?</h1>
       {MODULE_KITS.map((kit) => (
         <button
           key={kit.key}

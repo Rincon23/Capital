@@ -192,7 +192,7 @@ function NameForm({ current }: { current: string | null }) {
     <form action={action} className="flex flex-col gap-3">
       {!current && (
         <p className="bg-primary/10 text-foreground rounded-lg px-3 py-2 text-xs leading-relaxed">
-          Como podemos te chamar? O Capital usa o seu primeiro nome na Início e nos lembretes.
+          Como podemos te chamar? O Capital + usa o seu primeiro nome na Início e nos lembretes.
         </p>
       )}
       <div className="grid grid-cols-2 gap-3">
