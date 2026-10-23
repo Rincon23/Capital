@@ -5,7 +5,7 @@
 // a shared device after signing out. With no connection, the offline page is shown.
 //
 // It also shows the push notifications (reminders, Gmail alerts) and runs their buttons.
-const CACHE_VERSION = 'capital-v7';
+const CACHE_VERSION = 'capital-v8';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const OFFLINE_URL = '/offline.html';
