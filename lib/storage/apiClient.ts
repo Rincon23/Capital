@@ -2,6 +2,8 @@ import { NotAuthenticatedError } from './repository';
 
 /** Dispatched on `window` when the API says the session is gone; AuthProvider sends the user to /login. */
 export const UNAUTHENTICATED_EVENT = 'capital:unauthenticated';
+/** Fired after anything is saved: the Missões check what was just done (`MissionsProvider`). */
+export const DATA_CHANGED_EVENT = 'capital:data-changed';
 
 /** A failed API call. `message` is user-facing (pt-BR), straight from the server when it sent one. */
 export class ApiRequestError extends Error {
@@ -44,6 +46,9 @@ export async function apiRequest<T>(method: string, path: string, body?: unknown
     );
   }
 
+  if (response.ok && method !== 'GET' && !path.startsWith('/missions') && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(DATA_CHANGED_EVENT));
+  }
   if (response.status === 204) return undefined as T;
   const payload: unknown = await response.json().catch(() => null);
   if (response.ok) return payload as T;

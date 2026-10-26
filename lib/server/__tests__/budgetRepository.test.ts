@@ -379,8 +379,7 @@ describe('PostgresBudgetRepository', () => {
     const { id, repo } = await newAccount();
     const settings = await repo.getSettings();
     expect(settings.homePages).toBeNull();
-    // A brand-new account starts with "Primeiros passos" on its Início.
-    expect(settings.dismissedNotices).toEqual(['first-steps']);
+    expect(settings.dismissedNotices).toEqual([]);
 
     await repo.saveSettings({
       ...settings,

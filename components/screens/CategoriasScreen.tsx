@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Percent } from 'lucide-react';
 import { formatMonthLabel, nextMonth } from '@/lib/budget';
@@ -9,8 +9,7 @@ import { ModuleGate } from '@/components/modules/ModuleGate';
 import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
 import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
 import { useHomeHref } from '@/components/modules/useHomeHref';
-import { useMarkFirstSteps } from '@/components/modules/useFirstSteps';
-import { introNotice, useModuleIntro } from '@/components/modules/useModuleIntro';
+import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { ClosedMonthBanner } from '@/components/month/ClosedMonthBanner';
 import { CloseMonthSheet } from '@/components/month/CloseMonthSheet';
 import { FixedCostsCard } from '@/components/month/FixedCostsCard';
@@ -48,15 +47,6 @@ function Categorias() {
     ready: !loading && !!summary && !!settings,
     withSetup: true,
   });
-
-  // "Ver quanto ainda posso gastar", of "Primeiros passos": done once the numbers are on screen —
-  // after the first-visit questions were saved and closed, so the two saves never cross.
-  const markFirstSteps = useMarkFirstSteps();
-  const introSaved = settings?.dismissedNotices?.includes(introNotice('budget')) ?? false;
-  const numbersShown = !loading && !!summary && introSaved && !setupOpen && !helping;
-  useEffect(() => {
-    if (numbersShown) markFirstSteps(['budget']);
-  }, [numbersShown, markFirstSteps]);
 
   /** Closes the month and opens the next one carrying the leftovers, then goes to it. */
   async function handleCloseMonth() {

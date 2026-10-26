@@ -70,7 +70,7 @@ export async function register() {
   try {
     await runModulesAlwaysOnMigration(getDb());
   } catch (err) {
-    console.error('[módulos] falha ao ligar todos os módulos:', err);
+    console.error('[módulos] falha ao dar a Início padrão a todos:', err);
   }
 
   // Every start: each account's modules as its access says (all, but the restricted ones it may

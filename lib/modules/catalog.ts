@@ -1,9 +1,10 @@
 import type { ModuleKey, Month } from '../budget/types';
 
-/** How the app drawer (and the module list) groups modules. */
-export type ModuleGroup = 'month' | 'wallet' | 'investing' | 'assistant';
+/** How the app drawer groups modules. */
+export type ModuleGroup = 'progress' | 'month' | 'wallet' | 'investing' | 'assistant';
 
 export const MODULE_GROUPS: { key: ModuleGroup; label: string }[] = [
+  { key: 'progress', label: 'Seu progresso' },
   { key: 'month', label: 'Dinheiro do mês' },
   { key: 'wallet', label: 'Carteira' },
   { key: 'investing', label: 'Investimentos' },
@@ -51,6 +52,20 @@ export interface ModuleDefinition {
  * also the order of the defaults (the app drawer and the Início widgets).
  */
 export const MODULES: ModuleDefinition[] = [
+  {
+    key: 'missions',
+    name: 'Missões',
+    description: 'Tarefas pequenas de todo dia e de todo mês. Cada uma dá XP, e o XP sobe o seu nível.',
+    tagline: 'Tarefas que dão XP e sobem o seu nível',
+    group: 'progress',
+    dependsOn: [],
+    screen: {
+      label: 'Missões',
+      href: () => '/missoes',
+      isActive: (pathname) => pathname.startsWith('/missoes'),
+    },
+    homeCard: true,
+  },
   {
     key: 'expenses',
     name: 'Lançamentos',

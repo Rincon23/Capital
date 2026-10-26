@@ -7,7 +7,6 @@ import { installmentExpense, installmentsDueIn } from '../budget/installments';
 import { cascadeCarryIn, createMonthData } from '../budget/rollover';
 import { createDefaultSettings } from '../budget/seed';
 import { keepEveryTopic } from '../budget/topics';
-import { FIRST_STEPS_NOTICE } from '../modules/firstSteps';
 import type {
   BudgetSettings,
   Expense,
@@ -641,7 +640,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
 
     // First read for this account: seed the default envelopes (no demo month) and the Início of
     // the template (lib/server/homeTemplate.ts). Only this first-ever row is created with the
-    // onboarding still pending, and with "Primeiros passos" on the Início.
+    // onboarding still pending.
     const defaults = createDefaultSettings();
     const home = await homeTemplate(ex);
     await ex
@@ -653,8 +652,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
         specialCategoryColors: defaults.specialCategoryColors ?? {},
         modules: defaults.modules ?? {},
         onboardingCompleted: false,
-        dismissedNotices: [FIRST_STEPS_NOTICE],
-        ...(home ? { homePages: home.homePages, homeHidden: home.homeHidden, homeCardSizes: home.homeCardSizes } : {}),
+        ...(home ? { homePages: home.homePages, homeCardSizes: home.homeCardSizes } : {}),
       })
       .onConflictDoNothing();
 

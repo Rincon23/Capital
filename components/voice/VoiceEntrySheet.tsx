@@ -15,6 +15,7 @@ import { analyzeExpense, warmUpExpenseAi, type ExpenseAnalysisRequest } from '@/
 import { ModuleHelpButton } from '@/components/modules/ModuleHelpButton';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { useToast } from '@/components/ui/Toast';
+import { useMissions } from '@/components/missions/MissionsProvider';
 import { AnalysisProgress } from './AnalysisProgress';
 import { DraftReview } from './DraftReview';
 import { useAudioRecorder, type Recording } from './useAudioRecorder';
@@ -83,6 +84,10 @@ export function VoiceEntrySheet({
   const [transcript, setTranscript] = useState<string>();
   const [saving, setSaving] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+
+  // "Conhecer Lançar por voz ou texto", of the Missões: done by opening it.
+  const { visit } = useMissions();
+  useEffect(() => visit('meet-voice'), [visit]);
 
   // Get the model into memory while the user is still talking.
   useEffect(() => {

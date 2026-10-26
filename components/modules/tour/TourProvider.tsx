@@ -15,8 +15,12 @@ import { requestTourSheet } from './tourSheets';
 interface TourContextValue {
   /** Runs the tour of these modules, on the real screens, and comes back to where it started. */
   startTour: (modules: ModuleKey[]) => void;
-  /** Runs these steps (a tour that is not a module's, like organizing the Início). */
-  startSteps: (steps: TourStep[]) => void;
+  /**
+   * Runs these steps (a tour that is not a module's, like organizing the Início). With `stay`, it
+   * does not go back to where it started, and tapping what is highlighted closes it: a mission
+   * leading the person to the button they have to tap.
+   */
+  startSteps: (steps: TourStep[], options?: { stay?: boolean }) => void;
   /** Whether a tour is on screen right now. */
   isTourActive: () => boolean;
 }
@@ -39,7 +43,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
   useEffect(() => () => active.current?.destroy(), []);
 
   const startSteps = useCallback(
-    (steps: TourStep[]) => {
+    (steps: TourStep[], { stay = false }: { stay?: boolean } = {}) => {
       active.current?.destroy();
       if (steps.length === 0) return;
 
@@ -68,11 +72,13 @@ export function TourProvider({ children }: { children: ReactNode }) {
         revealOnHome(null);
         tour.destroy();
         active.current = null;
-        if (here() !== origin) router.push(origin);
+        if (!stay && here() !== origin) router.push(origin);
       };
 
       const tour: Driver = driver({
         showProgress: steps.length > 1,
+        // One step has nowhere to go back to.
+        ...(steps.length === 1 ? { showButtons: ['next' as const, 'close' as const] } : {}),
         progressText: '{{current}} de {{total}}',
         allowClose: true,
         overlayOpacity: 0.7,
@@ -102,6 +108,13 @@ export function TourProvider({ children }: { children: ReactNode }) {
           },
         })),
         onDestroyStarted: finish,
+        // Leading somewhere: the tap on the highlighted button is the point, and it ends the spotlight.
+        ...(stay
+          ? {
+              onHighlighted: (element?: Element) =>
+                element?.addEventListener('click', () => finish(), { once: true, capture: true }),
+            }
+          : {}),
       });
 
       active.current = tour;

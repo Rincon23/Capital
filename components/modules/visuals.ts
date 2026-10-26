@@ -6,13 +6,13 @@ import {
   CreditCard,
   HandCoins,
   Landmark,
-  ListChecks,
   Mail,
   Mic,
   PiggyBank,
   Target,
   ReceiptText,
   Repeat,
+  Sprout,
   type LucideIcon,
 } from 'lucide-react';
 import type { HomeWidgetKey, ModuleKey } from '@/lib/budget';
@@ -37,11 +37,11 @@ export const MODULE_VISUALS: Record<ModuleKey, ModuleVisual> = {
   voice: { icon: Mic, tone: 'pink' },
   gmail: { icon: Mail, tone: 'red' },
   banks: { icon: Landmark, tone: 'blue' },
+  missions: { icon: Sprout, tone: 'green' },
 };
 
 /** The icon of an Início widget: its module's, except for the extra widgets, which have their own. */
 export function widgetVisual(key: HomeWidgetKey): ModuleVisual {
   if (key === 'calendar') return { icon: CalendarDays, tone: 'blue' };
-  if (key === 'firstSteps') return { icon: ListChecks, tone: 'green' };
   return MODULE_VISUALS[key];
 }

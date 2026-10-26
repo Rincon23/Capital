@@ -107,6 +107,19 @@
   --animate-apps-hop: capital-apps-hop 2.4s ease-in-out 0.8s 3;
   --animate-sway: capital-sway 1.4s ease-in-out infinite;
   --animate-toast-in: capital-toast-in 0.18s ease-out;
+  --animate-level-up: capital-level-up 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* A new level of the Missões: the tree grows into place. */
+  @keyframes capital-level-up {
+    from {
+      opacity: 0;
+      transform: scale(0.4) translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
 
   @keyframes capital-toast-in {
     from {

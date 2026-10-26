@@ -30,6 +30,22 @@ const card = () => '/cartao';
  * or the trays of the Início, which are not the module's. Every tour then ends on its help button.
  */
 export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
+  missions: [
+    {
+      route: () => '/missoes',
+      anchor: 'missoes-nivel',
+      title: 'Seu nível',
+      description: 'Cada missão dá XP. Com XP, a sua árvore cresce de nível.',
+      side: 'bottom',
+    },
+    {
+      route: () => '/missoes',
+      anchor: 'missoes-lista',
+      title: 'Missões',
+      description: 'Toque numa missão e o app leva você até o lugar certo.',
+      side: 'top',
+    },
+  ],
   expenses: [
     {
       route: entries,
@@ -368,6 +384,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
  * how to see it again.
  */
 export const MODULE_HELP: Record<ModuleKey, Pick<TourStepDefinition, 'route' | 'sheet'>> = {
+  missions: { route: () => '/missoes' },
   expenses: { route: entries },
   budget: { route: categories },
   card: { route: card },

@@ -22,8 +22,9 @@ const off = (...keys: ModuleKey[]) => Object.fromEntries(keys.map((key) => [key,
 const notVipDefault = { vip: false, vipModules: DEFAULT_VIP_MODULES };
 
 describe('catálogo de módulos', () => {
-  it('tem os 12 módulos, cada um depois dos que ele precisa', () => {
+  it('tem os 13 módulos, Missões primeiro e cada um depois dos que ele precisa', () => {
     expect(MODULE_KEYS).toEqual([
+      'missions',
       'expenses',
       'budget',
       'card',

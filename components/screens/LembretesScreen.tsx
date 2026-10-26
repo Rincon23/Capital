@@ -18,6 +18,7 @@ import { useHomeHref } from '@/components/modules/useHomeHref';
 import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { NotificationsSection } from '@/components/settings/NotificationsSection';
 import { ReminderSettingsSection } from '@/components/settings/ReminderSettingsSection';
+import { useMissions } from '@/components/missions/MissionsProvider';
 import { formatMonthLabel, nextMonth } from '@/lib/budget';
 import {
   WEEKDAY_LETTERS,
@@ -89,6 +90,12 @@ function Lembretes({ initialTab, initialDay }: { initialTab?: LembretesTab; init
   const [busyId, setBusyId] = useState<string | null>(null);
   const [configuring, setConfiguring] = useState(false);
   useModuleIntro('reminders', { ready: !!snapshot });
+
+  // "Conferir o calendário", of the Missões: done by opening the tab.
+  const { visit } = useMissions();
+  useEffect(() => {
+    if (tab === 'calendario') visit('check-calendar');
+  }, [tab, visit]);
 
   if (loading && !snapshot) {
     return <div className="text-muted flex flex-1 items-center justify-center px-4 py-16">Carregando…</div>;

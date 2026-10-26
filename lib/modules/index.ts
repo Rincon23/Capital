@@ -4,4 +4,3 @@ export * from './nav';
 export * from './home';
 export * from './tours';
 export * from './migration';
-export * from './firstSteps';

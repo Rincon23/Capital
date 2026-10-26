@@ -66,8 +66,9 @@ const topicSchema = z.object({
 });
 
 /**
- * Every module, as booleans. Anything absent stays off (see `resolveModules`). An older backup or
- * a cached client may still send the invested reserve (`investments`), now part of Reserva.
+ * Every module, as booleans (the routes replace them with what the account has, see
+ * `withAccessRules`). An older backup or a cached client may still send the invested reserve
+ * (`investments`), now part of Reserva.
  */
 const modulesSchema = z.preprocess(
   (value) => {
@@ -94,9 +95,15 @@ const navSchema = z
   .array(z.preprocess(renamedKey, z.enum(['inicio', ...MODULE_KEYS] as [NavKey, ...NavKey[]])))
   .max(4);
 
+/** Widgets that are gone, and what took their place: "Primeiros passos" became Missões. */
+const RETIRED_WIDGETS: Record<string, HomeWidgetKey> = { firstSteps: 'missions' };
+
 /** A widget of the Início: a module's card or one of the extra widgets (lib/modules/home.ts). */
 const homeWidgetSchema = z.preprocess(
-  renamedKey,
+  (value) => {
+    const key = renamedKey(value);
+    return typeof key === 'string' && Object.hasOwn(RETIRED_WIDGETS, key) ? RETIRED_WIDGETS[key] : key;
+  },
   z.enum(HOME_WIDGET_KEYS as [HomeWidgetKey, ...HomeWidgetKey[]]),
 );
 

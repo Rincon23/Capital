@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { CardsProvider } from '@/components/cards/CardsProvider';
+import { MissionsProvider } from '@/components/missions/MissionsProvider';
 import { TourProvider } from '@/components/modules/tour/TourProvider';
 import { NotificationsProvider } from '@/components/notifications/NotificationsProvider';
 import { ConfirmProvider } from '@/components/ui/ConfirmSheet';
@@ -24,7 +25,9 @@ export function AppProviders({
           <SettingsProvider>
             <NotificationsProvider>
               <CardsProvider>
-                <TourProvider>{children}</TourProvider>
+                <TourProvider>
+                  <MissionsProvider>{children}</MissionsProvider>
+                </TourProvider>
               </CardsProvider>
             </NotificationsProvider>
           </SettingsProvider>

@@ -18,6 +18,7 @@ import { MODULE_KEYS } from '../catalog';
 /** Only these modules (the rest saved off, as for a restricted module). */
 const on = (...keys: ModuleKey[]) => Object.fromEntries(MODULE_KEYS.map((key) => [key, keys.includes(key)]));
 const everything = on(
+  'missions',
   'expenses',
   'budget',
   'card',
@@ -35,6 +36,7 @@ const everything = on(
 describe('widgets do Início', () => {
   it('seguem a ordem do catálogo, com A receber logo depois de Lançamentos e o calendário depois dos Lembretes', () => {
     expect(homeCards({ modules: everything })).toEqual([
+      'missions',
       'expenses',
       'reimbursable',
       'budget',
@@ -73,33 +75,21 @@ describe('widgets do Início', () => {
   });
 });
 
-describe('Primeiros passos', () => {
-  const kit = on('expenses', 'budget', 'card');
-  const started = ['first-steps'];
-
-  it('só numa conta nova, com Gastos por categoria ligado, e em primeiro', () => {
-    expect(homeCards({ modules: kit, dismissedNotices: started })).toEqual(['firstSteps', 'expenses', 'budget', 'card']);
-    // An account from before "Como você quer usar o Capital?" never gets it.
-    expect(homeCards({ modules: kit })).toEqual(['expenses', 'budget', 'card']);
-    expect(homeCards({ modules: on('expenses'), dismissedNotices: started })).toEqual(['expenses']);
-  });
-
-  it('some quando os três passos estão feitos', () => {
-    const done = [...started, 'first-steps:income', 'first-steps:expense', 'first-steps:budget'];
-    expect(homeCards({ modules: kit, dismissedNotices: done })).toEqual(['expenses', 'budget', 'card']);
+describe('Missões', () => {
+  it('vem primeiro na ordem padrão', () => {
+    expect(homeCards({ modules: {} })[0]).toBe('missions');
   });
 
   it('entra no topo da primeira área de um Início já arrumado, e fica onde a pessoa puser', () => {
+    const kit = on('missions', 'expenses', 'budget', 'card');
     const homePages: HomeWidgetKey[][] = [['budget'], ['expenses', 'card']];
-    expect(resolveHomePages({ modules: kit, dismissedNotices: started, homePages })).toEqual([
-      ['firstSteps', 'budget'],
+    expect(resolveHomePages({ modules: kit, homePages })).toEqual([
+      ['missions', 'budget'],
       ['expenses', 'card'],
     ]);
-    const moved: HomeWidgetKey[][] = [['budget'], ['expenses', 'firstSteps', 'card']];
-    expect(resolveHomePages({ modules: kit, dismissedNotices: started, homePages: moved })).toEqual(moved);
-    expect(
-      resolveHomePages({ modules: kit, dismissedNotices: started, homePages, homeHidden: ['firstSteps'] }),
-    ).toEqual(homePages);
+    const moved: HomeWidgetKey[][] = [['budget'], ['expenses', 'missions', 'card']];
+    expect(resolveHomePages({ modules: kit, homePages: moved })).toEqual(moved);
+    expect(resolveHomePages({ modules: kit, homePages, homeHidden: ['missions'] })).toEqual(homePages);
   });
 });
 

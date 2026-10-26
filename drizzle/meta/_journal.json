@@ -232,6 +232,13 @@
       "when": 1792694345349,
       "tag": "0032_open_finance_links",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793023802330,
+      "tag": "0033_missoes_xp",
+      "breakpoints": true
     }
   ]
 }

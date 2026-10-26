@@ -40,6 +40,7 @@ export function InstallAppButton({ className = '' }: { className?: string }) {
       <button
         type="button"
         onClick={() => void handleClick()}
+        data-tour="instalar-app"
         className={`border-primary text-primary flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold ${className}`}
       >
         <Smartphone aria-hidden className="h-4 w-4" />

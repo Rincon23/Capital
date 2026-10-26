@@ -9,10 +9,10 @@ import { WalletProvider } from '@/components/wallet/WalletProvider';
 import { BanksHomeCard } from './BanksHomeCard';
 import { CalendarHomeCard } from './CalendarHomeCard';
 import { DiagramHomeCard } from './DiagramHomeCard';
-import { FirstStepsHomeCard } from './FirstStepsHomeCard';
 import { GmailHomeCard } from './GmailHomeCard';
 import { HistoryHomeCard } from './HistoryHomeCard';
 import { HomeCardBoundary } from './HomeCard';
+import { MissionsHomeCard } from './MissionsHomeCard';
 import { BudgetHomeCard, ExpensesHomeCard, ReimbursableHomeTile } from './MonthCards';
 import { CardHomeCard, CashHomeCard, RecurringHomeTile } from './WalletCards';
 
@@ -24,6 +24,7 @@ interface CardSpec {
 
 /** The widget of each module that has one (see `homeCard` in the catalog), plus the extra ones. */
 const CARDS: Partial<Record<HomeWidgetKey, CardSpec>> = {
+  missions: { size: 'full', Component: MissionsHomeCard },
   expenses: { size: 'full', Component: ExpensesHomeCard },
   budget: { size: 'full', Component: BudgetHomeCard },
   card: { size: 'full', Component: CardHomeCard },
@@ -36,7 +37,6 @@ const CARDS: Partial<Record<HomeWidgetKey, CardSpec>> = {
   calendar: { size: 'full', Component: CalendarHomeCard },
   gmail: { size: 'full', Component: GmailHomeCard },
   banks: { size: 'full', Component: BanksHomeCard },
-  firstSteps: { size: 'full', Component: FirstStepsHomeCard },
 };
 
 /** The cards that read the wallet: they share one snapshot of it. */

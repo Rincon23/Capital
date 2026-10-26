@@ -178,7 +178,6 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     ? layout.pages
     : resolveHomePages({
         modules: settings.modules,
-        dismissedNotices: settings.dismissedNotices,
         homePages: layout.pages,
         homeHidden: layout.hidden,
       });
@@ -199,7 +198,6 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
 
   const hidden = hiddenHomeCards({
     modules: settings.modules,
-    dismissedNotices: settings.dismissedNotices,
     homeHidden: layout.hidden,
   });
   const withActions = isModuleOn(settings, 'expenses');
@@ -256,7 +254,6 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
       ...previous,
       pages: resolveHomePages({
         modules: settings.modules,
-        dismissedNotices: settings.dismissedNotices,
         homePages: previous.pages,
         homeHidden: previous.hidden,
       }),
@@ -410,9 +407,12 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     const previous = layoutRef.current;
     setCurrent(0);
     setTrayOpen(false);
-    const next = template?.homePages
-      ? { pages: template.homePages, hidden: template.homeHidden, sizes: template.homeCardSizes }
-      : { pages: [homeCards(settingsRef.current)], hidden: template?.homeHidden ?? [], sizes: template?.homeCardSizes ?? {} };
+    // Every widget back, in the template's places (only a restricted module's stays out, by itself).
+    const next = {
+      pages: template?.homePages ?? [homeCards(settingsRef.current)],
+      hidden: [],
+      sizes: template?.homeCardSizes ?? {},
+    };
     const ok = await save(next, previous, { asDefault: !template?.homePages });
     if (ok) showToast('A Início voltou ao padrão.');
   }

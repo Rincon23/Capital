@@ -7,8 +7,9 @@ type Env = Record<string, string | undefined>;
 
 /**
  * The Início template account (`HOME_TEMPLATE_EMAIL` and `HOME_TEMPLATE_PASSWORD` in the
- * environment): whatever the owner arranges on its Início — telas, order, widgets taken off, sizes
- * — is the Início every new account starts with. It is an ordinary login, created on its first
+ * environment): how the owner arranges its Início — telas, order, sizes — is the Início every new
+ * account starts with, with every widget showing (only a restricted module's stays out, for an
+ * account without access). It is an ordinary login, created on its first
  * sign-in like the test account, but never wiped; it sees every module (so every widget can be
  * placed) and stays out of the owner's numbers. Never the owner's nor the test account's address.
  * Unset: nothing, and the owner's own Início is the template.
@@ -32,7 +33,6 @@ async function layoutOf(ex: Database | Transaction, email: string | null): Promi
     .select({
       homePages: budgetSettings.homePages,
       homeOrder: budgetSettings.homeOrder,
-      homeHidden: budgetSettings.homeHidden,
       homeCardSizes: budgetSettings.homeCardSizes,
     })
     .from(budgetSettings)
@@ -41,7 +41,6 @@ async function layoutOf(ex: Database | Transaction, email: string | null): Promi
   if (!row) return null;
   return {
     homePages: row.homePages ?? (row.homeOrder ? [row.homeOrder] : null),
-    homeHidden: row.homeHidden,
     homeCardSizes: row.homeCardSizes,
   };
 }

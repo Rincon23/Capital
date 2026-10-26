@@ -29,6 +29,7 @@ import {
   reminderSettings,
   reserveContributions,
   reservePlans,
+  xpEvents,
 } from './db/schema';
 import type { Database } from './db/types';
 import { PostgresBanksRepository } from './banks/repository';
@@ -38,8 +39,8 @@ import { forgetGmailToken } from './gmail/job';
 /**
  * "Apagar todos os dados": everything the account stored, in every module — months and their
  * entries, settings, cards and bills, recurring and instalment purchases, reserves, the Diagrama,
- * reminders, the Gmail connection (its token included), the Open Finance key and banks and the
- * notification history. The account itself
+ * reminders, the Gmail connection (its token included), the Open Finance key and banks, the XP
+ * of the Missões and the notification history. The account itself
  * stays, and so do the devices that receive notifications; "Excluir minha conta" removes those too.
  * Rows that hang from others (entries, deliveries, completions) go with them by cascade.
  */
@@ -51,6 +52,8 @@ export async function clearAccountData(db: Database, userId: string): Promise<vo
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${userId}, 0))`);
     await tx.delete(months).where(eq(months.userId, userId));
     await tx.delete(budgetSettings).where(eq(budgetSettings.userId, userId));
+    // The XP of the Missões starts over too.
+    await tx.delete(xpEvents).where(eq(xpEvents.userId, userId));
     await tx.delete(cardBillPayments).where(eq(cardBillPayments.userId, userId));
     await tx.delete(cards).where(eq(cards.userId, userId));
     await tx.delete(cardSettings).where(eq(cardSettings.userId, userId));

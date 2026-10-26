@@ -795,6 +795,30 @@ export const jobRuns = pgTable('job_runs', {
 });
 
 // ---------------------------------------------------------------------------
+// Missões (lib/gamification)
+// ---------------------------------------------------------------------------
+
+/**
+ * The XP an account earned: one row per mission per period ("2026-10-26" for a day, "2026-W44" for
+ * a week, "2026-10" for a month, "once"). The primary key is what makes a mission count only once
+ * per period, whatever the app sends; its leading `user_id` also serves the per-account reads and
+ * the cascade. A row is never deleted when the thing that earned it is: XP never goes down.
+ */
+export const xpEvents = pgTable(
+  'xp_events',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    mission: text('mission').notNull(),
+    period: text('period').notNull(),
+    xp: integer('xp').notNull(),
+    earnedAt: timestamp('earned_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.mission, t.period] }), check('xp_events_xp_positive', sql`${t.xp} > 0`)],
+);
+
+// ---------------------------------------------------------------------------
 // Monitor de Gmail
 // ---------------------------------------------------------------------------
 

@@ -115,7 +115,7 @@ describe('módulos só para VIP', () => {
     await setModuleVip(db, 'voice', false);
 
     const modules = await listModules(db);
-    expect(modules.map((item) => item.key)).toHaveLength(12);
+    expect(modules.map((item) => item.key)).toHaveLength(13);
     expect(modules.find((item) => item.key === 'gmail')).toEqual({ key: 'gmail', vipOnly: false, usersWithoutVip: 1 });
     expect(modules.find((item) => item.key === 'banks')).toEqual({ key: 'banks', vipOnly: true, usersWithoutVip: 0 });
     expect(modules.filter((item) => item.vipOnly).map((item) => item.key)).toEqual(['banks']);

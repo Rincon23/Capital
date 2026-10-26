@@ -33,24 +33,21 @@ o módulo Cartão do mesmo jeito, com a tela vazia e um botão para cadastrar. A
 **módulos restritos** (abaixo), que só as contas com acesso têm.
 
 **Primeiro acesso.** A conta nova abre direto na Início, montada como a **conta modelo** (abaixo),
-com o widget **Primeiros passos** no topo até a pessoa registrar a renda, lançar o primeiro gasto e
-abrir Categorias ("Ver quanto ainda posso gastar"). Cada passo é um botão que abre o lugar certo e
-se marca sozinho (fica salvo nos avisos já vistos). As perguntas das categorias abrem na primeira
-visita a Categorias.
+com o widget **Missões** no topo (veja "Missões e XP", abaixo): cada missão é um botão que leva ao
+lugar certo. As perguntas das categorias abrem na primeira visita a Categorias.
 
 **Conta modelo da Início** (`lib/server/homeTemplate.ts`). `HOME_TEMPLATE_EMAIL` e
 `HOME_TEMPLATE_PASSWORD` no `.env` configuram uma conta só para isso: ela é criada no primeiro login
-(já confirmada, como a conta de teste) e **o que o dono arrumar na Início dela** — telas, ordem,
-widgets tirados e tamanhos — é a Início de **toda conta nova** e o "Voltar ao padrão" da bandeja de
-widgets. Ela vê todos os módulos (para dar para pôr qualquer widget) e não aparece na
-Administração. Sem ela, vale a Início do dono (`OWNER_EMAIL`). Mudar a conta modelo só muda as
-contas novas.
+(já confirmada, como a conta de teste) e **como o dono arrumar a Início dela** — telas, ordem e
+tamanhos — é a Início de **toda conta nova** e o "Voltar ao padrão" da bandeja de widgets, **sempre
+com todos os widgets**: no padrão só fica de fora o widget de um módulo restrito, para quem não tem
+acesso (o que a conta modelo tirar não vale para as outras). Ela vê todos os módulos (para dar para
+pôr qualquer widget), não ganha XP e não aparece na Administração. Sem ela, vale a Início do dono
+(`OWNER_EMAIL`). Mudar a conta modelo só muda as contas novas.
 
 **Na atualização que tirou o liga/desliga** (`lib/server/modulesAlwaysOnMigration.ts`, uma vez só,
-marcada em `job_runs`): a Início de cada conta foi guardada exatamente como aparecia (o resto foi
-para a bandeja, para os widgets dos módulos que estavam desligados não entrarem sozinhos), e depois
-todas as contas, menos a do dono e a modelo, receberam a Início do modelo. Daí em diante cada um
-muda e tira o que quiser.
+marcada em `job_runs`): todas as contas, menos a do dono e a modelo, receberam a Início do modelo
+com todos os widgets (e Missões no topo). Daí em diante cada um muda e tira o que quiser.
 
 A ficha de cada módulo (nome, explicação, grupo, dependências, tela e card do Início) fica escrita
 uma vez em `lib/modules/catalog.ts`. A bandeja de apps e a Início leem dela. Os ícones e os cards
@@ -93,6 +90,47 @@ no banco o acesso ainda se chama "vip"; na tela, é "Restrito" e "Acesso aos res
   Gmail e das perguntas automáticas respondem **404 "Não encontrado."** a quem não tem acesso, sem o
   nome do módulo (`requireNotVipLocked` em `lib/server/access.ts`). O app recebe a lista no layout
   (`vipModules` do `AuthUser`) e usa `mayUseModule` e `isModuleHidden`.
+
+### Missões e XP
+
+**Missões** (`/missoes`, `lib/gamification`) é o módulo que dá vontade de voltar: tarefas pequenas
+que dão XP, e o XP sobe o nível. A regra do dono: **XP nunca vem de mentira**. Por isso uma missão
+premia **usar** o app (abrir, anotar, conferir) e nunca um **resultado** (quanto investiu, meta
+batida, quanto sobrou), que depende do que a pessoa digita e do mês que ela teve. Cada missão dá um
+XP fixo, seja qual for o valor, e vale **uma vez por período** pela data do servidor (São Paulo):
+lançar 50 gastos dá o mesmo que lançar 1, e apagar não tira nem devolve o XP. Não há ranking nem
+prêmio. O catálogo (`MISSIONS` em `lib/gamification/missions.ts`) é feito para mudar.
+
+| Quando | Missões |
+| --- | --- |
+| Todo dia | Abrir o app (10) |
+| Toda semana | Conferir os bancos (15, só quem tem Open Finance e um banco) |
+| Todo mês | Registrar uma renda (30), Lançar um gasto (30), Conferir o calendário, as contas do mês, a fatura e a reserva (15 cada; contas e fatura só para quem tem conta ou cartão), Fechar o mês anterior (50) |
+| Uma vez | Primeira renda e primeiro gasto (50 cada), Ajustar as categorias (50), Primeiro lembrete, Ligar as notificações e Instalar o app (30 cada), Conectar um banco (100, Open Finance), e Conhecer cada módulo (20 cada: a primeira visita à tela; A receber e a voz, o primeiro uso) |
+
+Missão de módulo restrito só existe para quem tem acesso.
+
+**Níveis** (`lib/gamification/levels.ts`): uma árvore que cresce, para não ter nome com gênero —
+Semente, Broto, Muda, Arbusto, Árvore, Árvore florida, Árvore com frutos, Pomar, Bosque e
+Floresta (0, 150, 400, 800, 1.400, 2.200, 3.300, 4.800, 6.800 e 9.500 XP).
+
+**Como conta.** O XP fica em `xp_events` (uma linha por missão e período; a chave primária é o que
+garante "uma vez"). `POST /api/v1/missions` confere o que os dados da conta mostram (renda, gasto,
+lembrete, cartão, push, banco, mês anterior fechado...), grava o que a conta acabou de fazer e
+devolve o nível, as missões e o XP dos últimos meses. As missões de "ir até o lugar" chegam do app
+(`visitsForPath`: a tela de cada módulo, Contas do mês, Cartão, Reserva, a conferência dos bancos e
+a aba Calendário) e só valem para uma missão que a conta tem. O `MissionsProvider` confere ao abrir
+o app (que é a missão do dia), ao voltar para ele, a cada tela e logo depois de qualquer gravação
+(`capital:data-changed`, disparado pelo `apiClient`). O que acabou de ganhar aparece num aviso
+("+30 XP · Lançar um gasto"), que espera o destaque de uma missão sair da tela; um nível novo
+aparece num cartão com a árvore e o nome. Conta antiga ganha de uma vez o XP do que já tinha feito,
+com um aviso só ("Você já tinha 340 XP · Muda"). "Apagar todos os dados" zera o XP.
+
+**Widget e tela.** O widget fica no topo da Início: a árvore e o nome do nível, a barra até o
+próximo e até 3 missões (primeiro as de primeira vez, depois as do mês). A tela tem o nível em
+destaque, as missões por período ("Conhecer os módulos" recolhido) e o XP de cada mês. Tocar numa
+missão leva ao lugar e destaca o único botão a tocar (um passo do spotlight, que o próprio toque no
+botão fecha); renda e gasto abrem o formulário ali mesmo na Início. Nada disso abre sozinho.
 
 **Dinheiro do mês**
 
@@ -562,7 +600,7 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   e com as setas, e as bolinhas embaixo dizem em qual você está. Cada área rola sozinha e guarda a
   própria posição; a área aberta fica guardada na sessão. Um módulo novo no catálogo traz o widget
   dele para o fim da última área; um widget extra (o Calendário dos Lembretes) entra logo depois do card do
-  seu módulo, e o Primeiros passos entra no topo da primeira área. Um Início salvo antes das áreas
+  seu módulo, e Missões entra no topo da primeira área. Um Início salvo antes das áreas
   (`home_order`) vira a área 1.
 - **Bandeja de apps** (`components/layout/AppDrawer.tsx`): a setinha embaixo da Início (toque, Enter
   ou arrastar para cima) abre o que era o Mais: a conta, **todo** módulo com tela, agrupado
@@ -594,9 +632,8 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
 - **Endereço de módulo restrito** (`ModuleGate`): para quem não tem acesso, só "Página não
   encontrada".
 - **Avisos já vistos**: `budget_settings.dismissed_notices` guarda, por conta, as chaves dos avisos
-  de uma vez só: as perguntas da primeira visita de um módulo (`intro:<módulo>`), o Primeiros passos
-  (`first-steps` quando a conta passou pelo primeiro acesso, e `first-steps:<passo>` para cada
-  passo feito) e futuros cards de novidade.
+  de uma vez só: as perguntas da primeira visita de um módulo (`intro:<módulo>`), as dicas de
+  gesto e futuros cards de novidade.
 
 ### Ajuda, configurações e primeira visita de cada módulo
 
@@ -1214,10 +1251,14 @@ Os demais testes:
   - tirar um banco, desconectar tudo e "Apagar todos os dados";
   - os nomes sugeridos e o "há 5 h".
 - **`lib/modules/__tests__`:** o catálogo, todos os módulos ligados (e o que depende de um
-  restrito sumindo junto), o Primeiros passos (quem recebe, como cada passo se marca, quando some), a bandeja de apps, as áreas da Início
+  restrito sumindo junto), Missões no topo, a bandeja de apps, as áreas da Início
   (padrão, a ordem antiga, widget novo, repetidos, áreas vazias, mover, pôr, tirar, criar e excluir
   área) e os tours (todo módulo tem tour e botão de ajuda, e toda âncora existe nas telas).
-- **`components/modules/home/__tests__`:** o widget Primeiros passos.
+- **`lib/gamification/__tests__` e `lib/server/__tests__/missions.test.ts`:** as Missões — XP fixo
+  e uma vez por período (dia, semana ISO, mês, uma vez), pela data do servidor, nada por valor nem
+  por resultado, só missões que a conta tem (restritos e condicionais), visitas só de missões de
+  "ir até o lugar", a conta modelo sem XP, "Apagar todos os dados" zerando, o que cada tela conta,
+  a ordem na Início e os níveis.
 - **`lib/budget/__tests__/topics.test.ts`, `components/settings/__tests__` e
   `components/onboarding/__tests__`:** as categorias padrão e suas descrições, restaurar o padrão
   (inclusive com dados antigos, sem `preset`), nunca apagar uma categoria, a arquivada no mês atual,

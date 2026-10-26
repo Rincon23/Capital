@@ -99,6 +99,8 @@ export interface ModuleFlags {
   banks: boolean;
   /** Diagrama: how much of each aporte goes to each type and asset. */
   diagram: boolean;
+  /** Missões: small tasks that give XP and raise the person's level. */
+  missions: boolean;
 }
 
 export type ModuleKey = keyof ModuleFlags;
@@ -108,10 +110,9 @@ export type NavKey = 'inicio' | ModuleKey;
 
 /**
  * A widget of the Início: the card of a module (keyed by the module itself) or one of the extra
- * widgets a module brings besides its card — `calendar`, the next 30 days of Lembretes, and
- * `firstSteps`, the "Primeiros passos" of a new account.
+ * widgets a module brings besides its card — `calendar`, the next 30 days of Lembretes.
  */
-export type HomeWidgetKey = ModuleKey | 'calendar' | 'firstSteps';
+export type HomeWidgetKey = ModuleKey | 'calendar';
 
 /**
  * A category as the expense form lists it: `topic:<id>` for a category of the budget, or the
