@@ -43,11 +43,11 @@ export const DEFAULT_TOPICS: readonly DefaultTopic[] = [
 
 /** What income, fixed costs and unforeseen costs mean, wherever the categories are explained. */
 export const BUDGET_EXPLANATIONS = {
-  income: 'Tudo que entrou no mês. Cada categoria recebe a sua % dessa renda.',
+  income: 'Tudo que entrou no mês. Cada categoria recebe a sua %.',
   fixedCost:
-    'O que você paga todo mês e não dá pra cortar: aluguel, contas, assinaturas, plano de saúde. O total sai de cada categoria, na proporção da % dela.',
+    'Aluguel, contas, assinaturas: sai de cada categoria pela %.',
   unforeseen:
-    'O que não dava pra evitar: celular quebrado, óculos, consulta de última hora. Também sai de cada categoria, na proporção da % dela.',
+    'Celular quebrado, consulta: também sai de cada categoria pela %.',
 } as const;
 
 /**
@@ -55,11 +55,11 @@ export const BUDGET_EXPLANATIONS = {
  * purpose: whether something fits depends on how much each person's category gets.
  */
 export const FIXED_COST_TIP =
-  'Um gasto de todo mês que é maior do que o limite médio mensal da categoria entra em Custos Fixos, e não na categoria.';
+  'Gasto de todo mês maior que o limite da categoria vai em Custos Fixos.';
 
 /** Shown next to every way of creating a category. */
 export const KEEP_DEFAULT_TOPICS_ADVICE =
-  'A maioria das pessoas fica satisfeita com as quatro categorias padrão. Sugerimos fortemente não criar outras: ajuste só as porcentagens.';
+  'A maioria fica bem com as quatro padrão. Sugerimos ajustar só as %.';
 
 /** The same advice in one line, under a button that creates a category (the full one comes before creating). */
 export const KEEP_DEFAULT_TOPICS_SHORT = 'A maioria fica bem com as quatro padrão: ajuste só as %.';

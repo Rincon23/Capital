@@ -114,7 +114,7 @@ function HowToInstall({
           </li>
         ))}
       </ol>
-      <p className="text-muted">O ícone do Capital + aparece na tela inicial, como qualquer outro app.</p>
+      <p className="text-muted">O ícone aparece na tela inicial, como outro app.</p>
     </div>
   );
 }

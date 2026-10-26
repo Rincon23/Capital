@@ -207,7 +207,7 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
       await deleteMonth();
       showToast('Lançamentos apagados.');
     } catch {
-      showToast('Não foi possível concluir esta operação. Tente novamente em alguns instantes.', 'error');
+      showToast('Não foi possível concluir esta operação. Tente de novo.', 'error');
     }
   }
 
@@ -235,7 +235,7 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
       await Promise.all([refresh(), owed.reload()]);
       showToast(settled ? 'Marcado como ainda a receber.' : 'Marcado como recebido.');
     } catch {
-      showToast('Não foi possível salvar. Tente novamente em alguns instantes.', 'error');
+      showToast('Não foi possível salvar. Tente de novo.', 'error');
     }
   }
 

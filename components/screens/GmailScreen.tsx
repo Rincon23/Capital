@@ -84,7 +84,7 @@ function Gmail() {
   useEffect(() => {
     // Back from Google: show how it went, then clean the address.
     const params = new URLSearchParams(window.location.search);
-    if (params.get('conectado')) showToast('Gmail conectado! As palavras-chave já estão sendo monitoradas.');
+    if (params.get('conectado')) showToast('Gmail conectado!');
     const error = params.get('erro');
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (error) setConnectError(gmailConnectErrorMessage(error));
@@ -160,7 +160,7 @@ function Gmail() {
               <p className="text-foreground font-semibold">Conecte o seu Gmail</p>
             </div>
             <p className="text-muted text-sm">
-              Avisa quando chegar um e-mail com uma das suas palavras. Só lê: não apaga nem envia nada.
+              Avisa quando chega e-mail com suas palavras. Só lê.
             </p>
             <a
               href={GMAIL_CONNECT_URL}
@@ -234,7 +234,7 @@ function Gmail() {
                   onClick={async () => {
                     const ok = await confirm({
                       title: 'Desconectar o Gmail',
-                      message: `O Capital + para de olhar ${account.email}; palavras-chave e alertas continuam.`,
+                      message: `${account.email} sai do monitor; palavras e alertas ficam.`,
                       confirmLabel: 'Desconectar',
                       destructive: true,
                     });
@@ -304,7 +304,7 @@ function Gmail() {
                   onClick={async () => {
                     const ok = await confirm({
                       title: 'Remover palavra-chave',
-                      message: `• Palavra-chave: "${item.keyword}". Os e-mails com ela deixam de gerar aviso.`,
+                      message: `• Palavra-chave: "${item.keyword}". Sem mais avisos dela.`,
                       confirmLabel: 'Remover',
                       destructive: true,
                     });
@@ -324,7 +324,7 @@ function Gmail() {
         <h2 className="text-muted px-4 text-sm font-semibold">Alertas recentes</h2>
         {overview.alerts.length === 0 ? (
           <p className="text-muted px-4 text-sm">
-            Nenhum alerta ainda. Os e-mails que chegarem com as suas palavras-chave aparecem aqui.
+            Nenhum alerta ainda.
           </p>
         ) : (
           <ul className="border-border bg-card divide-border mx-4 divide-y rounded-2xl border shadow-sm">
@@ -390,7 +390,7 @@ function SetupSteps({ redirectUri }: { redirectUri: string | null }) {
           <p className="text-foreground font-semibold">Ainda não disponível</p>
         </div>
         <p className="text-muted text-sm">
-          O monitor ainda não está disponível aqui, mas você já pode cadastrar as palavras-chave.
+          O monitor ainda não está disponível aqui.
         </p>
       </>
     );

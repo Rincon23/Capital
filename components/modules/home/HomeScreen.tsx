@@ -949,7 +949,7 @@ function EditablePage({
           ))}
           {widgets.length === 0 && (
             <p className="border-border text-muted col-span-2 rounded-2xl border-2 border-dashed p-6 text-center text-sm">
-              Tela vazia. Arraste um widget para cá, ou toque num da bandeja de widgets.
+              Tela vazia. Arraste um widget para cá.
             </p>
           )}
         </div>

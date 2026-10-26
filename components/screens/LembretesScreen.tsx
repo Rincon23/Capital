@@ -332,7 +332,7 @@ function TodayView({
           <p className="text-foreground font-semibold">Nada para hoje</p>
           <p className="text-muted text-sm">
             {snapshot.reminders.length === 0
-              ? 'Crie lembretes e tarefas com o horário que for melhor para você.'
+              ? 'Crie lembretes e tarefas no horário que quiser.'
               : 'Aproveite o dia. O que vence amanhã aparece logo abaixo.'}
           </p>
           {snapshot.reminders.length === 0 && (

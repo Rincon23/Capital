@@ -102,7 +102,7 @@ export const RESERVE_CONTRIBUTION_LABEL = 'Recompor a reserva';
 
 /** O que a tela diz antes de a pessoa montar um plano, e o porquê da categoria. */
 export const RESERVE_PLAN_EXPLANATION =
-  'Um imprevisto grande sai da reserva, não do mês. Recompor é devolver esse dinheiro aos poucos: você diz quanto tirou e em quantos meses quer repor, e todo mês lança uma parcela como imprevisto — que é o que ela é. Não é investimento: investir é dinheiro com objetivo de longo prazo, e isso aqui é só fechar um buraco.';
+  'Um imprevisto grande sai da reserva. Recompor é devolver aos poucos: uma parcela por mês, como imprevisto. Não é investimento: é fechar um buraco.';
 
 /**
  * Por que o plano não mexe no saldo da reserva. Onde o dinheiro recomposto fica — na conta ou
@@ -111,4 +111,4 @@ export const RESERVE_PLAN_EXPLANATION =
  * conta que ela informa e as cotas que ela compra.
  */
 export const RESERVE_CONTRIBUTION_NOTE =
-  'O plano acompanha o quanto você já devolveu. Onde esse dinheiro fica — na conta ou investido — continua sendo você quem diz, na reserva em conta e nas cotas.';
+  'O plano acompanha o que você já devolveu. Onde o dinheiro fica, você diz.';

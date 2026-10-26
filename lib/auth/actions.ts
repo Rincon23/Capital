@@ -108,7 +108,7 @@ export async function signIn(_prev: AuthActionState, formData: FormData): Promis
     }
     if (err instanceof APIError) return { error: 'E-mail ou senha incorretos.', email };
     console.error('[auth] falha ao entrar:', err);
-    return { error: 'Não foi possível entrar agora. Tente novamente em instantes.', email };
+    return { error: 'Não foi possível entrar agora. Tente de novo.', email };
   }
 
   redirect('/');
@@ -145,7 +145,7 @@ export async function signUp(_prev: AuthActionState, formData: FormData): Promis
       return { error: 'Não foi possível criar a conta. Verifique o e-mail e a senha.', ...typed };
     }
     console.error('[auth] falha ao criar conta:', err);
-    return { error: 'Não foi possível criar a conta agora. Tente novamente em instantes.', ...typed };
+    return { error: 'Não foi possível criar a conta agora. Tente de novo.', ...typed };
   }
 
   // Email confirmation is on: there is no session yet.
@@ -263,7 +263,7 @@ export async function updateName(_prev: UpdateNameState, formData: FormData): Pr
     await auth.api.updateUser({ body: { name }, headers: requestHeaders });
   } catch (err) {
     console.error('[auth] falha ao salvar o nome:', err);
-    return { error: 'Não foi possível salvar o nome agora. Tente novamente em instantes.' };
+    return { error: 'Não foi possível salvar o nome agora. Tente de novo.' };
   }
   return { saved: name };
 }
@@ -292,7 +292,7 @@ export async function deleteAccount(
   } catch (err) {
     if (err instanceof APIError) return { error: 'Senha incorreta. A conta não foi excluída.' };
     console.error('[auth] falha ao excluir a conta:', err);
-    return { error: 'Não foi possível excluir a conta agora. Tente novamente em instantes.' };
+    return { error: 'Não foi possível excluir a conta agora. Tente de novo.' };
   }
 
   forgetGmailToken(session.user.id);

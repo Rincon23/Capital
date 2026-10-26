@@ -59,7 +59,7 @@ export function HistoryHomeCard() {
       ) : !points ? (
         <Skeleton className="h-24 w-full" />
       ) : max === 0 ? (
-        <CardNote>Nenhum gasto registrado ainda. O gráfico aparece a partir do primeiro lançamento.</CardNote>
+        <CardNote>O gráfico aparece depois do primeiro gasto.</CardNote>
       ) : (
         <>
           <p className="text-muted text-xs">Total gasto por mês · média de {formatBRL(average)}</p>

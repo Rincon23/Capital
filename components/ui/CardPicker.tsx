@@ -44,8 +44,7 @@ export function CardPicker({
       </div>
       {value === undefined && (
         <p className="text-muted mt-2 text-xs">
-          Essa compra entra na fatura &ldquo;{UNASSIGNED_CARD_LABEL}&rdquo;, que só sai da dívida
-          quando você marcar como paga.
+          Entra na fatura &ldquo;{UNASSIGNED_CARD_LABEL}&rdquo;, que só sai quando for paga.
         </p>
       )}
     </div>

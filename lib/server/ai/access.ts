@@ -146,7 +146,7 @@ export function progressStream(
             emit({
               type: 'error',
               code: 'INTERNAL',
-              message: 'Erro no servidor. Tente novamente em instantes.',
+              message: 'Erro no servidor. Tente de novo.',
             });
           }
         })

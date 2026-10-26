@@ -25,6 +25,12 @@ completa ✓"), **Meta da reserva**, **Dentro do planejado**, **Guardar / Retira
 investida), **devolução**, **sem categoria** (a parte da reserva investida fora das categorias da
 reserva), **dividido entre as categorias** e **telas** (as áreas de trabalho da Início).
 
+**Pouco texto.** Por tela, no máximo uma linha curta de ajuda visível; o resto vai para um ⓘ ou
+sai. Dica de tour, uma linha. Mensagens de erro curtas ("Não foi possível salvar. Tente de novo.").
+Em outubro de 2026 os textos de interface com 60 caracteres ou mais caíram de 205 para cerca de 20
+de verdade (sobram os passos de configuração do Gmail, que só o dono vê, e os avisos de novidade
+antigos).
+
 ### Módulos: todo mundo tem todos
 
 **Tudo o que o app faz é um módulo**, e **todo módulo está sempre ligado** para todo mundo: não

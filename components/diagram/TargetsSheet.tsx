@@ -133,7 +133,7 @@ export function TargetsSheet({
           </Donut>
           <p className="text-muted min-w-0 flex-1 text-sm" aria-live="polite">
             {inUse.length === 0
-              ? 'Nenhum tipo na carteira. Escolha um perfil ou adicione os tipos que você tem.'
+              ? 'Escolha um perfil ou adicione os seus tipos.'
               : targetsComplete(targets)
                 ? 'As metas somam 100%. Pode salvar.'
                 : missing > 0

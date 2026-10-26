@@ -20,7 +20,7 @@ export const DEFAULT_SPECIAL_CATEGORY_LABELS: ResolvedSpecialCategoryLabels = {
 
 /** Shown wherever the "A receber" category appears, so its behaviour is never a surprise. */
 export const REIMBURSABLE_EXPLANATION =
-  'Você pagou, mas alguém vai te devolver. Não gasta nenhuma categoria — e, se foi no cartão, entra na fatura do mesmo jeito.';
+  'Alguém vai te devolver. Não gasta categoria; no cartão, entra na fatura.';
 
 /**
  * Shown wherever "Fora do orçamento" appears. The category exists because sometimes there is no
@@ -28,22 +28,22 @@ export const REIMBURSABLE_EXPLANATION =
  * do mesmo jeito e o orçamento do mês fica parecendo melhor do que é.
  */
 export const UNCOUNTED_EXPLANATION =
-  'O gasto fica registrado (e entra na fatura, se foi no cartão), mas não consome nenhuma categoria e não aparece no total gasto do mês.';
+  'Fica registrado, mas não gasta categoria nem entra no total do mês.';
 
 /** Why the app marks "Fora do orçamento" as "Não recomendado" wherever it is offered. */
 export const UNCOUNTED_ADVICE =
-  'Não recomendado: o dinheiro saiu do mesmo jeito, e nenhuma categoria vai mostrar isso.';
+  'Não recomendado: o dinheiro saiu e nenhuma categoria mostra.';
 
 /**
  * Shown when an income goes to one category only. It is allowed — a gift meant for a trip, a
  * refund of something bought in one category — but the % stop describing the month.
  */
 export const INCOME_ONE_TOPIC_EXPLANATION =
-  'A renda inteira vai para a categoria escolhida, sem passar pelas %. Ela entra no total de renda do mês, mas as outras categorias não recebem nada dela.';
+  'A renda toda vai para a categoria escolhida; as outras não recebem nada.';
 
 /** Why the app marks "Uma categoria só" as "Não recomendado" in the income form. */
 export const INCOME_ONE_TOPIC_ADVICE =
-  'Não recomendado: dividida pelas %, a renda mantém o equilíbrio que você escolheu entre as categorias.';
+  'Não recomendado: pelas %, a renda mantém o seu equilíbrio.';
 
 /** Special-category labels with any missing entry (older data) filled from the defaults. */
 export function resolveSpecialCategoryLabels(

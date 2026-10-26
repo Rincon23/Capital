@@ -130,7 +130,7 @@ function Recorrentes() {
       setEditing(null);
       setCreating(false);
     } catch {
-      showToast('Não foi possível salvar. Tente novamente em alguns instantes.', 'error');
+      showToast('Não foi possível salvar. Tente de novo.', 'error');
     }
   }
 
@@ -420,7 +420,7 @@ function Recorrentes() {
                 await run(() => walletRepository.saveRecurringSettings(next));
                 showToast('Configuração salva.');
               } catch {
-                showToast('Não foi possível salvar. Tente novamente em alguns instantes.', 'error');
+                showToast('Não foi possível salvar. Tente de novo.', 'error');
               }
             }}
           />
@@ -711,7 +711,7 @@ function RecurringFormSheet({
     if (!description.trim()) problems.push('Escreva uma descrição.');
     if (category.categoryKind === 'topic' && !category.topicId) problems.push('Selecione uma categoria.');
     if (splitCount !== undefined && !(splitCount >= 2 && splitCount <= MAX_INSTALLMENTS)) {
-      problems.push(`O número de parcelas vai de 2 a ${MAX_INSTALLMENTS}. Para uma vez só, escolha À vista.`);
+      problems.push(`O número de parcelas vai de 2 a ${MAX_INSTALLMENTS}. Uma vez só: À vista.`);
     }
     if (problems.length > 0) {
       setErrors(problems);

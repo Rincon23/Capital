@@ -26,7 +26,7 @@ const KIND_OPTIONS: { kind: ReminderKind; label: string; hint: string }[] = [
   {
     kind: 'daily',
     label: 'Tarefa do dia',
-    hint: 'Aparece todo dia e avisa nos horários que você escolher, até você concluir.',
+    hint: 'Todo dia, nos horários que escolher, até concluir.',
   },
   { kind: 'weekly', label: 'Toda semana', hint: 'Nos dias da semana que você marcar.' },
   { kind: 'monthly', label: 'Todo mês', hint: 'Sempre no mesmo dia do mês.' },
@@ -302,7 +302,7 @@ export function ReminderFormSheet({
               <p className="text-foreground text-sm font-medium">Lembrar de novo até eu marcar feito</p>
               <p className="text-muted mt-0.5 text-xs">
                 {repeatEnabled
-                  ? 'Avisa de novo nos seus horários para lembrar de novo (em Configurações).'
+                  ? 'Avisa de novo nos seus horários de repetição.'
                   : 'A repetição está desligada em Configurações → Lembretes.'}
               </p>
             </div>

@@ -332,7 +332,7 @@ export function AdminScreen() {
 
       <Card title="Módulos restritos" icon={EyeOff} tone="purple">
         <p className="text-muted text-sm">
-          Some para quem não tem acesso, sem apagar dados. Ninguém fica sabendo que ele existe.
+          Some para quem não tem acesso, sem apagar dados.
         </p>
         <ul className="divide-border -mx-1 flex flex-col divide-y">
           {overview.modules.map((item) => (
@@ -401,7 +401,7 @@ function StatusBanner({ level, status, now }: { level: Level; status: ServerStat
   if (level === 'alert') {
     return (
       <p className="bg-warning-bg text-warning rounded-lg px-3 py-2 text-sm font-medium">
-        Em alerta: o servidor está acima do nível de aviso. Se passar do limite, ele pausa sozinho.
+        Em alerta: acima do aviso. Passou do limite, pausa sozinho.
       </p>
     );
   }

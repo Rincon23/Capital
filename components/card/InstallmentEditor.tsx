@@ -96,7 +96,7 @@ export function InstallmentEditor({
           >
             <span className="text-foreground block text-sm font-semibold">Editar a compra toda</span>
             <span className="text-muted block text-xs">
-              Valor, número de parcelas, categoria, cartão e como ela entra no orçamento.
+              Valor, parcelas, categoria e cartão.
             </span>
           </button>
           <button
@@ -106,7 +106,7 @@ export function InstallmentEditor({
           >
             <span className="text-foreground block text-sm font-semibold">Editar só esta parcela</span>
             <span className="text-muted block text-xs">
-              Muda apenas este mês. Editar a compra toda depois desfaz esse ajuste.
+              Muda só este mês.
             </span>
           </button>
         </div>
@@ -121,7 +121,7 @@ export function InstallmentEditor({
       <BottomSheet open title="Compra parcelada" onClose={onClose}>
         <p className="text-muted text-sm">
           {failed
-            ? 'Não foi possível carregar esta compra. Tente novamente em alguns instantes.'
+            ? 'Não foi possível carregar esta compra. Tente de novo.'
             : 'Esta compra parcelada não existe mais.'}
         </p>
       </BottomSheet>

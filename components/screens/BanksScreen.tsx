@@ -97,7 +97,7 @@ function Banks() {
       setOverview(data);
       setError(null);
       if (data.givenUp > 0) {
-        showToast('A autorização de um banco não terminou. Toque em "Trazer um banco" para tentar de novo.', 'info');
+        showToast('Um banco não terminou de autorizar. Tente de novo.', 'info');
       }
     } catch (err) {
       setError(toStorageErrorMessage(err, 'Não foi possível abrir o Open Finance.'));
@@ -228,7 +228,7 @@ function Banks() {
       ) : connections.length === 0 ? (
         <Card tour="bancos-conexoes">
           <StepHeader step={4} title="Traga seus bancos para o Capital +" />
-          <p className="text-muted text-sm">Você escolhe um banco no Meu Pluggy e volta para cá. Um por vez.</p>
+          <p className="text-muted text-sm">Escolha um banco no Meu Pluggy e volte. Um por vez.</p>
           <button type="button" className={primaryButton} disabled={busy !== null} onClick={() => void bringBank()}>
             {busy === 'connect' ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden /> : <Landmark className="h-4 w-4" aria-hidden />}
             Trazer um banco
@@ -274,7 +274,7 @@ function Banks() {
                   showToast(
                     changed.length > 0
                       ? 'Chegaram dados novos dos bancos.'
-                      : 'Nada novo desde a última leitura. Os bancos mandam os dados uma vez por dia.',
+                      : 'Nada novo. Os bancos mandam dados uma vez por dia.',
                     'info',
                   );
                 })
@@ -295,7 +295,7 @@ function Banks() {
               onRenew={async () => {
                 const ok = await confirm({
                   title: 'Renovar a autorização',
-                  message: `• Banco: ${connection.name}. Para renovar, ele sai do Capital + e você autoriza de novo no Meu Pluggy; os dados voltam na próxima leitura.`,
+                  message: `• Banco: ${connection.name}. Ele sai e você autoriza de novo no Meu Pluggy.`,
                   confirmLabel: 'Renovar',
                 });
                 if (ok) void retry(connection);
@@ -382,7 +382,7 @@ function Banks() {
                 title: 'Desconectar o Open Finance',
                 message:
                   connections.length > 0
-                    ? `A sua chave e ${connections.length === 1 ? 'o banco' : `os ${connections.length} bancos`} saem do Capital +. Eles continuam conectados no Meu Pluggy, onde você pode tirá-los também.`
+                    ? `A sua chave e ${connections.length === 1 ? 'o banco' : `os ${connections.length} bancos`} saem do Capital +. No Meu Pluggy, eles continuam.`
                     : 'A sua chave sai do Capital +.',
                 confirmLabel: 'Desconectar',
                 destructive: true,
@@ -467,7 +467,7 @@ function HowToButton({ step }: { step: SetupStep }) {
               Este navegador não mostra vídeos.
             </video>
             <p className="text-muted text-center text-xs">
-              Sem som: as explicações estão escritas no vídeo. E-mails e chaves são de exemplo.
+              Sem som: as explicações estão escritas no vídeo.
             </p>
           </div>
         </BottomSheet>
@@ -570,7 +570,7 @@ function Setup({
             label="Mais sobre a chave"
             info="A chave é o Client ID e o Client Secret, na página da aplicação. O dashboard avisa de um teste de 15 dias: ele não vale para uso pessoal, pode ignorar."
           >
-            <span>No dashboard da Pluggy, com o mesmo e-mail: crie uma aplicação e ative o conector MeuPluggy.</span>
+            <span>Na Pluggy, crie uma aplicação e ative o conector MeuPluggy.</span>
           </InfoTip>
         </div>
         <a href={PLUGGY_DASHBOARD_URL} target="_blank" rel="noopener noreferrer" className={primaryButton}>
@@ -594,7 +594,7 @@ function Setup({
       }}
     >
       <StepHeader step={3} title="Cole aqui a sua chave" />
-      <p className="text-muted text-sm">Fica guardada cifrada. O Capital + só lê, não move dinheiro.</p>
+      <p className="text-muted text-sm">Fica guardada cifrada. Só lê, nunca move dinheiro.</p>
       <label className="text-foreground flex flex-col gap-1 text-sm font-medium">
         Client ID
         <input
@@ -681,7 +681,7 @@ function ConnectionCard({
             ) : neverArrived ? (
               'Não chegou: deu erro na Pluggy.'
             ) : health === 'error' ? (
-              'A última atualização falhou; a Pluggy tenta de novo sozinha.'
+              'A última atualização falhou; a Pluggy tenta de novo.'
             ) : (
               'A autorização acabou.'
             )}

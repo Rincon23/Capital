@@ -86,7 +86,7 @@ export function SpendingHistory() {
     return (
       <div className="flex flex-col gap-6">
         <section className="px-4" data-tour="historico-mes">
-          {empty('Seus gastos de cada mês aparecem aqui a partir do primeiro lançamento.')}
+          {empty('Seus gastos aparecem aqui depois do primeiro lançamento.')}
         </section>
         <section className="flex flex-col gap-2 px-4" data-tour="historico-categorias">
           <h2 className="text-muted text-sm font-semibold">Categorias do mês</h2>
@@ -315,7 +315,7 @@ export function SpendingHistory() {
               <p className="text-muted text-xs">
                 {mode === 'spent'
                   ? `Média de ${formatBRL(trendAverage)} por mês em ${trendTopic.name}.`
-                  : 'O que sobrou em cada mês, já com o que veio do mês anterior.'}
+                  : 'O que sobrou em cada mês, com o do mês anterior.'}
               </p>
             </>
           )}

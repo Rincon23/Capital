@@ -144,8 +144,8 @@ export function AdvanceInstallmentSheet({
             <p className="text-muted text-xs">
               Esse valor entra na fatura de {formatMonthLabel(month)}
               {plan.accounting === 'upfront'
-                ? ' e não gasta categoria: a compra inteira já contou no mês dela.'
-                : ' e conta na categoria deste mês, no lugar das próximas parcelas.'}
+                ? ' e não gasta categoria: a compra já contou.'
+                : ' e conta na categoria deste mês.'}
             </p>
             <p className="text-muted text-xs">
               {finished

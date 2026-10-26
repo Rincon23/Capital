@@ -230,7 +230,7 @@ export function AddAssetSheet({
 
         {type && isFixedIncomeType(type) ? (
           <p className="text-muted text-xs">
-            Aqui entram fundos com código (DEBB11, IMAB11…). Tesouro, CDB e LCI ficam em {UNQUOTED_LABEL}.
+            Fundos com código (DEBB11…). Tesouro e CDB ficam em {UNQUOTED_LABEL}.
           </p>
         ) : (
           <div className="flex items-center justify-between gap-3">

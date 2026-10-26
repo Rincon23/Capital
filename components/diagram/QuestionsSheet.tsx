@@ -88,8 +88,8 @@ export function QuestionsSheet({
       title: 'Remover pergunta?',
       message:
         answered > 0
-          ? `"${question.criterion}" sai de ${label}, com as respostas de ${answered === 1 ? '1 ativo' : `${answered} ativos`}. As notas mudam na hora. Se quiser só desligar sem perder as respostas, use peso 0.`
-          : `"${question.criterion}" sai de ${label}. Se quiser só desligar, use peso 0.`,
+          ? `"${question.criterion}" sai de ${label}, com as respostas. Para só desligar, use peso 0.`
+          : `"${question.criterion}" sai de ${label}. Para só desligar, use peso 0.`,
       confirmLabel: 'Remover',
       cancelLabel: 'Manter',
       destructive: true,
@@ -109,8 +109,8 @@ export function QuestionsSheet({
             <p className="text-foreground text-sm">{label} ainda não tem perguntas.</p>
             <p className="text-muted text-xs">
               {recommended.length > 0
-                ? `Crie as suas ou comece pelas ${recommended.length} recomendadas — dá para mudar depois.`
-                : 'Sem lista recomendada para esse tipo: crie as suas ou dê a nota direto no ativo.'}
+                ? `Crie as suas ou use as ${recommended.length} recomendadas.`
+                : 'Crie as suas ou dê a nota direto no ativo.'}
             </p>
           </div>
         ) : (
@@ -174,8 +174,8 @@ export function QuestionsSheet({
             </p>
             <p className="text-muted text-xs">
               {automatic.kind === 'graham'
-                ? 'O app calcula o preço justo de Graham e responde sozinho, todo dia.'
-                : 'O app busca o P/VP de cada fundo e responde sozinho, todo dia: abaixo de 1 é Sim.'}
+                ? 'Responde sozinha, todo dia, pelo preço justo de Graham.'
+                : 'Responde sozinha, todo dia: P/VP abaixo de 1 é Sim.'}
               {questions.some(
                 (question) => question.criterion.trim().toLowerCase() === automatic.criterion.toLowerCase(),
               )
@@ -313,7 +313,7 @@ function QuestionFormSheet({
             <span className="flex flex-col">
               <span className="text-foreground text-sm font-medium">Responder sozinha</span>
               <span className="text-muted text-xs">
-                Com os dados do mercado. Desligada, vira uma pergunta normal, respondida à mão.
+                Desligada, vira uma pergunta respondida à mão.
               </span>
             </span>
             <Switch checked={automatic} onChange={setAutomatic} label="Responder sozinha" />

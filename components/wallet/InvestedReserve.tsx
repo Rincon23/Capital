@@ -72,7 +72,7 @@ export function InvestedReserve() {
   async function handleDeleteBucket(bucket: InvestmentBucket) {
     const confirmed = await confirm({
       title: 'Excluir categoria da reserva',
-      message: `As ${formatQuotas(bucket.quotas)} cotas de "${bucket.name}" ficam sem categoria; os gastos lançados continuam.`,
+      message: `As ${formatQuotas(bucket.quotas)} cotas de "${bucket.name}" ficam sem categoria.`,
       confirmLabel: 'Excluir',
       cancelLabel: 'Manter',
       destructive: true,
@@ -245,8 +245,8 @@ export function InvestedReserve() {
               setAllocating(false);
               showToast(
                 direction === 'out'
-                  ? 'Retirada feita: o valor ficou sem categoria e saiu da categoria do mês.'
-                  : 'Guardado: um gasto com esse valor entrou na categoria do mês.',
+                  ? 'Retirado: o valor ficou sem categoria.'
+                  : 'Guardado: virou um gasto na categoria do mês.',
               );
             } catch (err) {
               showToast(
@@ -269,7 +269,7 @@ export function InvestedReserve() {
               setEditingBucket(null);
               showToast('Operação concluída com sucesso!');
             } catch {
-              showToast('Não foi possível salvar. Tente novamente em alguns instantes.', 'error');
+              showToast('Não foi possível salvar. Tente de novo.', 'error');
             }
           }}
         />
@@ -499,8 +499,8 @@ function AllocateSheet({
             ? `São ${formatQuotas(quotasForAmount(parsed, price))} cotas a ${formatBRL(price)}. `
             : ''}
           {out
-            ? `As cotas ficam sem categoria e a categoria do orçamento recebe a devolução em ${formatMonthLabel(month)}.`
-            : `O valor também vira um gasto na categoria do orçamento, em ${formatMonthLabel(month)}.`}
+            ? `As cotas ficam sem categoria; a devolução entra em ${formatMonthLabel(month)}.`
+            : `Vira um gasto na categoria do orçamento, em ${formatMonthLabel(month)}.`}
         </p>
 
         {tooMuch && bucket && (
@@ -589,7 +589,7 @@ function BucketFormSheet({
             ))}
           </select>
           <span className="text-muted text-xs">
-            Guardar nesta categoria da reserva lança o gasto nessa categoria do orçamento.
+            Guardar aqui lança o gasto na categoria do orçamento.
           </span>
         </label>
 

@@ -18,12 +18,12 @@ function pickMimeType(): string | undefined {
 function microphoneError(err: unknown): string {
   const name = err instanceof DOMException ? err.name : '';
   if (name === 'NotAllowedError' || name === 'SecurityError') {
-    return 'O microfone está bloqueado para o Capital +. Libere nas permissões do navegador e tente de novo.';
+    return 'Microfone bloqueado. Libere nas permissões do navegador.';
   }
   if (name === 'NotFoundError' || name === 'OverconstrainedError')
     return 'Nenhum microfone encontrado neste aparelho.';
   if (name === 'NotReadableError') return 'Outro app está usando o microfone. Feche-o e tente de novo.';
-  return 'Não foi possível usar o microfone. Tente de novo ou escreva o gasto.';
+  return 'Não deu para usar o microfone. Escreva o gasto.';
 }
 
 /**
@@ -60,7 +60,7 @@ export function useAudioRecorder({
     setError(null);
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       setError(
-        'Este navegador não grava áudio aqui. O microfone só funciona com HTTPS; você ainda pode escrever o gasto.',
+        'Este navegador não grava áudio aqui. Escreva o gasto.',
       );
       return;
     }
@@ -100,7 +100,7 @@ export function useAudioRecorder({
       if (cancelledRef.current) return;
       const audio = new Blob(chunks, { type: recorder.mimeType || mimeType || 'audio/webm' });
       if (audio.size === 0 || seconds < 0.5) {
-        setError('A gravação ficou curta demais. Segure um pouco mais e fale o gasto.');
+        setError('Gravação curta demais. Fale um pouco mais.');
         return;
       }
       onFinishRef.current({ audio, seconds });

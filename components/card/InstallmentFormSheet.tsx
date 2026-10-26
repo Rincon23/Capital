@@ -32,7 +32,7 @@ const INPUT =
 type PastMode = 'skip' | 'retro';
 
 const LOCKED_ACCOUNTING =
-  'Parte já foi paga antes do cadastro: conta uma parcela por mês, sem mexer no passado.';
+  'Já tem parcelas pagas: conta uma por mês, sem mexer no passado.';
 
 /**
  * The whole purchase: what it was, how much it cost, in how many times, on which card, in which
@@ -155,7 +155,7 @@ export function InstallmentFormSheet({
     const advanced = undoAdvance ? 0 : (plan?.advancedCount ?? 0);
     if (validCount && paidCount + advanced >= count) {
       problems.push(
-        'Deixe pelo menos uma parcela por pagar: uma compra já quitada não tem o que acompanhar.',
+        'Deixe pelo menos uma parcela por pagar.',
       );
     }
     if (problems.length > 0) {
@@ -275,7 +275,7 @@ export function InstallmentFormSheet({
 
         {plan && (
           <p className="text-muted text-xs">
-            Salvar refaz os meses: parcela ajustada na mão volta ao normal.
+            Salvar refaz os meses e desfaz ajustes à mão.
           </p>
         )}
 
@@ -337,8 +337,8 @@ function AdvanceUndoSection({
         </p>
         <p className="text-muted mt-0.5 text-xs">
           {undo
-            ? `Ao salvar, ${advanced === 1 ? 'ela volta' : 'elas voltam'} para o fim; "Adiantamento · ${name}" continua lançado.`
-            : 'Saíram do fim do parcelamento e não aparecem em nenhuma fatura.'}
+            ? `Ao salvar, ${advanced === 1 ? 'ela volta' : 'elas voltam'} para o fim; "Adiantamento · ${name}" fica lançado.`
+            : 'Saíram do fim e não entram em nenhuma fatura.'}
         </p>
       </div>
       <button

@@ -178,7 +178,7 @@ export function ExpenseFormSheet({
     // "1 vez" is not a plan: it is an ordinary purchase on the card.
     const asPlan = canSplit && splitting && count >= 2;
     if (canSplit && splitting && !(count >= 2 && count <= MAX_INSTALLMENTS)) {
-      setErrors([`O número de parcelas vai de 2 a ${MAX_INSTALLMENTS}. Para uma vez só, escolha À vista.`]);
+      setErrors([`O número de parcelas vai de 2 a ${MAX_INSTALLMENTS}. Uma vez só: À vista.`]);
       return;
     }
 

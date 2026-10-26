@@ -668,7 +668,7 @@ function Review() {
               );
             })}
           </div>
-          <p className="text-muted text-sm">O que os bancos mandaram no mês, ao lado do que está no Capital +.</p>
+          <p className="text-muted text-sm">Os bancos ao lado do que está no Capital +.</p>
         </div>
 
         {error && <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{error}</p>}
@@ -1021,7 +1021,7 @@ function SearchSheet({
           </ul>
         )}
         <p className="text-muted text-xs">
-          Marque um ou mais: uma compra de R$ 200 pode ser dois A receber de R$ 100. Pode ser só uma parte.
+          Marque um ou mais. Pode ser só uma parte.
         </p>
         <div className="bg-card border-border sticky bottom-0 -mx-4 flex flex-col gap-1 border-t px-4 pt-3 pb-1">
           {chosen.length > 0 && (

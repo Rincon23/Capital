@@ -401,7 +401,7 @@ function ReservePlanSection({
 
       {plan.done ? (
         <p className="bg-success-bg text-success rounded-lg px-3 py-2 text-sm font-medium">
-          Plano cumprido: a reserva já recebeu tudo o que tinha de receber.
+          Plano cumprido: a reserva recebeu tudo.
         </p>
       ) : (
         <>
@@ -464,7 +464,7 @@ function ReservePlanSheet({
   async function handleDelete() {
     const confirmed = await confirm({
       title: 'Desistir do plano',
-      message: 'O plano sai da tela; as parcelas já lançadas continuam nos meses.',
+      message: 'O plano sai; as parcelas lançadas continuam.',
       confirmLabel: 'Desistir',
       cancelLabel: 'Manter',
       destructive: true,
@@ -476,7 +476,7 @@ function ReservePlanSheet({
       showToast('Plano encerrado.');
       onClose();
     } catch {
-      setError('Não foi possível encerrar o plano. Tente novamente em alguns instantes.');
+      setError('Não foi possível encerrar o plano. Tente de novo.');
     } finally {
       setSaving(false);
     }
@@ -499,13 +499,13 @@ function ReservePlanSheet({
             showToast(plan ? 'Plano atualizado.' : 'Plano criado.');
             onClose();
           } catch {
-            setError('Não foi possível salvar. Tente novamente em alguns instantes.');
+            setError('Não foi possível salvar. Tente de novo.');
           } finally {
             setSaving(false);
           }
         }}
       >
-        {!plan && <p className="text-muted text-sm">{RESERVE_PLAN_EXPLANATION}</p>}
+        {!plan && <p className="text-muted text-sm">Devolva à reserva, mês a mês, o que um imprevisto tirou.</p>}
 
         <AmountInput value={target} onChange={setTarget} label="Quanto recompor" autoFocus={!plan} />
 
@@ -627,7 +627,7 @@ function ReserveContributionSheet({ plan, onClose }: { plan: ReservePlanSummary;
           recommended="unforeseen"
         />
         <p className="text-muted -mt-3 text-xs">
-          Recompor é um imprevisto: fecha um buraco, não rende. Se preferir, troque a categoria.
+          Recompor é imprevisto: fecha um buraco, não rende.
         </p>
 
         <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
@@ -709,7 +709,7 @@ function CashSettingsForm({
       );
       showToast('Configurações salvas.');
     } catch {
-      showToast('Não foi possível salvar. Tente novamente em alguns instantes.', 'error');
+      showToast('Não foi possível salvar. Tente de novo.', 'error');
     } finally {
       setBusy(false);
     }
@@ -898,7 +898,7 @@ function BankReserveChooser({
         void save(pick('account'), pick('investment'), 'Pronto: a reserva em conta vem dos bancos.');
       }}
     >
-      <p className="text-muted text-sm">Marque o que é a sua reserva. O valor passa a vir daí a cada leitura.</p>
+      <p className="text-muted text-sm">Marque a sua reserva: o valor passa a vir daí.</p>
       {reserve.banks.map((bank) => {
         const sources = bank.sources.filter(
           (source) => offered(source) && (showAll || source.usual || source.marked),

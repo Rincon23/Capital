@@ -15,7 +15,7 @@ export function ClosedMonthBanner() {
       await reopenMonth();
       showToast('Mês reaberto. Você já pode lançar de novo.');
     } catch {
-      showToast('Não foi possível reabrir o mês. Tente novamente em alguns instantes.', 'error');
+      showToast('Não foi possível reabrir o mês. Tente de novo.', 'error');
     }
   }
 

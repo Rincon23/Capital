@@ -25,7 +25,7 @@ export function pushSupport(): PushSupport {
 /** The user said no (or blocked the site): only the browser's own settings can undo it. */
 export class NotificationsBlockedError extends Error {
   constructor() {
-    super('As notificações estão bloqueadas para o Capital + neste navegador.');
+    super('Notificações bloqueadas neste navegador.');
     this.name = 'NotificationsBlockedError';
   }
 }
@@ -55,7 +55,7 @@ export async function subscribeThisBrowser(publicKey: string): Promise<PushSubsc
   const permission = await Notification.requestPermission();
   if (permission === 'denied') throw new NotificationsBlockedError();
   if (permission !== 'granted') {
-    throw new Error('Você fechou o pedido de permissão. Toque em "Ativar" de novo para permitir.');
+    throw new Error('Você fechou o pedido. Toque em "Ativar" de novo.');
   }
 
   const registration = await notificationWorker();
@@ -77,7 +77,7 @@ export async function subscribeThisBrowser(publicKey: string): Promise<PushSubsc
       throw new Error(
         (await isBrave())
           ? 'O Brave vem com as notificações push desligadas. Abra brave://settings/privacy, ative "Usar os serviços do Google para mensagens push", reinicie o Brave e toque em "Ativar" de novo.'
-          : 'O navegador não conseguiu se registrar no serviço de notificações. Tente de novo em instantes; se continuar, use o Chrome.',
+          : 'O navegador não se registrou para notificações. Tente de novo ou use o Chrome.',
       );
     }
   }

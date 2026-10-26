@@ -56,7 +56,7 @@ export function LocalDataImportBanner() {
     <div className="border-border bg-card mx-4 mt-4 flex flex-col gap-2 rounded-xl border p-4 text-sm shadow-sm">
       <p className="text-foreground font-medium">Encontramos dados salvos neste dispositivo.</p>
       <p className="text-muted">
-        Quer importá-los para a sua conta? Isso substitui os dados atuais da conta na nuvem.
+        Importar substitui os dados da sua conta.
       </p>
       {error && <p className="text-danger">{error}</p>}
       <div className="mt-1 flex gap-2">

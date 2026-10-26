@@ -28,8 +28,6 @@ export interface ModuleScreen {
 export interface ModuleDefinition {
   key: ModuleKey;
   name: string;
-  /** One or two sentences: what the module does. */
-  description: string;
   /** A few words for a menu line (the app drawer, the widget tray). */
   tagline: string;
   group: ModuleGroup;
@@ -55,7 +53,6 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'missions',
     name: 'Missões',
-    description: 'Tarefas pequenas de todo dia e de todo mês. Cada uma dá XP, e o XP sobe o seu nível.',
     tagline: 'Tarefas que dão XP e sobem o seu nível',
     group: 'progress',
     dependsOn: [],
@@ -69,7 +66,6 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'expenses',
     name: 'Lançamentos',
-    description: 'Registre gastos e rendas do mês e veja a lista completa, com busca.',
     tagline: 'Gastos e rendas do mês',
     group: 'month',
     dependsOn: [],
@@ -83,8 +79,6 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'budget',
     name: 'Gastos por categoria',
-    description:
-      'Metas em % da renda: quanto você ainda pode gastar e quanto sobra em cada categoria, com custos fixos e imprevistos já divididos entre elas.',
     tagline: 'Metas e quanto ainda dá para gastar',
     group: 'month',
     dependsOn: ['expenses'],
@@ -99,8 +93,6 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'card',
     name: 'Cartão',
-    description:
-      'Tudo do cartão num lugar só: marque a compra como feita no cartão, escolha o cartão (ou não informe), parcele quando quiser e acompanhe a fatura de cada mês, com o dia do vencimento, o botão de fatura paga e aviso no celular.',
     tagline: 'Compras, parcelamento e a fatura de cada mês',
     group: 'month',
     dependsOn: ['expenses'],
@@ -114,8 +106,6 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'reimbursable',
     name: 'A receber',
-    description:
-      'Para o dinheiro que saiu por outra pessoa e que ela vai te devolver: no cartão ou não, não gasta nenhuma categoria.',
     tagline: 'O que alguém vai te devolver',
     group: 'month',
     // Not only card purchases: lending R$ 50 in cash is the same thing, so it only needs Lançamentos.
@@ -125,8 +115,6 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'history',
     name: 'Histórico e gráficos',
-    description:
-      'Sua evolução mês a mês: quanto você gastou, cada categoria ao longo do tempo e a subida e a descida dos seus investimentos.',
     tagline: 'Sua evolução mês a mês',
     group: 'month',
     dependsOn: ['budget'],
@@ -140,8 +128,6 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'recurring',
     name: 'Contas do mês',
-    description:
-      'As contas de todo mês, como aluguel, luz e internet: o que falta lançar, o dia de cada uma e um aviso no celular quando vence.',
     tagline: 'O que falta pagar este mês',
     group: 'wallet',
     dependsOn: ['expenses'],
@@ -154,11 +140,9 @@ export const MODULES: ModuleDefinition[] = [
   },
   {
     key: 'cash',
-    name: 'Reserva',
     // One module for what used to be two ("Reserva de emergência" and "Reserva investida"): to the
     // person it is a single thing, their reserve, with two tabs.
-    description:
-      'Sua reserva de emergência, já sem as dívidas do cartão, e quanto falta para a meta. Na aba Investida, as cotas que você guarda e as categorias da reserva.',
+    name: 'Reserva',
     tagline: 'Quanto você tem e quanto falta',
     group: 'wallet',
     dependsOn: [],
@@ -172,8 +156,6 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'banks',
     name: 'Open Finance',
-    description:
-      'Traz seus bancos e cartões para o Capital + pelo Meu Pluggy, de graça e só para leitura. Os bancos mandam os dados uma vez por dia.',
     tagline: 'Seus bancos no Capital +, uma vez por dia',
     group: 'wallet',
     dependsOn: [],
@@ -189,8 +171,6 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'diagram',
     name: 'Diagrama',
-    description:
-      'Diga quanto quer investir e veja quanto vai para cada tipo e cada ativo, em reais e em cotas, pelas suas metas e pelas notas que você dá aos ativos.',
     tagline: 'Quanto aportar em cada ativo',
     group: 'investing',
     dependsOn: [],
@@ -204,7 +184,6 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'reminders',
     name: 'Lembretes',
-    description: 'Lembretes e tarefas do dia, no horário que você escolher, com notificação no celular.',
     tagline: 'Tarefas e compromissos com aviso',
     group: 'assistant',
     dependsOn: [],
@@ -218,8 +197,6 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'voice',
     name: 'Lançar por voz ou texto',
-    description:
-      'Fale ou escreva o gasto e a IA do servidor monta o lançamento para você conferir antes de salvar.',
     tagline: 'O botão de microfone ao lançar gasto',
     group: 'assistant',
     dependsOn: ['expenses'],
@@ -230,7 +207,6 @@ export const MODULES: ModuleDefinition[] = [
   {
     key: 'gmail',
     name: 'Monitor de Gmail',
-    description: 'Avisa no celular quando chega um e-mail com uma das suas palavras-chave.',
     tagline: 'Avisos de e-mails com as suas palavras-chave',
     group: 'assistant',
     dependsOn: [],

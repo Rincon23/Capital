@@ -56,7 +56,7 @@ function Categorias() {
       showToast('Mês fechado com sucesso! Seus dados foram atualizados.');
       router.push(`/mes/${nextMonth(month)}/categorias`);
     } catch {
-      showToast('Não foi possível fechar o mês. Tente novamente em alguns instantes.', 'error');
+      showToast('Não foi possível fechar o mês. Tente de novo.', 'error');
     }
   }
 

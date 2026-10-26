@@ -103,7 +103,7 @@ export function NotificationsSection() {
   async function disable() {
     const confirmed = await confirm({
       title: 'Desativar neste aparelho',
-      message: 'Este aparelho deixa de receber os lembretes. Os outros aparelhos continuam recebendo.',
+      message: 'Este aparelho para de receber; os outros continuam.',
       confirmLabel: 'Desativar',
       destructive: true,
     });
@@ -133,9 +133,9 @@ export function NotificationsSection() {
         const devices = report.sent === 1 ? '1 aparelho' : `${report.sent} aparelhos`;
         showToast(`Notificação enviada para ${devices}. Deve chegar em alguns segundos.`, 'success');
       } else if (report.removed > 0) {
-        showToast('Nenhum aparelho recebe mais notificações. Ative de novo neste aparelho.', 'error');
+        showToast('Nenhum aparelho recebe mais. Ative de novo aqui.', 'error');
       } else {
-        showToast('O serviço de notificações não respondeu. Tente de novo em instantes.', 'error');
+        showToast('O serviço de notificações não respondeu. Tente de novo.', 'error');
       }
       await load();
     } catch (err) {
@@ -148,7 +148,7 @@ export function NotificationsSection() {
   async function removeDevice(device: PushDevice) {
     const confirmed = await confirm({
       title: 'Remover aparelho',
-      message: `"${device.label}" deixa de receber os lembretes. Para voltar, ative as notificações nele de novo.`,
+      message: `"${device.label}" para de receber. Para voltar, ative nele de novo.`,
       confirmLabel: 'Remover',
       destructive: true,
     });
@@ -261,14 +261,14 @@ function ThisDevice({
   if (state.support === 'ios-install') {
     return (
       <p className="text-muted text-sm">
-        No iPhone, instale antes: Compartilhar → “Adicionar à Tela de Início”.
+        No iPhone: Compartilhar → “Adicionar à Tela de Início”.
       </p>
     );
   }
   if (state.support === 'unsupported') {
     return (
       <p className="text-muted text-sm">
-        Este navegador não recebe notificações. No celular, abra o Capital + pelo Chrome.
+        Este navegador não recebe notificações. Use o Chrome.
       </p>
     );
   }
@@ -313,7 +313,7 @@ function ThisDevice({
         </div>
       ) : state.blocked ? (
         <p className="text-muted text-sm">
-          O navegador bloqueou as notificações. Libere no cadeado do endereço → Notificações.
+          Bloqueado. Libere no cadeado do endereço.
         </p>
       ) : (
         <>

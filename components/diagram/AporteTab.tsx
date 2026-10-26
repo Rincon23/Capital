@@ -139,7 +139,7 @@ export function AporteTab({
         {withTarget.length === 0 ? (
           <>
             <p className="text-muted text-sm">
-              Antes, escolha os tipos da sua carteira e quanto cada um deve pesar.
+              Antes, escolha os tipos da carteira e o peso de cada um.
             </p>
             <button
               type="button"
@@ -194,7 +194,7 @@ export function AporteTab({
       {step === 'fixed' && (
         <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm">
           <h2 className="text-foreground font-semibold">Atualize a renda fixa</h2>
-          <p className="text-muted text-sm">Tesouro, CDB e LCI não têm cotação: confira o total de hoje.</p>
+          <p className="text-muted text-sm">Tesouro, CDB e LCI: confira o total de hoje.</p>
           {fixedTypes.map((type) => (
             <FixedIncomeCheck
               key={type}

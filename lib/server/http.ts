@@ -204,5 +204,5 @@ function errorResponse(err: unknown): Response {
   if (err instanceof MonthNotFoundError) return jsonError(404, 'MONTH_NOT_FOUND', err.message);
   if (err instanceof QuoteUnavailableError) return jsonError(502, 'QUOTE_UNAVAILABLE', err.message);
   console.error('[api]', err);
-  return jsonError(500, 'INTERNAL', 'Erro no servidor. Tente novamente em instantes.');
+  return jsonError(500, 'INTERNAL', 'Erro no servidor. Tente de novo.');
 }

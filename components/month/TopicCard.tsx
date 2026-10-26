@@ -28,7 +28,7 @@ export function TopicCard({ month, topic }: { month: Month; topic: TopicResult }
 
       {topic.archived ? (
         <p className="text-muted mb-2 text-xs">
-          Fica até o fim do mês por já ter gastos. No mês que vem, ela some.
+          Some no mês que vem (já tem gastos neste).
         </p>
       ) : (
         topic.description && <p className="text-muted mb-2 line-clamp-2 text-xs">{topic.description}</p>

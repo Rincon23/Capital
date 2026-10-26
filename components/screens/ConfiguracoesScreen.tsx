@@ -60,7 +60,7 @@ export function ConfiguracoesScreen() {
   async function handleClearAll() {
     const confirmed = await confirm({
       title: 'Apagar todos os dados',
-      message: 'Apaga tudo o que você guardou; a conta continua. Não dá para desfazer.',
+      message: 'Apaga tudo; a conta continua. Não dá para desfazer.',
       confirmLabel: 'Apagar tudo',
       cancelLabel: 'Manter',
       destructive: true,
@@ -329,7 +329,7 @@ function LocalDataSection() {
       <h2 className="text-muted text-sm font-semibold">Dados locais deste dispositivo</h2>
       <div className="border-border bg-card flex flex-col gap-2 rounded-xl border p-4 shadow-sm">
         <p className="text-muted text-sm">
-          Este aparelho tem dados da versão anterior. Importe para vê-los em qualquer lugar.
+          Há dados da versão anterior neste aparelho.
         </p>
         <button
           type="button"

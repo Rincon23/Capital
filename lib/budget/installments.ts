@@ -138,7 +138,7 @@ export function closedMonthsMessage(closed: Month[]): string {
   const names = closed.map(formatMonthLabel);
   const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} e ${names.at(-1)}`;
   const what = closed.length === 1 ? 'um mês fechado' : 'meses fechados';
-  return `Esta compra tem parcelas em ${what} (${list}). Reabra o mês para poder editar.`;
+  return `Esta compra tem parcelas em ${what} (${list}). Reabra o mês para editar.`;
 }
 
 /** The instalments of `plan` charged during competence `month` (1-based), if any. */
@@ -321,7 +321,7 @@ export function advanceProblem(
   }
   if (input.discount < 0) return 'O desconto não pode ser negativo.';
   if (input.discount > advanceTotal(plan, input.count)) {
-    return 'O desconto não pode ser maior do que as parcelas adiantadas.';
+    return 'O desconto não pode passar das parcelas adiantadas.';
   }
   return null;
 }

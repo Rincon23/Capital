@@ -61,4 +61,11 @@ export const FEATURE_ANNOUNCEMENTS: FeatureAnnouncement[] = [
     href: '/carteira/recorrentes',
     publishedAt: '2026-10-19T04:00:00Z',
   },
+  {
+    key: 'missions',
+    title: '🌱 Missões',
+    body: 'Tarefas que dão XP e fazem a sua árvore crescer. E agora todo módulo já vem pronto.',
+    href: '/missoes',
+    publishedAt: '2026-10-26T15:00:00Z',
+  },
 ];

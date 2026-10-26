@@ -195,7 +195,7 @@ export function VoiceEntrySheet({
             <div>
               <p className="text-foreground text-sm font-semibold">Toque e fale o gasto</p>
               <p className="text-muted mt-1 text-sm">
-                Diga a categoria, o que foi e o valor. Se não foi hoje ou foi no cartão, diga também.
+                Diga a categoria, o que foi e o valor.
               </p>
               <p className="text-muted mt-1 text-sm italic">“{example}”</p>
             </div>

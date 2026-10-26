@@ -69,7 +69,7 @@ export function ReminderSettingsSection() {
               <div className="min-w-0 flex-1">
                 <p className="text-foreground text-sm font-medium">Lembrar de novo até marcar feito</p>
                 <p className="text-muted mt-0.5 text-xs">
-                  Sem “Realizado”, avisa de novo nos horários abaixo, até ser feito.
+                  Sem “Realizado”, avisa de novo nestes horários.
                 </p>
               </div>
               <Switch
@@ -126,7 +126,7 @@ export function ReminderSettingsSection() {
                 </button>
               </div>
               <p className="text-muted text-xs">
-                Tarefas do dia não usam esta lista: elas avisam nos horários escolhidos em cada uma.
+                Tarefas do dia avisam nos horários de cada uma.
               </p>
             </div>
 

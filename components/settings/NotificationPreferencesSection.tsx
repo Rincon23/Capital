@@ -58,7 +58,7 @@ export function NotificationPreferencesSection() {
       <h2 className="text-muted text-sm font-semibold">Quais avisos chegam no celular</h2>
       <div className="border-border bg-card flex flex-col gap-4 rounded-xl border p-4 shadow-sm">
         <p className="text-muted text-xs">
-          Quais avisos chegam no celular. Todos ficam na Central de notificações.
+          Quais avisos chegam no celular.
         </p>
         {TOGGLEABLE.filter((category) => {
           const source = CATEGORY_MODULE[category];

@@ -41,7 +41,7 @@ const ORPHAN_TEXT: Record<OrphanReason, string> = {
   noScore: 'nenhum ativo tem nota ainda',
   lowScore: 'nenhum ativo tem nota acima de 0',
   noPrice: 'nenhum ativo tem cotação agora',
-  mixed: 'nenhum ativo pode receber (sem nota acima de 0 ou sem cotação)',
+  mixed: 'nenhum ativo pode receber (sem nota ou cotação)',
 };
 
 /** Why the leftover is there, in a sentence. */
@@ -54,11 +54,11 @@ function leftoverText(plan: Plan): string {
     case 'quotaTooExpensive':
       return `${left} não compram uma cota de ${reason.label} (${formatBRL(reason.price)}): fica para o próximo.`;
     case 'allAtTarget':
-      return `Todos os ativos que podem receber chegaram na meta: ${left} ficam para o próximo aporte.`;
+      return `Todos chegaram na meta: ${left} ficam para o próximo aporte.`;
     case 'noReceivers':
-      return `Nenhum ativo pode receber agora (veja o relatório): ${left} ficam sem destino.`;
+      return `Nenhum ativo pode receber agora: ${left} sem destino.`;
     case 'unspent':
-      return `${left} ainda sem destino. Use o + em algum ativo ou toque em Refazer sugestão.`;
+      return `${left} sem destino. Use o + num ativo ou Refazer sugestão.`;
   }
 }
 
@@ -549,7 +549,7 @@ function ContributeSheet({
             <span className="flex flex-col">
               <span className="text-foreground text-sm font-medium">Lançar em Investimentos</span>
               <span className="text-muted text-xs">
-                Cria um gasto de {formatBRL(total)} na categoria Investimentos, com a data de hoje.
+                Lança {formatBRL(total)} em Investimentos, com a data de hoje.
               </span>
             </span>
           </label>

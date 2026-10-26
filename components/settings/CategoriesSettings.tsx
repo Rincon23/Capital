@@ -179,7 +179,7 @@ function CategoriesForm({
       showToast('Categorias salvas.');
       onSaved?.();
     } catch {
-      setError('Não foi possível salvar. Tente novamente em alguns instantes.');
+      setError('Não foi possível salvar. Tente de novo.');
     } finally {
       setBusy(false);
     }
@@ -192,7 +192,7 @@ function CategoriesForm({
     }
     const confirmed = await confirm({
       title: 'Restaurar categorias padrão',
-      message: 'Voltam as quatro padrão; as suas saem da lista e os meses anteriores não mudam.',
+      message: 'Voltam as quatro padrão. Meses anteriores não mudam.',
       confirmLabel: 'Restaurar',
       cancelLabel: 'Cancelar',
     });
@@ -213,7 +213,7 @@ function CategoriesForm({
       });
       onSaved?.();
     } catch {
-      setError('Não foi possível restaurar. Tente novamente em alguns instantes.');
+      setError('Não foi possível restaurar. Tente de novo.');
     } finally {
       setBusy(false);
     }

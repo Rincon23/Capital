@@ -114,7 +114,7 @@ export function InvestmentHistory() {
           ) : !hasAssets || !view || view.series.points.length === 0 ? (
             <div className="flex flex-col gap-2">
               <p className="text-foreground font-semibold">Nenhum ativo com histórico ainda</p>
-              <p className="text-muted text-sm">Adicione seus ativos no Diagrama para ver a subida e a descida da carteira.</p>
+              <p className="text-muted text-sm">Adicione seus ativos no Diagrama para ver aqui.</p>
               <Link href="/diagrama?aba=ativos" className="text-primary text-sm font-semibold">
                 Abrir o Diagrama
               </Link>
@@ -227,8 +227,8 @@ export function InvestmentHistory() {
       {view && view.series.points.length > 0 && (
         <p className="text-muted text-xs">
           {view.series.mode === 'value'
-            ? 'Com as cotas que você tem hoje: aportes e vendas antigas não entram.'
-            : 'Sem as cotas, cada ativo conta igual. Informe as cotas no Diagrama para ver em reais.'}
+            ? 'Com as cotas de hoje: aportes e vendas antigas não entram.'
+            : 'Informe as cotas no Diagrama para ver em reais.'}
           {missing.length > 0 && ` Sem histórico: ${missing.map((asset) => asset.ticker).join(', ')}.`}
         </p>
       )}

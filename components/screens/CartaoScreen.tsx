@@ -132,7 +132,7 @@ function Cartao({ initialTab }: { initialTab?: CardTab }) {
       await refresh();
       showToast('Configuração salva.');
     } catch {
-      showToast('Não foi possível salvar. Tente novamente em alguns instantes.', 'error');
+      showToast('Não foi possível salvar. Tente de novo.', 'error');
     }
   }
 
@@ -516,7 +516,7 @@ function BillRow({
       await onChanged();
       showToast(message);
     } catch {
-      showToast('Não foi possível salvar. Tente novamente em alguns instantes.', 'error');
+      showToast('Não foi possível salvar. Tente de novo.', 'error');
     } finally {
       setBusy(false);
     }
@@ -602,7 +602,7 @@ function LimitBar({ card, snapshot }: { card: CreditCard; snapshot: Snapshot }) 
       </p>
       <ProgressBar usedPct={use.usedPct} state={use.over ? 'danger' : computeProgressState(use.usedPct)} />
       <p className="text-muted text-xs">
-        já descontadas as faturas em aberto e as parcelas que ainda vão cair
+        já sem as faturas e parcelas a vencer
       </p>
     </div>
   );
@@ -848,7 +848,7 @@ function CardsTab({ snapshot, onChanged }: { snapshot: Snapshot; onChanged: () =
       await onChanged();
       showToast(message);
     } catch {
-      showToast('Não foi possível salvar. Tente novamente em alguns instantes.', 'error');
+      showToast('Não foi possível salvar. Tente de novo.', 'error');
     }
   }
 
@@ -992,7 +992,7 @@ function CardSettingsSection({
           <div className="min-w-0">
             <p className="text-foreground text-sm font-medium">Insistir até marcar como paga</p>
             <p className="text-muted text-xs">
-              Um aviso por dia, por até uma semana, enquanto a fatura estiver em aberto.
+              Um aviso por dia, até uma semana, até pagar.
             </p>
           </div>
           <Switch

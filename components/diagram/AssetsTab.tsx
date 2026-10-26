@@ -450,8 +450,7 @@ export function AssetsTab({
           holdings &&
           checkBanks && (
             <p className="border-border bg-card text-muted mx-4 rounded-xl border p-3 text-sm shadow-sm">
-              Os bancos ainda não mandaram as quantidades de ações e ETFs. Elas chegam na próxima leitura (uma
-              vez por dia).
+              As quantidades chegam na próxima leitura dos bancos.
             </p>
           )
         )}
@@ -647,7 +646,7 @@ export function FixedIncomeSheet({
         }}
       >
         <p className="text-muted text-sm">
-          Tesouro, CDB, LCI, LCA: o que não tem cotação. Fundo com código (DEBB11) entra como ativo.
+          Tesouro, CDB, LCI, LCA: o que não tem cotação.
         </p>
         <AmountInput value={amount} onChange={setAmount} autoFocus label="Valor total" />
         {current?.updatedOn && (

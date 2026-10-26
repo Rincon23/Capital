@@ -7,12 +7,12 @@ const CONNECT_ERRORS = {
   'nao-configurado': 'O Google ainda não está configurado neste servidor.',
   indisponivel: 'O Monitor de Gmail não está disponível.',
   'inicio-falhou': 'Não foi possível iniciar a conexão com o Google.',
-  expirou: 'A conexão expirou ou veio de outro lugar. Toque em "Conectar Gmail" de novo.',
+  expirou: 'A conexão expirou. Toque em "Conectar Gmail" de novo.',
   negado: 'Você não deu a permissão no Google. Nada foi conectado.',
   google: 'O Google não concluiu a conexão. Tente de novo.',
   'sem-autorizacao': 'O Google não devolveu a autorização. Tente de novo.',
-  'sem-permissao': 'A permissão de ler os e-mails ficou desmarcada no Google. Conecte de novo e marque-a.',
-  falhou: 'Não foi possível concluir a conexão com o Google. Tente de novo.',
+  'sem-permissao': 'Faltou marcar a permissão de ler e-mails. Conecte de novo.',
+  falhou: 'Não deu para conectar ao Google. Tente de novo.',
 } as const;
 
 export type GmailConnectError = keyof typeof CONNECT_ERRORS;
