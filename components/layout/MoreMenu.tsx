@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { ChevronRight, type LucideIcon } from 'lucide-react';
 import type { MoreLayout } from '@/lib/storage/preferences';
@@ -18,6 +19,8 @@ export interface MoreMenuItem {
 
 export interface MoreMenuSection {
   title: string;
+  /** Shown above the entries: a card of its own (Missões, in "Seu progresso"). */
+  content?: ReactNode;
   items: MoreMenuItem[];
 }
 
@@ -66,7 +69,8 @@ export function MoreMenu({
           <h2 className="text-muted px-1 text-xs font-semibold tracking-wide uppercase">
             {section.title}
           </h2>
-          {layout === 'grid' ? (
+          {section.content}
+          {section.items.length === 0 ? null : layout === 'grid' ? (
             <GridSection items={section.items} onNavigate={onNavigate} />
           ) : (
             <ListSection items={section.items} onNavigate={onNavigate} />

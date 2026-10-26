@@ -20,6 +20,7 @@ import { MoreMenu, type MoreMenuSection } from '@/components/layout/MoreMenu';
 import { MODULE_VISUALS } from '@/components/modules/visuals';
 import { useNotifications } from '@/components/notifications/NotificationsProvider';
 import { useAuth } from '@/components/providers/AuthProvider';
+import { MissionsCard } from '@/components/missions/MissionsCard';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { popSheetEntry, pushSheetEntry, registerSheet } from '@/components/ui/sheetHistory';
 import { BACK_MS, COMMIT_VELOCITY, EASE, IN_MS, MIN_FLICK_DISTANCE } from './swipePhysics';
@@ -288,7 +289,9 @@ function DrawerPanel({
   const sections: MoreMenuSection[] = [
     ...moreItems(settings).map((group) => ({
       title: group.label,
-      items: group.keys.map((key) => {
+      // Missões is its card here (level, bar and the next missions), not an icon.
+      content: group.keys.includes('missions') ? <MissionsCard onNavigate={onNavigate} /> : undefined,
+      items: group.keys.filter((key) => key !== 'missions').map((key) => {
         const category = MODULE_NOTIFICATION_CATEGORY[key];
         return {
           key,
