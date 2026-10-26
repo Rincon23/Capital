@@ -9,7 +9,7 @@ import { homeTemplate, homeTemplateEmail } from './homeTemplate';
  * Início (lib/server/homeTemplate.ts: the template account's, or the owner's while there is none)
  * — its telas, order and sizes, with **every widget showing**: the owner's choice was that only
  * the restricted modules stay out of sight, and those leave by themselves for an account without
- * access. Missões comes in at the top of the first tela (`TOP_WIDGETS`). Afterwards each person
+ * access. Afterwards each person
  * changes and removes what they want. Without any template yet (no `OWNER_EMAIL`), this waits for
  * a later start. A row in `job_runs` marks it as done.
  *

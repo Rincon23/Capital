@@ -1,5 +1,6 @@
 import type { ModuleFlags, ModuleKey } from '../budget/types';
 import { MODULES } from '../modules/catalog';
+import { isModuleHidden } from '../modules/flags';
 
 /**
  * The missions of the Missões module. The owner's rule: **XP can never come from a lie**. So a
@@ -41,8 +42,6 @@ export interface MissionFacts {
   expenseThisMonth: boolean;
   anyIncome: boolean;
   anyExpense: boolean;
-  /** The categories' setup questions were answered (or the account is from before them). */
-  categoriesSetUp: boolean;
   anyReminder: boolean;
   anyCard: boolean;
   anyRecurring: boolean;
@@ -85,7 +84,8 @@ const MEET: MissionDefinition[] = MODULES.map((definition) => ({
 export const MISSIONS: MissionDefinition[] = [
   { key: 'first-income', title: 'Registrar a primeira renda', xp: 50, period: 'once', module: 'expenses', done: (f) => f.anyIncome },
   { key: 'first-expense', title: 'Lançar o primeiro gasto', xp: 50, period: 'once', module: 'expenses', done: (f) => f.anyExpense },
-  { key: 'setup-categories', title: 'Ajustar suas categorias', xp: 50, period: 'once', module: 'budget', done: (f) => f.categoriesSetUp },
+  // Done on "Concluir configuração" of the categories' questions, even keeping the % as they were.
+  { key: 'setup-categories', title: 'Ajustar suas categorias', xp: 50, period: 'once', module: 'budget' },
   { key: 'first-reminder', title: 'Criar o primeiro lembrete', xp: 30, period: 'once', module: 'reminders', done: (f) => f.anyReminder },
   { key: 'enable-push', title: 'Ligar as notificações', xp: 30, period: 'once', done: (f) => f.anyPushDevice },
   { key: 'install-app', title: 'Instalar o app no celular', xp: 30, period: 'once' },
@@ -118,10 +118,32 @@ export function missionDefinition(key: string): MissionDefinition | undefined {
 
 export const isMeetMission = (key: MissionKey) => key.startsWith('meet-');
 
-/** The missions this account has now: its modules, and what it has for the conditional ones. */
-export function availableMissions(modules: ModuleFlags, facts: MissionFacts): MissionDefinition[] {
+/**
+ * The "Conhecer …" missions of the restricted modules (and of the ones built on them): they never
+ * give XP, not even to an account with access — those modules are for testing, not for everyone.
+ */
+export function restrictedMeetMissions(restricted: ModuleKey[]): MissionKey[] {
+  const access = { vip: false, vipModules: restricted };
+  return MODULES.filter((definition) => isModuleHidden(access, definition.key)).map(
+    (definition) => `meet-${definition.key}` as const,
+  );
+}
+
+/**
+ * The missions this account has now: its modules, and what it has for the conditional ones; never
+ * the "Conhecer" of a `restricted` module.
+ */
+export function availableMissions(
+  modules: ModuleFlags,
+  facts: MissionFacts,
+  restricted: ModuleKey[] = [],
+): MissionDefinition[] {
+  const excluded = new Set<MissionKey>(restrictedMeetMissions(restricted));
   return MISSIONS.filter(
-    (mission) => (!mission.module || modules[mission.module]) && (!mission.when || mission.when(facts)),
+    (mission) =>
+      !excluded.has(mission.key) &&
+      (!mission.module || modules[mission.module]) &&
+      (!mission.when || mission.when(facts)),
   );
 }
 

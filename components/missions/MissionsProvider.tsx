@@ -14,6 +14,7 @@ import { checkMissions } from '@/lib/storage/missions';
 import { useTour } from '@/components/modules/tour/TourProvider';
 import { useToast } from '@/components/ui/Toast';
 import { LevelUpCard } from './LevelUpCard';
+import { WelcomeCard } from './WelcomeCard';
 
 interface MissionsContextValue {
   /** Null until the first check comes back. */
@@ -36,7 +37,8 @@ const installed = () =>
  * The Missões of the signed-in account (lib/gamification/missions.ts). It checks them when the app
  * opens (which is itself the mission of the day), when it comes back to the screen, after anything
  * is saved and on every screen visited — the server gives the XP, once per period. What was just
- * earned shows as a toast ("+30 XP · Lançar um gasto"), and a new level as a card with its name.
+ * earned shows as a toast ("+30 XP · Lançar um gasto"), a new level as a card with its name, and
+ * the very first open of a new account as the welcome (WelcomeCard).
  */
 export function MissionsProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -44,6 +46,7 @@ export function MissionsProvider({ children }: { children: ReactNode }) {
   const { isTourActive } = useTour();
   const [status, setStatus] = useState<MissionsStatus | null>(null);
   const [levelUp, setLevelUp] = useState<LevelProgress | null>(null);
+  const [welcome, setWelcome] = useState(false);
   const statusRef = useRef<MissionsStatus | null>(null);
   const pending = useRef<Set<MissionKey>>(new Set());
   const running = useRef(false);
@@ -67,6 +70,11 @@ export function MissionsProvider({ children }: { children: ReactNode }) {
       const total = after.earned.reduce((sum, item) => sum + item.xp, 0);
       if (total === 0) return;
       const level = levelOf(after.xp);
+      // A brand-new account (all its XP is what it just got for opening the app): the welcome.
+      if (!before && after.xp === total && after.earned.length < 3) {
+        setWelcome(true);
+        return;
+      }
       // The first check of an account that already did things: one notice, not a party per mission.
       if (!before && after.earned.length >= 3) {
         toast(`Você já tinha ${after.xp} XP · ${level.name}`);
@@ -170,6 +178,7 @@ export function MissionsProvider({ children }: { children: ReactNode }) {
     <MissionsContext.Provider value={value}>
       {children}
       {levelUp && <LevelUpCard level={levelUp} onClose={() => setLevelUp(null)} />}
+      {welcome && status && <WelcomeCard status={status} onClose={() => setWelcome(false)} />}
     </MissionsContext.Provider>
   );
 }

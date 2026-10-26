@@ -36,7 +36,6 @@ const everything = on(
 describe('widgets do Início', () => {
   it('seguem a ordem do catálogo, com A receber logo depois de Lançamentos e o calendário depois dos Lembretes', () => {
     expect(homeCards({ modules: everything })).toEqual([
-      'missions',
       'expenses',
       'reimbursable',
       'budget',
@@ -76,20 +75,13 @@ describe('widgets do Início', () => {
 });
 
 describe('Missões', () => {
-  it('vem primeiro na ordem padrão', () => {
-    expect(homeCards({ modules: {} })[0]).toBe('missions');
-  });
-
-  it('entra no topo da primeira área de um Início já arrumado, e fica onde a pessoa puser', () => {
-    const kit = on('missions', 'expenses', 'budget', 'card');
-    const homePages: HomeWidgetKey[][] = [['budget'], ['expenses', 'card']];
-    expect(resolveHomePages({ modules: kit, homePages })).toEqual([
-      ['missions', 'budget'],
+  it('não é widget: fica numa faixa fixa no topo, e some de um Início que já a tinha', () => {
+    expect(homeCards({ modules: everything })).not.toContain('missions');
+    const homePages: HomeWidgetKey[][] = [['missions', 'budget'], ['expenses', 'card']];
+    expect(resolveHomePages({ modules: on('missions', 'expenses', 'budget', 'card'), homePages })).toEqual([
+      ['budget'],
       ['expenses', 'card'],
     ]);
-    const moved: HomeWidgetKey[][] = [['budget'], ['expenses', 'missions', 'card']];
-    expect(resolveHomePages({ modules: kit, homePages: moved })).toEqual(moved);
-    expect(resolveHomePages({ modules: kit, homePages, homeHidden: ['missions'] })).toEqual(homePages);
   });
 });
 

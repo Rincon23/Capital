@@ -1,8 +1,8 @@
-import { and, desc, eq, inArray, ne, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne, notInArray, sql, type SQL } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import { UNASSIGNED_CARD_ID } from '../budget/cards';
 import { previousMonth } from '../budget/date';
-import type { ModuleFlags } from '../budget/types';
+import type { ModuleFlags, ModuleKey } from '../budget/types';
 import {
   availableMissions,
   isoWeek,
@@ -10,6 +10,7 @@ import {
   missionDefinition,
   missionsMetByData,
   periodOf,
+  restrictedMeetMissions,
   type MissionFacts,
   type MissionKey,
   type MissionsStatus,
@@ -17,7 +18,6 @@ import {
 import { APP_TIME_ZONE, zonedToday } from '../reminders/time';
 import {
   bankConnections,
-  budgetSettings,
   cards,
   expenses,
   incomes,
@@ -57,7 +57,6 @@ export class PostgresMissionsRepository {
       expenseThisMonth,
       anyIncome,
       anyExpense,
-      settings,
       anyReminder,
       anyCard,
       anyRecurring,
@@ -70,10 +69,6 @@ export class PostgresMissionsRepository {
       this.exists(expenses, and(eq(expenses.userId, this.userId), eq(expenses.month, month))),
       this.exists(incomes, eq(incomes.userId, this.userId)),
       this.exists(expenses, eq(expenses.userId, this.userId)),
-      this.db
-        .select({ onboardingCompleted: budgetSettings.onboardingCompleted })
-        .from(budgetSettings)
-        .where(eq(budgetSettings.userId, this.userId)),
       this.exists(reminders, eq(reminders.userId, this.userId)),
       this.exists(cards, and(eq(cards.userId, this.userId), ne(cards.id, UNASSIGNED_CARD_ID))),
       this.exists(recurringExpenses, eq(recurringExpenses.userId, this.userId)),
@@ -90,7 +85,6 @@ export class PostgresMissionsRepository {
       expenseThisMonth,
       anyIncome,
       anyExpense,
-      categoriesSetUp: settings[0]?.onboardingCompleted ?? false,
       anyReminder,
       anyCard,
       anyRecurring,
@@ -104,22 +98,27 @@ export class PostgresMissionsRepository {
   /**
    * Gives the XP of every mission the account just did — the ones its data shows and the `visits`
    * the app reported — and returns where it stands. With `record` false (the Início template),
-   * nothing is saved.
+   * nothing is saved. The "Conhecer" of a `restricted` module gives nothing, and what one gave
+   * before it was restricted no longer counts.
    */
   async check({
     modules,
+    restricted = [],
     visits = [],
     now = new Date(),
     record = true,
   }: {
     modules: ModuleFlags;
+    restricted?: ModuleKey[];
     visits?: string[];
     now?: Date;
     record?: boolean;
   }): Promise<MissionsStatus> {
     const today = zonedToday(now);
     const facts = await this.facts(today);
-    const available = availableMissions(modules, facts);
+    const available = availableMissions(modules, facts, restricted);
+    const uncounted = restrictedMeetMissions(restricted);
+    const counted = uncounted.length > 0 ? notInArray(xpEvents.mission, uncounted) : undefined;
     const offered = new Set<string>(available.map((mission) => mission.key));
     const toEarn = new Set<MissionKey>([
       ...missionsMetByData(available, facts),
@@ -149,8 +148,8 @@ export class PostgresMissionsRepository {
       this.db
         .select({ xp: sql<number>`coalesce(sum(${xpEvents.xp}), 0)::int` })
         .from(xpEvents)
-        .where(eq(xpEvents.userId, this.userId)),
-      this.monthsXp(),
+        .where(and(eq(xpEvents.userId, this.userId), counted)),
+      this.monthsXp(counted),
     ]);
     // Done in its own period: a month mission by a row of this month, a once one by any row.
     const done = new Set(
@@ -178,12 +177,12 @@ export class PostgresMissionsRepository {
   }
 
   /** The XP of each of the last months, newest first. */
-  private async monthsXp(): Promise<MissionsStatus['months']> {
+  private async monthsXp(counted: SQL | undefined): Promise<MissionsStatus['months']> {
     const month = sql<string>`to_char(${xpEvents.earnedAt} at time zone ${sql.raw(`'${APP_TIME_ZONE}'`)}, 'YYYY-MM')`;
     const rows = await this.db
       .select({ month, xp: sql<number>`sum(${xpEvents.xp})::int` })
       .from(xpEvents)
-      .where(eq(xpEvents.userId, this.userId))
+      .where(and(eq(xpEvents.userId, this.userId), counted))
       .groupBy(month)
       .orderBy(desc(month))
       .limit(HISTORY_MONTHS);

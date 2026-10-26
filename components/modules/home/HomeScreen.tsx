@@ -70,6 +70,7 @@ import { useVerticalDrag } from '@/components/layout/useVerticalDrag';
 import { subscribeHomeReveal } from '@/components/modules/tour/homeReveal';
 import { useTour } from '@/components/modules/tour/TourProvider';
 import { GreetingHeader } from '@/components/month/GreetingHeader';
+import { MissionsBar } from '@/components/missions/MissionsBar';
 import { MonthActions } from '@/components/month/MonthActions';
 import { useMonthContext } from '@/components/month/MonthContext';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
@@ -759,6 +760,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
               <NotificationBell />
             </div>
           </div>
+          {!editing && <MissionsBar />}
           {areasHint.visible && (
             <p
               role="status"

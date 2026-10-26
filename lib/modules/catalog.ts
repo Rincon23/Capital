@@ -61,7 +61,8 @@ export const MODULES: ModuleDefinition[] = [
       href: () => '/missoes',
       isActive: (pathname) => pathname.startsWith('/missoes'),
     },
-    homeCard: true,
+    // Not a widget: a bar fixed on top of the Início (MissionsBar), which nobody takes off.
+    homeCard: false,
   },
   {
     key: 'expenses',

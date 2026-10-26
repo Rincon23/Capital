@@ -25,6 +25,7 @@ import {
 } from '@/lib/budget';
 import { budgetRepository } from '@/lib/storage';
 import { getUnforeseenEstimate, setUnforeseenEstimate } from '@/lib/storage/preferences';
+import { useMissions } from '@/components/missions/MissionsProvider';
 import { AmountInput } from '@/components/ui/AmountInput';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { InfoTip } from '@/components/ui/InfoTip';
@@ -50,6 +51,7 @@ interface OnboardingWizardProps {
  */
 export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }: OnboardingWizardProps) {
   const confirm = useConfirm();
+  const { visit } = useMissions();
   const [step, setStep] = useState(1);
   const [income, setIncome] = useState('');
   const [registerIncome, setRegisterIncome] = useState(true);
@@ -154,6 +156,8 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
       const parsedUnforeseen = parseAmountInput(unforeseen);
       if (parsedUnforeseen > 0) setUnforeseenEstimate(parsedUnforeseen);
 
+      // Finishing is the mission, even keeping the % as they were; skipping is not.
+      visit('setup-categories');
       onComplete();
     } catch {
       setError('Não foi possível salvar. Tente novamente.');

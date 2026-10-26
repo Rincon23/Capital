@@ -97,7 +97,7 @@ describe('Missões', () => {
     expect(status.missions.some((mission) => mission.key === 'meet-banks')).toBe(false);
   });
 
-  it('o lembrete, a renda e as categorias contam pelo que a conta tem', async () => {
+  it('o lembrete e a renda contam pelo que a conta tem; as categorias, só pelo "Concluir configuração"', async () => {
     const { id, budget, missions } = await newAccount();
     await budget.getSettings();
     await budget.completeOnboarding();
@@ -115,8 +115,21 @@ describe('Missões', () => {
       'first-income',
       'first-reminder',
       'month-income',
-      'setup-categories',
     ]);
+    // Skipping the questions marks them done, but gives nothing: "Concluir configuração" does.
+    const finished = await missions.check({ modules: ALL_MODULES, visits: ['setup-categories'], now: MONDAY });
+    expect(finished.earned).toEqual([{ key: 'setup-categories', xp: 50 }]);
+  });
+
+  it('conhecer um módulo restrito não dá XP, nem a quem tem acesso, e o que deu antes deixa de contar', async () => {
+    const { missions } = await newAccount();
+    await missions.check({ modules: ALL_MODULES, visits: ['meet-banks', 'meet-card'], now: MONDAY });
+    const status = await missions.check({ modules: ALL_MODULES, restricted: ['banks'], now: MONDAY });
+    expect(status.xp).toBe(20);
+    expect(status.missions.some((mission) => mission.key === 'meet-banks')).toBe(false);
+    expect(status.missions.some((mission) => mission.key === 'connect-bank')).toBe(true);
+    const voice = await missions.check({ modules: ALL_MODULES, restricted: ['voice'], visits: ['meet-voice'], now: MONDAY });
+    expect(voice.earned).toEqual([]);
   });
 
   it('a conta modelo não ganha nada, e "Apagar todos os dados" zera o XP', async () => {

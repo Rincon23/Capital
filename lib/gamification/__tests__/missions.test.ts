@@ -9,6 +9,7 @@ import {
   missionsMetByData,
   nextMissions,
   periodOf,
+  restrictedMeetMissions,
   visitsForPath,
   type MissionFacts,
   type MissionState,
@@ -19,7 +20,6 @@ const nothing: MissionFacts = {
   expenseThisMonth: false,
   anyIncome: false,
   anyExpense: false,
-  categoriesSetUp: false,
   anyReminder: false,
   anyCard: false,
   anyRecurring: false,
@@ -75,12 +75,19 @@ describe('missões', () => {
     expect(withoutBanks).not.toContain('meet-banks');
     expect(withoutBanks).not.toContain('meet-voice');
     expect(keys()).toContain('meet-missions');
+    // Not even an account with access earns XP for meeting a restricted module.
+    const restricted = availableMissions(ALL_MODULES, nothing, ['banks']).map((m) => m.key);
+    expect(restricted).not.toContain('meet-banks');
+    expect(restricted).toContain('connect-bank');
+    expect(restrictedMeetMissions(['banks'])).toContain('meet-banks');
   });
 
   it('o que os dados mostram fica feito; o resto depende de ir até o lugar', () => {
-    const facts = { ...nothing, anyIncome: true, incomeThisMonth: true, categoriesSetUp: true, previousMonthClosed: true };
+    const facts = { ...nothing, anyIncome: true, incomeThisMonth: true, previousMonthClosed: true };
     const met = missionsMetByData(availableMissions(ALL_MODULES, facts), facts);
-    expect(met).toEqual(expect.arrayContaining(['first-income', 'month-income', 'setup-categories', 'close-month']));
+    expect(met).toEqual(expect.arrayContaining(['first-income', 'month-income', 'close-month']));
+    // The categories: by "Concluir configuração", whatever the % ended up being.
+    expect(isVisitMission('setup-categories')).toBe(true);
     expect(met).not.toContain('first-expense');
     expect(isVisitMission('check-calendar')).toBe(true);
     expect(isVisitMission('meet-card')).toBe(true);

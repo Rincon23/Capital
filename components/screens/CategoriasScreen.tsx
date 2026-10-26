@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Percent } from 'lucide-react';
 import { formatMonthLabel, nextMonth } from '@/lib/budget';
@@ -47,6 +47,18 @@ function Categorias() {
     ready: !loading && !!summary && !!settings,
     withSetup: true,
   });
+
+  // The mission "Ajustar suas categorias" comes with ?ajustar=1: the questions open right away
+  // (on a first visit they are already opening by themselves).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('ajustar') !== '1') return;
+    params.delete('ajustar');
+    const query = params.toString();
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHelping(true);
+  }, []);
 
   /** Closes the month and opens the next one carrying the leftovers, then goes to it. */
   async function handleCloseMonth() {
@@ -164,15 +176,19 @@ function Categorias() {
         <OnboardingWizard
           settings={settings}
           saveSettings={saveSettings}
-          onSkip={finishSetup}
+          onSkip={() => {
+            setHelping(false);
+            finishSetup();
+          }}
           onComplete={() => {
             void refresh();
+            setHelping(false);
             finishSetup();
           }}
         />
       )}
 
-      {helping && settings && (
+      {helping && !setupOpen && settings && (
         <OnboardingWizard
           settings={settings}
           saveSettings={saveSettings}

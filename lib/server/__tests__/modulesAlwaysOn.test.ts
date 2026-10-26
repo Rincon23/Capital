@@ -93,7 +93,7 @@ describe('todos os módulos ligados', () => {
     expect(theirs.homeHidden).toEqual([]);
     expect(theirs.homeCardSizes).toEqual({ recurring: 'full' });
     const pages = resolveHomePages(theirs);
-    expect(pages[0].slice(0, 3)).toEqual(['missions', 'budget', 'expenses']);
+    expect(pages[0].slice(0, 2)).toEqual(['budget', 'expenses']);
     expect(pages.flat()).toContain('gmail');
     expect(pages.flat()).toContain('calendar');
     expect(pages.flat()).not.toContain('banks');

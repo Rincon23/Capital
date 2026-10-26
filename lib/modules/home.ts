@@ -86,9 +86,6 @@ type HomeSource =
   | null
   | undefined;
 
-/** The widgets that, new to an Início already arranged, go to the top of its first page. */
-export const TOP_WIDGETS: HomeWidgetKey[] = ['missions'];
-
 /** The pages without the empty ones, but never zero pages: the Início always has its first. */
 export function withoutEmptyPages(pages: HomePages): HomePages {
   const kept = pages.filter((page) => page.length > 0).map((page) => [...page]);
@@ -101,8 +98,7 @@ export function withoutEmptyPages(pages: HomePages): HomePages {
  * are actually on. A widget that is no longer available drops out, a repeat stays only where it
  * first appears, whatever was taken off (`homeHidden`) is left out, and empty pages go. Anything
  * new comes in by itself: an extra widget right after the card of its module, in whichever page
- * that card is, Missões at the top of the first page (`TOP_WIDGETS`), anything else at the end of
- * the last page. Nothing saved: one page, default order.
+ * that card is, anything else at the end of the last page. Nothing saved: one page, default order.
  */
 export function resolveHomePages(source: HomeSource): HomePages {
   const base = homeCards(source);
@@ -124,10 +120,6 @@ export function resolveHomePages(source: HomeSource): HomePages {
   for (const key of base) {
     if (placed.has(key) || hidden.has(key)) continue;
     placed.add(key);
-    if (TOP_WIDGETS.includes(key)) {
-      pages[0].unshift(key);
-      continue;
-    }
     const owner = widgetModule(key);
     const ownerPage = key === owner ? -1 : pages.findIndex((page) => page.includes(owner));
     if (ownerPage === -1) pages[pages.length - 1].push(key);

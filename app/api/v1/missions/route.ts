@@ -14,8 +14,10 @@ const checkSchema = z.object({ visits: z.array(z.string().max(40)).max(20).optio
  */
 export const POST = apiRoute(async ({ request, userId, email, access }) => {
   const { visits } = await readJson(request, checkSchema);
+  const moduleAccess = await access();
   return new PostgresMissionsRepository(getDb(), userId).check({
-    modules: effectiveModules(await access()),
+    modules: effectiveModules(moduleAccess),
+    restricted: moduleAccess.vipModules,
     visits,
     record: !isHomeTemplateEmail(email),
   });

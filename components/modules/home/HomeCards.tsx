@@ -12,7 +12,6 @@ import { DiagramHomeCard } from './DiagramHomeCard';
 import { GmailHomeCard } from './GmailHomeCard';
 import { HistoryHomeCard } from './HistoryHomeCard';
 import { HomeCardBoundary } from './HomeCard';
-import { MissionsHomeCard } from './MissionsHomeCard';
 import { BudgetHomeCard, ExpensesHomeCard, ReimbursableHomeTile } from './MonthCards';
 import { CardHomeCard, CashHomeCard, RecurringHomeTile } from './WalletCards';
 
@@ -24,7 +23,6 @@ interface CardSpec {
 
 /** The widget of each module that has one (see `homeCard` in the catalog), plus the extra ones. */
 const CARDS: Partial<Record<HomeWidgetKey, CardSpec>> = {
-  missions: { size: 'full', Component: MissionsHomeCard },
   expenses: { size: 'full', Component: ExpensesHomeCard },
   budget: { size: 'full', Component: BudgetHomeCard },
   card: { size: 'full', Component: CardHomeCard },

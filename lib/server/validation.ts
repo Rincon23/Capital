@@ -95,7 +95,7 @@ const navSchema = z
   .array(z.preprocess(renamedKey, z.enum(['inicio', ...MODULE_KEYS] as [NavKey, ...NavKey[]])))
   .max(4);
 
-/** Widgets that are gone, and what took their place: "Primeiros passos" became Missões. */
+/** Widgets that are gone, and what took their place: "Primeiros passos" became Missões (now not a widget either). */
 const RETIRED_WIDGETS: Record<string, HomeWidgetKey> = { firstSteps: 'missions' };
 
 /** A widget of the Início: a module's card or one of the extra widgets (lib/modules/home.ts). */

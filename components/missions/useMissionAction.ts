@@ -28,7 +28,7 @@ export function missionTarget(key: MissionKey, month: Month): MissionTarget | nu
     case 'month-expense':
       return { href: entries, anchor: 'fab-lancar-gasto', side: 'top' };
     case 'setup-categories':
-      return { href: `/mes/${month}/categorias`, anchor: 'categorias-porcentagens', side: 'bottom' };
+      return { href: `/mes/${month}/categorias?ajustar=1` };
     case 'first-reminder':
       return { href: '/lembretes', anchor: 'lembretes-novo', side: 'top' };
     case 'enable-push':
