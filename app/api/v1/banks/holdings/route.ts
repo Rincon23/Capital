@@ -9,7 +9,7 @@ import { apiRoute } from '@/lib/server/http';
  * investida's quotas come along only while the Reserva module is on.
  */
 export const GET = apiRoute(async ({ repo, banks, access }): Promise<BankHoldings> => {
-  await requireBanksAccess(repo, await access());
+  requireBanksAccess(await access());
   const { banks: sent, holdings } = await banks.holdings();
   const reserve = isModuleOn(await repo.getSettings(), 'cash') ? await banks.investedReserve() : null;
   return { banks: sent, holdings, reserve };

@@ -29,6 +29,8 @@ export async function register() {
     { runFixedCostLabelMigration },
     { runReserveModuleMigration },
     { runRecurringLaunchLink },
+    { runModulesAlwaysOnMigration },
+    { syncModules },
   ] = await Promise.all([
     import('./lib/server/scheduler'),
     import('./lib/server/db'),
@@ -36,6 +38,8 @@ export async function register() {
     import('./lib/server/fixedCostLabelMigration'),
     import('./lib/server/reserveModuleMigration'),
     import('./lib/server/recurringLaunchLink'),
+    import('./lib/server/modulesAlwaysOnMigration'),
+    import('./lib/server/adminRepository'),
   ]);
 
   // One-off data migrations; each records that it ran and does nothing on the next start.
@@ -61,6 +65,20 @@ export async function register() {
     await runRecurringLaunchLink(getDb());
   } catch (err) {
     console.error('[contas do mês] falha ao ligar os gastos já lançados:', err);
+  }
+
+  try {
+    await runModulesAlwaysOnMigration(getDb());
+  } catch (err) {
+    console.error('[módulos] falha ao ligar todos os módulos:', err);
+  }
+
+  // Every start: each account's modules as its access says (all, but the restricted ones it may
+  // not use), which is what the background jobs read.
+  try {
+    await syncModules(getDb());
+  } catch (err) {
+    console.error('[módulos] falha ao acertar os módulos das contas:', err);
   }
 
   startScheduler(getDb);

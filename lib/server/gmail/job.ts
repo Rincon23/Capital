@@ -181,7 +181,7 @@ export async function runGmailJob(
     .from(gmailAccounts)
     .innerJoin(budgetSettings, eq(budgetSettings.userId, gmailAccounts.userId))
     .where(
-      sql`${gmailAccounts.status} <> 'reconnect' and coalesce((${budgetSettings.modules}->>'gmail')::boolean, false)`,
+      sql`${gmailAccounts.status} <> 'reconnect' and coalesce((${budgetSettings.modules}->>'gmail')::boolean, true)`,
     );
 
   let alerts = 0;

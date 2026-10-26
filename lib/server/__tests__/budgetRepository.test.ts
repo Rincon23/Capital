@@ -6,7 +6,7 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { computeMonthSummary, currentMonthKey, previousMonth, type Expense } from '@/lib/budget';
-import { NO_MODULES, resolveHomePages, resolveModules } from '@/lib/modules';
+import { ALL_MODULES, MODULE_KEYS, resolveHomePages, resolveModules } from '@/lib/modules';
 import { BACKUP_VERSION, MonthClosedError, MonthNotFoundError } from '@/lib/storage/repository';
 import { PostgresBudgetRepository } from '../budgetRepository';
 import * as schema from '../db/schema';
@@ -352,42 +352,39 @@ describe('PostgresBudgetRepository', () => {
     expect(saved.find((t) => t.preset === 'metas')?.description).toBe('Viagem');
   });
 
-  it('stores the modules a user turned on, and starts everyone with none', async () => {
+  it('starts everyone with every module, and keeps the switches the server saves per account', async () => {
     const { id, repo } = await newAccount();
     const settings = await repo.getSettings();
-    expect(resolveModules(settings)).toEqual(NO_MODULES);
+    expect(resolveModules(settings)).toEqual(ALL_MODULES);
 
-    await repo.saveSettings({ ...settings, modules: { expenses: true, card: true, reimbursable: true } });
-    expect(resolveModules(await repo.getSettings())).toEqual({
-      ...NO_MODULES,
-      expenses: true,
-      card: true,
-      reimbursable: true,
-    });
+    // The server saves `false` only for a restricted module the account may not use.
+    await repo.saveSettings({ ...settings, modules: { ...ALL_MODULES, banks: false } });
+    expect(resolveModules(await repo.getSettings())).toEqual({ ...ALL_MODULES, banks: false });
 
     // Another account is untouched: modules are per user, like every other setting.
     const other = await newAccount();
-    expect(resolveModules(await other.repo.getSettings())).toEqual(NO_MODULES);
+    expect(resolveModules(await other.repo.getSettings())).toEqual(ALL_MODULES);
 
     const sameUserElsewhere = new PostgresBudgetRepository(db, id);
-    expect(resolveModules(await sameUserElsewhere.getSettings()).reimbursable).toBe(true);
+    expect(resolveModules(await sameUserElsewhere.getSettings()).banks).toBe(false);
 
-    // A client that does not know about modules (an old cached bundle) must not switch them off.
+    // A payload without modules (an old cached bundle) leaves them as they are.
     const withoutModules = { ...(await repo.getSettings()) };
     delete withoutModules.modules;
     await repo.saveSettings(withoutModules);
-    expect(resolveModules(await repo.getSettings()).reimbursable).toBe(true);
+    expect(resolveModules(await repo.getSettings()).banks).toBe(false);
   });
 
   it('stores the Início pages and the dismissed notices per account, in every device', async () => {
     const { id, repo } = await newAccount();
     const settings = await repo.getSettings();
     expect(settings.homePages).toBeNull();
-    expect(settings.dismissedNotices).toEqual([]);
+    // A brand-new account starts with "Primeiros passos" on its Início.
+    expect(settings.dismissedNotices).toEqual(['first-steps']);
 
     await repo.saveSettings({
       ...settings,
-      modules: { reminders: true, gmail: true },
+      modules: Object.fromEntries(MODULE_KEYS.map((key) => [key, key === 'reminders' || key === 'gmail'])),
       homePages: [['gmail'], ['reminders', 'calendar']],
       homeOrder: null,
       dismissedNotices: ['modular-intro'],
@@ -409,7 +406,7 @@ describe('PostgresBudgetRepository', () => {
     const other = await newAccount();
     const otherSettings = await other.repo.getSettings();
     expect(otherSettings.homePages).toBeNull();
-    expect(resolveHomePages(otherSettings)).toEqual([[]]);
+    expect(resolveHomePages(otherSettings)[0]).toContain('expenses');
 
     // The backup carries them to another account.
     const { repo: target } = await newAccount();
@@ -428,7 +425,7 @@ describe('PostgresBudgetRepository', () => {
       ...backup,
       settings: {
         ...backup.settings,
-        modules: { expenses: true, reminders: true },
+        modules: Object.fromEntries(MODULE_KEYS.map((key) => [key, key === 'expenses' || key === 'reminders'])),
         nav: ['reminders', 'inicio'],
         homeOrder: ['reminders', 'expenses'],
         homePages: undefined,

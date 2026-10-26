@@ -8,8 +8,8 @@ import { allowAttempt } from '@/lib/server/rateLimit';
  * "Buscar novidades": the same read the hourly job does (alerts included), for this person, right
  * away. It reads what Pluggy has; it can't make a bank send anything sooner.
  */
-export const POST = apiRoute(async ({ repo, access, userId }): Promise<{ changed: string[] }> => {
-  await requireBanksAccess(repo, await access());
+export const POST = apiRoute(async ({ access, userId }): Promise<{ changed: string[] }> => {
+  requireBanksAccess(await access());
   if (!allowAttempt(`banks-sync:${userId}`, 6, 10 * 60_000)) {
     throw new HttpError(429, 'RATE_LIMITED', 'Espere alguns minutos antes de buscar de novo.');
   }

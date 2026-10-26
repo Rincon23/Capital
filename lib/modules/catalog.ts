@@ -32,15 +32,16 @@ export interface ModuleDefinition {
   /** A few words for a menu line (the app drawer, the widget tray). */
   tagline: string;
   group: ModuleGroup;
-  /** Modules that must be on before this one can be turned on. */
+  /** Modules this one is built on: one of them restricted for an account hides this one too. */
   dependsOn: ModuleKey[];
   /** Absent for modules that only add to other screens (the card question, the microphone). */
   screen?: ModuleScreen;
   /** Whether the home dashboard shows a card for it. */
   homeCard: boolean;
   /**
-   * Starts as only for VIP accounts. The owner changes it in Administração ("Só VIP", saved in
-   * `module_access`); everything reads that choice (`vipModules`), never this field directly.
+   * Starts restricted (only accounts with access have it). The owner changes it in Administração
+   * ("Restrito", saved in `module_access`); everything reads that choice (`vipModules`), never this
+   * field directly.
    */
   vipByDefault?: boolean;
 }
@@ -110,7 +111,7 @@ export const MODULES: ModuleDefinition[] = [
     key: 'history',
     name: 'Histórico e gráficos',
     description:
-      'Sua evolução mês a mês: quanto você gastou, cada categoria ao longo do tempo e, com o Diagrama ligado, a subida e a descida dos seus investimentos.',
+      'Sua evolução mês a mês: quanto você gastou, cada categoria ao longo do tempo e a subida e a descida dos seus investimentos.',
     tagline: 'Sua evolução mês a mês',
     group: 'month',
     dependsOn: ['budget'],

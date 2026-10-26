@@ -1,24 +1,13 @@
 'use client';
 
-import { useRef, useState, type RefObject } from 'react';
+import { useRef, type RefObject } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import Link from 'next/link';
-import { ChevronDown, ChevronUp, Lock, Plus } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus } from 'lucide-react';
 import type { HomeWidgetKey } from '@/lib/budget';
-import {
-  isModuleHidden,
-  moduleDefinition,
-  moduleNames,
-  nearestMissing,
-  widgetDescription,
-  widgetModule,
-  widgetName,
-} from '@/lib/modules';
+import { widgetDescription, widgetName } from '@/lib/modules';
 import { drawerCommits } from '@/components/layout/AppDrawer';
 import { BACK_MS, EASE } from '@/components/layout/swipePhysics';
 import { useVerticalDrag } from '@/components/layout/useVerticalDrag';
-import { useAuth } from '@/components/providers/AuthProvider';
-import { useSettings } from '@/components/providers/SettingsProvider';
 import { IconTile } from '@/components/ui/IconTile';
 import { widgetVisual } from '../visuals';
 import { effectiveSize } from './HomeCards';
@@ -42,9 +31,8 @@ const REST_TRANSITION = `transform ${BACK_MS}ms ${EASE}`;
  * a bar saying how many widgets wait in it; a tap or a drag up opens it to half the screen.
  *
  * It lists the widgets that are on no tela (the ones taken off) — a tap puts one at the end of
- * the tela on screen, a hold-and-drag drops it exactly where it goes — and, below, the widgets of
- * modules that are still off, which point to Módulos (with the padlock of a module that needs
- * another first). A restricted module's widgets never show up for an account without access. A widget only comes here by its "−": dragging one onto the
+ * the tela on screen, a hold-and-drag drops it exactly where it goes. A restricted module's widgets
+ * never show up for an account without access. A widget only comes here by its "−": dragging one onto the
  * tray never takes it off the Início. (The back button closes the tray before it leaves edit
  * mode: `HomeScreen` handles that, with edit mode's own history entry.)
  */
@@ -52,7 +40,6 @@ export function WidgetTray({
   open,
   onOpenChange,
   hidden,
-  offModule,
   sizes,
   trayDrag,
   dragActive,
@@ -63,7 +50,6 @@ export function WidgetTray({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   hidden: HomeWidgetKey[];
-  offModule: HomeWidgetKey[];
   sizes: Partial<Record<HomeWidgetKey, 'half' | 'full'>>;
   /** A widget picked up from the tray is being dragged: letting go on the bar leaves it there. */
   trayDrag: boolean;
@@ -106,8 +92,6 @@ export function WidgetTray({
   });
 
   const count = hidden.length;
-  const { user } = useAuth();
-  const offShown = offModule.filter((key) => !isModuleHidden(user, widgetModule(key)));
 
   return (
     <div
@@ -168,7 +152,7 @@ export function WidgetTray({
         <div className="flex flex-col gap-4">
           {count === 0 ? (
             <p className="text-muted text-sm">
-              Todos os widgets dos módulos que você usa já estão na Início. Toque em{' '}
+              Todos os widgets já estão na Início. Toque em{' '}
               <span className="bg-danger-fill inline-flex h-4 w-4 items-center justify-center rounded-full align-text-bottom text-xs font-bold text-white">
                 −
               </span>{' '}
@@ -177,7 +161,7 @@ export function WidgetTray({
           ) : (
             <section className="flex flex-col gap-2">
               <p className="text-muted text-xs">
-                Toque para pôr na tela que está na tela, ou segure e arraste até o lugar.
+                Toque para pôr nesta tela, ou segure e arraste até o lugar.
               </p>
               <ul className="flex flex-col gap-2">
                 {hidden.map((key) => (
@@ -192,27 +176,7 @@ export function WidgetTray({
             </section>
           )}
 
-          {offShown.length > 0 && (
-            <section className="flex flex-col gap-2">
-              <h3 className="text-muted px-1 text-xs font-semibold tracking-wide uppercase">
-                De módulos desligados
-              </h3>
-              <ul className="flex flex-col gap-2">
-                {offShown.map((key) => (
-                  <OffModuleWidget key={key} widget={key} />
-                ))}
-              </ul>
-            </section>
-          )}
-
           <div className="flex flex-col items-center gap-3 pt-1">
-            <Link
-              href="/modulos"
-              className="border-primary/50 text-primary hover:bg-primary/5 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed text-sm font-semibold"
-            >
-              <Plus aria-hidden className="h-5 w-5" />
-              Ligar outros módulos
-            </Link>
             <button
               type="button"
               onClick={onRestoreDefault}
@@ -266,66 +230,6 @@ function TrayWidget({
           <Plus aria-hidden className="h-4 w-4" />
         </span>
       </button>
-    </li>
-  );
-}
-
-/** A widget of a module that is off: a tap explains it and points to Módulos. */
-function OffModuleWidget({ widget }: { widget: HomeWidgetKey }) {
-  const { settings } = useSettings();
-  const [expanded, setExpanded] = useState(false);
-  const owner = widgetModule(widget);
-  const info = moduleDefinition(owner);
-  const visual = widgetVisual(widget);
-  const blockers = nearestMissing(settings, owner);
-
-  return (
-    <li className="border-border bg-background rounded-xl border">
-      <button
-        type="button"
-        onClick={() => setExpanded((current) => !current)}
-        aria-expanded={expanded}
-        className="flex w-full items-center gap-3 p-3 text-left"
-      >
-        <span className="relative shrink-0 opacity-50 grayscale">
-          <IconTile icon={visual.icon} tone={visual.tone} />
-          {blockers.length > 0 && (
-            <span
-              aria-hidden
-              className="bg-card border-border text-muted absolute -right-1.5 -bottom-1.5 flex h-5 w-5 items-center justify-center rounded-full border"
-            >
-              <Lock className="h-3 w-3" strokeWidth={2.5} />
-            </span>
-          )}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="text-muted block font-medium">{widgetName(widget)}</span>
-          <span className="text-muted block text-xs">{widgetDescription(widget)}</span>
-        </span>
-      </button>
-      {expanded && (
-        <div className="flex flex-col gap-2 px-3 pb-3 text-xs">
-          {blockers.length > 0 ? (
-            <p className="text-foreground flex items-start gap-1.5">
-              <Lock aria-hidden className="text-muted mt-0.5 h-3 w-3 shrink-0" />
-              <span>
-                É do módulo {info.name}, que precisa de{' '}
-                <strong className="font-semibold">{moduleNames(blockers)}</strong>.
-              </span>
-            </p>
-          ) : (
-            <p className="text-muted">
-              É do módulo {info.name}, que está desligado. Ligou, ele vem para a Início.
-            </p>
-          )}
-          <Link
-            href="/modulos"
-            className="bg-primary text-primary-foreground flex min-h-[40px] items-center justify-center rounded-lg px-3 text-sm font-semibold"
-          >
-            Ligar em Módulos
-          </Link>
-        </div>
-      )}
     </li>
   );
 }

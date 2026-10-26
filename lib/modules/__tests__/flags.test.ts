@@ -3,27 +3,22 @@ import { createDefaultSettings } from '../../budget/seed';
 import type { ModuleKey } from '../../budget/types';
 import { MODULES, MODULE_KEYS, moduleNames } from '../catalog';
 import {
+  ALL_MODULES,
   DEFAULT_VIP_MODULES,
   dependentsOf,
+  effectiveModules,
   isModuleHidden,
   isModuleOn,
   mayUseModule,
-  missingDependencies,
-  moduleTree,
-  modulesToTurnOnFirst,
-  nearestMissing,
   parentOf,
   resolveModules,
   storedModules,
-  turnModuleOff,
-  turnModuleOn,
-  turnModulesOn,
   vipLockOf,
   vipModulesFrom,
   withAccessRules,
 } from '../flags';
 
-const on = (...keys: ModuleKey[]) => Object.fromEntries(keys.map((key) => [key, true]));
+const off = (...keys: ModuleKey[]) => Object.fromEntries(keys.map((key) => [key, false]));
 const notVipDefault = { vip: false, vipModules: DEFAULT_VIP_MODULES };
 
 describe('catálogo de módulos', () => {
@@ -63,83 +58,37 @@ describe('catálogo de módulos', () => {
 });
 
 describe('módulos ligados', () => {
-  it('deixa tudo desligado para uma conta nova', () => {
-    expect(Object.values(resolveModules(undefined)).every((value) => value === false)).toBe(true);
-    expect(Object.values(resolveModules(createDefaultSettings())).every((value) => value === false)).toBe(
-      true,
-    );
+  it('liga tudo para uma conta nova: ninguém escolhe módulos', () => {
+    expect(resolveModules(undefined)).toEqual(ALL_MODULES);
+    expect(resolveModules(createDefaultSettings())).toEqual(ALL_MODULES);
+    expect(isModuleOn(null, 'card')).toBe(true);
   });
 
-  it('liga só o que foi gravado', () => {
-    const settings = { modules: on('expenses', 'reminders') };
-    expect(isModuleOn(settings, 'expenses')).toBe(true);
-    expect(isModuleOn(settings, 'reminders')).toBe(true);
-    expect(isModuleOn(settings, 'budget')).toBe(false);
-    expect(isModuleOn(null, 'expenses')).toBe(false);
+  it('só fica desligado o que foi gravado como desligado (um módulo restrito)', () => {
+    const settings = { modules: off('banks') };
+    expect(isModuleOn(settings, 'banks')).toBe(false);
+    expect(isModuleOn(settings, 'card')).toBe(true);
   });
 
-  it('não conta como ligado um módulo cujo pai está desligado, mesmo que tenha sido gravado', () => {
-    const settings = { modules: on('history', 'card', 'voice', 'budget') };
+  it('não conta como ligado um módulo cujo pai está desligado', () => {
+    const settings = { modules: off('expenses') };
     expect(storedModules(settings).history).toBe(true);
     // Sem Lançamentos, nada que dependa dele funciona.
     expect(isModuleOn(settings, 'budget')).toBe(false);
     expect(isModuleOn(settings, 'history')).toBe(false);
     expect(isModuleOn(settings, 'card')).toBe(false);
     expect(isModuleOn(settings, 'voice')).toBe(false);
+    expect(isModuleOn(settings, 'cash')).toBe(true);
   });
 
   it('ignora uma chave que não existe mais (um módulo que foi fundido em outro)', () => {
-    const settings = { modules: { expenses: true, cards: true } as Record<string, boolean> };
+    const settings = { modules: { expenses: true, cards: false } as Record<string, boolean> };
     expect(storedModules(settings).expenses).toBe(true);
     expect(Object.keys(storedModules(settings))).not.toContain('cards');
   });
 });
 
 describe('dependências', () => {
-  it('diz o que falta ligar antes', () => {
-    expect(missingDependencies({}, 'reimbursable')).toEqual(['expenses']);
-    expect(missingDependencies({ modules: on('expenses') }, 'card')).toEqual([]);
-    expect(missingDependencies({}, 'card')).toEqual(['expenses']);
-    expect(missingDependencies({}, 'history')).toEqual(['budget']);
-    expect(missingDependencies({}, 'reminders')).toEqual([]);
-  });
-
-  it('mostra o bloqueio mais próximo e a ordem do que ligar antes', () => {
-    expect(nearestMissing({}, 'history')).toEqual(['budget']);
-    expect(modulesToTurnOnFirst({}, 'history')).toEqual(['expenses', 'budget']);
-    expect(modulesToTurnOnFirst({ modules: on('expenses') }, 'history')).toEqual(['budget']);
-    expect(nearestMissing({ modules: on('expenses', 'budget') }, 'history')).toEqual([]);
-    // A receber is not only for the card: lending money in cash is the same thing.
-    expect(modulesToTurnOnFirst({}, 'reimbursable')).toEqual(['expenses']);
-  });
-
-  it('não liga o filho com o pai desligado, e nunca liga o pai sozinho', () => {
-    const result = turnModuleOn({ modules: on('expenses') }, 'history');
-    expect(result).toEqual({ ok: false, missing: ['budget'] });
-
-    const allowed = turnModuleOn({ modules: on('expenses', 'budget') }, 'history');
-    expect(allowed.ok).toBe(true);
-    if (allowed.ok) {
-      expect(allowed.modules.history).toBe(true);
-      expect(allowed.modules.card).toBe(false);
-    }
-  });
-
-  it('liga um conjunto escolhido de uma vez, pai junto com o filho, e nada se faltar alguém de fora', () => {
-    const kit = turnModulesOn({}, ['expenses', 'budget', 'card']);
-    expect(kit.ok).toBe(true);
-    if (kit.ok) {
-      expect(MODULE_KEYS.filter((key) => kit.modules[key])).toEqual(['expenses', 'budget', 'card']);
-    }
-
-    // Keeps what was already on.
-    const more = turnModulesOn({ modules: on('reminders') }, ['expenses', 'budget']);
-    expect(more.ok && MODULE_KEYS.filter((key) => more.modules[key])).toEqual(['expenses', 'budget', 'reminders']);
-
-    // History needs Gastos por categoria, which is neither on nor in the set.
-    expect(turnModulesOn({}, ['expenses', 'history'])).toEqual({ ok: false, missing: ['budget'] });
-  });
-
   it('lista quem depende de um módulo, direta ou indiretamente', () => {
     expect(dependentsOf('expenses')).toEqual([
       'budget',
@@ -154,33 +103,10 @@ describe('dependências', () => {
     expect(dependentsOf('gmail')).toEqual([]);
   });
 
-  it('desligar o pai desliga junto os filhos que estavam ligados, e só eles', () => {
-    const settings = { modules: on('expenses', 'budget', 'history', 'card', 'reminders') };
-    const { modules, alsoOff } = turnModuleOff(settings, 'budget');
-    expect(alsoOff).toEqual(['history']);
-    expect(modules.budget).toBe(false);
-    expect(modules.history).toBe(false);
-    expect(modules.card).toBe(true);
-    expect(modules.reminders).toBe(true);
-  });
-
-  it('monta a árvore com cada módulo embaixo de quem ele precisa', () => {
+  it('sabe de quem cada módulo depende mais de perto', () => {
     expect(parentOf('reimbursable')).toBe('expenses');
     expect(parentOf('history')).toBe('budget');
     expect(parentOf('cash')).toBeNull();
-
-    const tree = moduleTree();
-    expect(tree.map((node) => node.key)).toEqual(['expenses', 'cash', 'banks', 'diagram', 'reminders', 'gmail']);
-    const expenses = tree[0];
-    expect(expenses.children.map((node) => node.key)).toEqual([
-      'budget',
-      'card',
-      'reimbursable',
-      'recurring',
-      'voice',
-    ]);
-    const budget = expenses.children.find((node) => node.key === 'budget');
-    expect(budget?.children.map((node) => node.key)).toEqual(['history']);
   });
 });
 
@@ -221,29 +147,33 @@ describe('módulos só para VIP', () => {
 });
 
 describe('withAccessRules', () => {
-  it('keeps the VIP modules off for accounts that are not VIP, whatever was saved', () => {
-    const saved = { modules: on('expenses', 'voice') };
-    expect(withAccessRules(saved, notVipDefault).modules).toEqual({ expenses: true, voice: false });
-    expect(isModuleOn(withAccessRules(saved, notVipDefault), 'voice')).toBe(false);
+  it('liga tudo, menos o restrito para quem não tem acesso, seja lá o que foi gravado', () => {
+    const saved = { modules: off('card', 'reminders') };
+    const ruled = withAccessRules(saved, notVipDefault);
+    expect(ruled.modules).toEqual({ ...ALL_MODULES, banks: false, voice: false });
+    expect(isModuleOn(ruled, 'card')).toBe(true);
+    expect(isModuleOn(ruled, 'voice')).toBe(false);
   });
 
-  it('follows the saved choice: a module no longer VIP stays as it was saved', () => {
-    const saved = { modules: on('expenses', 'voice', 'gmail') };
-    expect(withAccessRules(saved, { vip: false, vipModules: ['gmail'] }).modules).toEqual({
-      expenses: true,
-      voice: true,
-      gmail: false,
+  it('esconde também o que depende de um módulo restrito', () => {
+    expect(effectiveModules({ vip: false, vipModules: ['budget'] })).toEqual({
+      ...ALL_MODULES,
+      budget: false,
+      history: false,
     });
   });
 
-  it('leaves a VIP account as it is', () => {
-    const saved = { modules: on('expenses', 'voice') };
-    expect(withAccessRules(saved, { vip: true, vipModules: DEFAULT_VIP_MODULES })).toBe(saved);
-    expect(isModuleOn(withAccessRules(saved, { vip: true, vipModules: DEFAULT_VIP_MODULES }), 'voice')).toBe(true);
+  it('com acesso, tudo fica ligado, inclusive o restrito', () => {
+    expect(withAccessRules({ modules: off('voice') }, { vip: true, vipModules: DEFAULT_VIP_MODULES }).modules).toEqual(
+      ALL_MODULES,
+    );
   });
 
-  it('does not add a modules map to a payload that had none', () => {
-    const saved = { modules: undefined };
-    expect(withAccessRules(saved, notVipDefault)).toBe(saved);
+  it('dá os módulos mesmo a um envio que não tinha nenhum', () => {
+    expect(withAccessRules({ modules: undefined }, notVipDefault).modules).toEqual({
+      ...ALL_MODULES,
+      banks: false,
+      voice: false,
+    });
   });
 });

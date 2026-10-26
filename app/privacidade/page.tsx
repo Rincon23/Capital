@@ -94,7 +94,7 @@ export default async function PrivacyPage() {
       {shows('gmail') && (
         <Section title="Monitor de Gmail">
           <p>
-            Se você ligar o monitor e conectar o seu Gmail, o Capital + pede ao Google só a permissão de leitura
+            Se você conectar o seu Gmail, o Capital + pede ao Google só a permissão de leitura
             (<code>gmail.readonly</code>). Ele usa essa permissão apenas para isto: a cada minuto, ler o
             assunto, o remetente e a prévia dos e-mails novos, comparar com as palavras-chave que você
             cadastrou e avisar você no celular quando alguma aparecer.
@@ -149,7 +149,7 @@ export default async function PrivacyPage() {
       {shows('banks') && (
         <Section title="Open Finance (Meu Pluggy)">
           <p>
-            Se você ligar o Open Finance, o Capital + lê os seus bancos pelo{' '}
+            Se você conectar um banco pelo Open Finance, o Capital + lê os seus bancos pelo{' '}
             <a
               href="https://meu.pluggy.ai"
               className="text-primary underline"
@@ -198,8 +198,7 @@ export default async function PrivacyPage() {
           dados&quot; apaga tudo o que você lançou em todos os módulos
           {connections.length > 0 ? ` (inclusive as conexões ${connections.join(' e ')})` : ''} e mantém a
           conta. &quot;Excluir minha conta&quot;, no mesmo lugar, apaga a conta e todos os dados dela de uma
-          vez, depois de você confirmar a senha. Em Módulos, na mesma bandeja, você também pode desligar
-          qualquer módulo.
+          vez, depois de você confirmar a senha.
         </p>
       </Section>
 

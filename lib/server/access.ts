@@ -4,18 +4,19 @@ import type { ModuleKey } from '../budget/types';
 import { mayUseModule, vipModulesFrom, type ModuleAccess } from '../modules';
 import { moduleAccess, vipUsers } from './db/schema';
 import type { Database } from './db/types';
+import { isHomeTemplateEmail } from './homeTemplate';
 import { HttpError } from './httpError';
 import { isOwnerEmail } from './owner';
 
-/** What an account may do beyond the ordinary: run the server (owner) and use the VIP modules. */
+/** What an account may do beyond the ordinary: run the server (owner) and use the restricted modules. */
 export interface UserAccess extends ModuleAccess {
   /** The account whose e-mail is OWNER_EMAIL: sees Administração and is always VIP. */
   owner: boolean;
-  /** May turn on the VIP-only modules (`vipModules`). */
+  /** Has the restricted modules (`vipModules`). */
   vip: boolean;
 }
 
-/** The modules only VIP accounts can turn on, as the owner set them in Administração. */
+/** The restricted modules, as the owner set them in Administração. */
 export async function vipModules(db: Database): Promise<ModuleKey[]> {
   const rows = await db
     .select({ moduleKey: moduleAccess.moduleKey, vipOnly: moduleAccess.vipOnly })
@@ -26,6 +27,8 @@ export async function vipModules(db: Database): Promise<ModuleKey[]> {
 export async function userAccess(db: Database, userId: string, email: string | null): Promise<UserAccess> {
   const modules = vipModules(db);
   if (isOwnerEmail(email)) return { owner: true, vip: true, vipModules: await modules };
+  // The Início template sees every module, so every widget can be placed on it.
+  if (isHomeTemplateEmail(email)) return { owner: false, vip: true, vipModules: await modules };
   const [[row], list] = await Promise.all([
     db.select({ userId: vipUsers.userId }).from(vipUsers).where(eq(vipUsers.userId, userId)),
     modules,

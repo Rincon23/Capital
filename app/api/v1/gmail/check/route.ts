@@ -5,8 +5,8 @@ import { apiRoute, HttpError } from '@/lib/server/http';
 import { allowAttempt } from '@/lib/server/rateLimit';
 
 /** "Verificar agora": the same check the minute job does, for this account, right away. */
-export const POST = apiRoute(async ({ repo, userId, access }) => {
-  await requireGmailAccess(repo, await access());
+export const POST = apiRoute(async ({ userId, access }) => {
+  requireGmailAccess(await access());
   if (!allowAttempt(`gmail-check:${userId}`, 20, 10 * 60_000)) {
     throw new HttpError(429, 'RATE_LIMITED', 'Espere alguns minutos antes de verificar de novo.');
   }

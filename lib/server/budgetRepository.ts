@@ -7,6 +7,7 @@ import { installmentExpense, installmentsDueIn } from '../budget/installments';
 import { cascadeCarryIn, createMonthData } from '../budget/rollover';
 import { createDefaultSettings } from '../budget/seed';
 import { keepEveryTopic } from '../budget/topics';
+import { FIRST_STEPS_NOTICE } from '../modules/firstSteps';
 import type {
   BudgetSettings,
   Expense,
@@ -25,6 +26,7 @@ import {
 } from '../storage/repository';
 import { budgetSettings, expenses, incomes, installments, months } from './db/schema';
 import type { Database, Transaction } from './db/types';
+import { homeTemplate } from './homeTemplate';
 import { HttpError } from './httpError';
 import { checkQuota, QUOTAS } from './quotas';
 
@@ -637,9 +639,11 @@ export class PostgresBudgetRepository implements BudgetRepository {
     const existing = await this.readSettings(ex);
     if (existing) return existing;
 
-    // First read for this account: seed the default envelopes (no demo month). Only this
-    // first-ever row is created with the onboarding still pending.
+    // First read for this account: seed the default envelopes (no demo month) and the Início of
+    // the template (lib/server/homeTemplate.ts). Only this first-ever row is created with the
+    // onboarding still pending, and with "Primeiros passos" on the Início.
     const defaults = createDefaultSettings();
+    const home = await homeTemplate(ex);
     await ex
       .insert(budgetSettings)
       .values({
@@ -649,6 +653,8 @@ export class PostgresBudgetRepository implements BudgetRepository {
         specialCategoryColors: defaults.specialCategoryColors ?? {},
         modules: defaults.modules ?? {},
         onboardingCompleted: false,
+        dismissedNotices: [FIRST_STEPS_NOTICE],
+        ...(home ? { homePages: home.homePages, homeHidden: home.homeHidden, homeCardSizes: home.homeCardSizes } : {}),
       })
       .onConflictDoNothing();
 

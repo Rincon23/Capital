@@ -34,23 +34,43 @@ async function findUserId(email: string): Promise<string | null> {
 }
 
 /**
- * Before signing in with the test account: creates it, with the e-mail already confirmed, when it
- * does not exist yet and the typed password is the configured one. The sign-in itself still checks
- * the password as for anyone.
+ * Before signing in with an account the server's environment configures (the test account, the
+ * Início template): creates it, with the e-mail already confirmed, when it does not exist yet and
+ * the typed password is the configured one. The sign-in itself still checks the password as for
+ * anyone.
  */
-export async function ensureTestAccount(email: string, password: string): Promise<void> {
-  const expected = process.env.TEST_ACCOUNT_PASSWORD ?? '';
+export async function ensureConfiguredAccount(
+  email: string,
+  password: string,
+  { expected, name }: { expected: string | undefined; name: string },
+): Promise<void> {
   if (!expected || !samePassword(password, expected) || (await findUserId(email))) return;
   const hash = await (await getAuth().$context).password.hash(password);
   await getDb().transaction(async (tx) => {
     const [created] = await tx
       .insert(user)
-      .values({ name: 'Teste Capital', email, emailVerified: true })
+      .values({ name, email, emailVerified: true })
       .returning({ id: user.id });
     // How Better Auth keeps an e-mail and password login: the account id is the user's own.
     await tx
       .insert(account)
       .values({ userId: created.id, accountId: created.id, providerId: 'credential', password: hash });
+  });
+}
+
+/** Before signing in with the test account: creates it when needed (see `ensureConfiguredAccount`). */
+export function ensureTestAccount(email: string, password: string): Promise<void> {
+  return ensureConfiguredAccount(email, password, {
+    expected: process.env.TEST_ACCOUNT_PASSWORD,
+    name: 'Teste Capital',
+  });
+}
+
+/** Before signing in with the Início template (lib/server/homeTemplate.ts): creates it when needed. */
+export function ensureHomeTemplateAccount(email: string, password: string): Promise<void> {
+  return ensureConfiguredAccount(email, password, {
+    expected: process.env.HOME_TEMPLATE_PASSWORD,
+    name: 'Modelo da Início',
   });
 }
 

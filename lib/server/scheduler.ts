@@ -53,7 +53,7 @@ export async function runRemindersJob(
   const users = await db
     .select({ userId: budgetSettings.userId })
     .from(budgetSettings)
-    .where(sql`coalesce((${budgetSettings.modules}->>'reminders')::boolean, false)`);
+    .where(sql`coalesce((${budgetSettings.modules}->>'reminders')::boolean, true)`);
 
   let notifications = 0;
   for (const { userId } of users) {

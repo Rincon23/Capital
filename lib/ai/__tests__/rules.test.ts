@@ -52,7 +52,7 @@ describe('categoryOptions', () => {
       'Imprevistos',
       'A receber',
     ]);
-    expect(categoryOptions({ ...settings, modules: {} }).map((o) => o.label)).not.toContain('A receber');
+    expect(categoryOptions({ ...settings, modules: { reimbursable: false } }).map((o) => o.label)).not.toContain('A receber');
   });
 });
 
@@ -166,7 +166,7 @@ describe('findCategory', () => {
   });
 
   it('ignores "A receber" synonyms when the module is off', () => {
-    const withoutReimbursable = categoryOptions({ ...settings, modules: {} });
+    const withoutReimbursable = categoryOptions({ ...settings, modules: { reimbursable: false } });
     expect(findCategory('ele vai me devolver', withoutReimbursable).option).toBeUndefined();
   });
 });

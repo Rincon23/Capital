@@ -205,11 +205,7 @@ export function InvestedReserve() {
           ))}
         </ul>
 
-        {!canAllocate ? (
-          <p className="text-muted py-4 text-center text-sm">
-            Para guardar numa categoria do orçamento, ligue Lançamentos.
-          </p>
-        ) : (
+        {!canAllocate ? null : (
           investments.buckets.length === 0 && (
             <p className="text-muted py-6 text-center text-sm">
               Nenhuma categoria ainda. O que não estiver numa fica sem categoria.

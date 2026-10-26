@@ -5,8 +5,8 @@ import { allowAttempt } from '@/lib/server/rateLimit';
 import { bankKeySchema } from '@/lib/server/validation';
 
 /** Step 3: Pluggy checks the key, then it is saved encrypted. The Secret never comes back. */
-export const PUT = apiRoute(async ({ request, repo, banks, access, userId }) => {
-  await requireBanksAccess(repo, await access());
+export const PUT = apiRoute(async ({ request, banks, access, userId }) => {
+  requireBanksAccess(await access());
   if (!allowAttempt(`banks-key:${userId}`, 10, 10 * 60_000)) {
     throw new HttpError(429, 'RATE_LIMITED', 'Muitas tentativas seguidas. Espere alguns minutos.');
   }

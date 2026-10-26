@@ -8,14 +8,15 @@ import {
   hiddenHomeCards,
   homeCards,
   moveWidget,
-  offModuleWidgets,
   pageOfWidget,
   removeWidget,
   resolveHomePages,
   withoutEmptyPages,
 } from '../home';
+import { MODULE_KEYS } from '../catalog';
 
-const on = (...keys: ModuleKey[]) => Object.fromEntries(keys.map((key) => [key, true]));
+/** Only these modules (the rest saved off, as for a restricted module). */
+const on = (...keys: ModuleKey[]) => Object.fromEntries(MODULE_KEYS.map((key) => [key, keys.includes(key)]));
 const everything = on(
   'expenses',
   'budget',
@@ -57,9 +58,9 @@ describe('widgets do Início', () => {
     expect(homeCards(settings)).toEqual(['expenses', 'reminders', 'calendar']);
   });
 
-  it('não tem widget de módulo desligado nem da voz', () => {
+  it('não tem widget de módulo desligado nem da voz, e numa conta sem nada salvo tem todos', () => {
     expect(homeCards({ modules: on('expenses', 'voice') })).toEqual(['expenses']);
-    expect(homeCards({ modules: {} })).toEqual([]);
+    expect(homeCards({ modules: {} })).toEqual(homeCards({ modules: everything }));
   });
 
   it('o que a pessoa tirou espera na bandeja, e só enquanto o módulo está ligado', () => {
@@ -69,20 +70,6 @@ describe('widgets do Início', () => {
     };
     expect(hiddenHomeCards(settings)).toEqual(['expenses', 'calendar']);
     expect(hiddenHomeCards({ modules: on('expenses'), homeHidden: ['calendar'] })).toEqual([]);
-  });
-
-  it('lista os widgets dos módulos desligados, cada um com os seus extras', () => {
-    expect(offModuleWidgets({ modules: on('expenses', 'budget', 'card', 'history') })).toEqual([
-      'reimbursable',
-      'recurring',
-      'cash',
-      'banks',
-      'diagram',
-      'reminders',
-      'calendar',
-      'gmail',
-    ]);
-    expect(offModuleWidgets({ modules: everything })).toEqual([]);
   });
 });
 
@@ -97,10 +84,9 @@ describe('Primeiros passos', () => {
     expect(homeCards({ modules: on('expenses'), dismissedNotices: started })).toEqual(['expenses']);
   });
 
-  it('some quando os três passos estão feitos, e nunca aparece entre os de módulos desligados', () => {
+  it('some quando os três passos estão feitos', () => {
     const done = [...started, 'first-steps:income', 'first-steps:expense', 'first-steps:budget'];
     expect(homeCards({ modules: kit, dismissedNotices: done })).toEqual(['expenses', 'budget', 'card']);
-    expect(offModuleWidgets({ modules: on('expenses'), dismissedNotices: started })).not.toContain('firstSteps');
   });
 
   it('entra no topo da primeira área de um Início já arrumado, e fica onde a pessoa puser', () => {
@@ -125,7 +111,7 @@ describe('áreas de trabalho', () => {
     expect(resolveHomePages({ modules, homeHidden: ['budget'] })).toEqual([
       ['expenses', 'reminders', 'calendar', 'gmail'],
     ]);
-    expect(resolveHomePages({ modules: {} })).toEqual([[]]);
+    expect(resolveHomePages({ modules: on() })).toEqual([[]]);
   });
 
   it('a ordem salva antes das áreas vira a área 1', () => {
@@ -217,7 +203,7 @@ describe('áreas de trabalho', () => {
         homePages: [['expenses'], ['gmail']],
       }),
     ).toEqual([[]]);
-    expect(resolveHomePages({ modules: {}, homePages: [] })).toEqual([[]]);
+    expect(resolveHomePages({ modules: on(), homePages: [] })).toEqual([[]]);
   });
 
   it('o que foi tirado fica fora mesmo que ainda esteja salvo numa área', () => {

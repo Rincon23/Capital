@@ -13,13 +13,13 @@ function monthOf(request: NextRequest): string | undefined {
 
 /** The month's check: what the banks sent in it, beside what is in the Capital. */
 export const GET = apiRoute(async ({ request, repo, wallet, banks, access }): Promise<BankReview> => {
-  await requireReviewAccess(repo, await access());
+  requireReviewAccess(await access());
   return buildReview({ banks, repo, wallet }, { month: monthOf(request) });
 });
 
 /** One decision (launch, tie to an existing entry, ignore, bill paid); answers the month again. */
 export const POST = apiRoute(async ({ request, repo, wallet, banks, access }): Promise<BankReview> => {
-  await requireReviewAccess(repo, await access());
+  requireReviewAccess(await access());
   await applyReviewAction({ banks, repo, wallet }, await readJson(request, bankReviewActionSchema));
   return buildReview({ banks, repo, wallet }, { month: monthOf(request) });
 });

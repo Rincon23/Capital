@@ -11,7 +11,7 @@ import {
   type Ref,
   type RefObject,
 } from 'react';
-import { Blocks, ChevronDown, LayoutGrid, List, Server, Settings, ShieldCheck } from 'lucide-react';
+import { ChevronDown, LayoutGrid, List, Server, Settings, ShieldCheck } from 'lucide-react';
 import type { ModuleKey, Month } from '@/lib/budget';
 import { moduleDefinition, moreItems, navEntry } from '@/lib/modules';
 import type { NotificationCategory } from '@/lib/notifications';
@@ -56,8 +56,8 @@ export interface AppDrawerHandle {
 }
 
 /**
- * The app drawer, which used to be the "Mais" tab: the account, every module that is on (with
- * the unread count of Lembretes on its icon), Módulos, Privacidade, Configurações and, for the
+ * The app drawer, which used to be the "Mais" tab: the account, every module (with the unread
+ * count of Lembretes on its icon), Privacidade, Configurações and, for the
  * server's owner, Administração. It covers the whole Início over a blurred backdrop, like a
  * phone's app drawer, and comes up from the up-arrow following the finger.
  *
@@ -304,14 +304,6 @@ function DrawerPanel({
     {
       title: 'Ajustes',
       items: [
-        {
-          key: 'modulos',
-          label: 'Módulos',
-          description: 'Escolha o que o seu Capital + tem',
-          icon: Blocks,
-          tone: 'blue',
-          href: '/modulos',
-        },
         {
           key: 'privacidade',
           label: 'Privacidade',

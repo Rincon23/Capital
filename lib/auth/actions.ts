@@ -7,9 +7,15 @@ import { joinName } from '@/lib/auth/names';
 import { getAuth } from '@/lib/server/auth';
 import { clientIp } from '@/lib/server/clientIp';
 import { forgetGmailToken } from '@/lib/server/gmail/job';
+import { homeTemplateEmail } from '@/lib/server/homeTemplate';
 import { isPasswordPwned } from '@/lib/server/pwnedPasswords';
 import { allowAttempt } from '@/lib/server/rateLimit';
-import { ensureTestAccount, resetTestAccount, testAccountEmail } from '@/lib/server/testAccount';
+import {
+  ensureHomeTemplateAccount,
+  ensureTestAccount,
+  resetTestAccount,
+  testAccountEmail,
+} from '@/lib/server/testAccount';
 
 export interface AuthActionState {
   error?: string;
@@ -86,6 +92,8 @@ export async function signIn(_prev: AuthActionState, formData: FormData): Promis
   const testAccount = account === testAccountEmail();
   try {
     if (testAccount) await ensureTestAccount(account, password);
+    // The Início template (see lib/server/homeTemplate.ts) is created on its first sign-in too.
+    if (account === homeTemplateEmail()) await ensureHomeTemplateAccount(account, password);
     await getAuth().api.signInEmail({
       body: { email, password, rememberMe: true },
       headers: requestHeaders,

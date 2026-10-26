@@ -1,5 +1,4 @@
 import 'server-only';
-import { isModuleOn } from '@/lib/modules';
 import { categoryOptions, type AiProgressEvent, type CategoryOption } from '@/lib/ai';
 import { zonedToday } from '@/lib/reminders/time';
 import { requireNotVipLocked, type UserAccess } from '../access';
@@ -19,8 +18,8 @@ export interface VoiceAccess {
 }
 
 /**
- * Accounts with the module on, and only VIP ones while the owner keeps it "Só VIP" (it starts so:
- * the AI heats the board), within a per-user rate limit, and only while the server is not under
+ * Accounts with access to the module, while the owner keeps it "Restrito" (it starts so: the AI
+ * heats the board), within a per-user rate limit, and only while the server is not under
  * strain. Checked on every request, whatever the browser shows.
  */
 export async function requireVoiceAccess(
@@ -31,13 +30,6 @@ export async function requireVoiceAccess(
 ): Promise<VoiceAccess> {
   requireNotVipLocked(access, 'voice');
   const settings = await repo.getSettings();
-  if (!isModuleOn(settings, 'voice')) {
-    throw new HttpError(
-      403,
-      'MODULE_OFF',
-      'Ligue "Lançar por voz ou texto" em Módulos (na bandeja de apps da Início).',
-    );
-  }
   const config = aiConfig();
   if (!config) {
     throw new HttpError(503, 'AI_NOT_CONFIGURED', 'A IA não está configurada neste servidor.');

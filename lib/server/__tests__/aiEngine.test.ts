@@ -11,7 +11,7 @@ const options = categoryOptions({
     { id: 't-met', name: 'Metas', targetPct: 0.5, order: 1 },
   ],
   specialCategories: { fixedCost: 'Custo Fixo', unforeseen: 'Imprevistos' },
-  modules: {},
+  modules: { reimbursable: false },
 });
 
 /** A fake Ollama that answers `answer` token by token and records what it was asked. */

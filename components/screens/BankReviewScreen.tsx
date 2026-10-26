@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { CheckCheck, ChevronDown, CreditCard, Landmark, Pencil, Search, Tag } from 'lucide-react';
 import { InstallmentFormSheet } from '@/components/card/InstallmentFormSheet';
@@ -183,20 +182,8 @@ function Review() {
   const header = <PageHeader title="Conferir" backHref="/bancos" />;
   if (!settings) return header;
 
-  if (!isModuleOn(settings, 'expenses')) {
-    return (
-      <div className="flex flex-1 flex-col gap-4 pb-10">
-        {header}
-        <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm">
-          <p className="text-foreground font-semibold">Falta o módulo Lançamentos</p>
-          <p className="text-muted text-sm">O que chegou dos bancos entra nos Lançamentos. Ligue o módulo para conferir.</p>
-          <Link href="/modulos" className="text-primary text-sm font-semibold">
-            Ver os módulos
-          </Link>
-        </section>
-      </div>
-    );
-  }
+  // Lançamentos restricted for this account: there is nowhere to launch what came from the banks.
+  if (!isModuleOn(settings, 'expenses')) return header;
 
   const cardOn = isModuleOn(settings, 'card');
   // Where what was missing from a payback goes (the person may have renamed it).

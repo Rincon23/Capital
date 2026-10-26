@@ -171,7 +171,7 @@ export function AdminScreen() {
       showToast(
         vip
           ? `${target.email} agora vê os módulos restritos.`
-          : `${target.email} não vê mais os módulos restritos. Eles desligaram para essa conta, sem apagar nada.`,
+          : `${target.email} não vê mais os módulos restritos. Nenhum dado foi apagado.`,
         'success',
       );
     } catch (err) {
@@ -188,7 +188,7 @@ export function AdminScreen() {
     if (vipOnly && using > 0) {
       const confirmed = await confirm({
         title: `Restringir ${name}?`,
-        message: `${accountsWithoutVip(using)} ${using === 1 ? 'usa' : 'usam'} este módulo agora, e ele vai desligar e sumir para ${using === 1 ? 'ela' : 'elas'}. Nenhum dado é apagado: se ele voltar a ser de todos, é só ligar de novo.`,
+        message: `Ele some para ${accountsWithoutVip(using)}, sem apagar nenhum dado.`,
         confirmLabel: 'Restringir',
         cancelLabel: 'Agora não',
       });
@@ -211,11 +211,11 @@ export function AdminScreen() {
       const { turnedOff } = await adminRepository.setModuleVip(target.key, vipOnly);
       showToast(
         vipOnly
-          ? `${name} agora é restrito.${turnedOff > 0 ? ` Desligado para ${accountsWithoutVip(turnedOff)}, sem apagar nada.` : ''}`
+          ? `${name} agora é restrito.${turnedOff > 0 ? ` Sumiu para ${accountsWithoutVip(turnedOff)}.` : ''}`
           : `${name} liberado para todas as contas.`,
         'success',
       );
-      // The owner's own screens (the "Restrito" marks in Módulos) read the new choice too.
+      // The owner's own screens read the new choice too.
       router.refresh();
     } catch (err) {
       apply(!vipOnly);
@@ -332,9 +332,7 @@ export function AdminScreen() {
 
       <Card title="Módulos restritos" icon={EyeOff} tone="purple">
         <p className="text-muted text-sm">
-          Um módulo restrito some para as contas sem acesso: não aparece em Módulos, nos widgets nem em nenhum
-          outro lugar, e elas não ficam sabendo que ele existe. Quem já usava fica com ele desligado, sem
-          perder nenhum dado.
+          Some para quem não tem acesso, sem apagar dados. Ninguém fica sabendo que ele existe.
         </p>
         <ul className="divide-border -mx-1 flex flex-col divide-y">
           {overview.modules.map((item) => (

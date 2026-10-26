@@ -55,7 +55,6 @@ import {
   homeEditTourSteps,
   isModuleOn,
   moveWidget,
-  offModuleWidgets,
   pageOfWidget,
   removeWidget,
   resolveHomePages,
@@ -63,6 +62,7 @@ import {
   withoutEmptyPages,
   type HomePages,
 } from '@/lib/modules';
+import { fetchHomeTemplate } from '@/lib/storage/homeTemplate';
 import { getSessionHomePage, setSessionHomePage } from '@/lib/storage/preferences';
 import { AppDrawer, drawerCommits, type AppDrawerHandle } from '@/components/layout/AppDrawer';
 import { IN_MS } from '@/components/layout/swipePhysics';
@@ -73,7 +73,6 @@ import { GreetingHeader } from '@/components/month/GreetingHeader';
 import { MonthActions } from '@/components/month/MonthActions';
 import { useMonthContext } from '@/components/month/MonthContext';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
-import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
@@ -86,7 +85,6 @@ import { EditableWidget } from './EditableWidget';
 import { HomeDesk, type HomeDeskHandle } from './HomeDesk';
 import { Card, HomeCards, HomeCardsData, RESIZABLE_HOME_CARDS, effectiveSize } from './HomeCards';
 import { HOME_FOOTER_HEIGHT } from './homeLayout';
-import { UsageChooser } from './UsageChooser';
 import { TRAY_BAR_HEIGHT, TRAY_ID, WidgetTray, widgetOfTrayDrag } from './WidgetTray';
 
 /** Saved once the app drawer was opened: from then on the up-arrow stops hopping. */
@@ -147,7 +145,7 @@ function pageAfterCleanup(pages: HomePages, index: number): number {
  * (on screen first, undone with an error message if the save fails).
  */
 export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; openApps: boolean }) {
-  const { month, refresh } = useMonthContext();
+  const { month } = useMonthContext();
   const { saveSettings } = useSettings();
   const { showToast } = useToast();
   const confirm = useConfirm();
@@ -165,8 +163,6 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
   const [drag, setDrag] = useState<ActiveDrag | null>(null);
   /** The widget whose "Mover" sheet is open. */
   const [moving, setMoving] = useState<HomeWidgetKey | null>(null);
-  /** The categories being set up, right after a new account picked how to use the app. */
-  const [settingUp, setSettingUp] = useState(false);
 
   const desk = useRef<HomeDeskHandle>(null);
   const drawer = useRef<AppDrawerHandle>(null);
@@ -192,7 +188,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
   // The widget the "Como organizar" tour points at: the first of the tela on screen, or of the
   // first tela that has any.
   const tourPage = pages[shown]?.length ? shown : pages.findIndex((page) => page.length > 0);
-  const areasHint = useOneTimeHint(AREAS_HINT, { when: !editing && !settingUp && pages.length > 1 });
+  const areasHint = useOneTimeHint(AREAS_HINT, { when: !editing && pages.length > 1 });
   // Swiping to another tela is the thing the hint explains: done, it goes.
   const dismissAreasHint = areasHint.dismiss;
   const firstPage = useRef(shown);
@@ -396,19 +392,28 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     void save({ ...previous, pages: next }, previous);
   }
 
+  /** Back to the Início every new account gets (the template's), or the default order without one. */
   async function restoreDefault() {
     const confirmed = await confirm({
       title: 'Voltar ao padrão?',
-      message: 'Tudo volta para uma tela só, com todos os widgets, na ordem padrão.',
+      message: 'A Início fica como a de quem acabou de chegar.',
       confirmLabel: 'Voltar ao padrão',
     });
     if (!confirmed) return;
+    let template;
+    try {
+      template = await fetchHomeTemplate();
+    } catch {
+      showToast('Não foi possível voltar ao padrão. Tente de novo.', 'error');
+      return;
+    }
     const previous = layoutRef.current;
     setCurrent(0);
     setTrayOpen(false);
-    const ok = await save({ pages: [homeCards(settingsRef.current)], hidden: [], sizes: {} }, previous, {
-      asDefault: true,
-    });
+    const next = template?.homePages
+      ? { pages: template.homePages, hidden: template.homeHidden, sizes: template.homeCardSizes }
+      : { pages: [homeCards(settingsRef.current)], hidden: template?.homeHidden ?? [], sizes: template?.homeCardSizes ?? {} };
+    const ok = await save(next, previous, { asDefault: !template?.homePages });
     if (ok) showToast('A Início voltou ao padrão.');
   }
 
@@ -676,9 +681,7 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
     }
     return (
       <div className={`flex flex-col gap-4 px-4 pt-3 ${withActions ? 'pb-32' : 'pb-6'}`}>
-        {available.length === 0 ? (
-          <UsageChooser onKit={() => setSettingUp(true)} />
-        ) : widgets.length === 0 ? (
+        {widgets.length === 0 ? (
           <EmptyState
             icon={<IconTile icon={LayoutGrid} tone="neutral" size="lg" />}
             title="Nenhum widget na Início"
@@ -813,7 +816,6 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
               open={trayOpen}
               onOpenChange={setTrayOpen}
               hidden={hidden}
-              offModule={offModuleWidgets(settings)}
               sizes={layout.sizes}
               trayDrag={drag?.fromTray ?? false}
               dragActive={drag !== null}
@@ -845,18 +847,6 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
         onOpened={learnApps}
         onClosed={() => appsButton.current?.focus({ preventScroll: true })}
       />
-
-      {settingUp && (
-        <OnboardingWizard
-          settings={settings}
-          saveSettings={saveSettings}
-          onSkip={() => setSettingUp(false)}
-          onComplete={() => {
-            setSettingUp(false);
-            void refresh();
-          }}
-        />
-      )}
 
       {moving && (
         <BottomSheet open title={`Mover ${widgetName(moving)}`} onClose={() => setMoving(null)}>

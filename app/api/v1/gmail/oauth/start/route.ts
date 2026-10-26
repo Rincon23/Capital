@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from 'next/server';
 import type { GmailConnectError } from '@/lib/gmail';
 import { userAccess } from '@/lib/server/access';
 import { getAuth } from '@/lib/server/auth';
-import { PostgresBudgetRepository } from '@/lib/server/budgetRepository';
 import { getDb } from '@/lib/server/db';
 import { requireGmailAccess } from '@/lib/server/gmail/access';
 import {
@@ -25,10 +24,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const session = await getAuth().api.getSession({ headers: request.headers });
     if (!session) return NextResponse.redirect(`${appBaseUrl()}/login`, 303);
     const db = getDb();
-    await requireGmailAccess(
-      new PostgresBudgetRepository(db, session.user.id),
-      await userAccess(db, session.user.id, session.user.email),
-    );
+    requireGmailAccess(await userAccess(db, session.user.id, session.user.email));
 
     const config = googleConfig();
     if (!config) return back('nao-configurado');
@@ -45,7 +41,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     response.headers.set('Cache-Control', 'no-store');
     return response;
   } catch (err) {
-    if (err instanceof HttpError) return back('modulo-desligado');
+    if (err instanceof HttpError) return back('indisponivel');
     console.error('[gmail] falha ao iniciar a conexão:', err);
     return back('inicio-falhou');
   }

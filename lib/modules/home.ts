@@ -12,6 +12,17 @@ export const MAX_WIDGETS_PER_HOME_PAGE = 50;
 export type HomePages = HomeWidgetKey[][];
 
 /**
+ * The Início every account starts from (and goes back to with "Voltar ao padrão"): the template
+ * account's telas, what it took off and its card sizes (see lib/server/homeTemplate.ts).
+ */
+export interface HomeTemplate {
+  /** Null: the default order (the template never arranged its Início). */
+  homePages: HomePages | null;
+  homeHidden: HomeWidgetKey[];
+  homeCardSizes: Partial<Record<HomeWidgetKey, 'half' | 'full'>>;
+}
+
+/**
  * The widgets a module brings to the Início besides its own card. They come right after the card,
  * except a `first` one, which goes at the top of the first área.
  */
@@ -27,7 +38,7 @@ export const HOME_WIDGET_KEYS: HomeWidgetKey[] = [
   ...EXTRA_HOME_WIDGETS.map(({ key }) => key),
 ];
 
-/** The module a widget belongs to: it is there while that module is on. */
+/** The module a widget belongs to: it is there while the account has that module. */
 export function widgetModule(key: HomeWidgetKey): ModuleKey {
   return EXTRA_HOME_WIDGETS.find((widget) => widget.key === key)?.module ?? (key as ModuleKey);
 }
@@ -145,12 +156,6 @@ export function resolveHomePages(source: HomeSource): HomePages {
 export function hiddenHomeCards(source: HomeSource): HomeWidgetKey[] {
   const hidden = source?.homeHidden ?? [];
   return homeCards(source).filter((key) => hidden.includes(key));
-}
-
-/** The widgets of the modules that are off, in catalog order: they come once the module is on. */
-export function offModuleWidgets(source: ModulesSource): HomeWidgetKey[] {
-  const modules = resolveModules(source);
-  return MODULES.filter((m) => m.homeCard && !modules[m.key]).flatMap((m) => withExtras(m.key));
 }
 
 /** The page a widget is in, or -1. */

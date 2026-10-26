@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { Expense, Income } from '../../budget/types';
-import { MODULE_KITS } from '../kits';
-import { turnModulesOn } from '../flags';
 import { firstStepNoticesToAdd, firstStepsDone, wantsFirstSteps } from '../firstSteps';
 
 const income: Income = { id: 'i1', source: 'Salário', amount: 3000, date: '2026-10-01' };
@@ -13,12 +11,6 @@ const expense: Expense = {
   amount: 45,
   date: '2026-10-02',
 };
-
-describe('kits do primeiro acesso', () => {
-  it('cada kit liga os seus módulos de uma vez, numa conta sem nada ligado', () => {
-    for (const kit of MODULE_KITS) expect(turnModulesOn({}, kit.modules).ok).toBe(true);
-  });
-});
 
 describe('Primeiros passos', () => {
   it('existe só para a conta que passou pela escolha, até os três estarem feitos', () => {

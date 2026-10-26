@@ -24,7 +24,7 @@ import { hasLocalData, importLocalDataToCloud } from '@/lib/storage/localMigrati
 
 /**
  * What belongs to no module: the account, the theme, backups and the local data of this device.
- * Módulos and Privacidade are entries of the app drawer, and each module's own settings live behind
+ * Privacidade is an entry of the app drawer, and each module's own settings live behind
  * the gear in its screen (categories in Categorias, reminder times in Lembretes, and so on).
  */
 export function ConfiguracoesScreen() {

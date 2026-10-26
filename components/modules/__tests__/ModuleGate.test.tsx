@@ -11,10 +11,6 @@ const settings: BudgetSettings = { topics: [], specialCategories: DEFAULT_SPECIA
 vi.mock('@/components/providers/SettingsProvider', () => ({
   useSettings: () => ({ settings, loading: false }),
 }));
-vi.mock('../useModuleSwitch', () => ({
-  useModuleSwitch: () => ({ turnOn: vi.fn(), turnOnWithParents: vi.fn(), busy: false }),
-  turnOnTogetherLabel: (count: number) => `Ligar os ${count}`,
-}));
 
 function renderGate(module: ModuleKey, access: { vip: boolean; vipModules: ModuleKey[] }) {
   auth.user = access;
@@ -40,13 +36,13 @@ describe('ModuleGate e os módulos restritos da Administração', () => {
     expect(screen.queryByText(/Lançamentos|Histórico/)).not.toBeInTheDocument();
   });
 
-  it('um módulo que deixou de ser restrito pode ser ligado por qualquer conta', () => {
+  it('um módulo que não é restrito abre para qualquer conta, sem nada para ligar', () => {
     renderGate('banks', { vip: false, vipModules: ['voice'] });
-    expect(screen.getByRole('button', { name: 'Ligar Open Finance' })).toBeInTheDocument();
+    expect(screen.getByText('tela do módulo')).toBeInTheDocument();
   });
 
-  it('a conta com acesso liga mesmo o que é restrito', () => {
+  it('a conta com acesso abre mesmo o que é restrito', () => {
     renderGate('banks', { vip: true, vipModules: ['banks', 'voice'] });
-    expect(screen.getByRole('button', { name: 'Ligar Open Finance' })).toBeInTheDocument();
+    expect(screen.getByText('tela do módulo')).toBeInTheDocument();
   });
 });

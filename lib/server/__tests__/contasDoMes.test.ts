@@ -156,7 +156,7 @@ describe('Contas do mês', () => {
     const quiet = await newAccount();
     await quiet.wallet.saveRecurring(bill());
     await quiet.wallet.saveRecurringSettings({ notifyEnabled: false, notifyTime: '09:00', repeatUntilLaunched: true });
-    const off = await newAccount({ recurring: true });
+    const off = await newAccount({ recurring: true, expenses: false });
     await off.wallet.saveRecurring(bill());
 
     const a = recordingSender(quiet.id);

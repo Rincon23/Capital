@@ -7,15 +7,17 @@ import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ModuleFlags } from '../../budget/types';
+import { ALL_MODULES } from '../../modules';
 import { requireNotVipLocked, userAccess, vipModules } from '../access';
-import { listModules, setModuleVip, setVip } from '../adminRepository';
+import { listModules, listUsers, setModuleVip, setVip, syncModules } from '../adminRepository';
 import * as schema from '../db/schema';
 import type { Database } from '../db/types';
 import { HttpError } from '../httpError';
 
 /**
- * "Só VIP" in Administração: the owner picks which modules are only for VIP accounts. Becoming VIP
- * only, a module goes off for everyone else (their data stays); opened again, they may turn it on.
+ * "Restrito" in Administração: the owner picks which modules only accounts with access have. Every
+ * other module is on for everyone. Restricted, a module goes off for everyone else (their data
+ * stays); opened again, it is on for everyone.
  */
 
 let db: Database;
@@ -31,6 +33,7 @@ const OWNER = 'dono@capital.test';
 beforeEach(async () => {
   vi.stubEnv('OWNER_EMAIL', OWNER);
   await db.delete(schema.moduleAccess);
+  await db.delete(schema.budgetSettings);
 });
 
 afterEach(() => {
@@ -69,17 +72,17 @@ describe('módulos só para VIP', () => {
     });
   });
 
-  it('ao virar "Só VIP", desliga para quem não é VIP (e o que depende dele), sem apagar nada', async () => {
-    const common = await newPerson({ expenses: true, budget: true, history: true, gmail: true });
-    const vip = await newPerson({ expenses: true, budget: true }, { vip: true });
-    const owner = await newPerson({ expenses: true, budget: true }, { email: OWNER });
+  it('ao virar restrito, desliga para quem não tem acesso (e o que depende dele), sem apagar nada', async () => {
+    const common = await newPerson({});
+    const vip = await newPerson({}, { vip: true });
+    const owner = await newPerson({}, { email: OWNER });
     await db.insert(schema.gmailKeywords).values({ userId: common, keyword: 'fatura' });
 
     expect(await setModuleVip(db, 'budget', true)).toBe(1);
     expect(await vipModules(db)).toEqual(['budget', 'banks', 'voice']);
-    expect(await modulesOf(common)).toEqual({ expenses: true, budget: false, history: false, gmail: true });
-    expect(await modulesOf(vip)).toEqual({ expenses: true, budget: true });
-    expect(await modulesOf(owner)).toEqual({ expenses: true, budget: true });
+    expect(await modulesOf(common)).toEqual({ ...ALL_MODULES, budget: false, history: false, banks: false, voice: false });
+    expect(await modulesOf(vip)).toEqual(ALL_MODULES);
+    expect(await modulesOf(owner)).toEqual(ALL_MODULES);
 
     // Nothing of theirs goes away with the switch.
     const keywords = await db
@@ -94,40 +97,58 @@ describe('módulos só para VIP', () => {
     expect(() => requireNotVipLocked({ vip: true, vipModules: ['budget'] }, 'budget')).not.toThrow();
   });
 
-  it('ao deixar de ser VIP, só libera: quem não é VIP liga quando quiser', async () => {
-    const common = await newPerson({ expenses: true });
+  it('ao deixar de ser restrito, liga para todo mundo na hora', async () => {
+    const common = await newPerson({ banks: false, voice: false });
     expect(await setModuleVip(db, 'banks', false)).toBe(0);
     expect(await vipModules(db)).toEqual(['voice']);
-    expect(await modulesOf(common)).toEqual({ expenses: true });
+    expect(await modulesOf(common)).toEqual({ ...ALL_MODULES, voice: false });
     expect((await userAccess(db, common, `${common}@teste.local`)).vipModules).toEqual(['voice']);
 
-    // Back to VIP only: off again for whoever turned it on meanwhile.
-    await db
-      .update(schema.budgetSettings)
-      .set({ modules: { expenses: true, banks: true } })
-      .where(eq(schema.budgetSettings.userId, common));
+    // Restricted again: off again for whoever has no access.
     expect(await setModuleVip(db, 'banks', true)).toBe(1);
-    expect(await modulesOf(common)).toEqual({ expenses: true, banks: false });
+    expect(await modulesOf(common)).toEqual({ ...ALL_MODULES, banks: false, voice: false });
   });
 
-  it('mostra na Administração cada módulo, a escolha e quem sem VIP usa agora', async () => {
-    await newPerson({ expenses: true, gmail: true });
-    await newPerson({ gmail: true }, { vip: true });
+  it('mostra na Administração cada módulo, a escolha e quem sem acesso usa agora', async () => {
+    await newPerson({});
+    await newPerson({}, { vip: true });
     await setModuleVip(db, 'voice', false);
 
     const modules = await listModules(db);
     expect(modules.map((item) => item.key)).toHaveLength(12);
-    const gmail = modules.find((item) => item.key === 'gmail');
-    expect(gmail).toEqual({ key: 'gmail', vipOnly: false, usersWithoutVip: expect.any(Number) });
-    expect(gmail!.usersWithoutVip).toBeGreaterThanOrEqual(1);
+    expect(modules.find((item) => item.key === 'gmail')).toEqual({ key: 'gmail', vipOnly: false, usersWithoutVip: 1 });
+    expect(modules.find((item) => item.key === 'banks')).toEqual({ key: 'banks', vipOnly: true, usersWithoutVip: 0 });
     expect(modules.filter((item) => item.vipOnly).map((item) => item.key)).toEqual(['banks']);
   });
 
-  it('quem perde o VIP fica com os módulos só VIP desligados, e os dados ficam', async () => {
+  it('quem perde o acesso fica sem os módulos restritos, e os dados ficam; quem ganha, tem na hora', async () => {
     await setModuleVip(db, 'gmail', true);
-    const id = await newPerson({ expenses: true, gmail: true, voice: true }, { vip: true });
+    const id = await newPerson({}, { vip: true });
     await setVip(db, id, false);
-    expect(await modulesOf(id)).toEqual({ expenses: true, gmail: false, voice: false });
+    expect(await modulesOf(id)).toEqual({ ...ALL_MODULES, gmail: false, banks: false, voice: false });
     expect((await userAccess(db, id, `${id}@teste.local`)).vip).toBe(false);
+
+    await setVip(db, id, true);
+    expect(await modulesOf(id)).toEqual(ALL_MODULES);
+  });
+
+  it('acerta os módulos de todas as contas ao subir o servidor', async () => {
+    const old = await newPerson({ expenses: true, card: false, banks: true });
+    expect(await syncModules(db)).toBe(1);
+    expect(await modulesOf(old)).toEqual({ ...ALL_MODULES, banks: false, voice: false });
+    expect(await syncModules(db)).toBe(0);
+  });
+
+  it('a conta modelo da Início vê todos os módulos e não aparece na Administração', async () => {
+    vi.stubEnv('HOME_TEMPLATE_EMAIL', 'modelo@capital.local');
+    const template = await newPerson({}, { email: 'modelo@capital.local' });
+    expect(await userAccess(db, template, 'modelo@capital.local')).toEqual({
+      owner: false,
+      vip: true,
+      vipModules: ['banks', 'voice'],
+    });
+    await syncModules(db);
+    expect(await modulesOf(template)).toEqual(ALL_MODULES);
+    expect((await listUsers(db)).map((item) => item.email)).not.toContain('modelo@capital.local');
   });
 });

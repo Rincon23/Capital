@@ -1,6 +1,6 @@
 'use client';
 
-/** An on/off toggle, the same one the Módulos section uses. */
+/** An on/off toggle. */
 export function Switch({
   checked,
   onChange,

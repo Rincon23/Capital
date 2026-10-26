@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { ModuleKey } from '../../budget/types';
+import { MODULE_KEYS } from '../catalog';
 import { HOME_NAV, homeHref, moreItems, navEntry } from '../nav';
 
-const on = (...keys: ModuleKey[]) => Object.fromEntries(keys.map((key) => [key, true]));
+/** Only these modules (the rest saved off, as for a restricted module). */
+const on = (...keys: ModuleKey[]) => Object.fromEntries(MODULE_KEYS.map((key) => [key, keys.includes(key)]));
 const everything = on(
   'expenses',
   'budget',
@@ -33,7 +35,8 @@ describe('bandeja de apps', () => {
     expect(moreItems({ modules: on('expenses', 'reimbursable', 'voice') })).toEqual([
       { group: 'month', label: 'Dinheiro do mês', keys: ['expenses'] },
     ]);
-    expect(moreItems({ modules: {} })).toEqual([]);
+    // Nothing saved: every module, the restricted ones included until access rules apply.
+    expect(moreItems({ modules: {} }).flatMap((group) => group.keys)).toContain('banks');
   });
 });
 

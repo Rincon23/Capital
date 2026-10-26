@@ -1,7 +1,8 @@
 'use client';
 
-import { ModulosScreen } from '@/components/screens/ModulosScreen';
+import { HomeRedirect } from '@/components/layout/HomeRedirect';
 
-export default function Page() {
-  return <ModulosScreen />;
+/** Módulos no longer exists (every module is always on): old links open the Início. */
+export default function ModulosPage() {
+  return <HomeRedirect />;
 }

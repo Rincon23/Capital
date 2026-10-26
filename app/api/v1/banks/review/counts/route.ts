@@ -9,7 +9,7 @@ import { monthKeySchema } from '@/lib/server/validation';
  * the Início and each card's bill in the Cartão.
  */
 export const GET = apiRoute(async ({ request, repo, wallet, banks, access }): Promise<BankReviewCounts> => {
-  await requireReviewAccess(repo, await access());
+  requireReviewAccess(await access());
   const month = request.nextUrl.searchParams.get('month');
   return reviewCounts({ banks, repo, wallet }, { month: month ? monthKeySchema.parse(month) : undefined });
 });

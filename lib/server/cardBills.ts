@@ -162,7 +162,7 @@ export async function runCardBillsJob(
   const users = await db
     .select({ userId: budgetSettings.userId })
     .from(budgetSettings)
-    .where(sql`coalesce((${budgetSettings.modules}->>'card')::boolean, false)`);
+    .where(sql`coalesce((${budgetSettings.modules}->>'card')::boolean, true)`);
 
   let notifications = 0;
   for (const { userId } of users) {

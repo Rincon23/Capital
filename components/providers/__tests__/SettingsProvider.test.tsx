@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { DEFAULT_SPECIAL_CATEGORY_LABELS, createDefaultTopics, type BudgetSettings } from '@/lib/budget';
+import { ALL_MODULES } from '@/lib/modules';
 import { budgetRepository } from '@/lib/storage';
 import { SettingsProvider, useSettings } from '../SettingsProvider';
 
@@ -56,7 +57,7 @@ describe('SettingsProvider', () => {
     );
   });
 
-  it('nunca liga um módulo "Só VIP" numa conta sem VIP, como o servidor', async () => {
+  it('tem todos os módulos, menos os restritos numa conta sem acesso, como o servidor', async () => {
     vi.mocked(budgetRepository.getSettings).mockResolvedValue({
       topics: createDefaultTopics(),
       specialCategories: DEFAULT_SPECIAL_CATEGORY_LABELS,
@@ -68,13 +69,11 @@ describe('SettingsProvider', () => {
     );
     await screen.findByText('pronto');
 
+    const effective = { ...ALL_MODULES, banks: false, voice: false };
     await act(async () => {
-      await api!.saveSettings({ ...api!.settings!, modules: { expenses: true, voice: true } });
+      await api!.saveSettings({ ...api!.settings!, modules: { card: false, voice: true } });
     });
-    expect(vi.mocked(budgetRepository.saveSettings).mock.calls.at(-1)![0].modules).toEqual({
-      expenses: true,
-      voice: false,
-    });
-    await waitFor(() => expect(api!.settings!.modules).toEqual({ expenses: true, voice: false }));
+    expect(vi.mocked(budgetRepository.saveSettings).mock.calls.at(-1)![0].modules).toEqual(effective);
+    await waitFor(() => expect(api!.settings!.modules).toEqual(effective));
   });
 });

@@ -39,7 +39,7 @@ export async function runBanksJob(
     .from(bankKeys)
     .innerJoin(budgetSettings, eq(budgetSettings.userId, bankKeys.userId))
     .innerJoin(user, eq(user.id, bankKeys.userId))
-    .where(sql`coalesce((${budgetSettings.modules}->>'banks')::boolean, false)`);
+    .where(sql`coalesce((${budgetSettings.modules}->>'banks')::boolean, true)`);
 
   const results: BanksJobResult['results'] = [];
   for (const { userId, email } of people) {

@@ -917,8 +917,9 @@ export class PostgresDiagramRepository {
     }
 
     const settings = await this.budget.getSettings();
+    // Lançamentos restricted for this account: nowhere to launch the aporte.
     if (!isModuleOn(settings, 'expenses')) {
-      throw new HttpError(409, 'MODULE_OFF', 'Ligue o módulo Lançamentos para lançar o aporte em Investimentos.');
+      throw new HttpError(409, 'MODULE_OFF', 'Não dá para lançar o aporte como gasto nesta conta.');
     }
     const topic = settings.topics.find((item) => item.preset === 'investimentos' && !item.archived);
     if (!topic) {

@@ -25,32 +25,39 @@ completa ✓"), **Meta da reserva**, **Dentro do planejado**, **Guardar / Retira
 investida), **devolução**, **sem categoria** (a parte da reserva investida fora das categorias da
 reserva), **dividido entre as categorias** e **telas** (as áreas de trabalho da Início).
 
-### Módulos: cada pessoa monta o seu Capital
+### Módulos: todo mundo tem todos
 
-**Tudo o que o app faz é um módulo**, e todos **começam desligados** numa conta nova. Cada pessoa
-liga os seus em **Módulos** (`/modulos`, na bandeja de apps). Desligar um módulo nunca apaga dados:
-ele só some da bandeja, da Início e dos formulários. Religou, está tudo lá.
+**Tudo o que o app faz é um módulo**, e **todo módulo está sempre ligado** para todo mundo: não
+existe ligar nem desligar (a tela Módulos saiu; `/modulos` abre a Início). Quem não tem cartão tem
+o módulo Cartão do mesmo jeito, com a tela vazia e um botão para cadastrar. A única exceção são os
+**módulos restritos** (abaixo), que só as contas com acesso têm.
 
-**Primeiro acesso.** Sem nenhum módulo ligado, a Início pergunta **"Como você quer usar o
-Capital?"** com três cartões (`MODULE_KITS` em `lib/modules/kits.ts`): **Controlar meus gastos**
-(Lançamentos + Gastos por categoria), **Gastos e cartão de crédito** (os dois + Cartão) e
-**Escolher do meu jeito** (abre Módulos). Um kit liga o conjunto num toque (`turnModulesOn`) e abre
-na hora a configuração das categorias, em 3 passos. Depois, o widget **Primeiros passos** fica no
-topo da Início até a pessoa registrar a renda, lançar o primeiro gasto e abrir Categorias ("Ver
-quanto ainda posso gastar"). Cada passo é um botão que abre o lugar certo e se marca sozinho (fica
-salvo nos avisos já vistos). O widget some quando os três estão feitos e, como qualquer widget,
-sai antes pelo "−". Contas de antes dessa tela nunca recebem o widget.
+**Primeiro acesso.** A conta nova abre direto na Início, montada como a **conta modelo** (abaixo),
+com o widget **Primeiros passos** no topo até a pessoa registrar a renda, lançar o primeiro gasto e
+abrir Categorias ("Ver quanto ainda posso gastar"). Cada passo é um botão que abre o lugar certo e
+se marca sozinho (fica salvo nos avisos já vistos). As perguntas das categorias abrem na primeira
+visita a Categorias.
+
+**Conta modelo da Início** (`lib/server/homeTemplate.ts`). `HOME_TEMPLATE_EMAIL` e
+`HOME_TEMPLATE_PASSWORD` no `.env` configuram uma conta só para isso: ela é criada no primeiro login
+(já confirmada, como a conta de teste) e **o que o dono arrumar na Início dela** — telas, ordem,
+widgets tirados e tamanhos — é a Início de **toda conta nova** e o "Voltar ao padrão" da bandeja de
+widgets. Ela vê todos os módulos (para dar para pôr qualquer widget) e não aparece na
+Administração. Sem ela, vale a Início do dono (`OWNER_EMAIL`). Mudar a conta modelo só muda as
+contas novas.
+
+**Na atualização que tirou o liga/desliga** (`lib/server/modulesAlwaysOnMigration.ts`, uma vez só,
+marcada em `job_runs`): a Início de cada conta foi guardada exatamente como aparecia (o resto foi
+para a bandeja, para os widgets dos módulos que estavam desligados não entrarem sozinhos), e depois
+todas as contas, menos a do dono e a modelo, receberam a Início do modelo. Daí em diante cada um
+muda e tira o que quiser.
 
 A ficha de cada módulo (nome, explicação, grupo, dependências, tela e card do Início) fica escrita
-uma vez em `lib/modules/catalog.ts`. A bandeja de apps, a Início e a tela Módulos leem dela. Os
-ícones e os cards ficam em `components/modules`.
+uma vez em `lib/modules/catalog.ts`. A bandeja de apps e a Início leem dela. Os ícones e os cards
+ficam em `components/modules`.
 
-**Tela Módulos.** Um card por módulo, nos grupos da bandeja de apps (Dinheiro do mês, Carteira,
-Investimentos, Assistente): ícone, nome, o que é em poucas palavras (`tagline`) e o switch; tocar no
-card mostra a descrição inteira. No topo, uma linha só: "Ligue só o que você usa. Desligar não
-apaga nada."
-
-**Dependências.** Alguns módulos precisam de outro para funcionar:
+**Dependências.** Alguns módulos são construídos em cima de outro, o que só importa para os
+restritos: se Lançamentos for restrito, tudo o que depende dele some junto.
 
 - Lançamentos
   - Gastos por categoria
@@ -59,38 +66,33 @@ apaga nada."
   - A receber
   - Contas do mês
   - Lançar por voz ou texto
-- Reserva, Diagrama, Lembretes e Monitor de Gmail funcionam sozinhos.
-
-Um módulo cujo pai está desligado aparece com **cadeado** e o selo "Precisa de …". Tocar nele
-abre uma janelinha: "Para usar Histórico e gráficos, ligue também Gastos por categoria", com
-**"Ligar os dois"** (ou "os três", na corrente inteira) e "Agora não". **O app nunca liga o pai
-sozinho**: só quando a própria pessoa pede o conjunto, nessa janelinha, na tela de um módulo
-desligado (`ModuleGate`) ou nos kits do primeiro acesso. Desligar um módulo de que outros dependem
-pede confirmação e desliga os filhos junto. Cada mudança é salva na hora, com "Desfazer". A regra também vale no servidor:
-`resolveModules` só considera ligado um módulo cujos pais estão ligados.
+- Reserva, Open Finance, Diagrama, Lembretes e Monitor de Gmail não dependem de nenhum.
 
 **Módulos restritos.** O dono do servidor (`OWNER_EMAIL`) escolhe em **Administração**, no card
 "Módulos restritos", quais módulos ficam só para as contas com acesso: um switch **"Restrito"** por
 módulo. A escolha fica no banco (`module_access`, uma linha por módulo que o dono mexeu); um módulo
 sem linha segue o padrão do catálogo (`vipByDefault`), que é **Open Finance** e **Lançar por voz ou
-texto**. As contas com acesso ficam em `vip_users` (o dono sempre tem). No código e no banco o
-acesso ainda se chama "vip"; na tela, é "Restrito" e "Acesso aos restritos".
+texto**. As contas com acesso ficam em `vip_users` (o dono e a conta modelo sempre têm). No código e
+no banco o acesso ainda se chama "vip"; na tela, é "Restrito" e "Acesso aos restritos".
 
-- **Quem não tem acesso não fica sabendo que o módulo existe.** Ele some de Módulos (e o grupo que
-  fica vazio some junto), da bandeja de widgets, da política de privacidade (`/privacidade`, que lê
-  quem está vendo) e das perguntas automáticas do Diagrama (Graham, P/VP); o endereço do módulo
-  mostra só "Página não encontrada". Um módulo que depende de um restrito some do mesmo jeito
-  (`isModuleHidden` em `lib/modules/flags.ts`). Quem tem acesso vê a marca **"Restrito"** em Módulos.
-- **Virou restrito:** o módulo desliga para todas as contas sem acesso, junto com os que dependem
+- **Quem não tem acesso não fica sabendo que o módulo existe.** Ele some da bandeja de apps (e o
+  grupo que fica vazio some junto), da bandeja de widgets, da política de privacidade
+  (`/privacidade`, que lê quem está vendo) e das perguntas automáticas do Diagrama (Graham, P/VP); o
+  endereço do módulo mostra só "Página não encontrada" (`ModuleGate`). Um módulo que depende de um
+  restrito some do mesmo jeito (`isModuleHidden` em `lib/modules/flags.ts`).
+- **Virou restrito:** o módulo some para todas as contas sem acesso, junto com os que dependem
   dele, e nenhum dado é apagado (`setModuleVip` em `lib/server/adminRepository.ts`). Se alguém sem
   acesso usa o módulo, a Administração pede confirmação dizendo quantas contas são.
-- **Deixou de ser restrito:** nada muda sozinho; quem quiser liga em Módulos.
-- **Uma conta perde o acesso:** os módulos restritos dela desligam, com os dados guardados.
-- No servidor, `withAccessRules` (em `lib/modules/flags.ts`) mantém desligado o que a conta não
-  pode usar, em qualquer leitura ou gravação das configurações e na importação de backup, e as
-  rotas de Open Finance, IA, Gmail e das perguntas automáticas respondem **404 "Não encontrado."**,
-  sem o nome do módulo (`requireNotVipLocked` em `lib/server/access.ts`). O app recebe a lista no
-  layout (`vipModules` do `AuthUser`) e usa `mayUseModule` e `isModuleHidden`.
+- **Deixou de ser restrito:** volta na hora para todo mundo.
+- **Uma conta ganha ou perde o acesso:** os módulos restritos aparecem ou somem na hora, com os
+  dados guardados.
+- O que cada conta tem fica salvo em `budget_settings.modules` (`effectiveModules`: tudo, menos o
+  restrito sem acesso), que é o que os jobs leem; `syncModules` regrava isso a cada subida do
+  servidor e a cada mudança de acesso. Nas leituras e gravações das configurações e na importação
+  de backup, `withAccessRules` troca o que veio pelo que a conta tem. As rotas de Open Finance, IA,
+  Gmail e das perguntas automáticas respondem **404 "Não encontrado."** a quem não tem acesso, sem o
+  nome do módulo (`requireNotVipLocked` em `lib/server/access.ts`). O app recebe a lista no layout
+  (`vipModules` do `AuthUser`) e usa `mayUseModule` e `isModuleHidden`.
 
 **Dinheiro do mês**
 
@@ -554,17 +556,17 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
 
 - **Áreas de trabalho** (`resolveHomePages` em `lib/modules/home.ts`): a Início tem até **5 áreas**
   lado a lado, cada uma com os seus widgets, salvas por conta em `budget_settings.home_pages`
-  (vale em todos os aparelhos; nulo é o padrão, uma área só na ordem do catálogo). Deslizar para o
+  (vale em todos os aparelhos; conta nova começa com a Início da conta modelo). Deslizar para o
   lado troca de área com a física de antes (a tela acompanha o dedo, cede na primeira e na última,
   troca com 30% da largura ou um peteleco, `components/layout/swipePhysics.ts`); funciona com mouse
   e com as setas, e as bolinhas embaixo dizem em qual você está. Cada área rola sozinha e guarda a
-  própria posição; a área aberta fica guardada na sessão. Um módulo ligado traz o widget dele para
-  o fim da última área; um widget extra (o Calendário dos Lembretes) entra logo depois do card do
+  própria posição; a área aberta fica guardada na sessão. Um módulo novo no catálogo traz o widget
+  dele para o fim da última área; um widget extra (o Calendário dos Lembretes) entra logo depois do card do
   seu módulo, e o Primeiros passos entra no topo da primeira área. Um Início salvo antes das áreas
   (`home_order`) vira a área 1.
 - **Bandeja de apps** (`components/layout/AppDrawer.tsx`): a setinha embaixo da Início (toque, Enter
-  ou arrastar para cima) abre o que era o Mais: a conta, **todo** módulo ligado com tela, agrupado
-  (com o selo de lembretes não lidos no ícone), Módulos, Privacidade, Configurações e, para o dono,
+  ou arrastar para cima) abre o que era o Mais: a conta, **todo** módulo com tela, agrupado
+  (com o selo de lembretes não lidos no ícone), Privacidade, Configurações e, para o dono,
   Administração. Em grade ou lista. Fecha com o botão voltar do celular, Esc, o "⌄" ou arrastando
   para baixo. Links antigos para `/mais` abrem a Início com ela aberta; `/rodape` leva à Início.
 - **Gestos que se mostram** (dicas de uma vez só, nunca um tour): a setinha tem o rótulo "Apps" e,
@@ -582,17 +584,15 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   vizinhas. Segure um widget (240 ms) e arraste para mudar de lugar, até a borda (600 ms) para levar
   à área do lado, ou, na última, criar uma área nova; "Mover" faz o mesmo sem arrastar. **Só o "−"
   vermelho tira um widget da Início**: soltar um widget, em qualquer lugar, nunca tira. A **bandeja
-  de widgets** embaixo traz de volta os tirados, com um toque ou arrastando até o lugar, além de
-  listar os widgets de módulos desligados. Excluir uma área leva os widgets dela para a área do
-  lado; áreas vazias somem ao sair. "Voltar ao padrão" fica no topo: uma área só, com todos os
-  widgets e nenhum guardado. Tudo salva na hora; o botão voltar do celular fecha a bandeja e depois
+  de widgets** embaixo traz de volta os tirados, com um toque ou arrastando até o lugar. Excluir uma área leva os widgets dela para a área do
+  lado; áreas vazias somem ao sair. "Voltar ao padrão" põe a Início da conta modelo
+  (`GET /api/v1/settings/home`). Tudo salva na hora; o botão voltar do celular fecha a bandeja e depois
   sai do modo de edição. O seletor de mês fica no topo de todas as áreas.
 - **Widgets** (`components/modules/home`): tocar num widget abre a tela do módulo. Cada um carrega
   os próprios dados, mostra esqueleto enquanto carrega e, se falhar, não derruba os outros; a
-  carteira e os lembretes são lidos uma vez para todas as áreas. Sem nenhum módulo, a Início mostra
-  "Como você quer usar o Capital?" (veja Primeiro acesso, acima).
-- **Tela de módulo desligado** (`ModuleGate`): explica o módulo e oferece ligar ali mesmo, ou diz
-  qual módulo precisa ser ligado antes.
+  carteira e os lembretes são lidos uma vez para todas as áreas.
+- **Endereço de módulo restrito** (`ModuleGate`): para quem não tem acesso, só "Página não
+  encontrada".
 - **Avisos já vistos**: `budget_settings.dismissed_notices` guarda, por conta, as chaves dos avisos
   de uma vez só: as perguntas da primeira visita de um módulo (`intro:<módulo>`), o Primeiros passos
   (`first-steps` quando a conta passou pelo primeiro acesso, e `first-steps:<passo>` para cada
@@ -617,11 +617,10 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   até a fatura ser paga e notificações deste aparelho. Contas do mês: aviso no dia do vencimento,
   horário, lembrar de novo até lançar e notificações deste aparelho. Reserva: reserva em conta,
   custos de emergência e o ativo das cotas. **Configurações** fica só com o que é
-  geral: conta, tema, backup, dados locais e apagar tudo (Módulos e Privacidade ficam na bandeja de
-  apps).
+  geral: conta, tema, backup, dados locais e apagar tudo (Privacidade fica na bandeja de apps).
 - **Primeira visita** (`useModuleIntro`): o tour nunca começa sozinho, só pelo "?". O único módulo
   que pergunta algo sozinho na primeira visita é Categorias, com a configuração das categorias
-  (veja abaixo), a menos que ela já tenha sido feita no primeiro acesso. Fica guardado por conta,
+  (veja abaixo). Fica guardado por conta,
   então acontece uma vez só, no aparelho que chegar primeiro. Não existe
   mais um tour geral do app nem uma "Ajuda" geral: a ajuda de cada coisa fica na tela dela.
 
@@ -704,6 +703,10 @@ são enviados: o conteúdo, com o link, aparece no terminal do `npm run dev`.
 confirmada) e apaga todos os dados dela **a cada login** (`lib/server/testAccount.ts`): ela sempre
 abre como uma conta nova, para testar o que aparece primeiro. Um e-mail que não termine em `.test`,
 ou o `OWNER_EMAIL`, é ignorado, então nenhuma conta de verdade é apagada por engano.
+
+**Conta modelo da Início.** Com `HOME_TEMPLATE_EMAIL` e `HOME_TEMPLATE_PASSWORD`, entrar com esse
+e-mail e essa senha cria a conta modelo (já confirmada, nunca apagada): a Início que você arrumar
+nela é a de toda conta nova (veja "Módulos", no começo).
 
 Ao entrar pela primeira vez, uma conta nova recebe as 4 categorias padrão e as categorias
 especiais, sem mês de exemplo. Se o dispositivo tiver dados da versão local anterior, o app
@@ -789,8 +792,8 @@ na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de 
   /api/v1                API do app (Route Handlers): o único caminho até o banco
   /api/auth              Endpoints do Better Auth (destino dos links dos e-mails)
 /components
-  /screens               Uma tela por arquivo (Início, Categorias, Lançamentos, Módulos, Configurações…)
-  /modules               Ícones dos módulos, a tela bloqueada, ligar/desligar e os cards do Início
+  /screens               Uma tela por arquivo (Início, Categorias, Lançamentos, Configurações…)
+  /modules               Ícones dos módulos, o 404 dos restritos e os cards do Início
   /month                  Componentes e contexto compartilhados pelas rotas /mes/[month]/*
   /history                Gráficos (Recharts) e o indicador de aderência à meta
   /layout, /ui, /providers, /pwa
@@ -956,7 +959,7 @@ dela); o servidor não tem chave da Pluggy. Como o módulo nasceu (F0–F6) est�
     sincronização da hora relê tudo uma vez (como se o banco tivesse mandado dados) e as
     quantidades chegam sem esperar o banco. Até lá, a tela não mostra conferência nenhuma.
 - O `apiKey` (2 h) fica só em memória, por pessoa.
-- Toda rota confere o "Restrito" e o módulo ligado (`access.ts`) e tem limite de tentativas.
+- Toda rota confere o "Restrito" (`access.ts`) e tem limite de tentativas.
 - A Pluggy devolve a pessoa para `<BETTER_AUTH_URL>/bancos`, ou para `PLUGGY_REDIRECT_URI`, que
   precisa ser https (no desenvolvimento, o endereço publicado; depois, volte à aba do localhost).
 - "Apagar todos os dados" leva o Open Finance junto e tira os itens da Pluggy.
@@ -1026,7 +1029,7 @@ Whisper (whisper.cpp, `WHISPER_URL`, com `--convert` para aceitar o webm do nave
 `/text` respondem em `text/event-stream`: plano com a estimativa de cada etapa, início de cada
 etapa, transcrição, tokens e, no fim, o rascunho (`{ draft, transcript, warnings }`). A resposta
 do modelo é restrita por JSON schema aos campos que faltam e às categorias do usuário, e a geração
-para assim que o JSON fecha. `/warmup` aquece o modelo. Qualquer usuário com o módulo ligado, até 40
+para assim que o JSON fecha. `/warmup` aquece o modelo. Qualquer usuário com acesso ao módulo, até 40
 análises por hora cada. O Ollama atende uma análise por vez: com duas ao mesmo tempo, a segunda espera. Os tempos de cada etapa são aprendidos em memória a cada análise.
 
 ### Lógica de negócio pura (`/lib/budget`)
@@ -1174,10 +1177,12 @@ Os demais testes:
   mesmos exemplos contra o Ollama real, só com `OLLAMA_TEST_URL` definido.
 - **`lib/server/__tests__/moduleAccess.test.ts` e `lib/modules/__tests__/flags.test.ts`:** o
   "Restrito" da Administração: o padrão (Open Finance e Lançar por voz ou texto), a escolha do dono
-  módulo por módulo, o módulo que vira restrito desligando para quem não tem acesso (e os que
-  dependem dele) sem apagar nada, o que volta a ser de todos, a conta que perde o acesso e o 404
-  sem nome do servidor. `ModuleGate.test.tsx` e `ModulosScreen.test.tsx`: quem não tem acesso não
-  vê o módulo restrito em lugar nenhum, nem o que depende dele.
+  módulo por módulo, todo o resto ligado para todo mundo, o módulo que vira restrito sumindo para
+  quem não tem acesso (e os que dependem dele) sem apagar nada, o que volta a ser de todos na hora,
+  a conta que perde ou ganha o acesso, a conta modelo, o acerto a cada subida (`syncModules`) e o
+  404 sem nome do servidor. `ModuleGate.test.tsx`: quem não tem acesso não vê o módulo restrito,
+  nem o que depende dele. `modulesAlwaysOn.test.ts`: a Início guardada como estava, a Início do
+  modelo (ou do dono) para todos uma vez só, e a conta nova partindo dela.
 - **`lib/gmail/__tests__/match.test.ts` e `lib/server/__tests__/gmail.test.ts`:** palavras-chave
   (maiúsculas, acentos, remetente, prévia), um aviso por e-mail com todas as palavras e nunca
   repetido, e-mails enviados e spam ignorados, `historyId` expirado, conexão recusada (avisa uma
@@ -1187,7 +1192,7 @@ Os demais testes:
   - a sincronização: um ano na primeira leitura, só "chegou algo?" enquanto o banco não manda
     nada, 7 dias para trás depois, a pendente que vira confirmada sem duplicar e sem perder o que
     a pessoa decidiu, `UPDATING`, item sumido, leitura sem contas e duas leituras ao mesmo tempo;
-  - o job: só quem pode usar o módulo e está com ele ligado, uma vez por hora, e uma falha não para
+  - o job: só quem pode usar o módulo, uma vez por hora, e uma falha não para
     ninguém;
   - "Parado" depois de 48 h, o aviso de autorização e os saldos guardados só no servidor (a tela
     recebe só o nome e o tipo de cada conta);
@@ -1208,13 +1213,11 @@ Os demais testes:
   - a autorização largada, apagada aqui e na Pluggy, e a conexão que caiu;
   - tirar um banco, desconectar tudo e "Apagar todos os dados";
   - os nomes sugeridos e o "há 5 h".
-- **`lib/modules/__tests__`:** o catálogo, as dependências (filho travado sem o pai, o que ligar
-  antes e em que ordem, desligar em cascata, a árvore), os kits do primeiro acesso, o Primeiros
-  passos (quem recebe, como cada passo se marca, quando some), a bandeja de apps, as áreas da Início
+- **`lib/modules/__tests__`:** o catálogo, todos os módulos ligados (e o que depende de um
+  restrito sumindo junto), o Primeiros passos (quem recebe, como cada passo se marca, quando some), a bandeja de apps, as áreas da Início
   (padrão, a ordem antiga, widget novo, repetidos, áreas vazias, mover, pôr, tirar, criar e excluir
   área) e os tours (todo módulo tem tour e botão de ajuda, e toda âncora existe nas telas).
-- **`components/modules/home/__tests__`:** "Como você quer usar o Capital?" (cada cartão liga o seu
-  conjunto ou abre Módulos) e o widget Primeiros passos.
+- **`components/modules/home/__tests__`:** o widget Primeiros passos.
 - **`lib/budget/__tests__/topics.test.ts`, `components/settings/__tests__` e
   `components/onboarding/__tests__`:** as categorias padrão e suas descrições, restaurar o padrão
   (inclusive com dados antigos, sem `preset`), nunca apagar uma categoria, a arquivada no mês atual,
@@ -1239,7 +1242,7 @@ Os demais testes:
 
 ### Telas (seção 7)
 
-- [x] **Início** — painel com um card por módulo ligado, seletor de mês, FAB "+ Lançar gasto", "+ Renda" e o microfone
+- [x] **Início** — painel com um card por módulo, seletor de mês, FAB "+ Lançar gasto", "+ Renda" e o microfone
 - [x] **Categorias do mês** — cabeçalho com renda/gasto/posso-gastar/saldo, card por categoria com barra de progresso (verde/amarelo/vermelho), card de custos fixos/imprevistos com rateio por categoria e "Fechar mês"
 - [x] **Detalhe da categoria** — lista de gastos editável/excluível e a conta completa (`renda × pct − rateio + mês passado = posso gastar`)
 - [x] **Lançamentos do mês** — abas Gastos / Renda / Custos Fixos / Imprevistos, busca e edição/exclusão inline

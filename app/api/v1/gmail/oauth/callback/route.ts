@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from 'next/server';
 import type { GmailConnectError } from '@/lib/gmail';
 import { userAccess } from '@/lib/server/access';
 import { getAuth } from '@/lib/server/auth';
-import { PostgresBudgetRepository } from '@/lib/server/budgetRepository';
 import { getDb } from '@/lib/server/db';
 import { requireGmailAccess } from '@/lib/server/gmail/access';
 import {
@@ -36,10 +35,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const session = await getAuth().api.getSession({ headers: request.headers });
     if (!session) return NextResponse.redirect(`${appBaseUrl()}/login`, 303);
     const db = getDb();
-    await requireGmailAccess(
-      new PostgresBudgetRepository(db, session.user.id),
-      await userAccess(db, session.user.id, session.user.email),
-    );
+    requireGmailAccess(await userAccess(db, session.user.id, session.user.email));
 
     const params = request.nextUrl.searchParams;
     const cookie = request.cookies.get(OAUTH_STATE_COOKIE)?.value;
@@ -64,7 +60,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     forgetGmailToken(session.user.id);
     return finish('conectado=1');
   } catch (err) {
-    if (err instanceof HttpError) return fail('modulo-desligado');
+    if (err instanceof HttpError) return fail('indisponivel');
     console.error('[gmail] falha ao concluir a conexão:', err);
     return fail('falhou');
   }

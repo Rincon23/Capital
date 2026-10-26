@@ -123,7 +123,7 @@ export async function runRecurringBillsJob(
     .select({ userId: budgetSettings.userId })
     .from(budgetSettings)
     .where(
-      sql`coalesce((${budgetSettings.modules}->>'recurring')::boolean, false) and coalesce((${budgetSettings.modules}->>'expenses')::boolean, false)`,
+      sql`coalesce((${budgetSettings.modules}->>'recurring')::boolean, true) and coalesce((${budgetSettings.modules}->>'expenses')::boolean, true)`,
     );
 
   let notifications = 0;
