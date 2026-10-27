@@ -82,7 +82,9 @@ export function MissionsProvider({ children }: { children: ReactNode }) {
       }
       const title = after.earned.length === 1 ? missionDefinition(after.earned[0].key)?.title : null;
       toast(`+${total} XP · ${title ?? `${after.earned.length} missões`}`);
-      if (before && levelOf(before.xp).level < level.level) setLevelUp(level);
+      // On the first check since the app loaded there is no `before`: what it had is what it has
+      // now minus what it just got (opening the app the next day can be the step to a new level).
+      if (levelOf(before?.xp ?? after.xp - total).level < level.level) setLevelUp(level);
     },
     [toast],
   );
@@ -106,7 +108,9 @@ export function MissionsProvider({ children }: { children: ReactNode }) {
           setStatus(next);
           celebrate(before, next);
         } catch {
-          // Offline or a hiccup: the next check catches up (the server keeps what was done).
+          // Offline or a hiccup: what the data shows the next check catches up by itself, and the
+          // visits wait for it — the server never heard of them.
+          for (const key of visits) pending.current.add(key);
         }
       } while (again.current);
     } finally {
@@ -122,11 +126,15 @@ export function MissionsProvider({ children }: { children: ReactNode }) {
     [run],
   );
 
-  /** Queues visits worth sending: not done yet, and missions the account has (once that is known). */
-  const queue = useCallback((keys: MissionKey[]) => {
+  /**
+   * Queues visits worth sending: not done yet, and missions the account has (once that is known).
+   * With `fresh`, the status may be from another day (the app was left open overnight, or into a
+   * new month) and its "done" no longer holds: everything goes, the server keeps it to once.
+   */
+  const queue = useCallback((keys: MissionKey[], { fresh = false }: { fresh?: boolean } = {}) => {
     const current = statusRef.current;
     const worth = keys.filter(
-      (key) => !current || current.missions.some((mission) => mission.key === key && !mission.done),
+      (key) => fresh || !current || current.missions.some((mission) => mission.key === key && !mission.done),
     );
     for (const key of worth) pending.current.add(key);
     return worth.length > 0;
@@ -151,7 +159,9 @@ export function MissionsProvider({ children }: { children: ReactNode }) {
     const afterSave = () => schedule(AFTER_SAVE_MS);
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
-      queue(['open-app']);
+      // An installed app comes back from memory, often on another day: today's opening, and the
+      // screen it is on, count again whatever the old status says.
+      queue(['open-app', ...visitsForPath(window.location.pathname, window.location.search)], { fresh: true });
       schedule(0);
     };
     window.addEventListener(DATA_CHANGED_EVENT, afterSave);

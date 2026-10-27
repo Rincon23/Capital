@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ListFilter, X } from 'lucide-react';
+import { useMissions } from '@/components/missions/MissionsProvider';
 import { ModuleGate } from '@/components/modules/ModuleGate';
 import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
 import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
@@ -86,6 +87,9 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
   const [configuring, setConfiguring] = useState(false);
   useModuleIntro('expenses', { ready: !loading && !!monthData && !!settings });
 
+  // "Conhecer A receber", of the Missões: done by opening the list filtered to it (below).
+  const { visit } = useMissions();
+
   // A link to "?aba=…" while the screen is already open (the "A receber" tour) sets the filter.
   useEffect(() => {
     if (!initialFilter) return;
@@ -129,6 +133,9 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
   const filterLabel = (key: LancamentosFilter) =>
     filterOptions.find((option) => option.key === key)?.label ?? '—';
   const onlyReimbursable = filter.length === 1 && filter[0] === 'reimbursable';
+  useEffect(() => {
+    if (onlyReimbursable) visit('meet-reimbursable');
+  }, [onlyReimbursable, visit]);
   // "A receber" is not only this month's: what someone still owes from before comes along.
   const owed = usePendingReimbursables(month, onlyReimbursable, monthData);
   // Earlier months' entries marked as paid here: they stay in "Já me pagaram" (to undo) for now.

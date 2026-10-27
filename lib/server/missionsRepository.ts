@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, ne, notInArray, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, ne, notInArray, or, sql, type SQL } from 'drizzle-orm';
 import type { PgTable } from 'drizzle-orm/pg-core';
 import { UNASSIGNED_CARD_ID } from '../budget/cards';
 import { previousMonth } from '../budget/date';
@@ -15,12 +15,13 @@ import {
   type MissionKey,
   type MissionsStatus,
 } from '../gamification/missions';
-import { APP_TIME_ZONE, zonedToday } from '../reminders/time';
+import { APP_TIME_ZONE, zonedInstant, zonedToday } from '../reminders/time';
 import {
   bankConnections,
   cards,
   expenses,
   incomes,
+  installments,
   months,
   pushSubscriptions,
   recurringExpenses,
@@ -54,7 +55,8 @@ export class PostgresMissionsRepository {
     const month = today.slice(0, 7);
     const [
       incomeThisMonth,
-      expenseThisMonth,
+      expenseEnteredThisMonth,
+      purchaseThisMonth,
       anyIncome,
       anyExpense,
       anyReminder,
@@ -62,11 +64,22 @@ export class PostgresMissionsRepository {
       anyRecurring,
       anyPushDevice,
       anyBankConnection,
-      anyReimbursable,
       previous,
     ] = await Promise.all([
       this.exists(incomes, and(eq(incomes.userId, this.userId), eq(incomes.month, month))),
-      this.exists(expenses, and(eq(expenses.userId, this.userId), eq(expenses.month, month))),
+      // The charges of an older parcelled purchase come by themselves when the month is created.
+      this.exists(
+        expenses,
+        and(
+          eq(expenses.userId, this.userId),
+          eq(expenses.month, month),
+          or(isNull(expenses.source), ne(expenses.source, 'installment')),
+        ),
+      ),
+      this.exists(
+        installments,
+        and(eq(installments.userId, this.userId), gte(installments.createdAt, zonedInstant(`${month}-01`, '00:00'))),
+      ),
       this.exists(incomes, eq(incomes.userId, this.userId)),
       this.exists(expenses, eq(expenses.userId, this.userId)),
       this.exists(reminders, eq(reminders.userId, this.userId)),
@@ -74,7 +87,6 @@ export class PostgresMissionsRepository {
       this.exists(recurringExpenses, eq(recurringExpenses.userId, this.userId)),
       this.exists(pushSubscriptions, eq(pushSubscriptions.userId, this.userId)),
       this.exists(bankConnections, eq(bankConnections.userId, this.userId)),
-      this.exists(expenses, and(eq(expenses.userId, this.userId), eq(expenses.categoryKind, 'reimbursable'))),
       this.db
         .select({ closed: months.closed })
         .from(months)
@@ -82,7 +94,7 @@ export class PostgresMissionsRepository {
     ]);
     return {
       incomeThisMonth,
-      expenseThisMonth,
+      expenseThisMonth: expenseEnteredThisMonth || purchaseThisMonth,
       anyIncome,
       anyExpense,
       anyReminder,
@@ -90,7 +102,6 @@ export class PostgresMissionsRepository {
       anyRecurring,
       anyPushDevice,
       anyBankConnection,
-      anyReimbursable,
       previousMonthClosed: previous[0]?.closed ?? null,
     };
   }

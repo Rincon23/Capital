@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
+import { eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -13,6 +14,7 @@ import * as schema from '../db/schema';
 import type { Database } from '../db/types';
 import { PostgresMissionsRepository } from '../missionsRepository';
 import { PostgresRemindersRepository } from '../remindersRepository';
+import { PostgresWalletRepository } from '../walletRepository';
 
 /**
  * The XP of the Missões: given by the server, for what the account has or for where the app says
@@ -83,6 +85,37 @@ describe('Missões', () => {
     // Back in October nothing of November counts.
     const october = await missions.check({ modules: ALL_MODULES, now: at('2026-10-28') });
     expect(done(october, 'month-expense')).toBe(false);
+  });
+
+  it('as parcelas que o mês novo ganha sozinho não contam como "Lançar um gasto"; registrar a compra conta', async () => {
+    const { id, budget, missions } = await newAccount();
+    const wallet = new PostgresWalletRepository(db, id, budget);
+    await budget.ensureMonth('2026-10');
+    await wallet.saveInstallment({
+      id: 'tv',
+      name: 'TV',
+      categoryKind: 'unforeseen',
+      firstDebitDate: '2026-11-10',
+      purchaseDate: '2026-10-20',
+      count: 10,
+      totalAmount: 1000,
+      accounting: 'installment',
+    });
+    // Registered on 20/10, with its first charge only in November: October still counts it.
+    await db
+      .update(schema.installments)
+      .set({ createdAt: new Date('2026-10-20T15:00:00Z') })
+      .where(eq(schema.installments.userId, id));
+    const october = await missions.check({ modules: ALL_MODULES, now: MONDAY });
+    expect(done(october, 'month-expense')).toBe(true);
+
+    // November gets its charge by itself when it is created: that is not the person logging one.
+    await budget.ensureMonth('2026-11');
+    expect((await budget.getMonth('2026-11'))?.expenses).toHaveLength(1);
+    const november = await missions.check({ modules: ALL_MODULES, now: at('2026-11-02') });
+    expect(done(november, 'month-expense')).toBe(false);
+    await budget.saveExpense('2026-11', expense(10, '2026-11-02'));
+    expect(done(await missions.check({ modules: ALL_MODULES, now: at('2026-11-02') }), 'month-expense')).toBe(true);
   });
 
   it('só aceita visita de missão que se faz indo até o lugar, e que a conta tem', async () => {

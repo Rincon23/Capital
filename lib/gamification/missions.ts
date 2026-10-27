@@ -39,6 +39,10 @@ export type MissionKey =
 /** What the server knows about an account, to tell which missions apply and which are done. */
 export interface MissionFacts {
   incomeThisMonth: boolean;
+  /**
+   * An expense the person put in this month — not the charges of an older parcelled purchase,
+   * which the month gets by itself when it is created — or a card purchase registered this month.
+   */
   expenseThisMonth: boolean;
   anyIncome: boolean;
   anyExpense: boolean;
@@ -47,7 +51,6 @@ export interface MissionFacts {
   anyRecurring: boolean;
   anyPushDevice: boolean;
   anyBankConnection: boolean;
-  anyReimbursable: boolean;
   /** Whether last month is closed; null when the account has no last month. */
   previousMonthClosed: boolean | null;
 }
@@ -69,15 +72,16 @@ export interface MissionDefinition {
   when?: (facts: MissionFacts) => boolean;
 }
 
-/** "Conhecer …": the first visit to each module's screen (the first use, for one without a screen). */
+/**
+ * "Conhecer …": the first visit to each module's screen; for one without a screen, its place (the
+ * "A receber" list of Lançamentos, the voice sheet), which the app reports.
+ */
 const MEET: MissionDefinition[] = MODULES.map((definition) => ({
   key: `meet-${definition.key}` as const,
   title: `Conhecer ${definition.screen?.label ?? definition.name}`,
   xp: 20,
   period: 'once' as const,
   module: definition.key,
-  // "A receber" has no screen: it is met by using it.
-  ...(definition.key === 'reimbursable' ? { done: (facts: MissionFacts) => facts.anyReimbursable } : {}),
 }));
 
 /** Every mission, in the order they are offered: the first-time ones, then the month's, the week's and the day's. */

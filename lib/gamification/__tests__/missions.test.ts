@@ -25,7 +25,6 @@ const nothing: MissionFacts = {
   anyRecurring: false,
   anyPushDevice: false,
   anyBankConnection: false,
-  anyReimbursable: false,
   previousMonthClosed: null,
 };
 
@@ -93,7 +92,8 @@ describe('missões', () => {
     expect(isVisitMission('meet-card')).toBe(true);
     // Done by data, never by a visit the app reports.
     expect(isVisitMission('first-expense')).toBe(false);
-    expect(isVisitMission('meet-reimbursable')).toBe(false);
+    // "A receber" has no screen: opening its list is the visit.
+    expect(isVisitMission('meet-reimbursable')).toBe(true);
     expect(isVisitMission('qualquer-coisa')).toBe(false);
   });
 
