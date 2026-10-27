@@ -8,6 +8,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
+    // Claude Code's worktrees are whole copies of the project: their tests are not this checkout's.
+    exclude: ['**/node_modules/**', '.claude/**'],
   },
   resolve: {
     alias: {

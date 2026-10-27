@@ -66,9 +66,53 @@ export interface AdminModule {
   usersWithoutVip: number;
 }
 
+/**
+ * How one automatic test came out. `warn` is something the Capital itself can't fix — a free
+ * outside service (B3, Yahoo, Google) that did not answer, or something worth a look —, `skip` a
+ * test with nothing to test on this server (the AI not set up, no Gmail connected).
+ */
+export type SelfTestStatus = 'ok' | 'warn' | 'fail' | 'skip';
+
+/** What a test is about: the server itself or one module. */
+export type SelfTestArea = 'server' | ModuleKey;
+
+export interface SelfTestResult {
+  /** Stable across runs ("card.bill"): what tells a new failure from one already warned about. */
+  id: string;
+  area: SelfTestArea;
+  name: string;
+  status: SelfTestStatus;
+  /** What went wrong, or why it was skipped; null when it passed. */
+  message: string | null;
+  durationMs: number;
+}
+
+/** Why a run happened: the server starting, the hourly round, or "Rodar agora". */
+export type SelfTestTrigger = 'start' | 'schedule' | 'manual';
+
+export interface SelfTestRun {
+  id: string;
+  trigger: SelfTestTrigger;
+  startedAt: string;
+  finishedAt: string;
+  results: SelfTestResult[];
+}
+
+/** The automatic tests, as Administração shows them. */
+export interface SelfTestOverview {
+  last: SelfTestRun | null;
+  /** A run is going on right now. */
+  running: boolean;
+  /** When the next hourly run starts; null when they don't run on this server (SCHEDULER=off). */
+  nextAt: string | null;
+  /** The runs before the last one, newest first. */
+  history: { id: string; startedAt: string; failed: number; warned: number }[];
+}
+
 export interface AdminOverview {
   status: ServerStatus;
   users: AdminUser[];
   /** Every module, in catalog order. */
   modules: AdminModule[];
+  tests: SelfTestOverview;
 }

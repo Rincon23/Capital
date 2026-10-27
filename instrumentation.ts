@@ -1,7 +1,8 @@
 /**
  * Runs once when the Next.js server starts: brings the database schema up to date before
  * the first request, applies the one-off data migrations that go with it, then starts the
- * background jobs (reminder notifications and quotes, see lib/server/scheduler.ts). In
+ * background jobs (reminder notifications and quotes, see lib/server/scheduler.ts) and the automatic
+ * tests (lib/server/selfTest). In
  * production a failed migration stops the server (the container restarts and the error shows in
  * its logs) instead of serving requests against an outdated schema.
  */
@@ -82,6 +83,10 @@ export async function register() {
   }
 
   startScheduler(getDb);
+
+  // Every module tested inside the server, a few minutes after the start and then every hour.
+  const { startSelfTests } = await import('./lib/server/selfTest/runner');
+  startSelfTests(getDb);
 
   // Traffic spikes, pauses and heat become notifications to the owner (OWNER_EMAIL).
   const { wireLoadGuardAlerts } = await import('./lib/server/alerts');

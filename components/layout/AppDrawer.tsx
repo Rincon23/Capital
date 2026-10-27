@@ -291,18 +291,20 @@ function DrawerPanel({
       title: group.label,
       // Missões is its card here (level, bar and the next missions), not an icon.
       content: group.keys.includes('missions') ? <MissionsCard onNavigate={onNavigate} /> : undefined,
-      items: group.keys.filter((key) => key !== 'missions').map((key) => {
-        const category = MODULE_NOTIFICATION_CATEGORY[key];
-        return {
-          key,
-          label: moduleDefinition(key).name,
-          description: moduleDefinition(key).tagline,
-          icon: MODULE_VISUALS[key].icon,
-          tone: MODULE_VISUALS[key].tone,
-          href: navEntry(key).href(month),
-          badge: category ? unread(category) : 0,
-        };
-      }),
+      items: group.keys
+        .filter((key) => key !== 'missions')
+        .map((key) => {
+          const category = MODULE_NOTIFICATION_CATEGORY[key];
+          return {
+            key,
+            label: moduleDefinition(key).name,
+            description: moduleDefinition(key).tagline,
+            icon: MODULE_VISUALS[key].icon,
+            tone: MODULE_VISUALS[key].tone,
+            href: navEntry(key).href(month),
+            badge: category ? unread(category) : 0,
+          };
+        }),
     })),
     {
       title: 'Ajustes',
@@ -329,10 +331,12 @@ function DrawerPanel({
               {
                 key: 'admin',
                 label: 'Administração',
-                description: 'Saúde do servidor, contas e acessos',
+                description: 'Saúde do servidor, testes, contas e acessos',
                 icon: Server,
                 tone: 'amber' as const,
                 href: '/admin',
+                // Server warnings (a test that failed, the board heating up) land in the bell as "system".
+                badge: unread('system'),
               },
             ]
           : []),

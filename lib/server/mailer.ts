@@ -39,6 +39,17 @@ function getTransporter(): Transporter | null {
 }
 
 /**
+ * Whether SMTP answers and takes the login, without sending anything (the automatic tests in
+ * Administração). False when SMTP is not configured; throws when it refuses or doesn't answer.
+ */
+export async function checkMailer(): Promise<boolean> {
+  const transport = getTransporter();
+  if (!transport) return false;
+  await transport.verify();
+  return true;
+}
+
+/**
  * Whether one more e-mail may go out. The account behind SMTP is a personal Gmail with a daily
  * quota: a script creating accounts for other people's addresses must not be able to spend it
  * (or get it flagged as spam). So there is a ceiling per recipient, per hour and per day

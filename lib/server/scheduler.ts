@@ -185,6 +185,11 @@ export async function runQuotesJob(db: Database, now: Date = new Date()): Promis
 
 const globalForScheduler = globalThis as unknown as { capitalSchedulerStarted?: boolean };
 
+/** Whether this server process runs the background jobs (the automatic tests check they keep up). */
+export function schedulerRunning(): boolean {
+  return globalForScheduler.capitalSchedulerStarted === true;
+}
+
 /** Seconds past the minute the jobs run at, so a slot at 08:00 goes out at 08:00:05. */
 const TICK_OFFSET_MS = 5_000;
 

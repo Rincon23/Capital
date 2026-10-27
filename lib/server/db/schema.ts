@@ -47,6 +47,7 @@ import type {
   QuestionType,
 } from '../../diagram/types';
 import type { PricePoint } from '../../diagram/history';
+import type { SelfTestResult, SelfTestTrigger } from '../../admin/types';
 import type { BankAlertSettings } from '../../banks/alerts';
 import type { BankAccountKind, BankConnectionStatus } from '../../banks/types';
 import type { NotificationCategory } from '../../notifications/types';
@@ -1278,5 +1279,30 @@ export const diagramContributions = pgTable(
   (t) => [
     primaryKey({ columns: [t.userId, t.id] }),
     index('diagram_contributions_user_date_idx').on(t.userId, t.date),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Testes automáticos (lib/server/selfTest), shown in Administração
+// ---------------------------------------------------------------------------
+
+/**
+ * One run of the automatic tests: every result in `results`, with how many failed and warned kept
+ * apart for the history list. Only the latest runs are kept (lib/server/selfTest/runner.ts).
+ */
+export const selfTestRuns = pgTable(
+  'self_test_runs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    trigger: text('trigger').$type<SelfTestTrigger>().notNull(),
+    startedAt: timestamp('started_at', { withTimezone: true }).notNull(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }).notNull(),
+    results: jsonb('results').$type<SelfTestResult[]>().notNull(),
+    failed: integer('failed').notNull(),
+    warned: integer('warned').notNull(),
+  },
+  (t) => [
+    check('self_test_runs_trigger', sql`${t.trigger} in ('start', 'schedule', 'manual')`),
+    index('self_test_runs_started_idx').on(t.startedAt),
   ],
 );

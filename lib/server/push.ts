@@ -34,6 +34,23 @@ function vapidConfig(): VapidConfig | null {
   return { subject, publicKey, privateKey };
 }
 
+/**
+ * Whether the server has VAPID keys (false when not) that the push services would take: throws
+ * when they are malformed, which is the same check `web-push` makes before every send.
+ */
+export function checkVapidKeys(): boolean {
+  const vapid = vapidConfig();
+  if (!vapid) return false;
+  webpush.getVapidHeaders(
+    'https://fcm.googleapis.com',
+    vapid.subject,
+    vapid.publicKey,
+    vapid.privateKey,
+    'aes128gcm',
+  );
+  return true;
+}
+
 /** The key browsers subscribe with, or null while the server has no VAPID keys. */
 export function pushPublicKey(): string | null {
   return vapidConfig()?.publicKey ?? null;

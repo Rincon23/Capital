@@ -6,16 +6,31 @@ import {
   Activity,
   Ban,
   CheckCircle2,
+  CircleMinus,
+  CircleX,
   EyeOff,
+  FlaskConical,
   KeyRound,
   PauseCircle,
   Search,
   Server,
   Thermometer,
+  TriangleAlert,
   Users,
   type LucideIcon,
 } from 'lucide-react';
-import type { AdminModule, AdminOverview, AdminUser, GuardEventKind, ServerStatus } from '@/lib/admin/types';
+import { countByStatus, selfTestAreaName, worstStatus } from '@/lib/admin/selfTest';
+import type {
+  AdminModule,
+  AdminOverview,
+  AdminUser,
+  GuardEventKind,
+  SelfTestArea,
+  SelfTestOverview,
+  SelfTestResult,
+  SelfTestStatus,
+  ServerStatus,
+} from '@/lib/admin/types';
 import type { ModuleKey } from '@/lib/budget';
 import { moduleDefinition, moduleNames } from '@/lib/modules';
 import { adminRepository } from '@/lib/storage/admin';
@@ -76,6 +91,22 @@ const EVENT_VISUALS: Record<GuardEventKind, { icon: LucideIcon; tone: IconTone }
   'temp-alert': { icon: Thermometer, tone: 'amber' },
 };
 
+const TEST_VISUALS: Record<
+  SelfTestStatus,
+  { icon: LucideIcon; tone: IconTone; text: string; label: string }
+> = {
+  ok: { icon: CheckCircle2, tone: 'green', text: 'text-success', label: 'Passou' },
+  warn: { icon: TriangleAlert, tone: 'amber', text: 'text-warning', label: 'Aviso' },
+  fail: { icon: CircleX, tone: 'red', text: 'text-danger', label: 'Falhou' },
+  skip: { icon: CircleMinus, tone: 'neutral', text: 'text-muted', label: 'Não se aplica aqui' },
+};
+
+const RUN_DOT: Record<'ok' | 'warn' | 'fail', string> = {
+  ok: 'bg-success',
+  warn: 'bg-warning',
+  fail: 'bg-danger',
+};
+
 function Card({
   title,
   icon,
@@ -124,6 +155,7 @@ export function AdminScreen() {
   /** The same for the module whose "Restrito" is being saved. */
   const savingModule = useRef<ModuleKey | null>(null);
   const [busyModule, setBusyModule] = useState<ModuleKey | null>(null);
+  const [testing, setTesting] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -227,6 +259,23 @@ export function AdminScreen() {
     void load();
   }
 
+  async function runTests() {
+    setTesting(true);
+    try {
+      const run = await adminRepository.runTests();
+      const { fail } = countByStatus(run.results);
+      showToast(
+        fail > 0 ? `${fail} ${fail === 1 ? 'teste falhou' : 'testes falharam'}.` : 'Tudo funcionando.',
+        fail > 0 ? 'error' : 'success',
+      );
+    } catch (err) {
+      showToast(toStorageErrorMessage(err, 'Não foi possível rodar os testes agora.'), 'error');
+    } finally {
+      setTesting(false);
+    }
+    void load();
+  }
+
   const users = useMemo(() => {
     const list = overview?.users ?? [];
     const term = query.trim().toLowerCase();
@@ -263,6 +312,8 @@ export function AdminScreen() {
           {error} Mostrando os últimos números recebidos.
         </p>
       )}
+
+      <SelfTestsCard tests={overview.tests} now={now} busy={testing} onRun={() => void runTests()} />
 
       <Card title="Servidor agora" icon={Server} tone="amber">
         <StatusBanner level={level} status={status} now={now} />
@@ -331,9 +382,7 @@ export function AdminScreen() {
       </Card>
 
       <Card title="Módulos restritos" icon={EyeOff} tone="purple">
-        <p className="text-muted text-sm">
-          Some para quem não tem acesso, sem apagar dados.
-        </p>
+        <p className="text-muted text-sm">Some para quem não tem acesso, sem apagar dados.</p>
         <ul className="divide-border -mx-1 flex flex-col divide-y">
           {overview.modules.map((item) => (
             <ModuleRow
@@ -384,6 +433,193 @@ export function AdminScreen() {
         )}
       </Card>
     </div>
+  );
+}
+
+/** "1 aviso", "2 avisos"; "1 teste", "3 testes". */
+function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/**
+ * Testes automáticos: every module and the server, tested inside the server a few minutes after it
+ * starts and then every hour (lib/server/selfTest). What failed or warned comes first, with what
+ * went wrong; the whole list is one tap away.
+ */
+function SelfTestsCard({
+  tests,
+  now,
+  busy,
+  onRun,
+}: {
+  tests: SelfTestOverview;
+  now: number;
+  busy: boolean;
+  onRun: () => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const { last } = tests;
+  const results = last?.results ?? [];
+  const counts = countByStatus(results);
+  const worst = last ? worstStatus(results) : 'skip';
+  const problems = [
+    ...results.filter((result) => result.status === 'fail'),
+    ...results.filter((result) => result.status === 'warn'),
+  ];
+  const running = busy || tests.running;
+  const seconds = last
+    ? (new Date(last.finishedAt).getTime() - new Date(last.startedAt).getTime()) / 1000
+    : 0;
+  const runs = [
+    ...(last ? [{ id: last.id, startedAt: last.startedAt, failed: counts.fail, warned: counts.warn }] : []),
+    ...tests.history,
+  ].reverse();
+
+  return (
+    <Card title="Testes automáticos" icon={FlaskConical} tone={TEST_VISUALS[worst].tone}>
+      {!last ? (
+        <p className="bg-background text-muted rounded-lg px-3 py-2 text-sm">
+          Ainda não rodaram. Rodam sozinhos a cada hora.
+        </p>
+      ) : counts.fail > 0 ? (
+        <p className="bg-danger-bg text-danger rounded-lg px-3 py-2 text-sm font-medium">
+          {plural(counts.fail, 'teste falhou', 'testes falharam')}.
+        </p>
+      ) : counts.warn > 0 ? (
+        <p className="bg-warning-bg text-warning rounded-lg px-3 py-2 text-sm font-medium">
+          Tudo funcionando, com {plural(counts.warn, 'aviso', 'avisos')}.
+        </p>
+      ) : (
+        <p className="bg-success-bg text-success rounded-lg px-3 py-2 text-sm font-medium">
+          Tudo funcionando: {plural(counts.ok, 'teste passou', 'testes passaram')}.
+        </p>
+      )}
+
+      {problems.length > 0 && (
+        <ul className="flex flex-col gap-3">
+          {problems.map((result) => (
+            <TestProblem key={result.id} result={result} />
+          ))}
+        </ul>
+      )}
+
+      {last && (
+        <p className="text-muted text-xs">
+          Rodou {formatMoment(new Date(last.startedAt).getTime(), now)} em{' '}
+          {formatNumber(Math.max(seconds, 0.1), 1)} s
+          {tests.nextAt ? ` · próxima às ${timeFormatter.format(new Date(tests.nextAt))}` : ''}
+        </p>
+      )}
+
+      {runs.length > 1 && (
+        <div className="flex items-center gap-2">
+          <span className="text-muted text-xs">Rodadas</span>
+          <ul className="flex flex-wrap items-center gap-1" aria-label="Rodadas, da mais antiga à mais nova">
+            {runs.map((run) => {
+              const state = run.failed > 0 ? 'fail' : run.warned > 0 ? 'warn' : 'ok';
+              const label = `${formatMoment(new Date(run.startedAt).getTime(), now)}: ${TEST_VISUALS[state].label.toLowerCase()}`;
+              return (
+                <li
+                  key={run.id}
+                  title={label}
+                  aria-label={label}
+                  className={`h-2.5 w-2.5 rounded-full ${RUN_DOT[state]}`}
+                />
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={onRun}
+          disabled={running}
+          className="bg-primary text-primary-foreground min-h-[44px] flex-1 rounded-lg px-4 text-sm font-semibold disabled:opacity-50"
+        >
+          {running ? 'Rodando…' : 'Rodar agora'}
+        </button>
+        {last && (
+          <button
+            type="button"
+            onClick={() => setShowAll((value) => !value)}
+            aria-expanded={showAll}
+            className="border-border text-foreground min-h-[44px] flex-1 rounded-lg border px-4 text-sm font-medium"
+          >
+            {showAll ? 'Esconder a lista' : `Ver os ${results.length}`}
+          </button>
+        )}
+      </div>
+
+      {showAll && <TestList results={results} />}
+    </Card>
+  );
+}
+
+function TestProblem({ result }: { result: SelfTestResult }) {
+  const visual = TEST_VISUALS[result.status];
+  return (
+    <li className="flex gap-3">
+      <IconTile icon={visual.icon} tone={visual.tone} size="sm" />
+      <div className="min-w-0 flex-1">
+        <p className="text-foreground text-sm font-medium">
+          {selfTestAreaName(result.area)} · {result.name}
+        </p>
+        {result.message && <p className="text-muted text-xs break-words">{result.message}</p>}
+      </div>
+    </li>
+  );
+}
+
+/** Every test, under the server or the module it is about, in the order they ran. */
+function TestList({ results }: { results: SelfTestResult[] }) {
+  const groups: { area: SelfTestArea; results: SelfTestResult[] }[] = [];
+  for (const result of results) {
+    const group = groups.at(-1);
+    if (group?.area === result.area) group.results.push(result);
+    else groups.push({ area: result.area, results: [result] });
+  }
+  return (
+    <ul className="divide-border -mx-1 flex flex-col divide-y">
+      {groups.map((group) => {
+        const visual =
+          group.area === 'server' ? { icon: Server, tone: 'amber' as const } : MODULE_VISUALS[group.area];
+        const worst = TEST_VISUALS[worstStatus(group.results)];
+        const WorstIcon = worst.icon;
+        return (
+          <li key={group.area} className="flex flex-col gap-2 px-1 py-3">
+            <div className="flex items-center gap-3">
+              <IconTile icon={visual.icon} tone={visual.tone} size="sm" />
+              <p className="text-foreground min-w-0 flex-1 text-sm font-medium">
+                {selfTestAreaName(group.area)}
+              </p>
+              <WorstIcon aria-label={worst.label} className={`h-5 w-5 shrink-0 ${worst.text}`} />
+            </div>
+            <ul className="flex flex-col gap-1.5 pl-11">
+              {group.results.map((result) => {
+                const status = TEST_VISUALS[result.status];
+                const StatusIcon = status.icon;
+                return (
+                  <li key={result.id} className="flex gap-2">
+                    <StatusIcon
+                      aria-label={status.label}
+                      className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${status.text}`}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-foreground text-xs">{result.name}</p>
+                      {result.status !== 'ok' && result.message && (
+                        <p className="text-muted text-[11px] leading-snug break-words">{result.message}</p>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

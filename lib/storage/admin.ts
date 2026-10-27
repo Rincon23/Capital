@@ -1,4 +1,4 @@
-import type { AdminOverview } from '../admin/types';
+import type { AdminOverview, SelfTestRun } from '../admin/types';
 import type { ModuleKey } from '../budget/types';
 import { apiRequest, seg } from './apiClient';
 
@@ -10,4 +10,6 @@ export const adminRepository = {
   /** `turnedOff`: the accounts without VIP that had the module on, now off. */
   setModuleVip: (key: ModuleKey, vipOnly: boolean) =>
     apiRequest<{ vipOnly: boolean; turnedOff: number }>('PUT', `/admin/modules/${seg(key)}/vip`, { vipOnly }),
+  /** "Rodar agora": every automatic test, answering once they all ran. */
+  runTests: () => apiRequest<SelfTestRun>('POST', '/admin/tests'),
 };

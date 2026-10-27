@@ -1175,6 +1175,33 @@ conforme pedido — nunca dados financeiros.
 
 ## Testes
 
+### Testes automáticos no servidor (Administração)
+
+Além dos testes do código, o próprio servidor se testa (`lib/server/selfTest`): uns 4 minutos
+depois de ligar, depois de hora em hora e quando o dono toca em **Rodar agora**, no topo de
+Administração. São cerca de 30 testes, pelo menos um por módulo (o `Record` de `catalog.ts`
+não compila se um módulo novo ficar sem teste) e os do servidor:
+
+- **Cada módulo, de verdade, no banco de produção:** cada teste cria uma conta descartável e
+  faz o que a tela faria — lança renda e gasto, fecha mês, monta fatura com parcela, lança conta
+  do mês, aporta no Diagrama, confere banco, marca lembrete, ganha XP… — pelos mesmos
+  repositórios, numa transação que é **sempre desfeita** no fim. Nada fica: nem a conta, nem uma
+  linha (`statement_timeout` de 15 s em cada transação).
+- **O que roda sozinho está em dia:** a agenda de cada minuto, a leitura dos bancos (de hora em
+  hora) e o monitor de Gmail; a chave `ENCRYPTION_KEY` ainda abre os segredos guardados;
+  migrações aplicadas, disco, SMTP e chaves VAPID.
+- **Serviços de fora** (B3, Yahoo, Fundamentus, a IA da placa): quando não respondem é **aviso**
+  (amarelo), não falha — o conserto não está no código.
+
+Cada rodada fica em `self_test_runs` (as últimas 100). Um teste que **passa a falhar** avisa o
+dono pelo sino e no celular (`notifyOwner`, como os outros alertas do servidor), uma vez só: se
+continuar falhando na hora seguinte, não repete. O ícone de Administração na bandeja de apps
+mostra os avisos do servidor não lidos. `lib/server/__tests__/selfTest.test.ts` roda todos eles
+num banco em memória: num banco certo nada falha e nada sobra; com uma tabela quebrada o teste do
+módulo falha.
+
+### Testes do código
+
 `npm test` roda os cenários de aceitação da seção 9 do briefing como testes unitários de
 `/lib/budget` (Vitest): mês isolado sem rollover, rollover positivo/negativo, fechamento e
 carga do mês seguinte, gasto no cartão (`cardTotal`), validação de soma de percentuais e o
