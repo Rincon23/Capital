@@ -15,12 +15,13 @@ export interface MissionTarget {
   side?: 'top' | 'bottom';
 }
 
-/** The place of each mission; null for "Abrir o app", which is done by being here. */
+/** The place of each mission. */
 export function missionTarget(key: MissionKey, month: Month): MissionTarget | null {
   const entries = `/mes/${month}/lancamentos`;
   switch (key) {
+    // The XP of the day is claimed only on the Início, on the Missões bar.
     case 'open-app':
-      return null;
+      return { href: `/mes/${month}`, anchor: 'missoes-resgatar', side: 'bottom' };
     case 'first-income':
     case 'month-income':
       return { href: entries, anchor: 'fab-renda', side: 'top' };

@@ -53,6 +53,10 @@ const done = (status: Awaited<ReturnType<PostgresMissionsRepository['check']>>, 
 describe('Missões', () => {
   it('dá o XP do que a conta fez, uma vez por período, seja qual for o valor', async () => {
     const { budget, missions } = await newAccount();
+    // Opening the app gives nothing by itself: the XP of the day comes with "Resgatar".
+    const opened = await missions.check({ modules: ALL_MODULES, now: MONDAY });
+    expect(opened.earned).toEqual([]);
+    expect(done(opened, 'open-app')).toBe(false);
     const first = await missions.check({ modules: ALL_MODULES, visits: ['open-app'], now: MONDAY });
     expect(first.earned).toEqual([{ key: 'open-app', xp: 10 }]);
     expect(first.xp).toBe(10);

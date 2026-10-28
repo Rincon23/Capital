@@ -40,7 +40,7 @@ describe('missões', () => {
     expect(JSON.stringify(MISSIONS.map((mission) => mission.title)).toLowerCase()).not.toMatch(/meta|investiu|sobr/);
   });
 
-  it('gasto vale uma vez por mês, os bancos uma vez por semana, abrir o app uma vez por dia', () => {
+  it('gasto vale uma vez por mês, os bancos uma vez por semana, o XP do dia uma vez por dia', () => {
     const period = (key: string) => MISSIONS.find((mission) => mission.key === key)?.period;
     expect(period('month-expense')).toBe('month');
     expect(period('check-banks')).toBe('week');

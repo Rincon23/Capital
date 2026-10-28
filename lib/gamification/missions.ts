@@ -4,7 +4,7 @@ import { isModuleHidden } from '../modules/flags';
 
 /**
  * The missions of the Missões module. The owner's rule: **XP can never come from a lie**. So a
- * mission rewards *using* the app — opening it, writing things down, checking things — and never
+ * mission rewards *using* the app — coming back to it, writing things down, checking things — and never
  * a *result* (how much was invested, a goal met), which depends on the numbers the person types
  * and on the month they had. Every mission gives a fixed XP, whatever the amount involved, and
  * counts once per period (a day, a week, a month or once ever), by the server's own date: logging
@@ -110,7 +110,9 @@ export const MISSIONS: MissionDefinition[] = [
     done: (f) => f.previousMonthClosed === true,
   },
   { key: 'check-banks', title: 'Conferir os bancos', xp: 15, period: 'week', module: 'banks', when: (f) => f.anyBankConnection },
-  { key: 'open-app', title: 'Abrir o app', xp: 10, period: 'day' },
+  // Not by just opening the app: the person taps "Resgatar" on the Missões bar of the Início. The
+  // key is the old one, so a day already earned by opening counts as claimed.
+  { key: 'open-app', title: 'Resgatar o XP do dia', xp: 10, period: 'day' },
   ...MEET,
 ];
 
