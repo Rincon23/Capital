@@ -69,10 +69,9 @@ describe('missões', () => {
     expect(keys(ALL_MODULES, { ...nothing, anyCard: true, previousMonthClosed: false })).toEqual(
       expect.arrayContaining(['check-card', 'close-month']),
     );
-    const withoutBanks = keys({ ...ALL_MODULES, banks: false, voice: false });
+    const withoutBanks = keys({ ...ALL_MODULES, banks: false });
     expect(withoutBanks).not.toContain('connect-bank');
     expect(withoutBanks).not.toContain('meet-banks');
-    expect(withoutBanks).not.toContain('meet-voice');
     expect(keys()).toContain('meet-missions');
     // Not even an account with access earns XP for meeting a restricted module.
     const restricted = availableMissions(ALL_MODULES, nothing, ['banks']).map((m) => m.key);

@@ -1,5 +1,5 @@
 import 'server-only';
-import { categoryOptions } from '@/lib/ai';
+import { categoryOptions } from '@/lib/categoryText';
 import {
   bankInstallmentIn,
   counterpartName,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CategoryOption } from '@/lib/ai';
+import type { CategoryOption } from '@/lib/categoryText';
 import type { Expense, InstallmentPlan } from '@/lib/budget';
 import {
   bankInstallmentIn,

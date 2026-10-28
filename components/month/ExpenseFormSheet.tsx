@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
-import { CreditCard, Mic } from 'lucide-react';
+import { CreditCard } from 'lucide-react';
 import {
   amountToInputValue,
   currentMonthKey,
@@ -47,7 +47,7 @@ interface ExpenseFormSheetProps {
   /** Whether the card module is on: without it the card question is not asked. */
   cardEnabled?: boolean;
   initial?: Expense;
-  /** A new expense filled in ahead (what the voice entry understood), still to be checked. */
+  /** A new expense filled in ahead (from the bank review or a bill of Contas do mês), still to be checked. */
   draft?: Partial<Expense>;
   /** Overrides the sheet's title, e.g. when the form is confirming a recurring expense. */
   title?: string;
@@ -57,8 +57,7 @@ interface ExpenseFormSheetProps {
   /** False when the form is opened only to be shown (a tour step): no keyboard over it. */
   autoFocusAmount?: boolean;
   /**
-   * Saves a purchase split into instalments. Without it the form never offers to split one —
-   * that is how the voice review stays a single expense.
+   * Saves a purchase split into instalments. Without it the form never offers to split one.
    */
   onSaveInstallment?: (plan: InstallmentPlan) => Promise<void>;
   /**
@@ -79,8 +78,6 @@ interface ExpenseFormSheetProps {
   onClose: () => void;
   onSave: (expense: Expense) => Promise<void>;
   onDelete?: (expenseId: string) => Promise<void>;
-  /** When given, a microphone in the header switches to "Lançar por voz ou texto". */
-  onVoice?: () => void;
 }
 
 export function ExpenseFormSheet({
@@ -102,7 +99,6 @@ export function ExpenseFormSheet({
   onClose,
   onSave,
   onDelete,
-  onVoice,
 }: ExpenseFormSheetProps) {
   const activeTopics = useMemo(
     () => topics.filter((t) => !t.archived).sort((a, b) => a.order - b.order),
@@ -263,18 +259,6 @@ export function ExpenseFormSheet({
       open
       onClose={onClose}
       title={title ?? (initial ? 'Editar gasto' : draft ? 'Conferir gasto' : 'Lançar gasto')}
-      headerAction={
-        onVoice && !initial && !draft ? (
-          <button
-            type="button"
-            onClick={onVoice}
-            aria-label="Lançar por voz ou texto"
-            className="text-primary hover:bg-background flex h-10 w-10 items-center justify-center rounded-full"
-          >
-            <Mic className="h-5 w-5" aria-hidden />
-          </button>
-        ) : undefined
-      }
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         {note && <div className="bg-background text-muted rounded-xl px-3 py-2 text-xs">{note}</div>}

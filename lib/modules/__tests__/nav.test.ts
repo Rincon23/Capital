@@ -14,7 +14,6 @@ const everything = on(
   'recurring',
   'cash',
   'reminders',
-  'voice',
 );
 
 describe('bandeja de apps', () => {
@@ -31,7 +30,7 @@ describe('bandeja de apps', () => {
   });
 
   it('não lista módulo desligado nem módulo sem tela', () => {
-    expect(moreItems({ modules: on('expenses', 'reimbursable', 'voice') })).toEqual([
+    expect(moreItems({ modules: on('expenses', 'reimbursable') })).toEqual([
       { group: 'month', label: 'Dinheiro do mês', keys: ['expenses'] },
     ]);
     // Nothing saved: every module, the restricted ones included until access rules apply.

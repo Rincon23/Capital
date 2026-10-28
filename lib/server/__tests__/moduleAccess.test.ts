@@ -62,13 +62,13 @@ async function modulesOf(userId: string) {
 }
 
 describe('módulos só para VIP', () => {
-  it('começa como hoje: Open Finance e Lançar por voz ou texto', async () => {
-    expect(await vipModules(db)).toEqual(['banks', 'voice']);
+  it('começa como hoje: Open Finance', async () => {
+    expect(await vipModules(db)).toEqual(['banks']);
     const id = await newPerson({});
     expect(await userAccess(db, id, `${id}@teste.local`)).toEqual({
       owner: false,
       vip: false,
-      vipModules: ['banks', 'voice'],
+      vipModules: ['banks'],
     });
   });
 
@@ -79,8 +79,8 @@ describe('módulos só para VIP', () => {
     await db.insert(schema.xpEvents).values({ userId: common, mission: 'first-expense', period: 'once', xp: 50 });
 
     expect(await setModuleVip(db, 'budget', true)).toBe(1);
-    expect(await vipModules(db)).toEqual(['budget', 'banks', 'voice']);
-    expect(await modulesOf(common)).toEqual({ ...ALL_MODULES, budget: false, history: false, banks: false, voice: false });
+    expect(await vipModules(db)).toEqual(['budget', 'banks']);
+    expect(await modulesOf(common)).toEqual({ ...ALL_MODULES, budget: false, history: false, banks: false });
     expect(await modulesOf(vip)).toEqual(ALL_MODULES);
     expect(await modulesOf(owner)).toEqual(ALL_MODULES);
 
@@ -95,24 +95,24 @@ describe('módulos só para VIP', () => {
   });
 
   it('ao deixar de ser restrito, liga para todo mundo na hora', async () => {
-    const common = await newPerson({ banks: false, voice: false });
+    const common = await newPerson({ banks: false });
     expect(await setModuleVip(db, 'banks', false)).toBe(0);
-    expect(await vipModules(db)).toEqual(['voice']);
-    expect(await modulesOf(common)).toEqual({ ...ALL_MODULES, voice: false });
-    expect((await userAccess(db, common, `${common}@teste.local`)).vipModules).toEqual(['voice']);
+    expect(await vipModules(db)).toEqual([]);
+    expect(await modulesOf(common)).toEqual(ALL_MODULES);
+    expect((await userAccess(db, common, `${common}@teste.local`)).vipModules).toEqual([]);
 
     // Restricted again: off again for whoever has no access.
     expect(await setModuleVip(db, 'banks', true)).toBe(1);
-    expect(await modulesOf(common)).toEqual({ ...ALL_MODULES, banks: false, voice: false });
+    expect(await modulesOf(common)).toEqual({ ...ALL_MODULES, banks: false });
   });
 
   it('mostra na Administração cada módulo, a escolha e quem sem acesso usa agora', async () => {
     await newPerson({});
     await newPerson({}, { vip: true });
-    await setModuleVip(db, 'voice', false);
+    await syncModules(db);
 
     const modules = await listModules(db);
-    expect(modules.map((item) => item.key)).toHaveLength(12);
+    expect(modules.map((item) => item.key)).toHaveLength(11);
     expect(modules.find((item) => item.key === 'reminders')).toEqual({ key: 'reminders', vipOnly: false, usersWithoutVip: 1 });
     expect(modules.find((item) => item.key === 'banks')).toEqual({ key: 'banks', vipOnly: true, usersWithoutVip: 0 });
     expect(modules.filter((item) => item.vipOnly).map((item) => item.key)).toEqual(['banks']);
@@ -122,7 +122,7 @@ describe('módulos só para VIP', () => {
     await setModuleVip(db, 'diagram', true);
     const id = await newPerson({}, { vip: true });
     await setVip(db, id, false);
-    expect(await modulesOf(id)).toEqual({ ...ALL_MODULES, banks: false, diagram: false, voice: false });
+    expect(await modulesOf(id)).toEqual({ ...ALL_MODULES, banks: false, diagram: false });
     expect((await userAccess(db, id, `${id}@teste.local`)).vip).toBe(false);
 
     await setVip(db, id, true);
@@ -132,7 +132,7 @@ describe('módulos só para VIP', () => {
   it('acerta os módulos de todas as contas ao subir o servidor', async () => {
     const old = await newPerson({ expenses: true, card: false, banks: true });
     expect(await syncModules(db)).toBe(1);
-    expect(await modulesOf(old)).toEqual({ ...ALL_MODULES, banks: false, voice: false });
+    expect(await modulesOf(old)).toEqual({ ...ALL_MODULES, banks: false });
     expect(await syncModules(db)).toBe(0);
   });
 
@@ -142,7 +142,7 @@ describe('módulos só para VIP', () => {
     expect(await userAccess(db, template, 'modelo@capital.local')).toEqual({
       owner: false,
       vip: true,
-      vipModules: ['banks', 'voice'],
+      vipModules: ['banks'],
     });
     await syncModules(db);
     expect(await modulesOf(template)).toEqual(ALL_MODULES);

@@ -1,6 +1,6 @@
 /**
- * Text helpers for reading what the user said. Whisper writes "Débito", "débito" or "debito"
- * depending on the recording, so every comparison happens on folded text: lower case, no
+ * Text helpers for reading a description (a bank transaction's): "Débito", "débito" and "debito"
+ * are the same word, so every comparison happens on folded text: lower case, no
  * accents. Folding keeps the length, so a position found in the folded text is the same
  * position in the original (NFC) text.
  */
@@ -11,19 +11,6 @@ export function foldText(text: string): string {
     folded += plain.length === char.length ? plain : ' '.repeat(char.length);
   }
   return folded;
-}
-
-/**
- * The text as the rules read it: NFC, one line, single spaces. whisper.cpp breaks the text
- * between segments, sometimes in the middle of a word ("conhec\nimentos").
- */
-export function cleanTranscript(text: string): string {
-  return text.normalize('NFC').replace(/\r?\n/g, '').replace(/\s+/g, ' ').trim();
-}
-
-/** "conta de luz" → "Conta de luz". */
-export function capitalizeFirst(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 export function escapeRegExp(text: string): string {

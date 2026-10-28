@@ -53,7 +53,6 @@ export function missionTarget(key: MissionKey, month: Month): MissionTarget | nu
   }
   const moduleKey = key.slice('meet-'.length) as ModuleKey;
   if (moduleKey === 'reimbursable') return { href: `${entries}?aba=a-receber` };
-  if (moduleKey === 'voice') return { href: `/mes/${month}`, anchor: 'fab-voz', side: 'top' };
   const screen = moduleDefinition(moduleKey).screen;
   return screen ? { href: screen.href(month) } : null;
 }

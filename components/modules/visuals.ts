@@ -6,7 +6,6 @@ import {
   CreditCard,
   HandCoins,
   Landmark,
-  Mic,
   PiggyBank,
   Target,
   ReceiptText,
@@ -33,7 +32,6 @@ export const MODULE_VISUALS: Record<ModuleKey, ModuleVisual> = {
   cash: { icon: PiggyBank, tone: 'green' },
   diagram: { icon: Target, tone: 'orange' },
   reminders: { icon: Clock, tone: 'amber' },
-  voice: { icon: Mic, tone: 'pink' },
   banks: { icon: Landmark, tone: 'blue' },
   missions: { icon: Sprout, tone: 'green' },
 };

@@ -1,7 +1,7 @@
 import type { SelfTestArea } from '../../admin/types';
 import { MODULE_KEYS } from '../../modules';
 import type { SelfCheck } from './check';
-import { missionsChecks, remindersChecks, voiceChecks } from './checks/assistant';
+import { missionsChecks, remindersChecks } from './checks/assistant';
 import { banksChecks, diagramChecks } from './checks/investing';
 import { budgetChecks, expensesChecks, historyChecks, reimbursableChecks } from './checks/month';
 import { serverChecks } from './checks/server';
@@ -24,7 +24,6 @@ export const SELF_CHECKS: Record<SelfTestArea, SelfCheck[]> = {
   banks: banksChecks,
   diagram: diagramChecks,
   reminders: remindersChecks,
-  voice: voiceChecks,
 };
 
 /** The areas in the order Administração shows them: the server, then the modules in catalog order. */

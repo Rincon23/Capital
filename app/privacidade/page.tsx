@@ -48,7 +48,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
  */
 export default async function PrivacyPage() {
   const access = await readerAccess();
-  const shows = (key: 'voice' | 'banks') => !isModuleHidden(access, key);
+  const shows = (key: 'banks') => !isModuleHidden(access, key);
   const connections = [shows('banks') && 'com os bancos'].filter(Boolean);
 
   return (
@@ -81,15 +81,6 @@ export default async function PrivacyPage() {
           liberar recursos e proteger o servidor. Os seus lançamentos não aparecem nessa lista.
         </p>
       </Section>
-
-      {shows('voice') && (
-        <Section title="Lançar por voz ou texto">
-          <p>
-            O áudio ou o texto é analisado por uma IA que roda no próprio servidor do Capital +. O áudio não é
-            guardado: só o gasto que você conferir e salvar fica registrado.
-          </p>
-        </Section>
-      )}
 
       <Section title="Gmail">
         <p>

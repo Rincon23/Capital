@@ -165,8 +165,8 @@ describe('Missões', () => {
     expect(status.xp).toBe(20);
     expect(status.missions.some((mission) => mission.key === 'meet-banks')).toBe(false);
     expect(status.missions.some((mission) => mission.key === 'connect-bank')).toBe(true);
-    const voice = await missions.check({ modules: ALL_MODULES, restricted: ['voice'], visits: ['meet-voice'], now: MONDAY });
-    expect(voice.earned).toEqual([]);
+    const diagram = await missions.check({ modules: ALL_MODULES, restricted: ['diagram'], visits: ['meet-diagram'], now: MONDAY });
+    expect(diagram.earned).toEqual([]);
   });
 
   it('a conta modelo não ganha nada, e "Apagar todos os dados" zera o XP', async () => {

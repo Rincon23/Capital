@@ -91,8 +91,6 @@ export interface ModuleFlags {
   cash: boolean;
   /** Reminders and daily tasks, with push notifications. */
   reminders: boolean;
-  /** Logging an expense by voice or free text (AI). */
-  voice: boolean;
   /** Open Finance: the person's banks, read once a day through their own Meu Pluggy (VIP). */
   banks: boolean;
   /** Diagrama: how much of each aporte goes to each type and asset. */
@@ -175,7 +173,10 @@ export interface Income {
   topicId?: string;
 }
 
-/** Where an expense came from. Absent means the expense form (the default). */
+/**
+ * Where an expense came from. Absent means the expense form (the default). `voice` and `text`
+ * came from "Lançar por voz ou texto", retired: only older expenses have them.
+ */
 export type ExpenseSource =
   'form' | 'voice' | 'text' | 'recurring' | 'investment' | 'installment' | 'reserve' | 'import';
 

@@ -37,12 +37,12 @@ describe('ModuleGate e os módulos restritos da Administração', () => {
   });
 
   it('um módulo que não é restrito abre para qualquer conta, sem nada para ligar', () => {
-    renderGate('banks', { vip: false, vipModules: ['voice'] });
+    renderGate('banks', { vip: false, vipModules: ['diagram'] });
     expect(screen.getByText('tela do módulo')).toBeInTheDocument();
   });
 
   it('a conta com acesso abre mesmo o que é restrito', () => {
-    renderGate('banks', { vip: true, vipModules: ['banks', 'voice'] });
+    renderGate('banks', { vip: true, vipModules: ['banks'] });
     expect(screen.getByText('tela do módulo')).toBeInTheDocument();
   });
 });

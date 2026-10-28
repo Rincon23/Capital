@@ -327,13 +327,6 @@ function pruneIps(s: State, now: number): void {
   }
 }
 
-/** Whether the server is under strain right now: the heavy work (the AI) waits for a calmer moment. */
-export function isUnderStrain(now = Date.now()): boolean {
-  const s = state(now);
-  const celsius = s.temperature.celsius;
-  return s.shedUntil > now || (celsius !== null && celsius >= s.config.tempAlertC);
-}
-
 /** Checks the temperature every few seconds even when nobody is using the app. */
 export function startLoadGuardMonitor(intervalMs = 15_000): void {
   const g = globalThis as unknown as { __capitalLoadGuardMonitor?: ReturnType<typeof setInterval> };

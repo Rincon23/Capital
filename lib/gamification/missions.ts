@@ -74,7 +74,7 @@ export interface MissionDefinition {
 
 /**
  * "Conhecer …": the first visit to each module's screen; for one without a screen, its place (the
- * "A receber" list of Lançamentos, the voice sheet), which the app reports.
+ * "A receber" list of Lançamentos), which the app reports.
  */
 const MEET: MissionDefinition[] = MODULES.map((definition) => ({
   key: `meet-${definition.key}` as const,

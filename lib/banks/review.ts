@@ -1,6 +1,6 @@
-import { findCategory } from '../ai/categories';
-import { foldText } from '../ai/text';
-import type { CategoryOption } from '../ai/types';
+import { findCategory } from '../categoryText/categories';
+import { foldText } from '../categoryText/text';
+import type { CategoryOption } from '../categoryText/types';
 import { daysBetween } from '../budget/cards';
 import { previousMonth } from '../budget/date';
 import { addMonthsClamped, installmentAmount, installmentDueDates } from '../budget/installments';

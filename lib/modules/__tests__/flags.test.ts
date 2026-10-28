@@ -22,7 +22,7 @@ const off = (...keys: ModuleKey[]) => Object.fromEntries(keys.map((key) => [key,
 const notVipDefault = { vip: false, vipModules: DEFAULT_VIP_MODULES };
 
 describe('catálogo de módulos', () => {
-  it('tem os 12 módulos, Missões primeiro e cada um depois dos que ele precisa', () => {
+  it('tem os 11 módulos, Missões primeiro e cada um depois dos que ele precisa', () => {
     expect(MODULE_KEYS).toEqual([
       'missions',
       'expenses',
@@ -35,7 +35,6 @@ describe('catálogo de módulos', () => {
       'banks',
       'diagram',
       'reminders',
-      'voice',
     ]);
     MODULES.forEach((definition, index) => {
       for (const dep of definition.dependsOn) expect(MODULE_KEYS.indexOf(dep)).toBeLessThan(index);
@@ -77,7 +76,6 @@ describe('módulos ligados', () => {
     expect(isModuleOn(settings, 'budget')).toBe(false);
     expect(isModuleOn(settings, 'history')).toBe(false);
     expect(isModuleOn(settings, 'card')).toBe(false);
-    expect(isModuleOn(settings, 'voice')).toBe(false);
     expect(isModuleOn(settings, 'cash')).toBe(true);
   });
 
@@ -96,7 +94,6 @@ describe('dependências', () => {
       'reimbursable',
       'history',
       'recurring',
-      'voice',
     ]);
     expect(dependentsOf('card')).toEqual([]);
     expect(dependentsOf('budget')).toEqual(['history']);
@@ -113,15 +110,15 @@ describe('dependências', () => {
 describe('módulos só para VIP', () => {
   const notVip = (...vipModules: ModuleKey[]) => ({ vip: false, vipModules });
 
-  it('começa com Open Finance e Lançar por voz ou texto só para VIP', () => {
-    expect(DEFAULT_VIP_MODULES).toEqual(['banks', 'voice']);
-    expect(vipModulesFrom({})).toEqual(['banks', 'voice']);
+  it('começa com Open Finance só para VIP', () => {
+    expect(DEFAULT_VIP_MODULES).toEqual(['banks']);
+    expect(vipModulesFrom({})).toEqual(['banks']);
   });
 
   it('segue a escolha do dono em Administração, módulo por módulo', () => {
-    expect(vipModulesFrom({ banks: false })).toEqual(['voice']);
-    expect(vipModulesFrom({ diagram: true, voice: false })).toEqual(['banks', 'diagram']);
-    expect(vipModulesFrom({ banks: false, voice: false })).toEqual([]);
+    expect(vipModulesFrom({ banks: false })).toEqual([]);
+    expect(vipModulesFrom({ diagram: true })).toEqual(['banks', 'diagram']);
+    expect(vipModulesFrom({ banks: false, diagram: true })).toEqual(['diagram']);
   });
 
   it('libera tudo para VIP e só o que não é "Só VIP" para os outros', () => {
@@ -150,9 +147,9 @@ describe('withAccessRules', () => {
   it('liga tudo, menos o restrito para quem não tem acesso, seja lá o que foi gravado', () => {
     const saved = { modules: off('card', 'reminders') };
     const ruled = withAccessRules(saved, notVipDefault);
-    expect(ruled.modules).toEqual({ ...ALL_MODULES, banks: false, voice: false });
+    expect(ruled.modules).toEqual({ ...ALL_MODULES, banks: false });
     expect(isModuleOn(ruled, 'card')).toBe(true);
-    expect(isModuleOn(ruled, 'voice')).toBe(false);
+    expect(isModuleOn(ruled, 'banks')).toBe(false);
   });
 
   it('esconde também o que depende de um módulo restrito', () => {
@@ -164,7 +161,7 @@ describe('withAccessRules', () => {
   });
 
   it('com acesso, tudo fica ligado, inclusive o restrito', () => {
-    expect(withAccessRules({ modules: off('voice') }, { vip: true, vipModules: DEFAULT_VIP_MODULES }).modules).toEqual(
+    expect(withAccessRules({ modules: off('banks') }, { vip: true, vipModules: DEFAULT_VIP_MODULES }).modules).toEqual(
       ALL_MODULES,
     );
   });
@@ -173,7 +170,6 @@ describe('withAccessRules', () => {
     expect(withAccessRules({ modules: undefined }, notVipDefault).modules).toEqual({
       ...ALL_MODULES,
       banks: false,
-      voice: false,
     });
   });
 });

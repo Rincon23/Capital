@@ -9,8 +9,8 @@ const listeners = new Set<Listener>();
 let pending: TourSheetRequest | null = null;
 
 /**
- * Asks the month screen to open (or close) a sheet for a tour step: the expense form or the voice
- * entry. The tour runs above every route, while those sheets belong to `MonthShell`, which may
+ * Asks the month screen to open (or close) a sheet for a tour step: the expense form. The tour
+ * runs above every route, while those sheets belong to `MonthShell`, which may
  * only mount after the tour navigated to it — so an unhandled request waits for it.
  */
 export function requestTourSheet(request: TourSheetRequest): void {

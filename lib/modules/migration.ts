@@ -81,11 +81,11 @@ export function renameReserveKey<T extends string>(key: T): T {
 }
 
 /**
- * Modules taken out of the app, with nothing in their place: the Monitor de Gmail (2026-10-28,
- * "não bate com a proposta do app"). Wherever an older account saved one — a tela of the Início,
- * the hidden widgets, the old bottom bar — it is simply left out.
+ * Modules taken out of the app, with nothing in their place (2026-10-28, "não bate com a proposta
+ * do app"): the Monitor de Gmail and "Lançar por voz ou texto". Wherever an older account saved
+ * one — a tela of the Início, the hidden widgets, the old bottom bar — it is simply left out.
  */
-export const RETIRED_MODULES: readonly string[] = ['gmail'];
+export const RETIRED_MODULES: readonly string[] = ['gmail', 'voice'];
 
 /** `list` without the retired modules; anything that is not a list comes back as it was. */
 export function withoutRetiredModules(list: unknown): unknown {

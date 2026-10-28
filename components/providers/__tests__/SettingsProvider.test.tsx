@@ -15,7 +15,7 @@ vi.mock('@/lib/storage', () => ({
 
 // An account without VIP, with the default "Só VIP" modules.
 vi.mock('../AuthProvider', () => ({
-  useAuth: () => ({ user: { vip: false, vipModules: ['banks', 'voice'] } }),
+  useAuth: () => ({ user: { vip: false, vipModules: ['banks'] } }),
 }));
 
 let api: ReturnType<typeof useSettings> | null = null;
@@ -69,9 +69,9 @@ describe('SettingsProvider', () => {
     );
     await screen.findByText('pronto');
 
-    const effective = { ...ALL_MODULES, banks: false, voice: false };
+    const effective = { ...ALL_MODULES, banks: false };
     await act(async () => {
-      await api!.saveSettings({ ...api!.settings!, modules: { card: false, voice: true } });
+      await api!.saveSettings({ ...api!.settings!, modules: { card: false, banks: true } });
     });
     expect(vi.mocked(budgetRepository.saveSettings).mock.calls.at(-1)![0].modules).toEqual(effective);
     await waitFor(() => expect(api!.settings!.modules).toEqual(effective));

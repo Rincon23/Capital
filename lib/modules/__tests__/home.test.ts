@@ -29,7 +29,6 @@ const everything = on(
   'banks',
   'diagram',
   'reminders',
-  'voice',
 );
 
 describe('widgets do Início', () => {
@@ -57,8 +56,8 @@ describe('widgets do Início', () => {
     expect(homeCards(settings)).toEqual(['expenses', 'reminders', 'calendar']);
   });
 
-  it('não tem widget de módulo desligado nem da voz, e numa conta sem nada salvo tem todos', () => {
-    expect(homeCards({ modules: on('expenses', 'voice') })).toEqual(['expenses']);
+  it('não tem widget de módulo desligado nem de módulo sem widget, e numa conta sem nada salvo tem todos', () => {
+    expect(homeCards({ modules: on('expenses', 'missions') })).toEqual(['expenses']);
     expect(homeCards({ modules: {} })).toEqual(homeCards({ modules: everything }));
   });
 

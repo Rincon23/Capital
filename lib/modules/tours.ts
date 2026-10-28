@@ -1,7 +1,7 @@
 import type { ModuleKey, Month } from '../budget/types';
 
 /** A sheet the tour opens for a step (and closes when it moves on). */
-export type TourSheet = 'expense-form' | 'expense-form-reimbursable' | 'voice';
+export type TourSheet = 'expense-form' | 'expense-form-reimbursable';
 
 /** One stop of a module's tour. */
 export interface TourStepDefinition {
@@ -298,31 +298,6 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       side: 'bottom',
     },
   ],
-  voice: [
-    {
-      route: home,
-      anchor: 'fab-voz',
-      title: 'O microfone',
-      description: 'Toque aqui para lançar um gasto falando ou escrevendo.',
-      side: 'top',
-    },
-    {
-      route: home,
-      anchor: 'voz-gravar',
-      title: 'Fale o gasto',
-      description: 'Diga a categoria, o valor e o que foi.',
-      side: 'top',
-      sheet: 'voice',
-    },
-    {
-      route: home,
-      anchor: 'voz-escrever',
-      title: 'Ou escreva',
-      description: 'A IA monta o gasto; você confere antes de salvar.',
-      side: 'top',
-      sheet: 'voice',
-    },
-  ],
   banks: [
     {
       route: () => '/bancos',
@@ -364,7 +339,6 @@ export const MODULE_HELP: Record<ModuleKey, Pick<TourStepDefinition, 'route' | '
   cash: { route: () => '/carteira/caixa' },
   diagram: { route: () => '/diagrama' },
   reminders: { route: () => '/lembretes' },
-  voice: { route: home, sheet: 'voice' },
   banks: { route: () => '/bancos' },
 };
 

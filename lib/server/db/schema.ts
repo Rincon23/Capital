@@ -146,7 +146,7 @@ export const vipUsers = pgTable('vip_users', {
 /**
  * Which modules are only for VIP accounts, as the owner set them in Administração ("Só VIP"). A
  * row is the owner's choice for that module; a module without one keeps the catalog's default
- * (`vipByDefault` in lib/modules/catalog.ts: Open Finance and Lançar por voz ou texto).
+ * (`vipByDefault` in lib/modules/catalog.ts: Open Finance).
  */
 export const moduleAccess = pgTable('module_access', {
   moduleKey: text('module_key').$type<ModuleKey>().primaryKey(),

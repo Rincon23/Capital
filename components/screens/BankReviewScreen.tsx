@@ -45,7 +45,7 @@ import {
   type InstallmentPlan,
   type Month,
 } from '@/lib/budget';
-import { foldText } from '@/lib/ai/text';
+import { foldText } from '@/lib/categoryText/text';
 import { isModuleOn } from '@/lib/modules';
 import { zonedToday } from '@/lib/reminders/time';
 import { banksRepository, walletRepository, type BankReviewAction } from '@/lib/storage';

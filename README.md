@@ -67,14 +67,12 @@ restritos: se Lançamentos for restrito, tudo o que depende dele some junto.
   - Cartão
   - A receber
   - Contas do mês
-  - Lançar por voz ou texto
 - Reserva, Open Finance, Diagrama e Lembretes não dependem de nenhum.
 
 **Módulos restritos.** O dono do servidor (`OWNER_EMAIL`) escolhe em **Administração**, no card
 "Módulos restritos", quais módulos ficam só para as contas com acesso: um switch **"Restrito"** por
 módulo. A escolha fica no banco (`module_access`, uma linha por módulo que o dono mexeu); um módulo
-sem linha segue o padrão do catálogo (`vipByDefault`), que é **Open Finance** e **Lançar por voz ou
-texto**. As contas com acesso ficam em `vip_users` (o dono e a conta modelo sempre têm). No código e
+sem linha segue o padrão do catálogo (`vipByDefault`), que é **Open Finance**. As contas com acesso ficam em `vip_users` (o dono e a conta modelo sempre têm). No código e
 no banco o acesso ainda se chama "vip"; na tela, é "Restrito" e "Acesso aos restritos".
 
 - **Quem não tem acesso não fica sabendo que o módulo existe.** Ele some da bandeja de apps (e o
@@ -91,7 +89,7 @@ no banco o acesso ainda se chama "vip"; na tela, é "Restrito" e "Acesso aos res
 - O que cada conta tem fica salvo em `budget_settings.modules` (`effectiveModules`: tudo, menos o
   restrito sem acesso), que é o que os jobs leem; `syncModules` regrava isso a cada subida do
   servidor e a cada mudança de acesso. Nas leituras e gravações das configurações e na importação
-  de backup, `withAccessRules` troca o que veio pelo que a conta tem. As rotas de Open Finance, IA
+  de backup, `withAccessRules` troca o que veio pelo que a conta tem. As rotas de Open Finance
   e das perguntas automáticas respondem **404 "Não encontrado."** a quem não tem acesso, sem o
   nome do módulo (`requireNotVipLocked` em `lib/server/access.ts`). O app recebe a lista no layout
   (`vipModules` do `AuthUser`) e usa `mayUseModule` e `isModuleHidden`.
@@ -111,7 +109,7 @@ prêmio. O catálogo (`MISSIONS` em `lib/gamification/missions.ts`) é feito par
 | Todo dia | Resgatar o XP do dia (10, no botão "Resgatar" da faixa das Missões na Início; só abrir o app não dá) |
 | Toda semana | Conferir os bancos (15, só quem tem Open Finance e um banco) |
 | Todo mês | Registrar uma renda (30), Lançar um gasto (30), Conferir o calendário, as contas do mês, a fatura e a reserva (15 cada; contas e fatura só para quem tem conta ou cartão), Fechar o mês anterior (50) |
-| Uma vez | Primeira renda e primeiro gasto (50 cada), Ajustar as categorias (50), Primeiro lembrete, Ligar as notificações e Instalar o app (30 cada), Conectar um banco (100, Open Finance), e Conhecer cada módulo (20 cada: a primeira visita à tela; A receber e a voz, o primeiro uso) |
+| Uma vez | Primeira renda e primeiro gasto (50 cada), Ajustar as categorias (50), Primeiro lembrete, Ligar as notificações e Instalar o app (30 cada), Conectar um banco (100, Open Finance), e Conhecer cada módulo (20 cada: a primeira visita à tela; A receber, o primeiro uso) |
 
 Missão de módulo restrito só existe para quem tem acesso.
 
@@ -371,17 +369,10 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
     **com** compromisso abre o que tem nele; tocar num dia **livre** (de hoje em diante) abre o
     formulário de lembrete já naquela data — um dia que já passou não faz nada, porque não há o
     que lembrar.
-- **Lançar por voz ou texto** (usa a IA local do servidor, Whisper e Ollama): microfone no Início
-  e no formulário de gasto. Grava até 60 s ou recebe o texto
-  ("Descreva o gasto") e mostra **"Confira o gasto"**, com um lápis que abre o formulário
-  preenchido. Nada é salvo sem confirmar.
-  - **Regras primeiro, IA depois:** valor, categoria (as do usuário, sem ligar para maiúsculas,
-    acentos e plural; sinônimos de "A receber"), data (ontem, anteontem, dia da semana, "dia 12")
-    e cartão saem de regras puras em `lib/ai`. O modelo local só escreve a descrição e o que as
-    regras não resolveram, o que corta a espera no Pi de ~13 s para ~3 s.
-  - **Progresso real:** o servidor transmite cada etapa (transcrevendo, carregando a IA, lendo,
-    montando) e os tokens conforme saem; a barra usa esses sinais e o tempo medido no Pi.
-  - Ao abrir a tela, o servidor já carrega o modelo e lê o começo do prompt (aquecimento).
+- **Lançar por voz ou texto** — retirado em 28/10/2026, junto com o Monitor de Gmail ("não bate com
+  a proposta do app"): saem o microfone, a leitura por IA (Whisper e Ollama) e as rotas `/api/v1/ai`.
+  Os gastos lançados por ele continuam, com `source` `voice` ou `text`. As regras de achar uma
+  categoria num texto, que a conferência do Open Finance usa, ficaram em `lib/categoryText`.
 - **Monitor de Gmail** — retirado em 28/10/2026 ("não bate com a proposta do app"). As tabelas
   `gmail_*` ficaram no banco, sem uso, até esses dados serem apagados; "Apagar todos os dados"
   ainda apaga o que a conta deixou nelas. Onde uma conta antiga guardou `gmail` (telas da Início,
@@ -494,7 +485,7 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
       que você já marcou como recebido?" ("É sim" liga os dois). Com o mesmo valor ao centavo,
       marcado até 1 dia do Pix e só um candidato, confere sozinho, como o par forte;
     - **categoria sugerida**, nesta ordem: o que a pessoa escolheu antes para a mesma descrição;
-      uma categoria dita na descrição (as regras de `lib/ai`, sem IA); a categoria da Pluggy
+      uma categoria dita na descrição (as regras de `lib/categoryText`, sem IA); a categoria da Pluggy
       traduzida para os nomes das categorias da pessoa; e o que as categorias padrão significam
       (Diversos = comer fora, compras, lazer; Conhecimentos = cursos e livros; Metas = viagem;
       Custos Fixos = assinaturas, contas, aluguel). Sem palpite, o botão vira "Escolher
@@ -649,12 +640,11 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
 
 - **Ajuda ("?")**: todo módulo tem um botão que roda o tour só dele, o spotlight do driver.js que
   escurece a tela, destaca uma parte por vez e explica para que serve. Fica no topo da tela do
-  módulo; nos módulos sem tela, no card do Cartão no Início, na aba A receber de Lançamentos e na
-  janela de voz. Os passos ficam em `lib/modules/tours.ts` (um `Record` por módulo, então módulo sem
+  módulo; nos módulos sem tela, no card do Cartão no Início e na aba A receber de Lançamentos. Os passos ficam em `lib/modules/tours.ts` (um `Record` por módulo, então módulo sem
   tour não compila), **no máximo 4 por módulo, cada um com uma linha** (um teste confere) e apontam só para a tela do módulo (ou para o widget dele, e a Início troca
   para a área em que ele está), nunca para a setinha ou as bandejas. Todo tour termina no
   próprio botão de ajuda. O motor (`components/modules/tour/TourProvider.tsx`) navega entre as
-  telas, espera cada elemento aparecer, abre e fecha o formulário de gasto ou a janela de voz quando
+  telas, espera cada elemento aparecer, abre e fecha o formulário de gasto quando
   o passo pede e volta para onde começou. Um teste confere que toda âncora de tour existe nas telas e
   que todo módulo tem o botão de ajuda.
 - **Configurações do módulo (engrenagem)**: ficam na tela do próprio módulo. Categorias: nome,
@@ -785,7 +775,6 @@ No Pi, tudo do Capital fica em `~/capitalapp`:
    # SMTP_* (Gmail com senha de app)
    # VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY e VAPID_SUBJECT (notificações) e ACTION_TOKEN_SECRET
    #   — um par/segredo próprio do Pi; os comandos para gerar estão no .env.example
-   # WHISPER_URL e OLLAMA_URL (lançar por voz ou texto), ex.: http://100.x.y.z:8090 e :11434
    # ENCRYPTION_KEY (Open Finance; o comando para gerar está no .env.example)
    docker compose --env-file .env.local up -d --build
    ```
@@ -848,7 +837,7 @@ na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de 
 /lib
   /budget                 Regras de negócio — funções puras, sem React nem storage
   /reminders              Regras dos lembretes (vencimentos, quando notificar, textos), puras, no fuso de São Paulo
-  /ai                     Lançar por voz/texto: regras de leitura do gasto, prompt, rascunho e progresso (puras)
+  /categoryText           Achar uma categoria num texto (a descrição de uma transação do banco), puro
   /notifications          Web Push: tipos, nome dos aparelhos e o lado do navegador (permissão, inscrição)
   /modules                A ficha de cada módulo, dependências, bandeja de apps e áreas da Início (puras)
   /storage                Contrato BudgetRepository e o repositório do navegador (HTTP)
@@ -1056,17 +1045,6 @@ não conectou nem no próprio Meu Pluggy):**
   traz ações, FIIs, Tesouro, CDB, LCI e LCA com `name` e `balance`; `institution` vem vazio. No
   BTG, os 67 investimentos vieram com `code` (o ticker, nas ações e nos FIIs) e `quantity`.
 
-### IA local (`lib/server/ai`)
-
-Whisper (whisper.cpp, `WHISPER_URL`, com `--convert` para aceitar o webm do navegador) e Ollama
-(`OLLAMA_URL`, modelo `OLLAMA_MODEL`, padrão `qwen2.5:1.5b`), atrás das interfaces `Transcriber` e
-`ExpenseExtractor`. Grátis e sem chave. `POST /api/v1/ai/expense/audio` (multipart, até 5 MB) e
-`/text` respondem em `text/event-stream`: plano com a estimativa de cada etapa, início de cada
-etapa, transcrição, tokens e, no fim, o rascunho (`{ draft, transcript, warnings }`). A resposta
-do modelo é restrita por JSON schema aos campos que faltam e às categorias do usuário, e a geração
-para assim que o JSON fecha. `/warmup` aquece o modelo. Qualquer usuário com acesso ao módulo, até 40
-análises por hora cada. O Ollama atende uma análise por vez: com duas ao mesmo tempo, a segunda espera. Os tempos de cada etapa são aprendidos em memória a cada análise.
-
 ### Lógica de negócio pura (`/lib/budget`)
 
 Todas as fórmulas da seção 6 do briefing (proportionalFixed, available, remaining,
@@ -1182,7 +1160,7 @@ não compila se um módulo novo ficar sem teste) e os do servidor:
 - **O que roda sozinho está em dia:** a agenda de cada minuto e a leitura dos bancos (de hora em
   hora); a chave `ENCRYPTION_KEY` ainda abre os segredos guardados;
   migrações aplicadas, disco, SMTP e chaves VAPID.
-- **Serviços de fora** (B3, Yahoo, Fundamentus, a IA da placa): quando não respondem é **aviso**
+- **Serviços de fora** (B3, Yahoo, Fundamentus): quando não respondem é **aviso**
   (amarelo), não falha — o conserto não está no código.
 
 Cada rodada fica em `self_test_runs` (as últimas 100). Um teste que **passa a falhar** avisa o
@@ -1232,13 +1210,10 @@ Os demais testes:
 - **`lib/server/__tests__/reminders.test.ts` e `push.test.ts`:** a agenda contra o banco (envia no
   minuto certo, nunca duas vezes, recupera o que perdeu fora do ar, só para quem ligou o módulo),
   o token do "Realizado" (válido, expirado e adulterado) e os aparelhos (404/410 apaga).
-- **`lib/ai/__tests__/rules.test.ts` e `lib/server/__tests__/aiEngine.test.ts`:** os 4 exemplos do
-  prompt do bot com as categorias do usuário, o que o modelo pequeno errou no teste do Pi ("89 e
-  90", "vai me devolver"), valores, datas relativas, cartão, normalização de categorias, schema da
-  resposta e as etapas transmitidas, com a IA simulada. `aiOllama.integration.test.ts` roda os
-  mesmos exemplos contra o Ollama real, só com `OLLAMA_TEST_URL` definido.
+- **`lib/categoryText/__tests__/categories.test.ts`:** as categorias de cada conta e achar uma delas
+  num texto, sem ligar para maiúsculas, acentos e plural, com os sinônimos de "A receber".
 - **`lib/server/__tests__/moduleAccess.test.ts` e `lib/modules/__tests__/flags.test.ts`:** o
-  "Restrito" da Administração: o padrão (Open Finance e Lançar por voz ou texto), a escolha do dono
+  "Restrito" da Administração: o padrão (Open Finance), a escolha do dono
   módulo por módulo, todo o resto ligado para todo mundo, o módulo que vira restrito sumindo para
   quem não tem acesso (e os que dependem dele) sem apagar nada, o que volta a ser de todos na hora,
   a conta que perde ou ganha o acesso, a conta modelo, o acerto a cada subida (`syncModules`) e o
@@ -1304,7 +1279,7 @@ Os demais testes:
 
 ### Telas (seção 7)
 
-- [x] **Início** — painel com um card por módulo, seletor de mês, FAB "+ Lançar gasto", "+ Renda" e o microfone
+- [x] **Início** — painel com um card por módulo, seletor de mês, FAB "+ Lançar gasto" e "+ Renda"
 - [x] **Categorias do mês** — cabeçalho com renda/gasto/posso-gastar/saldo, card por categoria com barra de progresso (verde/amarelo/vermelho), card de custos fixos/imprevistos com rateio por categoria e "Fechar mês"
 - [x] **Detalhe da categoria** — lista de gastos editável/excluível e a conta completa (`renda × pct − rateio + mês passado = posso gastar`)
 - [x] **Lançamentos do mês** — abas Gastos / Renda / Custos Fixos / Imprevistos, busca e edição/exclusão inline

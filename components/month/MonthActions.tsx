@@ -1,6 +1,5 @@
 'use client';
 
-import { Mic } from 'lucide-react';
 import type { CategoryKind } from '@/lib/budget';
 import { HOME_DOTS_LANE, HOME_FOOTER_HEIGHT } from '@/components/modules/home/homeLayout';
 import { Fab } from '@/components/ui/Fab';
@@ -13,7 +12,7 @@ const BOTTOM = {
 };
 
 /**
- * The floating "Renda" and "Lançar gasto" buttons (and the microphone, with the voice module on).
+ * The floating "Renda" and "Lançar gasto" buttons.
  * On the Início they float just above the squares and the up-arrow (`placement="home"`); on any other
  * screen, near the bottom edge, which then leaves room for them (`MONTH_ACTIONS_PADDING`).
  */
@@ -24,29 +23,16 @@ export function MonthActions({
   defaultCategoryKind?: CategoryKind;
   placement?: keyof typeof BOTTOM;
 }) {
-  const { openExpenseForm, openIncomeForm, openVoiceEntry } = useMonthContext();
+  const { openExpenseForm, openIncomeForm } = useMonthContext();
 
   return (
     <div className="fixed right-4 z-30 flex flex-col items-end gap-2" style={{ bottom: BOTTOM[placement] }}>
       <Fab label="Renda" variant="secondary" onClick={() => openIncomeForm()} tourId="fab-renda" />
-      <div className="flex items-center gap-2">
-        {openVoiceEntry && (
-          <button
-            type="button"
-            onClick={openVoiceEntry}
-            aria-label="Lançar por voz ou texto"
-            data-tour="fab-voz"
-            className="border-border bg-card text-primary flex h-12 w-12 items-center justify-center rounded-full border shadow-lg transition-transform active:scale-95"
-          >
-            <Mic className="h-5 w-5" aria-hidden />
-          </button>
-        )}
-        <Fab
-          label="Lançar gasto"
-          onClick={() => openExpenseForm(undefined, defaultCategoryKind)}
-          tourId="fab-lancar-gasto"
-        />
-      </div>
+      <Fab
+        label="Lançar gasto"
+        onClick={() => openExpenseForm(undefined, defaultCategoryKind)}
+        tourId="fab-lancar-gasto"
+      />
     </div>
   );
 }

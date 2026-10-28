@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   admitRequest,
   ALERT_COOLDOWN_MS,
-  isUnderStrain,
   loadGuardSnapshot,
   refreshTemperature,
   resetLoadGuard,
@@ -100,7 +99,6 @@ describe('loadGuard', () => {
   it('warns when the board is hot and pauses when it reaches the critical temperature', async () => {
     await refreshTemperature(T0, async () => 78);
     expect(alerts.map((a) => a.kind)).toEqual(['temp-alert']);
-    expect(isUnderStrain(T0)).toBe(true);
     expect(admitRequest('198.51.100.1', T0 + 100).action).toBe('allow');
 
     await refreshTemperature(T0 + 10_000, async () => 86);

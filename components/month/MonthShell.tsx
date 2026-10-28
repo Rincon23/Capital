@@ -19,7 +19,6 @@ import { useSettings } from '@/components/providers/SettingsProvider';
 import { subscribeTourSheets } from '@/components/modules/tour/tourSheets';
 import { InstallmentEditor, type InstallmentEditRequest } from '@/components/card/InstallmentEditor';
 import { useToast } from '@/components/ui/Toast';
-import { VoiceEntrySheet } from '@/components/voice/VoiceEntrySheet';
 import { MonthContext } from './MonthContext';
 import { ExpenseFormSheet } from './ExpenseFormSheet';
 import { IncomeFormSheet } from './IncomeFormSheet';
@@ -28,7 +27,6 @@ type ExpenseFormState =
   | {
       open: true;
       initial?: Expense;
-      draft?: Partial<Expense>;
       defaultCategoryKind?: CategoryKind;
       /** Editing one instalment on its own, which the form says out loud. */
       singleInstallment?: boolean;
@@ -48,25 +46,19 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
 
   const [expenseForm, setExpenseForm] = useState<ExpenseFormState>({ open: false });
   const [incomeForm, setIncomeForm] = useState<IncomeFormState>({ open: false });
-  const [voiceOpen, setVoiceOpen] = useState(false);
   const [installmentEdit, setInstallmentEdit] = useState<InstallmentEditRequest | null>(null);
 
   useEffect(() => {
     setLastViewedMonth(month);
   }, [month]);
 
-  // A tour step can ask for the expense form (the card question, "A receber") or the voice entry.
+  // A tour step can ask for the expense form (the card question, "A receber").
   useEffect(
     () =>
       subscribeTourSheets((request) => {
         if (request === 'close') {
           setExpenseForm({ open: false });
-          setVoiceOpen(false);
-        } else if (request === 'voice') {
-          setExpenseForm({ open: false });
-          setVoiceOpen(true);
         } else {
-          setVoiceOpen(false);
           setExpenseForm({
             open: true,
             forTour: true,
@@ -101,11 +93,6 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
   const openIncomeForm = useCallback((initial?: Income) => {
     setIncomeForm({ open: true, initial });
   }, []);
-  const voiceAvailable = isModuleOn(settings, 'voice');
-  const openVoiceEntry = useCallback(() => {
-    setExpenseForm({ open: false });
-    setVoiceOpen(true);
-  }, []);
 
   // A hard storage failure (e.g. the server or its database unreachable) leaves monthData
   // null forever; show the error instead of letting every child spin on "Carregando…".
@@ -127,7 +114,7 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
   }
 
   /**
-   * A new expense (the form, a voice entry): saved, then a toast with what it did to its category,
+   * A new expense (the form): saved, then a toast with what it did to its category,
    * with "Desfazer" — how the envelope is learned by using it. Editing one says nothing.
    */
   async function saveNewExpense(expense: Expense) {
@@ -160,7 +147,6 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
         month,
         openExpenseForm,
         openIncomeForm,
-        openVoiceEntry: voiceAvailable ? openVoiceEntry : undefined,
       }}
     >
       {children}
@@ -193,7 +179,6 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
           reimbursableEnabled={isModuleOn(settings, 'reimbursable')}
           cardEnabled={isModuleOn(settings, 'card')}
           initial={expenseForm.initial}
-          draft={expenseForm.draft}
           defaultCategoryKind={expenseForm.defaultCategoryKind}
           autoFocusAmount={!expenseForm.forTour}
           note={expenseForm.singleInstallment ? SINGLE_INSTALLMENT_NOTE : undefined}
@@ -208,20 +193,6 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
                 }
               : undefined
           }
-          onVoice={voiceAvailable ? openVoiceEntry : undefined}
-        />
-      )}
-
-      {voiceOpen && settings && (
-        <VoiceEntrySheet
-          month={month}
-          settings={settings}
-          onClose={() => setVoiceOpen(false)}
-          onSave={saveNewExpense}
-          onEdit={(draft) => {
-            setVoiceOpen(false);
-            setExpenseForm({ open: true, draft });
-          }}
         />
       )}
 

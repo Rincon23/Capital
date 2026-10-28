@@ -177,6 +177,7 @@ export const expenseSchema = z.object({
   date: isoDate,
   singleInstallmentCard: z.boolean().optional(),
   cardId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
+  // `voice` and `text`: older expenses of the retired "Lançar por voz ou texto".
   source: z.enum(['form', 'voice', 'text', 'recurring', 'investment', 'installment', 'import']).optional(),
   // Echoed back by the client when it edits an instalment's expense, so the link survives.
   installmentId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
@@ -381,9 +382,6 @@ export const actionTokenSchema = z.object({ token: z.string().min(10).max(2000) 
 
 /** Body of "enviar notificação de teste": one device, or all of them. */
 export const pushTestSchema = z.object({ deviceId: z.uuid().optional() });
-
-/** "Descreva o gasto": the sentence the AI reads. */
-export const aiExpenseTextSchema = z.object({ text: z.string().trim().min(1).max(500) });
 
 /** The person's Pluggy key (Open Finance), as copied from dashboard.pluggy.ai. */
 export const bankKeySchema = z.object({

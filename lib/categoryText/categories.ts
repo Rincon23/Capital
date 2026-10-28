@@ -6,8 +6,8 @@ import type { CategoryOption } from './types';
 
 /**
  * The categories an expense can go to for this user, in the order the form shows them: the
- * active envelopes, the special categories and "A receber" when that module is on. The AI
- * never sees a fixed list; it gets these names.
+ * active envelopes, the special categories and "A receber" when that module is on. A text is
+ * read against these names, never a fixed list.
  */
 export function categoryOptions(
   settings: Pick<BudgetSettings, 'topics' | 'specialCategories' | 'modules'>,
@@ -145,9 +145,3 @@ export function findCategory(text: string, options: CategoryOption[]): CategoryR
   };
 }
 
-/** The option whose name is `label` (as the AI wrote it), ignoring case, accents and plural. */
-export function optionByLabel(label: string, options: CategoryOption[]): CategoryOption | undefined {
-  const folded = foldText(label).trim();
-  const exact = options.find((option) => foldText(option.label).trim() === folded);
-  return exact ?? findCategory(label, options).option;
-}

@@ -195,16 +195,6 @@ export const MODULES: ModuleDefinition[] = [
     },
     homeCard: true,
   },
-  {
-    key: 'voice',
-    name: 'Lançar por voz ou texto',
-    tagline: 'O botão de microfone ao lançar gasto',
-    group: 'assistant',
-    dependsOn: ['expenses'],
-    homeCard: false,
-    // The AI runs on the server's own board: kept to a few accounts so it doesn't overheat.
-    vipByDefault: true,
-  },
 ];
 
 export const MODULE_KEYS: ModuleKey[] = MODULES.map((definition) => definition.key);
