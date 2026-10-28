@@ -7,8 +7,14 @@ import type { CSSProperties } from 'react';
  * (the track covers it exactly), so nothing has to be measured to lay it out.
  */
 
-/** The strip under the áreas: the dots and the up-arrow. The floating buttons sit right above it. */
-export const HOME_FOOTER_HEIGHT = '4rem';
+/** The strip under the áreas: the up-arrow ("Apps"). */
+export const HOME_FOOTER_HEIGHT = '3rem';
+
+/**
+ * The lane right above that strip where the squares of the telas float, over the áreas (no strip
+ * of their own). The floating buttons sit above both.
+ */
+export const HOME_DOTS_LANE = '1rem';
 
 /** In edit mode: how much of the viewport a page takes, and the gap between two pages (px). */
 const EDIT_WIDTH = 0.86;

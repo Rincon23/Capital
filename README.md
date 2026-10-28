@@ -109,7 +109,7 @@ prêmio. O catálogo (`MISSIONS` em `lib/gamification/missions.ts`) é feito par
 
 | Quando | Missões |
 | --- | --- |
-| Todo dia | Abrir o app (10) |
+| Todo dia | Resgatar o XP do dia (10, no botão "Resgatar" da faixa das Missões na Início; só abrir o app não dá) |
 | Toda semana | Conferir os bancos (15, só quem tem Open Finance e um banco) |
 | Todo mês | Registrar uma renda (30), Lançar um gasto (30), Conferir o calendário, as contas do mês, a fatura e a reserva (15 cada; contas e fatura só para quem tem conta ou cartão), Fechar o mês anterior (50) |
 | Uma vez | Primeira renda e primeiro gasto (50 cada), Ajustar as categorias (50), Primeiro lembrete, Ligar as notificações e Instalar o app (30 cada), Conectar um banco (100, Open Finance), e Conhecer cada módulo (20 cada: a primeira visita à tela; A receber e a voz, o primeiro uso) |
@@ -126,14 +126,20 @@ lembrete, cartão, push, banco, mês anterior fechado...), grava o que a conta a
 devolve o nível, as missões e o XP dos últimos meses. As missões de "ir até o lugar" chegam do app
 (`visitsForPath`: a tela de cada módulo, Contas do mês, Cartão, Reserva, a conferência dos bancos e
 a aba Calendário) e só valem para uma missão que a conta tem. O `MissionsProvider` confere ao abrir
-o app (que é a missão do dia), ao voltar para ele, a cada tela e logo depois de qualquer gravação
-(`capital:data-changed`, disparado pelo `apiClient`). O que acabou de ganhar aparece num aviso
-("+30 XP · Lançar um gasto"), que espera o destaque de uma missão sair da tela; um nível novo
-aparece num cartão com a árvore e o nome. Conta antiga ganha de uma vez o XP do que já tinha feito,
+o app, ao voltar para ele, a cada tela, no "Resgatar" (`claimDay`, a missão do dia, que guarda a
+chave antiga `open-app`) e logo depois de qualquer gravação (`capital:data-changed`, disparado pelo
+`apiClient`). O que acabou de ganhar **voa até a árvore** da faixa da Início quando ela está na
+tela (`components/missions/xpFlight.ts`): o "+30 XP" sai de onde a pessoa tocou (o Resgatar, o
+Salvar), faz uma curva com umas faíscas atrás e entra na árvore, que pula; a barra só enche quando
+ele chega. Fora da Início, com uma folha por cima ou com "menos movimento" no aparelho, aparece num
+aviso ("+30 XP · Lançar um gasto"), que espera o destaque de uma missão sair da tela. Um nível novo
+aparece num cartão com a árvore e o nome, depois que o XP chegou. Conta antiga ganha de uma vez o XP do que já tinha feito,
 com um aviso só ("Você já tinha 340 XP · Muda"). "Apagar todos os dados" zera o XP.
 
-**Widget e tela.** O widget fica no topo da Início: a árvore e o nome do nível, a barra até o
-próximo e até 3 missões (primeiro as de primeira vez, depois as do mês). A tela tem o nível em
+**Faixa e tela.** A faixa fica no topo da Início, embaixo da saudação (não é widget): a árvore e o
+nome do nível, a barra até o próximo e a próxima missão (primeiro as de primeira vez, depois as do
+mês) e, enquanto o XP de hoje não foi resgatado, o botão **Resgatar** (+10 XP) à direita. A
+boas-vindas da conta nova aparece uma vez só (aviso `welcome:missions`). A tela tem o nível em
 destaque, as missões por período ("Conhecer os módulos" recolhido) e o XP de cada mês. Tocar numa
 missão leva ao lugar e destaca o único botão a tocar (um passo do spotlight, que o próprio toque no
 botão fecha); renda e gasto abrem o formulário ali mesmo na Início. Nada disso abre sozinho.
@@ -603,7 +609,8 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   (vale em todos os aparelhos; conta nova começa com a Início da conta modelo). Deslizar para o
   lado troca de área com a física de antes (a tela acompanha o dedo, cede na primeira e na última,
   troca com 30% da largura ou um peteleco, `components/layout/swipePhysics.ts`); funciona com mouse
-  e com as setas, e as bolinhas embaixo dizem em qual você está. Cada área rola sozinha e guarda a
+  e com as setas, e os quadradinhos logo acima de "Apps" (sempre, mesmo com uma área só) dizem
+  quantas áreas há e em qual você está. Cada área rola sozinha e guarda a
   própria posição; a área aberta fica guardada na sessão. Um módulo novo no catálogo traz o widget
   dele para o fim da última área; um widget extra (o Calendário dos Lembretes) entra logo depois do card do
   seu módulo, e Missões entra no topo da primeira área. Um Início salvo antes das áreas
@@ -695,7 +702,8 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
 - **Restaurar categorias padrão** (na engrenagem): as quatro padrão voltam como vieram (nome,
   descrição, cor e %) e todas as outras são arquivadas, com "Desfazer".
 - **Configuração das categorias** (`OnboardingWizard`: no primeiro acesso, na primeira visita a
-  Categorias e no botão "Me ajude com as %"), em 3 passos, sempre com "Pular": a renda; os custos
+  Categorias e no botão "Me ajude com as %"), em 3 passos, sempre com "Pular" (o da primeira visita
+  leva para a Início; o de "Me ajude com as %" fica em Categorias): a renda; os custos
   fixos e os imprevistos na mesma tela (só para a prévia, nada é lançado; a regra do custo fixo fica
   no ⓘ); e as porcentagens, cada categoria com a descrição dela embaixo do nome e a prévia de quanto
   a % deixa para gastar. Dá para criar uma categoria ali também, com o mesmo aviso.

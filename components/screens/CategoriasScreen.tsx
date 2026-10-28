@@ -176,9 +176,11 @@ function Categorias() {
         <OnboardingWizard
           settings={settings}
           saveSettings={saveSettings}
+          // Skipping the first visit's questions leaves for the Início, not for a Categorias still unset.
           onSkip={() => {
             setHelping(false);
             finishSetup();
+            router.push(backHref);
           }}
           onComplete={() => {
             void refresh();

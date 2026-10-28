@@ -2,19 +2,19 @@
 
 import { Mic } from 'lucide-react';
 import type { CategoryKind } from '@/lib/budget';
-import { HOME_FOOTER_HEIGHT } from '@/components/modules/home/homeLayout';
+import { HOME_DOTS_LANE, HOME_FOOTER_HEIGHT } from '@/components/modules/home/homeLayout';
 import { Fab } from '@/components/ui/Fab';
 import { useMonthContext } from './MonthContext';
 
 /** How far above the bottom edge the buttons float: over the Início's dots and up-arrow, or near the edge. */
 const BOTTOM = {
-  home: `calc(env(safe-area-inset-bottom) + ${HOME_FOOTER_HEIGHT} + 0.5rem)`,
+  home: `calc(env(safe-area-inset-bottom) + ${HOME_FOOTER_HEIGHT} + ${HOME_DOTS_LANE} + 0.5rem)`,
   screen: 'calc(env(safe-area-inset-bottom) + 1rem)',
 };
 
 /**
  * The floating "Renda" and "Lançar gasto" buttons (and the microphone, with the voice module on).
- * On the Início they float just above the dots and the up-arrow (`placement="home"`); on any other
+ * On the Início they float just above the squares and the up-arrow (`placement="home"`); on any other
  * screen, near the bottom edge, which then leaves room for them (`MONTH_ACTIONS_PADDING`).
  */
 export function MonthActions({

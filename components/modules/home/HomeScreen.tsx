@@ -135,9 +135,10 @@ function pageAfterCleanup(pages: HomePages, index: number): number {
 }
 
 /**
- * The Início as the home screen of a phone: telas of widgets side by side (swipe
- * between them; the dots say which one is open), an up-arrow at the bottom that brings up the app
- * drawer (what used to be the "Mais" tab), and the floating buttons of the month right above it.
+ * The Início as the home screen of a phone: telas of widgets side by side (swipe between them; the
+ * squares above "Apps" say how many there are and which one is open), an up-arrow at the bottom
+ * that brings up the app drawer (what used to be the "Mais" tab), and the floating buttons of the
+ * month right above it.
  *
  * Edit mode (the pencil, or a long press on empty space) works like a phone's: the telas shrink so
  * the neighbours show; a widget is held and then dragged — to another place, to the edge to go to
@@ -803,9 +804,9 @@ export function HomeScreen({ settings, openApps }: { settings: BudgetSettings; o
           <RemeasureAfterSlide page={shown} />
 
           <div
-            className="flex shrink-0 flex-col"
+            className="relative flex shrink-0 flex-col"
             style={{
-              height: `calc(${editing ? `1rem + ${TRAY_BAR_HEIGHT}` : HOME_FOOTER_HEIGHT} + env(safe-area-inset-bottom))`,
+              height: `calc(${editing ? TRAY_BAR_HEIGHT : HOME_FOOTER_HEIGHT} + env(safe-area-inset-bottom))`,
               paddingBottom: 'env(safe-area-inset-bottom)',
             }}
           >
@@ -1006,7 +1007,11 @@ function MoveOptions({
   );
 }
 
-/** The dots under the telas: which one is open, and a tap to go to another. */
+/**
+ * The little squares right above "Apps", always there — even with one tela: how many telas the
+ * Início has, which one is open (the less see-through one), and a tap to go to another. They
+ * float over the bottom of the áreas, see-through and with nothing behind them, like a phone's.
+ */
 function PageDots({
   pages,
   current,
@@ -1018,9 +1023,12 @@ function PageDots({
   withNewPage: boolean;
   onSelect: (index: number) => void;
 }) {
-  if (pages < 2 && !withNewPage) return <div className="h-4 shrink-0" />;
   return (
-    <div role="group" aria-label="Telas" className="flex h-4 shrink-0 items-center justify-center gap-0.5">
+    <div
+      role="group"
+      aria-label="Telas"
+      className="pointer-events-none absolute bottom-full left-1/2 z-10 flex h-6 -translate-x-1/2 items-center justify-center gap-0.5 [&>button]:pointer-events-auto"
+    >
       {Array.from({ length: pages }, (_, index) => (
         <button
           key={index}
@@ -1032,8 +1040,8 @@ function PageDots({
         >
           <span
             aria-hidden
-            className={`block h-2 rounded-full transition-all duration-200 ${
-              index === current ? 'bg-foreground w-4' : 'bg-muted/50 w-2'
+            className={`block h-2 w-2 rounded-[2px] transition-colors duration-200 ${
+              index === current ? 'bg-foreground/60' : 'bg-foreground/20'
             }`}
           />
         </button>
@@ -1044,7 +1052,7 @@ function PageDots({
           onClick={() => onSelect(pages)}
           aria-label="Nova tela"
           aria-current={current === pages ? 'true' : undefined}
-          className={`flex h-6 w-6 items-center justify-center ${current === pages ? 'text-foreground' : 'text-muted'}`}
+          className={`flex h-6 w-6 items-center justify-center ${current === pages ? 'text-foreground/60' : 'text-foreground/30'}`}
         >
           <Plus aria-hidden className="h-3 w-3" strokeWidth={3} />
         </button>
