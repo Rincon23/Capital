@@ -65,6 +65,21 @@ export function TourProvider({ children }: { children: ReactNode }) {
         current = index;
       };
 
+      /**
+       * Runs `then` once the step's screen is the one on screen. The screen being left may have an
+       * element with the same name (the Início has its own "Renda" on the way to Lançamentos), and
+       * the spotlight would land on it and stay there, pointing at nothing, once that screen goes.
+       */
+      const onScreen = (href: string, then: () => void) => {
+        const giveUp = Date.now() + WAIT_FOR_ELEMENT_MS;
+        const check = () => {
+          if (finished || active.current !== tour) return;
+          if (here() === href || Date.now() > giveUp) then();
+          else setTimeout(check, 50);
+        };
+        check();
+      };
+
       const finish = () => {
         if (finished) return;
         finished = true;
@@ -98,12 +113,12 @@ export function TourProvider({ children }: { children: ReactNode }) {
             onNextClick: () => {
               if (index === steps.length - 1) return finish();
               prepare(index + 1);
-              tour.moveTo(index + 1);
+              onScreen(steps[index + 1].href, () => tour.moveTo(index + 1));
             },
             onPrevClick: () => {
               if (index === 0) return;
               prepare(index - 1);
-              tour.moveTo(index - 1);
+              onScreen(steps[index - 1].href, () => tour.moveTo(index - 1));
             },
           },
         })),
@@ -119,7 +134,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
 
       active.current = tour;
       prepare(0);
-      tour.drive(0);
+      onScreen(steps[0].href, () => tour.drive(0));
     },
     [router],
   );
