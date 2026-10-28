@@ -69,7 +69,7 @@ export interface AdminModule {
 /**
  * How one automatic test came out. `warn` is something the Capital itself can't fix — a free
  * outside service (B3, Yahoo, Google) that did not answer, or something worth a look —, `skip` a
- * test with nothing to test on this server (the AI not set up, no Gmail connected).
+ * test with nothing to test on this server (the AI not set up, no bank connected).
  */
 export type SelfTestStatus = 'ok' | 'warn' | 'fail' | 'skip';
 

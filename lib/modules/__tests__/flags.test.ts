@@ -22,7 +22,7 @@ const off = (...keys: ModuleKey[]) => Object.fromEntries(keys.map((key) => [key,
 const notVipDefault = { vip: false, vipModules: DEFAULT_VIP_MODULES };
 
 describe('catálogo de módulos', () => {
-  it('tem os 13 módulos, Missões primeiro e cada um depois dos que ele precisa', () => {
+  it('tem os 12 módulos, Missões primeiro e cada um depois dos que ele precisa', () => {
     expect(MODULE_KEYS).toEqual([
       'missions',
       'expenses',
@@ -36,7 +36,6 @@ describe('catálogo de módulos', () => {
       'diagram',
       'reminders',
       'voice',
-      'gmail',
     ]);
     MODULES.forEach((definition, index) => {
       for (const dep of definition.dependsOn) expect(MODULE_KEYS.indexOf(dep)).toBeLessThan(index);
@@ -101,7 +100,7 @@ describe('dependências', () => {
     ]);
     expect(dependentsOf('card')).toEqual([]);
     expect(dependentsOf('budget')).toEqual(['history']);
-    expect(dependentsOf('gmail')).toEqual([]);
+    expect(dependentsOf('reminders')).toEqual([]);
   });
 
   it('sabe de quem cada módulo depende mais de perto', () => {
@@ -121,14 +120,14 @@ describe('módulos só para VIP', () => {
 
   it('segue a escolha do dono em Administração, módulo por módulo', () => {
     expect(vipModulesFrom({ banks: false })).toEqual(['voice']);
-    expect(vipModulesFrom({ gmail: true, voice: false })).toEqual(['banks', 'gmail']);
+    expect(vipModulesFrom({ diagram: true, voice: false })).toEqual(['banks', 'diagram']);
     expect(vipModulesFrom({ banks: false, voice: false })).toEqual([]);
   });
 
   it('libera tudo para VIP e só o que não é "Só VIP" para os outros', () => {
     expect(mayUseModule({ vip: true, vipModules: ['banks'] }, 'banks')).toBe(true);
     expect(mayUseModule(notVip('banks'), 'banks')).toBe(false);
-    expect(mayUseModule(notVip('banks'), 'gmail')).toBe(true);
+    expect(mayUseModule(notVip('banks'), 'reminders')).toBe(true);
     expect(mayUseModule(notVip(), 'banks')).toBe(true);
   });
 

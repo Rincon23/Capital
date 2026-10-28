@@ -196,7 +196,8 @@ export async function selfTestOverview(db: Database): Promise<SelfTestOverview> 
           trigger: last.trigger,
           startedAt: last.startedAt.toISOString(),
           finishedAt: last.finishedAt.toISOString(),
-          results: last.results,
+          // A run from before a module was retired (the Monitor de Gmail) still has its results.
+          results: last.results.filter((result) => SELF_TEST_AREAS.includes(result.area)),
         }
       : null,
     running,

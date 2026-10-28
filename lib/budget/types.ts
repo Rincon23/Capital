@@ -93,8 +93,6 @@ export interface ModuleFlags {
   reminders: boolean;
   /** Logging an expense by voice or free text (AI). */
   voice: boolean;
-  /** Gmail keyword monitor. */
-  gmail: boolean;
   /** Open Finance: the person's banks, read once a day through their own Meu Pluggy (VIP). */
   banks: boolean;
   /** Diagrama: how much of each aporte goes to each type and asset. */

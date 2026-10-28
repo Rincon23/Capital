@@ -383,14 +383,14 @@ describe('PostgresBudgetRepository', () => {
 
     await repo.saveSettings({
       ...settings,
-      modules: Object.fromEntries(MODULE_KEYS.map((key) => [key, key === 'reminders' || key === 'gmail'])),
-      homePages: [['gmail'], ['reminders', 'calendar']],
+      modules: Object.fromEntries(MODULE_KEYS.map((key) => [key, key === 'reminders' || key === 'diagram'])),
+      homePages: [['diagram'], ['reminders', 'calendar']],
       homeOrder: null,
       dismissedNotices: ['modular-intro'],
     });
 
     const elsewhere = await new PostgresBudgetRepository(db, id).getSettings();
-    expect(resolveHomePages(elsewhere)).toEqual([['gmail'], ['reminders', 'calendar']]);
+    expect(resolveHomePages(elsewhere)).toEqual([['diagram'], ['reminders', 'calendar']]);
     expect(elsewhere.dismissedNotices).toEqual(['modular-intro']);
 
     // Saving without them (an older client) keeps them.
@@ -398,7 +398,7 @@ describe('PostgresBudgetRepository', () => {
     delete withoutPages.homePages;
     delete withoutPages.dismissedNotices;
     await repo.saveSettings(withoutPages);
-    expect((await repo.getSettings()).homePages).toEqual([['gmail'], ['reminders', 'calendar']]);
+    expect((await repo.getSettings()).homePages).toEqual([['diagram'], ['reminders', 'calendar']]);
     expect((await repo.getSettings()).dismissedNotices).toEqual(['modular-intro']);
 
     // Nobody else's app changes.
@@ -411,9 +411,9 @@ describe('PostgresBudgetRepository', () => {
     const { repo: target } = await newAccount();
     await target.importData(await repo.exportData());
     const restored = await target.getSettings();
-    expect(restored.homePages).toEqual([['gmail'], ['reminders', 'calendar']]);
+    expect(restored.homePages).toEqual([['diagram'], ['reminders', 'calendar']]);
     expect(restored.dismissedNotices).toEqual(['modular-intro']);
-    expect(resolveModules(restored).gmail).toBe(true);
+    expect(resolveModules(restored).diagram).toBe(true);
   });
 
   it('restores an older backup with a bottom bar and a single Início list', async () => {

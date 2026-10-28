@@ -76,7 +76,7 @@ describe('módulos só para VIP', () => {
     const common = await newPerson({});
     const vip = await newPerson({}, { vip: true });
     const owner = await newPerson({}, { email: OWNER });
-    await db.insert(schema.gmailKeywords).values({ userId: common, keyword: 'fatura' });
+    await db.insert(schema.xpEvents).values({ userId: common, mission: 'first-expense', period: 'once', xp: 50 });
 
     expect(await setModuleVip(db, 'budget', true)).toBe(1);
     expect(await vipModules(db)).toEqual(['budget', 'banks', 'voice']);
@@ -85,11 +85,8 @@ describe('módulos só para VIP', () => {
     expect(await modulesOf(owner)).toEqual(ALL_MODULES);
 
     // Nothing of theirs goes away with the switch.
-    const keywords = await db
-      .select()
-      .from(schema.gmailKeywords)
-      .where(eq(schema.gmailKeywords.userId, common));
-    expect(keywords).toHaveLength(1);
+    const earned = await db.select().from(schema.xpEvents).where(eq(schema.xpEvents.userId, common));
+    expect(earned).toHaveLength(1);
 
     // And the server refuses it to them from then on, as an address that does not exist.
     expect(() => requireNotVipLocked({ vip: false, vipModules: ['budget'] }, 'budget')).toThrow(HttpError);
@@ -115,17 +112,17 @@ describe('módulos só para VIP', () => {
     await setModuleVip(db, 'voice', false);
 
     const modules = await listModules(db);
-    expect(modules.map((item) => item.key)).toHaveLength(13);
-    expect(modules.find((item) => item.key === 'gmail')).toEqual({ key: 'gmail', vipOnly: false, usersWithoutVip: 1 });
+    expect(modules.map((item) => item.key)).toHaveLength(12);
+    expect(modules.find((item) => item.key === 'reminders')).toEqual({ key: 'reminders', vipOnly: false, usersWithoutVip: 1 });
     expect(modules.find((item) => item.key === 'banks')).toEqual({ key: 'banks', vipOnly: true, usersWithoutVip: 0 });
     expect(modules.filter((item) => item.vipOnly).map((item) => item.key)).toEqual(['banks']);
   });
 
   it('quem perde o acesso fica sem os módulos restritos, e os dados ficam; quem ganha, tem na hora', async () => {
-    await setModuleVip(db, 'gmail', true);
+    await setModuleVip(db, 'diagram', true);
     const id = await newPerson({}, { vip: true });
     await setVip(db, id, false);
-    expect(await modulesOf(id)).toEqual({ ...ALL_MODULES, gmail: false, banks: false, voice: false });
+    expect(await modulesOf(id)).toEqual({ ...ALL_MODULES, banks: false, diagram: false, voice: false });
     expect((await userAccess(db, id, `${id}@teste.local`)).vip).toBe(false);
 
     await setVip(db, id, true);

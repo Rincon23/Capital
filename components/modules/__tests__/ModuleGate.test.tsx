@@ -23,9 +23,9 @@ function renderGate(module: ModuleKey, access: { vip: boolean; vipModules: Modul
 
 describe('ModuleGate e os módulos restritos da Administração', () => {
   it('para quem não tem acesso, o módulo restrito não existe: nem nome, nem botão de ligar', () => {
-    renderGate('gmail', { vip: false, vipModules: ['gmail'] });
+    renderGate('diagram', { vip: false, vipModules: ['diagram'] });
     expect(screen.getByText('Página não encontrada')).toBeInTheDocument();
-    expect(screen.queryByText(/Gmail/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Diagrama/)).not.toBeInTheDocument();
     expect(screen.queryByText(/VIP|Restrito/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Ligar/ })).not.toBeInTheDocument();
   });

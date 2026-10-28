@@ -6,7 +6,7 @@ import { BellOff } from 'lucide-react';
 import { IconTile } from '@/components/ui/IconTile';
 import { currentSubscription, pushSupport } from '@/lib/notifications/browser';
 
-/** A nudge when this device would not receive the notifications (Lembretes, Monitor de Gmail). */
+/** A nudge when this device would not receive the notifications (Lembretes, cartões, contas do mês). */
 export function NotificationsHint() {
   const [show, setShow] = useState(false);
 

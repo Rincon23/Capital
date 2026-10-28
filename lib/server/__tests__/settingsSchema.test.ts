@@ -32,6 +32,24 @@ describe('settingsSchema com as áreas da Início', () => {
     expect(settingsSchema.safeParse({ ...base(), homePages: [['expenses', 'relogio']] }).success).toBe(false);
   });
 
+  it('deixa de fora o Monitor de Gmail, que saiu do app, onde uma conta antiga o guardou', () => {
+    const parsed = settingsSchema.parse({
+      ...base(),
+      modules: { expenses: true, gmail: true },
+      nav: ['inicio', 'gmail'],
+      homeOrder: ['gmail', 'expenses'],
+      homePages: [['expenses', 'gmail'], ['gmail']],
+      homeHidden: ['gmail', 'budget'],
+      homeCardSizes: { gmail: 'half', recurring: 'full' },
+    });
+    expect(parsed.modules).toEqual({ expenses: true });
+    expect(parsed.nav).toEqual(['inicio']);
+    expect(parsed.homeOrder).toEqual(['expenses']);
+    expect(parsed.homePages).toEqual([['expenses'], []]);
+    expect(parsed.homeHidden).toEqual(['budget']);
+    expect(parsed.homeCardSizes).toEqual({ recurring: 'full' });
+  });
+
   it('continua aceitando o rodapé e a ordem antiga, de backups e apps em cache', () => {
     const parsed = settingsSchema.parse({ ...base(), nav: ['inicio', 'expenses'], homeOrder: ['expenses'] });
     expect(parsed.nav).toEqual(['inicio', 'expenses']);

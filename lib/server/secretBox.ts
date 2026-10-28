@@ -2,9 +2,9 @@ import 'server-only';
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 
 /**
- * Encrypts secrets kept in the database (the Gmail refresh token) with AES-256-GCM and
- * ENCRYPTION_KEY: 32 random bytes in base64, one per environment. A database backup alone
- * doesn't give access to anyone's Gmail. Changing the key means connecting again.
+ * Encrypts secrets kept in the database (each person's Pluggy key, for the Open Finance) with
+ * AES-256-GCM and ENCRYPTION_KEY: 32 random bytes in base64, one per environment. A database
+ * backup alone doesn't give access to anyone's banks. Changing the key means saving the key again.
  */
 
 const VERSION = 'v1';

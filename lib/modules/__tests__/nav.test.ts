@@ -15,7 +15,6 @@ const everything = on(
   'cash',
   'reminders',
   'voice',
-  'gmail',
 );
 
 describe('bandeja de apps', () => {
@@ -27,7 +26,7 @@ describe('bandeja de apps', () => {
         label: 'Carteira',
         keys: ['recurring', 'cash'],
       },
-      { group: 'assistant', label: 'Assistente', keys: ['reminders', 'gmail'] },
+      { group: 'assistant', label: 'Assistente', keys: ['reminders'] },
     ]);
   });
 

@@ -7,7 +7,6 @@ export * from './notifications';
 export * from './notificationsFeed';
 export * from './reimbursables';
 export * from './reminders';
-export * from './gmail';
 export * from './banks';
 export * from './diagram';
 export * from './preferences';
@@ -20,7 +19,6 @@ import { HttpWalletRepository } from './walletHttpRepository';
 import { HttpNotificationsRepository, type NotificationsRepository } from './notifications';
 import { HttpNotificationsFeedRepository, type NotificationsFeedRepository } from './notificationsFeed';
 import { HttpRemindersRepository, type RemindersRepository } from './reminders';
-import { HttpGmailRepository, type GmailRepository } from './gmail';
 import { HttpBanksRepository, type BanksRepository } from './banks';
 import { HttpDiagramRepository, type DiagramRepository } from './diagram';
 
@@ -42,9 +40,6 @@ export const notificationsFeedRepository: NotificationsFeedRepository = new Http
 
 /** Lembretes and daily tasks. */
 export const remindersRepository: RemindersRepository = new HttpRemindersRepository();
-
-/** The Gmail monitor (owner only). */
-export const gmailRepository: GmailRepository = new HttpGmailRepository();
 
 /** Open Finance: the person's Pluggy key and the banks they brought. */
 export const banksRepository: BanksRepository = new HttpBanksRepository();

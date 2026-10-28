@@ -323,36 +323,6 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       sheet: 'voice',
     },
   ],
-  gmail: [
-    {
-      route: () => '/gmail',
-      anchor: 'gmail-conta',
-      title: 'Sua conta',
-      description: 'Conecte seu Gmail só com permissão de leitura.',
-      side: 'bottom',
-    },
-    {
-      route: () => '/gmail',
-      anchor: 'gmail-palavras',
-      title: 'Palavras-chave',
-      description: 'Chegou e-mail com uma delas? O celular avisa.',
-      side: 'top',
-    },
-    {
-      route: () => '/gmail',
-      anchor: 'gmail-alertas',
-      title: 'Alertas',
-      description: 'Os e-mails encontrados. Toque em um para abrir no Gmail.',
-      side: 'top',
-    },
-    {
-      route: () => '/gmail',
-      anchor: 'gmail-config',
-      title: 'Avisos no celular',
-      description: 'Na engrenagem você ativa as notificações neste aparelho.',
-      side: 'bottom',
-    },
-  ],
   banks: [
     {
       route: () => '/bancos',
@@ -395,7 +365,6 @@ export const MODULE_HELP: Record<ModuleKey, Pick<TourStepDefinition, 'route' | '
   diagram: { route: () => '/diagrama' },
   reminders: { route: () => '/lembretes' },
   voice: { route: home, sheet: 'voice' },
-  gmail: { route: () => '/gmail' },
   banks: { route: () => '/bancos' },
 };
 

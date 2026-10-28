@@ -28,8 +28,7 @@ reserva), **dividido entre as categorias** e **telas** (as áreas de trabalho da
 **Pouco texto.** Por tela, no máximo uma linha curta de ajuda visível; o resto vai para um ⓘ ou
 sai. Dica de tour, uma linha. Mensagens de erro curtas ("Não foi possível salvar. Tente de novo.").
 Em outubro de 2026 os textos de interface com 60 caracteres ou mais caíram de 205 para cerca de 20
-de verdade (sobram os passos de configuração do Gmail, que só o dono vê, e os avisos de novidade
-antigos).
+de verdade (sobram os avisos de novidade antigos).
 
 ### Módulos: todo mundo tem todos
 
@@ -69,7 +68,7 @@ restritos: se Lançamentos for restrito, tudo o que depende dele some junto.
   - A receber
   - Contas do mês
   - Lançar por voz ou texto
-- Reserva, Open Finance, Diagrama, Lembretes e Monitor de Gmail não dependem de nenhum.
+- Reserva, Open Finance, Diagrama e Lembretes não dependem de nenhum.
 
 **Módulos restritos.** O dono do servidor (`OWNER_EMAIL`) escolhe em **Administração**, no card
 "Módulos restritos", quais módulos ficam só para as contas com acesso: um switch **"Restrito"** por
@@ -92,8 +91,8 @@ no banco o acesso ainda se chama "vip"; na tela, é "Restrito" e "Acesso aos res
 - O que cada conta tem fica salvo em `budget_settings.modules` (`effectiveModules`: tudo, menos o
   restrito sem acesso), que é o que os jobs leem; `syncModules` regrava isso a cada subida do
   servidor e a cada mudança de acesso. Nas leituras e gravações das configurações e na importação
-  de backup, `withAccessRules` troca o que veio pelo que a conta tem. As rotas de Open Finance, IA,
-  Gmail e das perguntas automáticas respondem **404 "Não encontrado."** a quem não tem acesso, sem o
+  de backup, `withAccessRules` troca o que veio pelo que a conta tem. As rotas de Open Finance, IA
+  e das perguntas automáticas respondem **404 "Não encontrado."** a quem não tem acesso, sem o
   nome do módulo (`requireNotVipLocked` em `lib/server/access.ts`). O app recebe a lista no layout
   (`vipModules` do `AuthUser`) e usa `mayUseModule` e `isModuleHidden`.
 
@@ -383,13 +382,11 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
   - **Progresso real:** o servidor transmite cada etapa (transcrevendo, carregando a IA, lendo,
     montando) e os tokens conforme saem; a barra usa esses sinais e o tempo medido no Pi.
   - Ao abrir a tela, o servidor já carrega o modelo e lê o começo do prompt (aquecimento).
-- **Monitor de Gmail** (`/gmail`): cada pessoa conecta o próprio Gmail com
-  "Login com Google" (permissão só de leitura) e, a cada minuto, avisa no celular quando chega um
-  e-mail com uma das palavras-chave no assunto, no remetente ou na prévia (sem ligar para
-  maiúsculas e acentos). **Uma** notificação por e-mail, com todas as palavras encontradas, e
-  nunca o mesmo e-mail duas vezes; tocar abre o e-mail no Gmail. Mostra o histórico de alertas.
-  Ignora o que você enviou, rascunhos e spam. Se o Google recusar a conexão, avisa uma vez e pede
-  para conectar de novo.
+- **Monitor de Gmail** — retirado em 28/10/2026 ("não bate com a proposta do app"). As tabelas
+  `gmail_*` ficaram no banco, sem uso, até esses dados serem apagados; "Apagar todos os dados"
+  ainda apaga o que a conta deixou nelas. Onde uma conta antiga guardou `gmail` (telas da Início,
+  widgets escondidos, a barra antiga), a chave é deixada de fora (`RETIRED_MODULES` em
+  `lib/modules/migration.ts`); os alertas antigos continuam no histórico de notificações.
 - **Open Finance** (`/bancos`, começa restrito): traz os bancos da pessoa pelo **Meu Pluggy**, grátis e
   só leitura, com a chave da própria pessoa, e serve **só para conferir** o que foi lançado no
   Capital: gastos, recebimentos e (no Diagrama) as quantidades de ações e cotas. Nenhum saldo,
@@ -663,7 +660,7 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
 - **Configurações do módulo (engrenagem)**: ficam na tela do próprio módulo. Categorias: nome,
   descrição, cor, ordem e metas (com a regra dos 100%), e "Restaurar categorias padrão".
   Lançamentos: nome, descrição e cor das categorias, sem metas. Lembretes: notificações deste
-  aparelho e horários para lembrar de novo. Gmail: notificações. Cartões: horário do aviso, insistir
+  aparelho e horários para lembrar de novo. Cartões: horário do aviso, insistir
   até a fatura ser paga e notificações deste aparelho. Contas do mês: aviso no dia do vencimento,
   horário, lembrar de novo até lançar e notificações deste aparelho. Reserva: reserva em conta,
   custos de emergência e o ativo das cotas. **Configurações** fica só com o que é
@@ -789,7 +786,7 @@ No Pi, tudo do Capital fica em `~/capitalapp`:
    # VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY e VAPID_SUBJECT (notificações) e ACTION_TOKEN_SECRET
    #   — um par/segredo próprio do Pi; os comandos para gerar estão no .env.example
    # WHISPER_URL e OLLAMA_URL (lançar por voz ou texto), ex.: http://100.x.y.z:8090 e :11434
-   # GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET e ENCRYPTION_KEY (monitor de Gmail; passo a passo no .env.example)
+   # ENCRYPTION_KEY (Open Finance; o comando para gerar está no .env.example)
    docker compose --env-file .env.local up -d --build
    ```
 
@@ -852,7 +849,6 @@ na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de 
   /budget                 Regras de negócio — funções puras, sem React nem storage
   /reminders              Regras dos lembretes (vencimentos, quando notificar, textos), puras, no fuso de São Paulo
   /ai                     Lançar por voz/texto: regras de leitura do gasto, prompt, rascunho e progresso (puras)
-  /gmail                  Monitor de Gmail: palavras-chave num e-mail e o texto da notificação (puras)
   /notifications          Web Push: tipos, nome dos aparelhos e o lado do navegador (permissão, inscrição)
   /modules                A ficha de cada módulo, dependências, bandeja de apps e áreas da Início (puras)
   /storage                Contrato BudgetRepository e o repositório do navegador (HTTP)
@@ -870,7 +866,7 @@ na loja (`node scripts/generate-icons.mjs` regenera os placeholders a partir de 
 
 Roda dentro do próprio servidor do Capital, sem n8n nem container extra: a cada minuto (5 s
 depois da virada) envia as notificações de lembrete que venceram, os avisos das faturas e das
-Contas do mês, confere o Gmail das contas conectadas e, no horário da B3 (dias úteis, 10:00–18:30), atualiza a cotação dos ativos que alguém
+Contas do mês e, no horário da B3 (dias úteis, 10:00–18:30), atualiza a cotação dos ativos que alguém
 tem, a cada 30 min. De hora em hora também avisa, pelo sino, quem já tinha conta quando uma
 novidade do app entrou no ar (`lib/notifications/announcements.ts`). Cada tarefa guarda
 quando rodou (`job_runs`): depois de um deploy ou reinício ela recupera o que ficou para trás, e
@@ -880,19 +876,7 @@ cada envio é anotado antes (`reminder_deliveries`, chave única), então nada s
 Excluir uma notificação (arrastando para o lado) **não** apaga a linha quando ela tem `source_key`
 — a de uma novidade, por exemplo: só marca `dismissed_at`, e a linha continua lá como lápide. Sem
 isso o índice único `(user_id, source_key)` deixaria de enxergá-la e a tarefa mandaria exatamente o
-mesmo aviso na hora seguinte, e na outra, e na outra. Notificação sem `source_key` (lembrete,
-alerta do Gmail) ninguém recria, então essa é apagada de verdade.
-
-### Monitor de Gmail (`lib/server/gmail`)
-
-OAuth web próprio, com `fetch` e sem SDK: `/api/v1/gmail/oauth/start` manda ao Google com o escopo
-`gmail.readonly` e um cookie assinado com o `state`; `/callback` confere o `state`, troca o código
-pelo refresh token, guarda-o cifrado (AES-256-GCM, `ENCRYPTION_KEY`, `lib/server/secretBox.ts`) e
-começa a olhar a partir do `historyId` atual. A verificação usa `history.list` desde o último
-`historyId` (se ele expirou, os e-mails do último dia), lê Subject, From e snippet, e grava em
-`gmail_alerts` antes de notificar: a chave primária é o que impede o alerta repetido.
-"Desconectar" apaga a conexão guardada, mas não revoga a permissão no Google, porque o n8n pode usar
-o mesmo cliente OAuth e perderia o acesso junto.
+mesmo aviso na hora seguinte, e na outra, e na outra. Notificação sem `source_key` (lembrete) ninguém recria, então essa é apagada de verdade.
 
 **Limites do Google:** a permissão de ler e-mails é um escopo "restrito". Com o app "Em produção"
 e sem a verificação paga do Google, até 100 pessoas conseguem conectar, e cada uma vê uma vez o aviso
@@ -1195,8 +1179,8 @@ não compila se um módulo novo ficar sem teste) e os do servidor:
   do mês, aporta no Diagrama, confere banco, marca lembrete, ganha XP… — pelos mesmos
   repositórios, numa transação que é **sempre desfeita** no fim. Nada fica: nem a conta, nem uma
   linha (`statement_timeout` de 15 s em cada transação).
-- **O que roda sozinho está em dia:** a agenda de cada minuto, a leitura dos bancos (de hora em
-  hora) e o monitor de Gmail; a chave `ENCRYPTION_KEY` ainda abre os segredos guardados;
+- **O que roda sozinho está em dia:** a agenda de cada minuto e a leitura dos bancos (de hora em
+  hora); a chave `ENCRYPTION_KEY` ainda abre os segredos guardados;
   migrações aplicadas, disco, SMTP e chaves VAPID.
 - **Serviços de fora** (B3, Yahoo, Fundamentus, a IA da placa): quando não respondem é **aviso**
   (amarelo), não falha — o conserto não está no código.
@@ -1261,10 +1245,6 @@ Os demais testes:
   404 sem nome do servidor. `ModuleGate.test.tsx`: quem não tem acesso não vê o módulo restrito,
   nem o que depende dele. `modulesAlwaysOn.test.ts`: a Início guardada como estava, a Início do
   modelo (ou do dono) para todos uma vez só, e a conta nova partindo dela.
-- **`lib/gmail/__tests__/match.test.ts` e `lib/server/__tests__/gmail.test.ts`:** palavras-chave
-  (maiúsculas, acentos, remetente, prévia), um aviso por e-mail com todas as palavras e nunca
-  repetido, e-mails enviados e spam ignorados, `historyId` expirado, conexão recusada (avisa uma
-  vez e para), token cifrado e o `state` do OAuth, com o Gmail simulado.
 - **`lib/server/__tests__/pluggy.test.ts`, `banksSync.test.ts` e `lib/banks/__tests__`:** o Open
   Finance, com a Pluggy simulada nas respostas que ela dá de verdade. Cobrem:
   - a sincronização: um ano na primeira leitura, só "chegou algo?" enquanto o banco não manda

@@ -8,7 +8,6 @@ import { PostgresBudgetRepository } from '../budgetRepository';
 import { budgetSettings, user } from '../db/schema';
 import type { Database } from '../db/types';
 import { PostgresDiagramRepository } from '../diagramRepository';
-import { PostgresGmailRepository } from '../gmail/repository';
 import { PostgresMissionsRepository } from '../missionsRepository';
 import { PostgresRemindersRepository } from '../remindersRepository';
 import { PostgresWalletRepository } from '../walletRepository';
@@ -54,7 +53,6 @@ export interface ScratchAccount {
   reminders: PostgresRemindersRepository;
   missions: PostgresMissionsRepository;
   banks: PostgresBanksRepository;
-  gmail: PostgresGmailRepository;
   /** Today and this month, as the repositories themselves read them. */
   today: string;
   month: Month;
@@ -132,7 +130,6 @@ async function scratchAccount(db: Database, now: Date): Promise<ScratchAccount> 
     reminders: new PostgresRemindersRepository(db, userId),
     missions: new PostgresMissionsRepository(db, userId),
     banks: new PostgresBanksRepository(db, userId),
-    gmail: new PostgresGmailRepository(db, userId),
     today: todayISO(now),
     month: currentMonthKey(now),
   };

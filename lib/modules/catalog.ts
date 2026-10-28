@@ -205,19 +205,6 @@ export const MODULES: ModuleDefinition[] = [
     // The AI runs on the server's own board: kept to a few accounts so it doesn't overheat.
     vipByDefault: true,
   },
-  {
-    key: 'gmail',
-    name: 'Monitor de Gmail',
-    tagline: 'Avisos de e-mails com as suas palavras-chave',
-    group: 'assistant',
-    dependsOn: [],
-    screen: {
-      label: 'Gmail',
-      href: () => '/gmail',
-      isActive: (pathname) => pathname.startsWith('/gmail'),
-    },
-    homeCard: true,
-  },
 ];
 
 export const MODULE_KEYS: ModuleKey[] = MODULES.map((definition) => definition.key);

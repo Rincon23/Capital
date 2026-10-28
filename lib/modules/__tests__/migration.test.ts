@@ -65,18 +65,18 @@ describe('fusão das duas reservas', () => {
   });
 
   it('não liga a Reserva para quem tinha a investida desligada', () => {
-    const result = migrateReserveModule({ modules: { investments: false, gmail: true } as never });
-    expect(result.modules).toEqual({ gmail: true });
+    const result = migrateReserveModule({ modules: { investments: false, diagram: true } as never });
+    expect(result.modules).toEqual({ diagram: true });
     expect(result.changed).toBe(true);
   });
 
   it('nas telas da Início, o widget da investida vira o da Reserva, sem duplicar', () => {
     const result = migrateReserveModule({
       modules: { expenses: true, investments: true, cash: true } as never,
-      homePages: [widgets(['expenses', 'investments']), widgets(['cash', 'gmail'])],
+      homePages: [widgets(['expenses', 'investments']), widgets(['cash', 'diagram'])],
       homeCardSizes: { investments: 'full', expenses: 'full' } as never,
     });
-    expect(result.homePages).toEqual([['expenses', 'cash'], ['gmail']]);
+    expect(result.homePages).toEqual([['expenses', 'cash'], ['diagram']]);
     expect(result.homeCardSizes).toEqual({ expenses: 'full' });
   });
 

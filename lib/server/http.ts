@@ -10,7 +10,6 @@ import { getDb } from './db';
 import { PostgresDiagramRepository } from './diagramRepository';
 import { HttpError } from './httpError';
 import { allowedOriginHosts } from './origins';
-import { PostgresGmailRepository } from './gmail/repository';
 import { PostgresNotificationsRepository } from './notificationsRepository';
 import { PostgresPushRepository } from './push';
 import { QuoteUnavailableError } from './quotes';
@@ -43,8 +42,6 @@ interface RouteArgs<P> {
   push: PostgresPushRepository;
   /** Lembretes and daily tasks. */
   reminders: PostgresRemindersRepository;
-  /** The Gmail monitor (owner only; see lib/server/gmail/access.ts). */
-  gmail: PostgresGmailRepository;
   /** The in-app notification history (the bell / Central de notificações). */
   notifications: PostgresNotificationsRepository;
   /** Open Finance: the person's Pluggy key and banks (VIP; see lib/server/banks/access.ts). */
@@ -99,7 +96,6 @@ export function apiRoute<P = Record<string, never>>(
         diagram: new PostgresDiagramRepository(db, session.user.id, repo),
         push: new PostgresPushRepository(db, session.user.id),
         reminders: new PostgresRemindersRepository(db, session.user.id),
-        gmail: new PostgresGmailRepository(db, session.user.id),
         notifications: new PostgresNotificationsRepository(db, session.user.id),
         banks: new PostgresBanksRepository(db, session.user.id),
         userId: session.user.id,

@@ -43,20 +43,20 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /**
- * The public privacy policy, linked from Google's consent screen (required to publish the OAuth
- * app used by the Gmail monitor). Reachable without signing in (see PUBLIC_PREFIXES in proxy.ts).
+ * The public privacy policy. Reachable without signing in (see PUBLIC_PREFIXES in proxy.ts): it was
+ * linked from Google's consent screen while the app had the Gmail monitor, now retired.
  */
 export default async function PrivacyPage() {
   const access = await readerAccess();
-  const shows = (key: 'voice' | 'gmail' | 'banks') => !isModuleHidden(access, key);
-  const connections = [shows('gmail') && 'com o Gmail', shows('banks') && 'com os bancos'].filter(Boolean);
+  const shows = (key: 'voice' | 'banks') => !isModuleHidden(access, key);
+  const connections = [shows('banks') && 'com os bancos'].filter(Boolean);
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-10">
       <header className="flex flex-col gap-1">
         <p className="text-primary text-sm font-semibold">Capital +</p>
         <h1 className="text-foreground text-2xl font-bold">Política de privacidade</h1>
-        <p className="text-muted text-sm">Última atualização: 22 de outubro de 2026.</p>
+        <p className="text-muted text-sm">Última atualização: 28 de outubro de 2026.</p>
       </header>
 
       <Section title="O que é o Capital +">
@@ -91,60 +91,22 @@ export default async function PrivacyPage() {
         </Section>
       )}
 
-      {shows('gmail') && (
-        <Section title="Monitor de Gmail">
-          <p>
-            Se você conectar o seu Gmail, o Capital + pede ao Google só a permissão de leitura
-            (<code>gmail.readonly</code>). Ele usa essa permissão apenas para isto: a cada minuto, ler o
-            assunto, o remetente e a prévia dos e-mails novos, comparar com as palavras-chave que você
-            cadastrou e avisar você no celular quando alguma aparecer.
-          </p>
-          <ul className="list-disc pl-5">
-            <li>
-              O Capital + não apaga, não envia, não marca e não altera nada na sua caixa, e não guarda o
-              conteúdo dos e-mails.
-            </li>
-            <li>
-              Dos e-mails que tiverem uma palavra-chave, guarda só o assunto, o remetente, a data e as
-              palavras encontradas, para mostrar o seu histórico de alertas.
-            </li>
-            <li>
-              A autorização do Google fica guardada cifrada no servidor e nunca é mostrada nem enviada a
-              terceiros.
-            </li>
-            <li>
-              Os dados do Gmail não são usados para publicidade, não são vendidos, não são usados para treinar
-              modelos de IA e não são lidos por pessoas, exceto quando você pedir ajuda ou quando a lei
-              exigir.
-            </li>
-          </ul>
-          <p>
-            O uso e a transferência de informações recebidas das APIs do Google seguem a{' '}
-            <a
-              href="https://developers.google.com/terms/api-services-user-data-policy"
-              className="text-primary underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Política de Dados do Usuário dos Serviços de API do Google
-            </a>
-            , incluindo os requisitos de uso limitado.
-          </p>
-          <p>
-            Você pode tocar em &quot;Desconectar&quot; no Monitor de Gmail a qualquer momento, e também
-            remover o acesso do Capital + na sua Conta Google, em{' '}
-            <a
-              href="https://myaccount.google.com/connections"
-              className="text-primary underline"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              myaccount.google.com
-            </a>
-            .
-          </p>
-        </Section>
-      )}
+      <Section title="Gmail">
+        <p>
+          O Capital + não tem mais o Monitor de Gmail e não lê nenhum e-mail. A autorização do Google de
+          quem tinha conectado, que ficou guardada cifrada no servidor, não é mais usada. Você pode remover
+          o acesso do Capital + na sua Conta Google, em{' '}
+          <a
+            href="https://myaccount.google.com/connections"
+            className="text-primary underline"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            myaccount.google.com
+          </a>
+          .
+        </p>
+      </Section>
 
       {shows('banks') && (
         <Section title="Open Finance (Meu Pluggy)">

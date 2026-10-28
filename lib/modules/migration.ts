@@ -80,6 +80,18 @@ export function renameReserveKey<T extends string>(key: T): T {
   return (key === MERGED_RESERVE_MODULE ? 'cash' : key) as T;
 }
 
+/**
+ * Modules taken out of the app, with nothing in their place: the Monitor de Gmail (2026-10-28,
+ * "não bate com a proposta do app"). Wherever an older account saved one — a tela of the Início,
+ * the hidden widgets, the old bottom bar — it is simply left out.
+ */
+export const RETIRED_MODULES: readonly string[] = ['gmail'];
+
+/** `list` without the retired modules; anything that is not a list comes back as it was. */
+export function withoutRetiredModules(list: unknown): unknown {
+  return Array.isArray(list) ? list.filter((key) => !RETIRED_MODULES.includes(key)) : list;
+}
+
 type ReserveSettings = Pick<
   BudgetSettings,
   'modules' | 'nav' | 'homeOrder' | 'homePages' | 'homeHidden' | 'homeCardSizes'

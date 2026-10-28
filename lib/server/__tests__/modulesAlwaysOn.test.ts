@@ -74,7 +74,7 @@ describe('todos os módulos ligados', () => {
     const common = await person('alguem@teste.local', {
       modules: { expenses: true, diagram: true },
       homePages: [['diagram', 'expenses']],
-      homeHidden: ['gmail', 'history'],
+      homeHidden: ['reminders', 'history'],
     });
 
     expect(await runModulesAlwaysOnMigration(db)).toEqual({ reset: 1 });
@@ -94,7 +94,7 @@ describe('todos os módulos ligados', () => {
     expect(theirs.homeCardSizes).toEqual({ recurring: 'full' });
     const pages = resolveHomePages(theirs);
     expect(pages[0].slice(0, 2)).toEqual(['budget', 'expenses']);
-    expect(pages.flat()).toContain('gmail');
+    expect(pages.flat()).toContain('reminders');
     expect(pages.flat()).toContain('calendar');
     expect(pages.flat()).not.toContain('banks');
 
@@ -110,7 +110,7 @@ describe('todos os módulos ligados', () => {
   it('com a conta modelo, é a Início dela que vale, e é dela que a conta nova parte', async () => {
     vi.stubEnv('HOME_TEMPLATE_EMAIL', TEMPLATE);
     await person(OWNER, { modules: { expenses: true }, homePages: [['expenses']] });
-    await person(TEMPLATE, { homePages: [['reminders'], ['expenses', 'cash']], homeHidden: ['gmail'] });
+    await person(TEMPLATE, { homePages: [['reminders'], ['expenses', 'cash']], homeHidden: ['diagram'] });
     const common = await person('alguem@teste.local', { modules: { expenses: true } });
 
     expect(await runModulesAlwaysOnMigration(db)).toEqual({ reset: 1 });

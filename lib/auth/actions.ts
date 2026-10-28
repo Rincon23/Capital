@@ -6,7 +6,6 @@ import { APIError } from 'better-auth/api';
 import { joinName } from '@/lib/auth/names';
 import { getAuth } from '@/lib/server/auth';
 import { clientIp } from '@/lib/server/clientIp';
-import { forgetGmailToken } from '@/lib/server/gmail/job';
 import { homeTemplateEmail } from '@/lib/server/homeTemplate';
 import { isPasswordPwned } from '@/lib/server/pwnedPasswords';
 import { allowAttempt } from '@/lib/server/rateLimit';
@@ -270,7 +269,7 @@ export async function updateName(_prev: UpdateNameState, formData: FormData): Pr
 
 /**
  * "Excluir minha conta": asks for the password again, then deletes the user. Every table hangs
- * from `users` with ON DELETE CASCADE, so all the account's data (and its Gmail token) goes too.
+ * from `users` with ON DELETE CASCADE, so all the account's data goes too.
  */
 export async function deleteAccount(
   _prev: DeleteAccountState,
@@ -295,6 +294,5 @@ export async function deleteAccount(
     return { error: 'Não foi possível excluir a conta agora. Tente de novo.' };
   }
 
-  forgetGmailToken(session.user.id);
   redirect('/login?conta=excluida');
 }

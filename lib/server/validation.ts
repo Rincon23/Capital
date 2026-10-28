@@ -7,6 +7,7 @@ import {
   MERGED_RESERVE_MODULE,
   MODULE_KEYS,
   renameReserveKey,
+  withoutRetiredModules,
 } from '@/lib/modules';
 import {
   ASSET_TYPE_KEYS,
@@ -91,9 +92,10 @@ const renamedKey = (value: unknown) => (typeof value === 'string' ? renameReserv
  * Obsolete: the bottom bar (Início or a module, at most four). Still accepted, so older backups and
  * cached clients keep working, and ignored.
  */
-const navSchema = z
-  .array(z.preprocess(renamedKey, z.enum(['inicio', ...MODULE_KEYS] as [NavKey, ...NavKey[]])))
-  .max(4);
+const navSchema = z.preprocess(
+  withoutRetiredModules,
+  z.array(z.preprocess(renamedKey, z.enum(['inicio', ...MODULE_KEYS] as [NavKey, ...NavKey[]]))).max(4),
+);
 
 /** Widgets that are gone, and what took their place: "Primeiros passos" became Missões (now not a widget either). */
 const RETIRED_WIDGETS: Record<string, HomeWidgetKey> = { firstSteps: 'missions' };
@@ -106,6 +108,9 @@ const homeWidgetSchema = z.preprocess(
   },
   z.enum(HOME_WIDGET_KEYS as [HomeWidgetKey, ...HomeWidgetKey[]]),
 );
+
+/** Widgets in a list, without the ones of a retired module (`withoutRetiredModules`). */
+const homeWidgetList = (max: number) => z.preprocess(withoutRetiredModules, z.array(homeWidgetSchema).max(max));
 
 /** A category as the expense form lists it: "topic:<id>" or a special kind. */
 const quickCategorySchema = z.union([
@@ -142,14 +147,10 @@ export const settingsSchema = z.object({
   nav: navSchema.nullable().optional(),
   dismissedNotices: z.array(z.string().min(1).max(60)).max(200).optional(),
   notificationPrefs: partialMap(NOTIFICATION_CATEGORIES, z.boolean()).optional(),
-  homeOrder: z.array(homeWidgetSchema).max(50).nullable().optional(),
-  homePages: z
-    .array(z.array(homeWidgetSchema).max(MAX_WIDGETS_PER_HOME_PAGE))
-    .max(MAX_HOME_PAGES)
-    .nullable()
-    .optional(),
+  homeOrder: homeWidgetList(50).nullable().optional(),
+  homePages: z.array(homeWidgetList(MAX_WIDGETS_PER_HOME_PAGE)).max(MAX_HOME_PAGES).nullable().optional(),
   homeCardSizes: partialMap(HOME_WIDGET_KEYS, z.enum(['half', 'full'])).optional(),
-  homeHidden: z.array(homeWidgetSchema).max(50).optional(),
+  homeHidden: homeWidgetList(50).optional(),
   quickCategories: z
     .array(quickCategorySchema)
     .max(MAX_TOPICS + 4)
@@ -383,9 +384,6 @@ export const pushTestSchema = z.object({ deviceId: z.uuid().optional() });
 
 /** "Descreva o gasto": the sentence the AI reads. */
 export const aiExpenseTextSchema = z.object({ text: z.string().trim().min(1).max(500) });
-
-/** A keyword for the Gmail monitor. */
-export const gmailKeywordSchema = z.object({ keyword: z.string().trim().min(1).max(100) });
 
 /** The person's Pluggy key (Open Finance), as copied from dashboard.pluggy.ai. */
 export const bankKeySchema = z.object({

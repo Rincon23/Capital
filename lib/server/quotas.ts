@@ -4,7 +4,7 @@ import { HttpError } from './httpError';
  * How much one account can keep. Far above what a person registers by hand, low enough that a
  * script with one account can't fill the server's disk: the database lives on the same small
  * board as everything else. Editing something that already exists always goes through; only a
- * new one past the limit is refused. (Gmail keywords have their own limit in the Gmail module.)
+ * new one past the limit is refused.
  */
 export const QUOTAS = {
   /** Categories, archived ones included (a category is never deleted). */

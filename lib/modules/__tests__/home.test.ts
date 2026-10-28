@@ -30,7 +30,6 @@ const everything = on(
   'diagram',
   'reminders',
   'voice',
-  'gmail',
 );
 
 describe('widgets do Início', () => {
@@ -47,7 +46,6 @@ describe('widgets do Início', () => {
       'diagram',
       'reminders',
       'calendar',
-      'gmail',
     ]);
   });
 
@@ -86,20 +84,20 @@ describe('Missões', () => {
 });
 
 describe('áreas de trabalho', () => {
-  const modules = on('expenses', 'budget', 'reminders', 'gmail');
+  const modules = on('expenses', 'budget', 'reminders', 'diagram');
 
   it('sem nada salvo, é uma área só, na ordem padrão e sem os que foram tirados', () => {
-    expect(resolveHomePages({ modules })).toEqual([['expenses', 'budget', 'reminders', 'calendar', 'gmail']]);
+    expect(resolveHomePages({ modules })).toEqual([['expenses', 'budget', 'diagram', 'reminders', 'calendar']]);
     expect(resolveHomePages({ modules, homeHidden: ['budget'] })).toEqual([
-      ['expenses', 'reminders', 'calendar', 'gmail'],
+      ['expenses', 'diagram', 'reminders', 'calendar'],
     ]);
     expect(resolveHomePages({ modules: on() })).toEqual([[]]);
   });
 
   it('a ordem salva antes das áreas vira a área 1', () => {
     expect(
-      resolveHomePages({ modules, homeOrder: ['gmail', 'expenses', 'budget', 'reminders', 'calendar'] }),
-    ).toEqual([['gmail', 'expenses', 'budget', 'reminders', 'calendar']]);
+      resolveHomePages({ modules, homeOrder: ['diagram', 'expenses', 'budget', 'reminders', 'calendar'] }),
+    ).toEqual([['diagram', 'expenses', 'budget', 'reminders', 'calendar']]);
   });
 
   it('as áreas salvas valem mais que a ordem antiga', () => {
@@ -108,12 +106,12 @@ describe('áreas de trabalho', () => {
         modules,
         homeOrder: ['budget', 'expenses'],
         homePages: [
-          ['gmail', 'expenses'],
+          ['diagram', 'expenses'],
           ['budget', 'reminders', 'calendar'],
         ],
       }),
     ).toEqual([
-      ['gmail', 'expenses'],
+      ['diagram', 'expenses'],
       ['budget', 'reminders', 'calendar'],
     ]);
   });
@@ -123,12 +121,12 @@ describe('áreas de trabalho', () => {
       resolveHomePages({
         modules,
         homePages: [
-          ['gmail', 'expenses'],
+          ['diagram', 'expenses'],
           ['reminders', 'calendar'],
         ],
       }),
     ).toEqual([
-      ['gmail', 'expenses'],
+      ['diagram', 'expenses'],
       ['reminders', 'calendar', 'budget'],
     ]);
   });
@@ -138,12 +136,12 @@ describe('áreas de trabalho', () => {
       resolveHomePages({
         modules,
         homePages: [
-          ['reminders', 'gmail'],
+          ['reminders', 'diagram'],
           ['expenses', 'budget'],
         ],
       }),
     ).toEqual([
-      ['reminders', 'calendar', 'gmail'],
+      ['reminders', 'calendar', 'diagram'],
       ['expenses', 'budget'],
     ]);
     // Com o card do módulo tirado da Início, o extra vai para o fim da última área.
@@ -151,9 +149,9 @@ describe('áreas de trabalho', () => {
       resolveHomePages({
         modules,
         homeHidden: ['reminders'],
-        homePages: [['gmail'], ['expenses', 'budget']],
+        homePages: [['diagram'], ['expenses', 'budget']],
       }),
-    ).toEqual([['gmail'], ['expenses', 'budget', 'calendar']]);
+    ).toEqual([['diagram'], ['expenses', 'budget', 'calendar']]);
   });
 
   it('cada widget fica numa área só', () => {
@@ -161,12 +159,12 @@ describe('áreas de trabalho', () => {
       resolveHomePages({
         modules,
         homePages: [
-          ['expenses', 'gmail', 'expenses'],
-          ['gmail', 'budget', 'reminders', 'calendar'],
+          ['expenses', 'diagram', 'expenses'],
+          ['diagram', 'budget', 'reminders', 'calendar'],
         ],
       }),
     ).toEqual([
-      ['expenses', 'gmail'],
+      ['expenses', 'diagram'],
       ['budget', 'reminders', 'calendar'],
     ]);
   });
@@ -175,14 +173,14 @@ describe('áreas de trabalho', () => {
     expect(
       resolveHomePages({
         modules: on('expenses'),
-        homePages: [['cash', 'gmail'], [], ['expenses']],
+        homePages: [['cash', 'diagram'], [], ['expenses']],
       }),
     ).toEqual([['expenses']]);
     expect(
       resolveHomePages({
         modules,
-        homeHidden: ['expenses', 'budget', 'reminders', 'calendar', 'gmail'],
-        homePages: [['expenses'], ['gmail']],
+        homeHidden: ['expenses', 'budget', 'reminders', 'calendar', 'diagram'],
+        homePages: [['expenses'], ['diagram']],
       }),
     ).toEqual([[]]);
     expect(resolveHomePages({ modules: on(), homePages: [] })).toEqual([[]]);
@@ -192,8 +190,8 @@ describe('áreas de trabalho', () => {
     expect(
       resolveHomePages({
         modules,
-        homeHidden: ['gmail'],
-        homePages: [['gmail', 'expenses', 'budget', 'reminders', 'calendar']],
+        homeHidden: ['diagram'],
+        homePages: [['diagram', 'expenses', 'budget', 'reminders', 'calendar']],
       }),
     ).toEqual([['expenses', 'budget', 'reminders', 'calendar']]);
   });
@@ -204,7 +202,7 @@ describe('áreas de trabalho', () => {
       ['budget'],
       ['reminders'],
       ['calendar'],
-      ['gmail'],
+      ['diagram'],
       ['card'],
     ];
     expect(resolveHomePages({ modules: everything, homePages: many })).toHaveLength(MAX_HOME_PAGES);
@@ -245,8 +243,8 @@ describe('mexendo nas áreas', () => {
   });
 
   it('adiciona no fim da área escolhida, tirando de onde estava', () => {
-    expect(addWidget(pages, 'gmail', 0)).toEqual([
-      ['expenses', 'budget', 'card', 'gmail'],
+    expect(addWidget(pages, 'diagram', 0)).toEqual([
+      ['expenses', 'budget', 'card', 'diagram'],
       ['reminders', 'calendar'],
     ]);
     expect(addWidget(pages, 'expenses', 1)).toEqual([
@@ -262,7 +260,7 @@ describe('mexendo nas áreas', () => {
     expect(emptied).toEqual([['expenses', 'budget', 'card'], []]);
     expect(withoutEmptyPages(emptied)).toEqual([['expenses', 'budget', 'card']]);
     expect(pageOfWidget(pages, 'calendar')).toBe(1);
-    expect(pageOfWidget(pages, 'gmail')).toBe(-1);
+    expect(pageOfWidget(pages, 'diagram')).toBe(-1);
   });
 
   it('cria área nova vazia no fim, até o limite', () => {
@@ -280,19 +278,19 @@ describe('mexendo nas áreas', () => {
       pages: [['reminders', 'calendar', 'expenses', 'budget', 'card']],
       movedTo: 0,
     });
-    const three: HomeWidgetKey[][] = [['expenses'], [], ['gmail']];
-    expect(deleteHomePage(three, 1)).toEqual({ pages: [['expenses'], ['gmail']], movedTo: -1 });
-    expect(deleteHomePage(three, 2)).toEqual({ pages: [['expenses'], ['gmail']], movedTo: 1 });
+    const three: HomeWidgetKey[][] = [['expenses'], [], ['diagram']];
+    expect(deleteHomePage(three, 1)).toEqual({ pages: [['expenses'], ['diagram']], movedTo: -1 });
+    expect(deleteHomePage(three, 2)).toEqual({ pages: [['expenses'], ['diagram']], movedTo: 1 });
   });
 
   it('a única área não se exclui', () => {
-    expect(deleteHomePage([['gmail']], 0)).toEqual({ pages: [['gmail']], movedTo: -1 });
+    expect(deleteHomePage([['diagram']], 0)).toEqual({ pages: [['diagram']], movedTo: -1 });
   });
 
   it('não mexe nas áreas recebidas', () => {
     const copy = JSON.stringify(pages);
     moveWidget(pages, 'budget', 1, 0);
-    addWidget(pages, 'gmail', 1);
+    addWidget(pages, 'diagram', 1);
     removeWidget(pages, 'card');
     addHomePage(pages);
     deleteHomePage(pages, 0);

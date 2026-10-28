@@ -1,24 +1,17 @@
 import { randomUUID } from 'node:crypto';
-import { and, count, eq, isNull, lt, or } from 'drizzle-orm';
 import { categoryOptions, cleanTranscript, readExpenseText } from '../../../ai';
 import { todayISO } from '../../../budget/date';
 import { createDefaultSettings } from '../../../budget/seed';
 import { levelOf } from '../../../gamification/levels';
-import { matchKeywords } from '../../../gmail/match';
 import { effectiveModules } from '../../../modules';
 import { notificationSlots } from '../../../reminders';
 import { addDays } from '../../../reminders/time';
 import { aiConfig } from '../../ai/providers';
-import { gmailAccounts } from '../../db/schema';
-import { googleConfig } from '../../gmail/google';
-import { schedulerRunning } from '../../scheduler';
-import { expect, expectEqual, expectRefused, fetchWithTimeout, type SelfCheck } from '../check';
+import { expect, expectEqual, fetchWithTimeout, type SelfCheck } from '../check';
 
-/** Lembretes, Lançar por voz ou texto, Monitor de Gmail and Missões. */
+/** Lembretes, Lançar por voz ou texto and Missões. */
 
 const HOUR_MS = 60 * 60 * 1000;
-/** Gmail is checked every minute; past this, the monitor stopped. */
-const GMAIL_LATE_MS = 15 * 60 * 1000;
 const AI_TIMEOUT_MS = 5_000;
 
 export const remindersChecks: SelfCheck[] = [
@@ -108,73 +101,6 @@ export const voiceChecks: SelfCheck[] = [
       const whisper = await fetchWithTimeout(config.whisperUrl, AI_TIMEOUT_MS);
       await whisper.body?.cancel();
       expect(whisper.status < 500, `O Whisper respondeu ${whisper.status}.`);
-    },
-  },
-];
-
-export const gmailChecks: SelfCheck[] = [
-  {
-    id: 'gmail.match',
-    name: 'Palavras-chave acham o e-mail, sem repetir',
-    run: ({ scratch }) =>
-      scratch(async ({ gmail }) => {
-        const mail = {
-          subject: 'Sua fatura de outubro chegou',
-          from: 'Banco X <avisos@bancox.com.br>',
-          snippet: 'O BOLETO vence dia 10',
-        };
-        expectEqual(
-          matchKeywords(mail, ['Fatura', 'boleto', 'pix']),
-          ['Fatura', 'boleto'],
-          'Palavras encontradas',
-        );
-
-        await gmail.addKeyword('Fatura');
-        await expectRefused(gmail.addKeyword('fatura'), 'A mesma palavra-chave entrou duas vezes.');
-        const alert = { messageId: 'autoteste', keywords: ['Fatura'], ...mail, receivedAt: new Date() };
-        expect(await gmail.recordAlert(alert), 'O aviso do e-mail não foi guardado.');
-        expect(!(await gmail.recordAlert(alert)), 'O mesmo e-mail seria avisado duas vezes.');
-      }),
-  },
-  {
-    id: 'gmail.monitor',
-    name: 'Monitor de Gmail conferindo as contas',
-    async run({ db, now }) {
-      const [{ connected }] = await db.select({ connected: count() }).from(gmailAccounts);
-      if (connected === 0) return { status: 'skip', message: 'Nenhum Gmail conectado.' };
-      expect(
-        googleConfig(),
-        'Há Gmail conectado, mas o servidor está sem GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET.',
-      );
-      if (!schedulerRunning())
-        return { status: 'skip', message: 'As tarefas em segundo plano estão desligadas aqui.' };
-
-      const [{ late }] = await db
-        .select({ late: count() })
-        .from(gmailAccounts)
-        .where(
-          and(
-            eq(gmailAccounts.status, 'ok'),
-            or(
-              isNull(gmailAccounts.lastCheckedAt),
-              lt(gmailAccounts.lastCheckedAt, new Date(now.getTime() - GMAIL_LATE_MS)),
-            ),
-          ),
-        );
-      expect(
-        late === 0,
-        `${late === 1 ? '1 conta não é conferida' : `${late} contas não são conferidas`} há mais de 15 minutos.`,
-      );
-      const [{ stuck }] = await db
-        .select({ stuck: count() })
-        .from(gmailAccounts)
-        .where(or(eq(gmailAccounts.status, 'error'), eq(gmailAccounts.status, 'reconnect')));
-      if (stuck > 0) {
-        return {
-          status: 'warn',
-          message: `${stuck === 1 ? '1 conta precisa' : `${stuck} contas precisam`} reconectar o Gmail ou deu erro na última conferência.`,
-        };
-      }
     },
   },
 ];

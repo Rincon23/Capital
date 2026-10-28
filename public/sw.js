@@ -4,7 +4,7 @@
 // Pages are never cached: they carry the signed-in account (its e-mail), which must not stay on
 // a shared device after signing out. With no connection, the offline page is shown.
 //
-// It also shows the push notifications (reminders, Gmail alerts) and runs their buttons.
+// It also shows the push notifications (reminders, bills, banks) and runs their buttons.
 const CACHE_VERSION = 'capital-v9';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
@@ -167,7 +167,7 @@ async function runAction(action, fallbackUrl) {
 
 /**
  * Focuses the app if it is already open (on the notification's page), or opens it. A link to
- * another site (a Gmail alert opens the e-mail) goes to a new window, never replacing the app.
+ * another site goes to a new window, never replacing the app.
  */
 async function openApp(url) {
   const target = new URL(url, self.location.origin).href;

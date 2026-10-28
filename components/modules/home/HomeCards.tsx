@@ -9,7 +9,6 @@ import { WalletProvider } from '@/components/wallet/WalletProvider';
 import { BanksHomeCard } from './BanksHomeCard';
 import { CalendarHomeCard } from './CalendarHomeCard';
 import { DiagramHomeCard } from './DiagramHomeCard';
-import { GmailHomeCard } from './GmailHomeCard';
 import { HistoryHomeCard } from './HistoryHomeCard';
 import { HomeCardBoundary } from './HomeCard';
 import { BudgetHomeCard, ExpensesHomeCard, ReimbursableHomeTile } from './MonthCards';
@@ -33,7 +32,6 @@ const CARDS: Partial<Record<HomeWidgetKey, CardSpec>> = {
   diagram: { size: 'full', Component: DiagramHomeCard },
   reminders: { size: 'full', Component: TodayRemindersCard },
   calendar: { size: 'full', Component: CalendarHomeCard },
-  gmail: { size: 'full', Component: GmailHomeCard },
   banks: { size: 'full', Component: BanksHomeCard },
 };
 

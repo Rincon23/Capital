@@ -3,7 +3,7 @@ import path from 'node:path';
 import { count, sql } from 'drizzle-orm';
 import { pgSchema, serial } from 'drizzle-orm/pg-core';
 import { createId } from '../../../budget/id';
-import { bankKeys, gmailAccounts } from '../../db/schema';
+import { bankKeys } from '../../db/schema';
 import { lastRun } from '../../jobRuns';
 import { checkMailer } from '../../mailer';
 import { sendUserNotification } from '../../notify';
@@ -156,29 +156,21 @@ export const serverChecks: SelfCheck[] = [
   },
   {
     id: 'server.encryption',
-    name: 'Chave que protege Gmail e Open Finance',
+    name: 'Chave que protege o Open Finance',
     async run({ db }) {
-      const [gmail] = await db.select({ secret: gmailAccounts.refreshToken }).from(gmailAccounts).limit(1);
       const [bank] = await db.select({ secret: bankKeys.clientSecret }).from(bankKeys).limit(1);
       if (!canEncryptSecrets()) {
-        expect(
-          !gmail && !bank,
-          'Sem ENCRYPTION_KEY: ninguém consegue usar o Gmail e o Open Finance já ligados.',
-        );
-        return { status: 'skip', message: 'Sem ENCRYPTION_KEY: Gmail e Open Finance não podem ser ligados.' };
+        expect(!bank, 'Sem ENCRYPTION_KEY: ninguém consegue usar o Open Finance já ligado.');
+        return { status: 'skip', message: 'Sem ENCRYPTION_KEY: o Open Finance não pode ser ligado.' };
       }
       expectEqual(decryptSecret(encryptSecret('autoteste')), 'autoteste', 'Segredo cifrado e decifrado');
       // A changed key locks everyone out of what they already connected.
-      for (const [what, row] of [
-        ['Gmail', gmail],
-        ['Open Finance', bank],
-      ] as const) {
-        if (!row) continue;
+      if (bank) {
         try {
-          decryptSecret(row.secret);
+          decryptSecret(bank.secret);
         } catch {
           throw new Error(
-            `A ENCRYPTION_KEY atual não abre os segredos do ${what} guardados: ela foi trocada?`,
+            'A ENCRYPTION_KEY atual não abre os segredos do Open Finance guardados: ela foi trocada?',
           );
         }
       }

@@ -1,7 +1,7 @@
 import 'server-only';
 import { accountDisplayName, accountKind, MEU_PLUGGY_LIMIT, suggestBankName } from '@/lib/banks';
 import { addDays, zonedMoment } from '@/lib/reminders/time';
-import { appBaseUrl } from '../gmail/google';
+import { appBaseUrl } from '../appUrl';
 import { HttpError } from '../httpError';
 import {
   authorizeUrlOf,

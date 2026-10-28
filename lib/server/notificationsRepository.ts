@@ -57,7 +57,7 @@ export class PostgresNotificationsRepository {
    * The swipe-to-dismiss gesture. One a background job could produce again (it has a
    * `sourceKey`) is only hidden: the row has to stay, or the unique index it is deduped by
    * stops seeing it and the next run of that job sends the very same notification once more.
-   * Anything else — a reminder, a Gmail alert — nothing will recreate, so it really goes.
+   * Anything else — a reminder — nothing will recreate, so it really goes.
    */
   async remove(id: string): Promise<void> {
     const mine = and(eq(notifications.userId, this.userId), eq(notifications.id, id));

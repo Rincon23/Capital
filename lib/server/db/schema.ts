@@ -671,7 +671,7 @@ export const pushSubscriptions = pgTable(
  * has told this account, whether or not push itself reached a device. `sourceKey` is set only
  * for notifications a background job could generate again for the same reason (a feature
  * announcement, for instance); the unique index on (user, source key) keeps those from being
- * recorded twice, while ad-hoc notifications (reminders, Gmail alerts — sourceKey null) are
+ * recorded twice, while ad-hoc notifications (reminders — sourceKey null) are
  * never deduped by it, since NULL never equals NULL in a Postgres unique index.
  *
  * `dismissedAt` is what makes that dedupe survive the swipe-to-dismiss gesture: throwing a
@@ -820,7 +820,9 @@ export const xpEvents = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// Monitor de Gmail
+// Monitor de Gmail — retired from the app (2026-10-28): nothing reads or writes these tables any
+// more but "Apagar todos os dados", which still erases what an account left. They stay until
+// that data is dropped.
 // ---------------------------------------------------------------------------
 
 /**

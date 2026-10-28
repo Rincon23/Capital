@@ -34,13 +34,12 @@ import {
 import type { Database } from './db/types';
 import { PostgresBanksRepository } from './banks/repository';
 import { disconnectAll, forgetPluggyKey } from './banks/service';
-import { forgetGmailToken } from './gmail/job';
 
 /**
  * "Apagar todos os dados": everything the account stored, in every module — months and their
  * entries, settings, cards and bills, recurring and instalment purchases, reserves, the Diagrama,
- * reminders, the Gmail connection (its token included), the Open Finance key and banks, the XP
- * of the Missões and the notification history. The account itself
+ * reminders, what the retired Monitor de Gmail left (the connection and its token), the Open
+ * Finance key and banks, the XP of the Missões and the notification history. The account itself
  * stays, and so do the devices that receive notifications; "Excluir minha conta" removes those too.
  * Rows that hang from others (entries, deliveries, completions) go with them by cascade.
  */
@@ -73,6 +72,7 @@ export async function clearAccountData(db: Database, userId: string): Promise<vo
     await tx.delete(diagramSettings).where(eq(diagramSettings.userId, userId));
     await tx.delete(reminders).where(eq(reminders.userId, userId));
     await tx.delete(reminderSettings).where(eq(reminderSettings.userId, userId));
+    // Left by the retired Monitor de Gmail: the tables stay until that data is dropped.
     await tx.delete(gmailAlerts).where(eq(gmailAlerts.userId, userId));
     await tx.delete(gmailKeywords).where(eq(gmailKeywords.userId, userId));
     await tx.delete(gmailAccounts).where(eq(gmailAccounts.userId, userId));
@@ -82,6 +82,5 @@ export async function clearAccountData(db: Database, userId: string): Promise<vo
     await tx.delete(bankCategoryMemory).where(eq(bankCategoryMemory.userId, userId));
     await tx.delete(notifications).where(eq(notifications.userId, userId));
   });
-  forgetGmailToken(userId);
   forgetPluggyKey(userId);
 }

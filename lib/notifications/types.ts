@@ -67,7 +67,10 @@ export interface PushSubscriptionInput {
 // independent of whether push itself is on for this account or this device).
 // ---------------------------------------------------------------------------
 
-/** What kind of thing generated a notification, so the bell can show an icon per row. */
+/**
+ * What kind of thing generated a notification, so the bell can show an icon per row. `gmail` is
+ * only for the old alerts of the retired Monitor de Gmail still in someone's history.
+ */
 export type NotificationCategory = 'reminder' | 'card' | 'recurring' | 'gmail' | 'banks' | 'feature' | 'system';
 
 /** Label for each category in the notification-preferences switches. */

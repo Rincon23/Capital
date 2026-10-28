@@ -77,9 +77,8 @@ describe('on a healthy server', () => {
     // The network is off: the quotes warn, never fail.
     expect(status['cash.quotes']).toBe('warn');
     expect(status['diagram.quotes']).toBe('warn');
-    // Nothing to test without the AI or a Gmail connected; the scheduler isn't running in a test.
+    // Nothing to test without the AI; the scheduler isn't running in a test.
     expect(status['voice.ai']).toBe('skip');
-    expect(status['gmail.monitor']).toBe('skip');
     expect(status['server.scheduler']).toBe('skip');
   }, 60_000);
 
@@ -102,7 +101,6 @@ describe('on a healthy server', () => {
       schema.reminders,
       schema.xpEvents,
       schema.notifications,
-      schema.gmailKeywords,
       schema.bankTransactions,
       schema.diagramContributions,
     ]) {
