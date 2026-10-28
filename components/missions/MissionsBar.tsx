@@ -66,7 +66,7 @@ export function MissionsBar() {
             claimDay(event.currentTarget);
           }}
           aria-label={`Resgatar ${toClaim.xp} XP do dia`}
-          className="bg-primary text-primary-foreground mr-2.5 flex min-h-[44px] shrink-0 flex-col items-center justify-center rounded-xl px-3 leading-tight"
+          className="bg-primary text-primary-foreground motion-safe:animate-claim-pulse mr-2.5 flex min-h-[44px] shrink-0 flex-col items-center justify-center rounded-xl px-3 leading-tight"
         >
           <span className="text-sm font-semibold">Resgatar</span>
           <span className="text-xs font-semibold tabular-nums">+{toClaim.xp} XP</span>
