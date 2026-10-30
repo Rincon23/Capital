@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { nextMissions, type MissionState } from '@/lib/gamification/missions';
+import { FactLine } from '@/components/missions/FactLine';
 import { LevelBar, MissionRow } from '@/components/missions/MissionParts';
 import { useMissions } from '@/components/missions/MissionsProvider';
 import { LevelIcon } from '@/components/missions/levelVisuals';
@@ -11,8 +12,8 @@ import { Skeleton } from '@/components/modules/home/HomeCard';
 
 /**
  * Missões in the app drawer ("Seu progresso"): the level with its tree, the bar to the next one,
- * and the (at most three) missions worth doing now, each a button that takes the person there
- * (closing the drawer). When everything is done, it says so in one line.
+ * the (at most three) missions worth doing now, each a button that takes the person there (closing
+ * the drawer), and the "Você sabia?" of the day. When everything is done, it says so in one line.
  */
 export function MissionsCard({ onNavigate }: { onNavigate: () => void }) {
   const { status, level } = useMissions();
@@ -52,6 +53,7 @@ export function MissionsCard({ onNavigate }: { onNavigate: () => void }) {
           ) : (
             <p className="text-muted text-sm">Tudo feito por agora.</p>
           )}
+          {status.fact && <FactLine fact={status.fact} className="border-border border-t pt-3" />}
         </>
       )}
     </section>

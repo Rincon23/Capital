@@ -171,6 +171,13 @@ export function AppDrawer({
     }
   }, [mounted, place, slideOpen]);
 
+  // The latest `close`, so the Início re-rendering under an open drawer pushes no history entry of
+  // its own: one on top of a sheet opened from here, and the back button would close the drawer.
+  const closeRef = useRef(close);
+  useEffect(() => {
+    closeRef.current = close;
+  });
+
   // Open for good: the back button closes it.
   useEffect(() => {
     if (!settled) return;
@@ -179,9 +186,9 @@ export function AppDrawer({
       get entry() {
         return entry.current ?? '';
       },
-      onBack: () => close(false),
+      onBack: () => closeRef.current(false),
     });
-  }, [settled, close]);
+  }, [settled]);
 
   useEffect(
     () => () => {

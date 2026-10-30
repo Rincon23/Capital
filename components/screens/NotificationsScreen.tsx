@@ -8,6 +8,7 @@ import {
   Repeat,
   CreditCard,
   Landmark,
+  Lightbulb,
   Mail,
   Settings as SettingsIcon,
   Sparkles,
@@ -37,6 +38,7 @@ const CATEGORY_VISUAL: Record<NotificationCategory, { icon: LucideIcon; tone: Ic
   gmail: { icon: Mail, tone: 'red' },
   banks: { icon: Landmark, tone: 'blue' },
   feature: { icon: Sparkles, tone: 'purple' },
+  motivation: { icon: Lightbulb, tone: 'green' },
   system: { icon: Bell, tone: 'neutral' },
 };
 

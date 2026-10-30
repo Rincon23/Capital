@@ -1,6 +1,7 @@
 import type { ModuleFlags, ModuleKey } from '../budget/types';
 import { MODULES } from '../modules/catalog';
 import { isModuleHidden } from '../modules/flags';
+import type { InvestingFact } from '../motivation';
 
 /**
  * The missions of the Missões module. The owner's rule: **XP can never come from a lie**. So a
@@ -212,6 +213,8 @@ export interface MissionsStatus {
   months: { month: string; xp: number }[];
   /** What this call just earned, for the celebration. */
   earned: { key: MissionKey; xp: number }[];
+  /** The "Você sabia?" of today, shown with the missions. */
+  fact?: InvestingFact;
 }
 
 /**

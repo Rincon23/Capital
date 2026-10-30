@@ -3,9 +3,12 @@ import path from 'node:path';
 import { count, sql } from 'drizzle-orm';
 import { pgSchema, serial } from 'drizzle-orm/pg-core';
 import { createId } from '../../../budget/id';
+import { factOfDay } from '../../../motivation';
 import { bankKeys } from '../../db/schema';
+import { createFact, deleteFact, listFacts, updateFact } from '../../factsRepository';
 import { lastRun } from '../../jobRuns';
 import { checkMailer } from '../../mailer';
+import { MOTIVATION_JOB } from '../../motivation';
 import { sendUserNotification } from '../../notify';
 import { PostgresNotificationsRepository } from '../../notificationsRepository';
 import { checkVapidKeys } from '../../push';
@@ -25,6 +28,8 @@ const appliedMigrations = pgSchema('drizzle').table('__drizzle_migrations', {
 const SCHEDULER_LATE_MS = 5 * 60 * 1000;
 /** Right after a start the loop hasn't had its first minute yet. */
 const SCHEDULER_WARMUP_SECONDS = 3 * 60;
+/** The fact of the week goes out every Monday; a day of margin for a server that was off. */
+const MOTIVATION_LATE_MS = 8 * 24 * 60 * 60 * 1000;
 const MAIL_TIMEOUT_MS = 10_000;
 const DISK_WARN = 0.1;
 const DISK_FAIL = 0.03;
@@ -86,6 +91,36 @@ export const serverChecks: SelfCheck[] = [
         last
           ? `Lembretes, faturas e contas do mês não são avisados desde ${last.toLocaleString('pt-BR')}.`
           : 'As tarefas em segundo plano nunca rodaram.',
+      );
+    },
+  },
+  {
+    id: 'server.facts',
+    name: 'Frases do "Você sabia?"',
+    run: ({ scratch }) =>
+      scratch(async ({ db, today }) => {
+        const facts = await listFacts(db);
+        expect(facts.length > 0, 'Não há nenhuma frase para mostrar.');
+        expect(factOfDay(facts, today), 'Nenhuma frase para hoje.');
+        const input = { text: 'Autoteste', detail: 'Frase de teste.', sourceLabel: 'Teste', sourceUrl: null };
+        const created = await createFact(db, input);
+        await updateFact(db, created.id, { ...input, text: 'Autoteste editado' });
+        expectEqual((await listFacts(db)).at(-1)?.text, 'Autoteste editado', 'Última frase');
+        await deleteFact(db, created.id);
+        expectEqual((await listFacts(db)).length, facts.length, 'Frases depois de excluir');
+      }),
+  },
+  {
+    id: 'server.motivation',
+    name: 'Frase da semana saindo',
+    async run({ db, now }) {
+      const last = await lastRun(db, MOTIVATION_JOB);
+      if (!schedulerRunning() || !last) {
+        return { status: 'skip', message: 'A próxima frase sai na segunda-feira.' };
+      }
+      expect(
+        now.getTime() - last.getTime() < MOTIVATION_LATE_MS,
+        `A frase da semana não sai desde ${last.toLocaleString('pt-BR')}.`,
       );
     },
   },

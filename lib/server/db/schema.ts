@@ -795,6 +795,20 @@ export const jobRuns = pgTable('job_runs', {
   lastRunAt: timestamp('last_run_at', { withTimezone: true }).notNull(),
 });
 
+/**
+ * The "Você sabia?" (lib/motivation): the same for everyone, edited by the owner in Administração.
+ * The first read fills it with `DEFAULT_FACTS`, and it never goes back to empty.
+ */
+export const investingFacts = pgTable('investing_facts', {
+  id: text('id').primaryKey(),
+  position: integer('position').notNull(),
+  text: text('text').notNull(),
+  detail: text('detail').notNull(),
+  sourceLabel: text('source_label').notNull(),
+  sourceUrl: text('source_url'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ---------------------------------------------------------------------------
 // Missões (lib/gamification)
 // ---------------------------------------------------------------------------

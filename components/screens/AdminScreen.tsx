@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Activity,
@@ -35,6 +35,8 @@ import type { ModuleKey } from '@/lib/budget';
 import { moduleDefinition, moduleNames } from '@/lib/modules';
 import { adminRepository } from '@/lib/storage/admin';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
+import { AdminCard as Card } from '@/components/admin/AdminCard';
+import { FactsCard } from '@/components/admin/FactsCard';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useHomeHref } from '@/components/modules/useHomeHref';
 import { MODULE_VISUALS } from '@/components/modules/visuals';
@@ -107,28 +109,6 @@ const RUN_DOT: Record<'ok' | 'warn' | 'fail', string> = {
   fail: 'bg-danger',
 };
 
-function Card({
-  title,
-  icon,
-  tone,
-  children,
-}: {
-  title: string;
-  icon: LucideIcon;
-  tone: IconTone;
-  children: ReactNode;
-}) {
-  return (
-    <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm">
-      <div className="flex items-center gap-3">
-        <IconTile icon={icon} tone={tone} size="sm" />
-        <h2 className="text-foreground font-semibold">{title}</h2>
-      </div>
-      {children}
-    </section>
-  );
-}
-
 /** "1 conta sem acesso", "3 contas sem acesso" (to the restricted modules). */
 function accountsWithoutVip(count: number): string {
   return count === 1 ? '1 conta sem acesso' : `${count} contas sem acesso`;
@@ -137,8 +117,9 @@ function accountsWithoutVip(count: number): string {
 /**
  * Administração, only for whoever runs the server (OWNER_EMAIL): how the board is doing right now
  * (requests per second, temperature, pauses), the recent warnings, which modules are restricted
- * ("Restrito", one switch per module: hidden from every account without access) and every account
- * with the switch that gives it access. (In the code and the database the access is still "vip".)
+ * ("Restrito", one switch per module: hidden from every account without access), every account
+ * with the switch that gives it access (in the code and the database the access is still "vip"),
+ * and the "Você sabia?" to edit.
  */
 export function AdminScreen() {
   const { showToast } = useToast();
@@ -432,6 +413,8 @@ export function AdminScreen() {
           </ul>
         )}
       </Card>
+
+      <FactsCard />
     </div>
   );
 }

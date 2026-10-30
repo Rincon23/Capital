@@ -13,7 +13,7 @@ import {
   type NotificationCategory,
 } from '@/lib/notifications';
 
-const TOGGLEABLE: NotificationCategory[] = ['reminder', 'card', 'recurring', 'banks', 'feature'];
+const TOGGLEABLE: NotificationCategory[] = ['reminder', 'card', 'recurring', 'banks', 'feature', 'motivation'];
 /**
  * The module each category comes from. A module only for VIP accounts never notifies anyone else,
  * so they don't see its switch.

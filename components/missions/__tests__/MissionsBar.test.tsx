@@ -28,7 +28,21 @@ const mission = (key: string, title: string, period: MissionState['period'], don
   done,
 });
 
-const withMissions = (missions: MissionState[]): MissionsStatus => ({ xp: 0, missions, months: [], earned: [] });
+const FACT = {
+  id: 'fato-1',
+  text: 'Sabia que juros compostos ajudam?',
+  detail: 'É uma simulação.',
+  sourceLabel: 'Banco Central',
+  sourceUrl: 'https://www.bcb.gov.br',
+};
+
+const withMissions = (missions: MissionState[]): MissionsStatus => ({
+  xp: 0,
+  missions,
+  months: [],
+  earned: [],
+  fact: FACT,
+});
 
 describe('MissionsBar (faixa das Missões na Início)', () => {
   beforeEach(() => claimDay.mockClear());
@@ -70,5 +84,40 @@ describe('MissionsBar (faixa das Missões na Início)', () => {
     ]);
     rerender(<MissionsBar />);
     expect(container.innerHTML).toBe('');
+  });
+
+  it('a frase do dia fica na barra e some junto com ela', () => {
+    status = withMissions([
+      mission('first-income', 'Registrar a primeira renda', 'once', true),
+      mission('open-app', 'Resgatar o XP do dia', 'day'),
+    ]);
+    const { rerender } = render(<MissionsBar />);
+    expect(screen.getByText(FACT.text)).toBeTruthy();
+
+    status = withMissions([
+      mission('first-income', 'Registrar a primeira renda', 'once', true),
+      mission('open-app', 'Resgatar o XP do dia', 'day', true),
+    ]);
+    rerender(<MissionsBar />);
+    expect(screen.queryByText(FACT.text)).toBeNull();
+  });
+
+  it('com outra missão aberta, a frase continua depois de resgatar', () => {
+    status = withMissions([
+      mission('first-income', 'Registrar a primeira renda', 'once'),
+      mission('open-app', 'Resgatar o XP do dia', 'day', true),
+    ]);
+    render(<MissionsBar />);
+    expect(screen.getByText(FACT.text)).toBeTruthy();
+  });
+
+  it('o toque na frase mostra a explicação e a fonte', async () => {
+    status = withMissions([mission('open-app', 'Resgatar o XP do dia', 'day')]);
+    render(<MissionsBar />);
+
+    fireEvent.click(screen.getByRole('button', { name: FACT.text }));
+
+    expect(await screen.findByText(FACT.detail)).toBeTruthy();
+    expect(screen.getByRole('link', { name: FACT.sourceLabel }).getAttribute('href')).toBe(FACT.sourceUrl);
   });
 });

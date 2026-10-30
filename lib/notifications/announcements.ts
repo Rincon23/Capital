@@ -68,4 +68,11 @@ export const FEATURE_ANNOUNCEMENTS: FeatureAnnouncement[] = [
     href: '/missoes',
     publishedAt: '2026-10-26T15:00:00Z',
   },
+  {
+    key: 'investing-facts',
+    title: '💡 Você sabia?',
+    body: 'Agora as Missões trazem um fato real sobre investimentos por dia, com a fonte, e toda segunda chega uma frase no celular. Dá para desligar nas notificações.',
+    href: '/',
+    publishedAt: '2026-10-30T15:00:00Z',
+  },
 ];

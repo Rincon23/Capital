@@ -17,6 +17,7 @@ import {
   type DiagramTargets,
   type QuestionType,
 } from '@/lib/diagram';
+import { FACT_LIMITS } from '@/lib/motivation';
 import { isAllowedPushEndpoint, type NotificationCategory } from '@/lib/notifications';
 import { QUOTAS } from './quotas';
 
@@ -27,6 +28,7 @@ const NOTIFICATION_CATEGORIES: NotificationCategory[] = [
   'gmail',
   'banks',
   'feature',
+  'motivation',
   'system',
 ];
 
@@ -645,3 +647,16 @@ export const vipSchema = z.object({ vip: z.boolean() });
 
 /** Administração: make a module only for VIP accounts ("Só VIP") or open it to everyone. */
 export const moduleVipSchema = z.object({ vipOnly: z.boolean() });
+
+/** Administração: a "Você sabia?". The link opens from everyone's phone, so only https. */
+export const factSchema = z.object({
+  text: z.string().trim().min(1).max(FACT_LIMITS.text),
+  detail: z.string().trim().min(1).max(FACT_LIMITS.detail),
+  sourceLabel: z.string().trim().min(1).max(FACT_LIMITS.sourceLabel),
+  sourceUrl: z
+    .string()
+    .trim()
+    .max(FACT_LIMITS.sourceUrl)
+    .refine((value) => URL.canParse(value) && value.startsWith('https://'))
+    .nullable(),
+});

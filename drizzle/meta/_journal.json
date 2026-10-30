@@ -246,6 +246,13 @@
       "when": 1793072822402,
       "tag": "0034_testes_automaticos",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793379387038,
+      "tag": "0035_frases_voce_sabia",
+      "breakpoints": true
     }
   ]
 }

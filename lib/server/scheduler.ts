@@ -16,6 +16,7 @@ import {
 import type { Database } from './db/types';
 import { catchUpFrom, lastRun, markRun } from './jobRuns';
 import { runBanksJob } from './banks/job';
+import { runMotivationJob } from './motivation';
 import { sendUserNotifications, type NotifyInput } from './notify';
 import type { PushSender } from './push';
 import { fetchQuotes } from './quotes';
@@ -215,6 +216,7 @@ export function startScheduler(getDb: () => Database): void {
         console.error('[novidades] falha ao notificar:', err),
       );
       await runMissingNameJob(db).catch((err) => console.error('[nome] falha ao avisar:', err));
+      await runMotivationJob(db).catch((err) => console.error('[frase da semana] falha:', err));
     } catch (err) {
       console.error('[agenda] falha na rodada:', err);
     } finally {
