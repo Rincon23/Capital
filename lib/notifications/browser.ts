@@ -5,21 +5,41 @@ import type { PushSubscriptionInput } from './types';
  * subscription. Client Components only (not exported from the index, which the server uses).
  */
 
+declare global {
+  interface Navigator {
+    /** Safari on iOS: true when opened from the home screen. */
+    standalone?: boolean;
+  }
+}
+
 export type PushSupport =
   /** Notifications can be turned on here. */
   | 'supported'
   /** iPhone/iPad in the browser: only the app installed on the home screen gets notifications. */
   | 'ios-install'
+  /** The installed app on an iPhone/iPad older than iOS 16.4, which has no notifications at all. */
+  | 'ios-update'
   | 'unsupported';
+
+/** iPhone or iPad. iPadOS reports itself as a Mac; the touch screen gives it away. */
+export function isIosDevice(): boolean {
+  const ua = navigator.userAgent;
+  return /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
+}
+
+/** Running from its icon on the home screen, not in a browser tab. */
+export function isInstalledApp(): boolean {
+  return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+}
 
 export function pushSupport(): PushSupport {
   if (typeof window === 'undefined') return 'unsupported';
+  const ios = isIosDevice();
+  if (ios && !isInstalledApp()) return 'ios-install';
   if ('serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window) {
     return 'supported';
   }
-  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
-  const installed = window.matchMedia('(display-mode: standalone)').matches;
-  return ios && !installed ? 'ios-install' : 'unsupported';
+  return ios ? 'ios-update' : 'unsupported';
 }
 
 /** The user said no (or blocked the site): only the browser's own settings can undo it. */

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { isInstalledApp, isIosDevice } from '@/lib/notifications/browser';
 
 /** Chrome's (and Edge's, Samsung Internet's) install prompt; not in the DOM typings yet. */
 interface BeforeInstallPromptEvent extends Event {
@@ -11,10 +12,6 @@ interface BeforeInstallPromptEvent extends Event {
 declare global {
   interface Window {
     __capitalInstallPrompt?: BeforeInstallPromptEvent | null;
-  }
-  interface Navigator {
-    /** Safari on iOS: true when opened from the home screen. */
-    standalone?: boolean;
   }
 }
 
@@ -29,15 +26,9 @@ export const INSTALL_CAPTURE_SCRIPT = `(function(){window.addEventListener('befo
 export type InstallPlatform = 'android' | 'ios' | 'desktop';
 
 function detectPlatform(): InstallPlatform {
-  const ua = navigator.userAgent;
-  // iPadOS reports itself as a Mac; the touch screen gives it away.
-  if (/iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1)) return 'ios';
-  if (/android|mobile/i.test(ua)) return 'android';
+  if (isIosDevice()) return 'ios';
+  if (/android|mobile/i.test(navigator.userAgent)) return 'android';
   return 'desktop';
-}
-
-function isStandalone(): boolean {
-  return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 }
 
 interface InstallApp {
@@ -69,7 +60,7 @@ export function useInstallApp(): InstallApp {
     };
     // Read from the browser once mounted (the server can't know any of this).
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setStandalone(isStandalone());
+    setStandalone(isInstalledApp());
     setPlatform(detectPlatform());
     refresh();
     setReady(true);

@@ -79,6 +79,13 @@ function HowToInstall({
           <>
             Toque em <strong>Adicionar</strong>.
           </>,
+          <>
+            Abra o Capital&nbsp;+ pelo <strong>ícone novo</strong> e entre na sua conta de novo.
+          </>,
+          <>
+            Para receber os avisos, toque no <strong>sino</strong>, na <strong>engrenagem</strong> e em{' '}
+            <strong>Ativar notificações</strong>.
+          </>,
         ]
       : [
           <>
@@ -114,7 +121,7 @@ function HowToInstall({
           </li>
         ))}
       </ol>
-      <p className="text-muted">O ícone aparece na tela inicial, como outro app.</p>
+      {platform !== 'ios' && <p className="text-muted">O ícone aparece na tela inicial, como outro app.</p>}
     </div>
   );
 }

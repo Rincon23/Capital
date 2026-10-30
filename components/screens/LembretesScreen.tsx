@@ -192,7 +192,12 @@ function Lembretes({ initialTab, initialDay }: { initialTab?: LembretesTab; init
       {error && <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{error}</p>}
 
       {tab === 'hoje' && (
-        <TodayView snapshot={snapshot} actions={actions} onCreate={() => setCreating(true)} />
+        <TodayView
+          snapshot={snapshot}
+          actions={actions}
+          onCreate={() => setCreating(true)}
+          onActivateNotifications={() => setConfiguring(true)}
+        />
       )}
       {tab === 'todos' && (
         <AllView snapshot={snapshot} onOpen={actions.open} onCreate={() => setCreating(true)} />
@@ -272,10 +277,12 @@ function TodayView({
   snapshot,
   actions,
   onCreate,
+  onActivateNotifications,
 }: {
   snapshot: RemindersSnapshot;
   actions: RowActions;
   onCreate: () => void;
+  onActivateNotifications: () => void;
 }) {
   const day = reminderDay(snapshot.reminders, snapshot.completions, snapshot.today);
   const nothingToday = day.overdue.length === 0 && day.today.length === 0 && day.tasks.length === 0;
@@ -288,7 +295,7 @@ function TodayView({
 
   return (
     <>
-      <NotificationsHint />
+      <NotificationsHint onActivate={onActivateNotifications} />
 
       {!nothingToday && (
         <section

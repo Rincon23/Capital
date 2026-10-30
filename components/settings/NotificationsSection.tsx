@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { BellOff, BellRing, Monitor, Smartphone, Trash2 } from 'lucide-react';
+import { InstallAppButton } from '@/components/pwa/InstallAppButton';
 import { IconTile } from '@/components/ui/IconTile';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { useToast } from '@/components/ui/Toast';
 import {
   NotificationsBlockedError,
   currentSubscription,
+  isIosDevice,
   pushSupport,
   rememberEndpoint,
   subscribeThisBrowser,
@@ -19,6 +21,8 @@ import { notificationsRepository, type PushStatus } from '@/lib/storage';
 
 interface State {
   support: PushSupport;
+  /** iPhone or iPad: its settings and its problems are not the ones of Chrome on Android. */
+  ios: boolean;
   /** The user denied notifications for this site; only the browser's settings can undo it. */
   blocked: boolean;
   status: PushStatus;
@@ -63,6 +67,7 @@ export function NotificationsSection() {
     const support = pushSupport();
     setState({
       support,
+      ios: isIosDevice(),
       blocked: support === 'supported' && Notification.permission === 'denied',
       status,
       endpoint: subscription?.endpoint ?? null,
@@ -231,7 +236,9 @@ export function NotificationsSection() {
                     );
                   })}
                 </ul>
-                <p className="text-muted text-xs">Avisos atrasados? Tire o Chrome da economia de bateria.</p>
+                {!state.ios && (
+                  <p className="text-muted text-xs">Avisos atrasados? Tire o Chrome da economia de bateria.</p>
+                )}
               </div>
             )}
           </>
@@ -260,10 +267,14 @@ function ThisDevice({
 }) {
   if (state.support === 'ios-install') {
     return (
-      <p className="text-muted text-sm">
-        No iPhone: Compartilhar → “Adicionar à Tela de Início”.
-      </p>
+      <div className="flex flex-col gap-3">
+        <p className="text-muted text-sm">As notificações só chegam neste aparelho com o app instalado.</p>
+        <InstallAppButton />
+      </div>
     );
+  }
+  if (state.support === 'ios-update') {
+    return <p className="text-muted text-sm">Atualize o iOS para receber notificações neste aparelho.</p>;
   }
   if (state.support === 'unsupported') {
     return (
@@ -313,7 +324,9 @@ function ThisDevice({
         </div>
       ) : state.blocked ? (
         <p className="text-muted text-sm">
-          Bloqueado. Libere no cadeado do endereço.
+          {state.ios
+            ? 'Bloqueado. Libere em Ajustes → Notificações → Capital +.'
+            : 'Bloqueado. Libere no cadeado do endereço.'}
         </p>
       ) : (
         <>
