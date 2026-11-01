@@ -92,6 +92,25 @@ describe('CloseMonthSheet', () => {
     await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(true));
   });
 
+  it('fechando vários, diz quantos são, de quando a quando e pergunta sobre o total', () => {
+    render(
+      <CloseMonthSheet
+        summary={computeMonthSummary(september())}
+        target="2026-10"
+        months={['2026-08', '2026-09']}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('dialog', { name: 'Fechar 2 meses' })).toBeInTheDocument();
+    expect(screen.getByText(/De Agosto 2026 a Setembro 2026/)).toBeInTheDocument();
+    expect(screen.getByText('Trazer o que restou para Outubro 2026?')).toBeInTheDocument();
+    expect(closedMonthMessage(computeMonthSummary(september()), '2026-10', false, ['2026-08', '2026-09'])).toBe(
+      '2 meses fechados. Outubro 2026 começa sem o que restou.',
+    );
+  });
+
   it('diz o que aconteceu com o que restou', () => {
     const summary = computeMonthSummary(september());
     expect(closedMonthMessage(summary, '2026-10', true)).toBe(

@@ -13,7 +13,11 @@ export function ClosedMonthBanner() {
   async function handleReopen() {
     try {
       await reopenMonth();
-      showToast('Mês reaberto. Você já pode lançar de novo.');
+      showToast(
+        monthData?.leftoversDropped
+          ? 'Mês reaberto. Você já pode lançar de novo.'
+          : 'Mês reaberto. O que restou voltou para ele até fechar de novo.',
+      );
     } catch {
       showToast('Não foi possível reabrir o mês. Tente de novo.', 'error');
     }

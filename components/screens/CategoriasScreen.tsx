@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Percent } from 'lucide-react';
 import { formatMonthLabel, nextMonth } from '@/lib/budget';
-import { useMonthToClose } from '@/lib/hooks/useMonthToClose';
+import { useMonthsToClose } from '@/lib/hooks/useMonthsToClose';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ModuleGate } from '@/components/modules/ModuleGate';
 import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
@@ -12,8 +12,8 @@ import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
 import { useHomeHref } from '@/components/modules/useHomeHref';
 import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { ClosedMonthBanner } from '@/components/month/ClosedMonthBanner';
-import { CloseLastMonthButton } from '@/components/month/CloseLastMonthButton';
 import { CloseMonthSheet, closedMonthMessage } from '@/components/month/CloseMonthSheet';
+import { ClosePastMonths } from '@/components/month/ClosePastMonths';
 import { FixedCostsCard } from '@/components/month/FixedCostsCard';
 import { useMonthContext } from '@/components/month/MonthContext';
 import { MonthSwipe } from '@/components/month/MonthSwipe';
@@ -38,7 +38,7 @@ function Categorias() {
   const backHref = useHomeHref();
   const { month, summary, monthData, loading, error, closeMonth, refresh } = useMonthContext();
   const { settings, saveSettings } = useSettings();
-  const toClose = useMonthToClose(month, settings?.topics);
+  const toClose = useMonthsToClose(month, settings?.topics);
   const { showToast } = useToast();
   const router = useRouter();
   const [closing, setClosing] = useState(false);
@@ -114,7 +114,7 @@ function Categorias() {
 
             {toClose && (
               <div data-tour="fechar-mes">
-                <CloseLastMonthButton {...toClose} />
+                <ClosePastMonths {...toClose} />
               </div>
             )}
 
@@ -150,7 +150,7 @@ function Categorias() {
               />
             </div>
 
-            {/* One at a time: with last month open, this one would close the month just begun. */}
+            {/* One at a time: with past months open, this one would close the month just begun. */}
             {!monthData?.closed && !toClose && (
               <button
                 type="button"

@@ -95,7 +95,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: categories,
       anchor: 'fechar-mes',
       title: 'Fechar o mês',
-      description: 'Pergunta se a sobra de cada categoria vai para o mês seguinte.',
+      description: 'A sobra só vai para o mês seguinte quando o mês é fechado.',
       side: 'top',
     },
   ],

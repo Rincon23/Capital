@@ -2,6 +2,7 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
+import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -9,6 +10,7 @@ import { computeMonthSummary, currentMonthKey, previousMonth, type Expense } fro
 import { ALL_MODULES, MODULE_KEYS, resolveHomePages, resolveModules } from '@/lib/modules';
 import { BACKUP_VERSION, MonthClosedError, MonthNotFoundError } from '@/lib/storage/repository';
 import { PostgresBudgetRepository } from '../budgetRepository';
+import { CARRY_ON_CLOSE_JOB, runCarryOnCloseMigration } from '../carryOnCloseMigration';
 import * as schema from '../db/schema';
 import type { Database } from '../db/types';
 
@@ -94,6 +96,7 @@ describe('PostgresBudgetRepository', () => {
 
     await repo.ensureMonth('2026-01');
     await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await repo.closeMonth('2026-01');
 
     const february = await repo.ensureMonth('2026-02');
     // available(Diversos) = 1000 * 0.20 - 0 + 0 = 200; nothing spent -> remaining 200
@@ -107,10 +110,23 @@ describe('PostgresBudgetRepository', () => {
     await repo.ensureMonth('2026-01');
     await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
     await repo.ensureMonth('2026-02');
+    await repo.closeMonth('2026-01');
     expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(200);
 
+    await repo.reopenMonth('2026-01');
     await repo.saveIncome('2026-01', { id: 'i2', source: 'Bônus', amount: 1000 });
+    await repo.closeMonth('2026-01');
     expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(400);
+  });
+
+  it('passes no leftovers from a month still open', async () => {
+    const { repo } = await newAccount();
+    const diversos = await diversosId(repo);
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+
+    expect((await repo.peekMonth('2026-02')).carryIn[diversos]).toBe(0);
+    await repo.saveIncome('2026-02', { id: 'i2', source: 'Salário', amount: 1000 });
+    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(0);
   });
 
   it('keeps an income sent to one category and carries it into that category only', async () => {
@@ -123,6 +139,7 @@ describe('PostgresBudgetRepository', () => {
       { id: 'i1', source: 'Presente', amount: 500, topicId: diversos },
     ]);
 
+    await repo.closeMonth('2026-01');
     const february = await repo.ensureMonth('2026-02');
     expect(february.carryIn[diversos]).toBe(500);
     expect(Object.values(february.carryIn).reduce((a, b) => a + b, 0)).toBe(500);
@@ -136,6 +153,7 @@ describe('PostgresBudgetRepository', () => {
 
     await repo.ensureMonth('2026-01');
     await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await repo.closeMonth('2026-01');
     await repo.ensureMonth('2026-02');
 
     const reordered = settings.topics.map((t) => {
@@ -162,6 +180,7 @@ describe('PostgresBudgetRepository', () => {
 
     await repo.ensureMonth(lastMonth);
     await repo.saveIncome(lastMonth, { id: 'i1', source: 'Salário', amount: 1000 });
+    await repo.closeMonth(lastMonth);
     await repo.ensureMonth(thisMonth);
 
     const withNewAndReordered = [
@@ -185,6 +204,7 @@ describe('PostgresBudgetRepository', () => {
 
     await repo.ensureMonth('2026-01');
     await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await repo.closeMonth('2026-01');
     await repo.ensureMonth('2026-02');
     expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(200);
 
@@ -214,8 +234,10 @@ describe('PostgresBudgetRepository', () => {
         },
       ],
     });
+    await repo.closeMonth('2026-01');
     await repo.ensureMonth('2026-02');
     await repo.saveIncome('2026-02', { id: 'i2', source: 'Salário', amount: 500 });
+    await repo.closeMonth('2026-02');
     await repo.ensureMonth('2026-03');
     // Jan: 200 + 50 = 250; Feb: 100 + 250 = 350 -> March carries 350.
     expect((await repo.getMonth('2026-03'))?.carryIn[diversos]).toBe(350);
@@ -247,6 +269,7 @@ describe('PostgresBudgetRepository', () => {
     await repo.reopenMonth('2026-01');
     await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
     expect((await repo.getMonth('2026-01'))?.closed).toBe(false);
+    await repo.closeMonth('2026-01');
     expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(200);
   });
 
@@ -554,17 +577,38 @@ describe('PostgresBudgetRepository', () => {
     await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
     await repo.saveIncome('2026-02', { id: 'i2', source: 'Salário', amount: 1000 });
     await repo.ensureMonth('2026-03');
+    await repo.closeMonth('2026-02');
+    expect((await repo.getMonth('2026-03'))?.carryIn[diversos]).toBe(200);
+
+    await repo.closeMonth('2026-01');
     expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(200);
     expect((await repo.getMonth('2026-03'))?.carryIn[diversos]).toBe(400);
 
+    await repo.reopenMonth('2026-01');
     await repo.closeMonth('2026-01', false, true);
-
     expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(0);
     // February still leaves its own 20% for March.
     expect((await repo.getMonth('2026-03'))?.carryIn[diversos]).toBe(200);
   });
 
-  it('later writes never bring dropped leftovers back; reopening does, and asks again', async () => {
+  it('reopening takes the leftovers back from the next month until it closes again', async () => {
+    const { repo } = await newAccount();
+    const diversos = await diversosId(repo);
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await repo.saveIncome('2026-02', { id: 'i2', source: 'Salário', amount: 1000 });
+    await repo.closeMonth('2026-01');
+    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(200);
+
+    await repo.reopenMonth('2026-01');
+    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(0);
+    await repo.saveExpense('2026-02', fixedCost({ date: '2026-02-02' }));
+    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(0);
+
+    await repo.closeMonth('2026-01');
+    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(200);
+  });
+
+  it('later writes never bring dropped leftovers back, and reopening asks again', async () => {
     const { repo } = await newAccount();
     const diversos = await diversosId(repo);
     await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
@@ -578,23 +622,122 @@ describe('PostgresBudgetRepository', () => {
     const january = (await repo.getMonth('2026-01'))!;
     expect(january.closed).toBe(false);
     expect(january.leftoversDropped).toBeUndefined();
-    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(200);
 
     await repo.closeMonth('2026-01');
     expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(200);
   });
 
-  it('skips a month nobody used: the answer goes to the next month that exists', async () => {
+  it('skips a month nobody used: the leftovers go to the next month that exists', async () => {
     const { repo } = await newAccount();
     const diversos = await diversosId(repo);
     await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
     await repo.ensureMonth('2026-03');
+
+    await repo.closeMonth('2026-01');
+    expect(await repo.listMonths()).toEqual(['2026-01', '2026-03']);
     expect((await repo.getMonth('2026-03'))?.carryIn[diversos]).toBe(200);
 
+    await repo.reopenMonth('2026-01');
     await repo.closeMonth('2026-01', false, true);
-
-    expect(await repo.listMonths()).toEqual(['2026-01', '2026-03']);
     expect((await repo.getMonth('2026-03'))?.carryIn[diversos]).toBe(0);
+  });
+
+  it('lists the months to close, from the first open one, with the closed ones in between', async () => {
+    const { repo } = await newAccount();
+    await repo.ensureMonth('2026-01');
+    await repo.ensureMonth('2026-02');
+    await repo.ensureMonth('2026-03');
+    await repo.ensureMonth('2026-04');
+    await repo.closeMonth('2026-01');
+    await repo.closeMonth('2026-03');
+
+    const list = await repo.monthsToClose('2026-04');
+    expect(list.map((data) => [data.month, data.closed])).toEqual([
+      ['2026-02', false],
+      ['2026-03', true],
+    ]);
+
+    await repo.closeMonth('2026-02');
+    expect(await repo.monthsToClose('2026-04')).toEqual([]);
+  });
+
+  it('closes every month before one at once, each passing its leftovers to the next', async () => {
+    const { repo } = await newAccount();
+    const diversos = await diversosId(repo);
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await repo.saveIncome('2026-02', { id: 'i2', source: 'Salário', amount: 1000 });
+    await repo.saveIncome('2026-03', { id: 'i3', source: 'Salário', amount: 1000 });
+    await repo.saveIncome('2026-04', { id: 'i4', source: 'Salário', amount: 1000 });
+
+    await repo.closeMonthsBefore('2026-04');
+
+    expect((await repo.getMonth('2026-01'))?.closed).toBe(true);
+    expect((await repo.getMonth('2026-03'))?.closed).toBe(true);
+    expect((await repo.getMonth('2026-04'))?.closed).toBe(false);
+    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(200);
+    expect((await repo.getMonth('2026-03'))?.carryIn[diversos]).toBe(400);
+    expect((await repo.getMonth('2026-04'))?.carryIn[diversos]).toBe(600);
+  });
+
+  it('closing them all without the leftovers only keeps them out of the month asked about', async () => {
+    const { repo } = await newAccount();
+    const diversos = await diversosId(repo);
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await repo.saveIncome('2026-02', { id: 'i2', source: 'Salário', amount: 1000 });
+    await repo.saveIncome('2026-03', { id: 'i3', source: 'Salário', amount: 1000 });
+
+    await repo.closeMonthsBefore('2026-03', true);
+
+    expect((await repo.getMonth('2026-01'))?.leftoversDropped).toBeUndefined();
+    expect((await repo.getMonth('2026-02'))?.leftoversDropped).toBe(true);
+    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(200);
+    expect((await repo.getMonth('2026-03'))?.carryIn[diversos]).toBe(0);
+  });
+
+  it('closing them all leaves alone an account with nothing open', async () => {
+    const { repo } = await newAccount();
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await repo.closeMonth('2026-01');
+    await repo.saveIncome('2026-02', { id: 'i2', source: 'Salário', amount: 1000 });
+
+    await repo.closeMonthsBefore('2026-02', true);
+
+    expect((await repo.getMonth('2026-01'))?.leftoversDropped).toBeUndefined();
+    expect((await repo.getMonth('2026-02'))?.carryIn).toEqual((await repo.peekMonth('2026-02')).carryIn);
+    expect(Object.values((await repo.getMonth('2026-02'))!.carryIn).some((value) => value > 0)).toBe(true);
+  });
+
+  it('restoring a backup from before leftovers needed a closed month drops them', async () => {
+    const { repo } = await newAccount();
+    const diversos = await diversosId(repo);
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await repo.saveIncome('2026-02', { id: 'i2', source: 'Salário', amount: 1000 });
+    const backup = await repo.exportData();
+    backup.months[1].carryIn[diversos] = 200;
+
+    const { repo: target } = await newAccount();
+    await target.importData(backup);
+
+    expect((await target.getMonth('2026-02'))?.carryIn[diversos]).toBe(0);
+  });
+
+  it('recomputes the existing accounts once when leftovers start to need a closed month', async () => {
+    const { id, repo } = await newAccount();
+    const diversos = await diversosId(repo);
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await repo.saveIncome('2026-02', { id: 'i2', source: 'Salário', amount: 1000 });
+    const stale = (await repo.getMonth('2026-02'))!.carryIn;
+    await db
+      .update(schema.months)
+      .set({ carryIn: { ...stale, [diversos]: 200 } })
+      .where(and(eq(schema.months.userId, id), eq(schema.months.month, '2026-02')));
+
+    await db.delete(schema.jobRuns).where(eq(schema.jobRuns.name, CARRY_ON_CLOSE_JOB));
+    const first = await runCarryOnCloseMigration(db);
+    expect(first.skipped).toBe(false);
+    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(0);
+
+    expect((await runCarryOnCloseMigration(db)).skipped).toBe(true);
   });
 
   it('keeps the answer about the leftovers through a backup', async () => {

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiRequestError, HttpBudgetRepository, UNAUTHENTICATED_EVENT } from '../httpRepository';
+import { closeMonthsBefore, fetchMonthsToClose } from '../monthClosing';
 import { NotAuthenticatedError } from '../repository';
 
 function mockFetch(status: number, body?: unknown) {
@@ -53,6 +54,17 @@ describe('HttpBudgetRepository', () => {
     expect(JSON.parse(closeAndOpen[1].body)).toEqual({ openNext: true, dropLeftovers: false });
     expect(JSON.parse(closeOnly[1].body)).toEqual({ openNext: false, dropLeftovers: false });
     expect(JSON.parse(withoutLeftovers[1].body)).toEqual({ openNext: false, dropLeftovers: true });
+  });
+
+  it('asks what is left to close, and closes every month before one', async () => {
+    const fetchMock = mockFetch(204);
+    await closeMonthsBefore('2026-03', true);
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/months/2026-03/close-before');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ dropLeftovers: true });
+
+    const listing = mockFetch(200, []);
+    await expect(fetchMonthsToClose('2026-03')).resolves.toEqual([]);
+    expect(listing.mock.calls[0][0]).toBe('/api/v1/months/2026-03/to-close');
   });
 
   it('turns 401 into NotAuthenticatedError and tells the app to go to /login', async () => {

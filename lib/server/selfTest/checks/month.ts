@@ -203,9 +203,13 @@ export const historyChecks: SelfCheck[] = [
             (topic) => topic.topicId === diversos,
           )?.remaining;
         const carried = async () => (await budget.getMonth(second))?.carryIn[diversos];
-        expectEqual(await carried(), await leftover(), 'Sobra de Diversos levada para o mês seguinte');
+        expectEqual(await carried(), 0, 'Sobra com o mês ainda aberto');
+        await budget.closeMonth(first);
+        expectEqual(await carried(), await leftover(), 'Sobra de Diversos levada ao fechar o mês');
 
-        // A change in the older month reaches the newer one.
+        // Reopened, the leftovers go back to it; closing again takes what changed.
+        await budget.reopenMonth(first);
+        expectEqual(await carried(), 0, 'Sobra depois de reabrir o mês');
         await budget.saveExpense(
           first,
           expense({
@@ -216,7 +220,8 @@ export const historyChecks: SelfCheck[] = [
             date: `${first}-12`,
           }),
         );
-        expectEqual(await carried(), await leftover(), 'Sobra depois de lançar no mês anterior');
+        await budget.closeMonth(first);
+        expectEqual(await carried(), await leftover(), 'Sobra depois de lançar no mês reaberto');
         expectEqual(await budget.listMonths(), [first, second], 'Meses no histórico');
       }),
   },
@@ -237,13 +242,45 @@ export const historyChecks: SelfCheck[] = [
         });
         await budget.ensureMonth(second);
         const carried = async () => (await budget.getMonth(second))?.carryIn[diversos] ?? 0;
-        expect((await carried()) > 0, 'A sobra não chegou ao mês seguinte antes de fechar.');
 
         await budget.closeMonth(first, false, true);
         expectEqual(await carried(), 0, 'Sobra de Diversos depois de fechar sem trazer');
 
         await budget.reopenMonth(first);
-        expect((await carried()) > 0, 'A sobra não voltou ao reabrir o mês.');
+        await budget.closeMonth(first);
+        expect((await carried()) > 0, 'A sobra não passou ao fechar de novo trazendo.');
+      }),
+  },
+  {
+    id: 'history.closeAll',
+    name: 'Fechar todos os meses anteriores',
+    run: ({ scratch }) =>
+      scratch(async (account) => {
+        const { budget, month } = account;
+        const diversos = await presetTopic(account, 'diversos');
+        const first = shiftMonth(month, -2);
+        const second = nextMonth(first);
+        for (const past of [first, second]) {
+          await budget.saveIncome(past, {
+            id: createId(),
+            source: 'Salário',
+            amount: 1000,
+            date: `${past}-05`,
+          });
+        }
+        await budget.ensureMonth(month);
+        expectEqual(
+          (await budget.monthsToClose(month)).map((data) => data.month),
+          [first, second],
+          'Meses para fechar',
+        );
+
+        await budget.closeMonthsBefore(month);
+        expectEqual(await budget.monthsToClose(month), [], 'Meses para fechar depois de fechar todos');
+        expectEqual((await budget.getMonth(month))?.closed, false, 'O mês atual continua aberto');
+        const carried = (await budget.getMonth(month))?.carryIn[diversos] ?? 0;
+        const single = (await budget.getMonth(second))?.carryIn[diversos] ?? 0;
+        expect(single > 0 && carried > single, 'A sobra não passou de um mês para o outro até hoje.');
       }),
   },
 ];

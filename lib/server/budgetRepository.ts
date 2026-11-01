@@ -119,7 +119,8 @@ function chunks<T>(list: T[], size: number): T[][] {
 
 /**
  * BudgetRepository on Postgres, scoped to one user: every write to a month re-cascades
- * carryIn for the later months, writes to a closed month are rejected, and the default
+ * carryIn for the later months (which only a closed month feeds, see `carrySource`), writes
+ * to a closed month are rejected, and the default
  * envelopes are seeded on first read. Each month is stored as a `months` row plus its `incomes` and
  * `expenses` rows, and read back as the exact `MonthData` shape.
  *
@@ -187,6 +188,21 @@ export class PostgresBudgetRepository implements BudgetRepository {
 
   async ensureMonth(month: Month): Promise<MonthData> {
     return (await this.getMonth(month)) ?? this.write((tx) => this.ensureMonthIn(tx, month));
+  }
+
+  /**
+   * The months before `month`, from the first one still open: what the turn of the month offers to
+   * close, with the closed ones in between that the leftovers would go through. Empty with none open.
+   */
+  async monthsToClose(month: Month): Promise<MonthData[]> {
+    const [first] = await this.db
+      .select({ month: months.month })
+      .from(months)
+      .where(and(eq(months.userId, this.userId), eq(months.closed, false), lt(months.month, month)))
+      .orderBy(asc(months.month))
+      .limit(1);
+    if (!first) return [];
+    return this.loadMonths(this.db, and(gte(months.month, first.month), lt(months.month, month)));
   }
 
   // -------------------------------------------------------------------------
@@ -330,7 +346,33 @@ export class PostgresBudgetRepository implements BudgetRepository {
     });
   }
 
-  /** The question about the leftovers goes with the closing: reopened, they carry again. */
+  /**
+   * "Fechar todos os meses anteriores": every month before `month` still open, at once. Each one
+   * passes its leftovers on to the next; the answer is about what reaches `month`, so it goes on the
+   * last month before it, even if that one was already closed.
+   */
+  async closeMonthsBefore(month: Month, dropLeftovers = false): Promise<void> {
+    await this.write(async (tx) => {
+      const before = and(eq(months.userId, this.userId), lt(months.month, month));
+      const rows = await tx
+        .select({ month: months.month, closed: months.closed })
+        .from(months)
+        .where(before)
+        .orderBy(asc(months.month));
+      const first = rows.find((row) => !row.closed);
+      const last = rows.at(-1);
+      if (!first || !last) return;
+
+      await tx
+        .update(months)
+        .set({ closed: true, closedAt: new Date() })
+        .where(and(before, eq(months.closed, false)));
+      await tx.update(months).set({ leftoversDropped: dropLeftovers }).where(this.monthKey(last.month));
+      await this.recascade(tx, first.month);
+    });
+  }
+
+  /** The leftovers go back to the month reopened: the months after it lose them until it closes again. */
   async reopenMonth(month: Month): Promise<void> {
     await this.write(async (tx) => {
       if (!(await this.monthRow(tx, month))) throw new MonthNotFoundError(month);
@@ -395,6 +437,22 @@ export class PostgresBudgetRepository implements BudgetRepository {
       await tx.delete(months).where(eq(months.userId, this.userId));
       await this.upsertSettings(tx, payload.settings, true);
       await this.insertMonths(tx, payload.months);
+      // A backup from before leftovers needed a closed month still has them on open months.
+      const [earliest] = payload.months.map((data) => data.month).sort();
+      if (earliest) await this.recascade(tx, earliest);
+    });
+  }
+
+  /** Recomputes the carryIn of every month of this account, from the first one on. */
+  async recascadeAll(): Promise<void> {
+    await this.write(async (tx) => {
+      const [earliest] = await tx
+        .select({ month: months.month })
+        .from(months)
+        .where(eq(months.userId, this.userId))
+        .orderBy(asc(months.month))
+        .limit(1);
+      if (earliest) await this.recascade(tx, earliest.month);
     });
   }
 

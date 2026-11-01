@@ -29,7 +29,7 @@ export interface TopicResult {
   proportionalFixed: number;
   /** How much can still be spent in this topic this month ("Posso gastar"). */
   available: number;
-  /** available - spent ("Sobra"). Becomes next month's carryIn. */
+  /** available - spent ("Sobra"). Becomes next month's carryIn once this month is closed. */
   remaining: number;
   /** spent / available, or null when available <= 0 ("Utilizada"). */
   usedPct: number | null;

@@ -19,14 +19,15 @@ function zeroCarryIn(topics: TopicConfig[]): Record<string, number> {
 }
 
 /**
- * The summary the month after `previous` inherits from: none when there is no month before it, or
- * when that month was closed without bringing its leftovers (see `MonthData.leftoversDropped`).
+ * The summary the month after `previous` inherits from. Leftovers only pass on a month that was
+ * closed saying yes to bringing them: from a month still open, reopened or closed with "Não
+ * trazer" (see `MonthData.leftoversDropped`) nothing passes, and the next month starts at zero.
  */
 export function carrySource(
   previous: MonthData | undefined,
   computeMonthSummary: (data: MonthData) => MonthSummary,
 ): MonthSummary | null {
-  return previous && !previous.leftoversDropped ? computeMonthSummary(previous) : null;
+  return previous?.closed && !previous.leftoversDropped ? computeMonthSummary(previous) : null;
 }
 
 /**
@@ -54,8 +55,8 @@ export function createMonthData(
 /**
  * Recomputes carryIn for every month in `months` (ordered oldest to newest,
  * consecutive competence months) from each other in cascade, e.g. after a
- * previously closed month is reopened and its numbers change. The first
- * month keeps its carryIn; a month closed without its leftovers passes on none.
+ * previously closed month is reopened and its leftovers go back to it. The
+ * first month keeps its carryIn; after it, each one gets what `carrySource` allows.
  */
 export function cascadeCarryIn(
   months: MonthData[],
@@ -77,4 +78,18 @@ export function cascadeCarryIn(
   }
 
   return result;
+}
+
+/**
+ * The last month of `chain` as it would stand with every month in it closed, the leftovers of each
+ * going on to the next: what "Fechar todos os meses anteriores" shows before it is confirmed.
+ */
+export function lastMonthWithAllClosed(
+  chain: MonthData[],
+  computeMonthSummary: (data: MonthData) => MonthSummary,
+): MonthData | undefined {
+  return cascadeCarryIn(
+    chain.map((data) => ({ ...data, closed: true })),
+    computeMonthSummary,
+  ).at(-1);
 }

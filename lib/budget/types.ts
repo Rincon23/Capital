@@ -400,7 +400,10 @@ export interface MonthData {
   month: Month;
   incomes: Income[];
   expenses: Expense[];
-  /** Rollover from the previous month's `remaining`, keyed by topic id. Frozen when the month closes. */
+  /**
+   * Rollover from the previous month's `remaining`, keyed by topic id: zero until that month is
+   * closed bringing its leftovers (see `carrySource`), and back to zero if it is reopened.
+   */
   carryIn: Record<string, number>;
   /**
    * Snapshot of the topic configuration in effect for this month (id, name, targetPct, order).

@@ -9,9 +9,9 @@ import {
   type Expense,
   type Income,
 } from '@/lib/budget';
-import { useMonthToClose } from '@/lib/hooks/useMonthToClose';
+import { useMonthsToClose } from '@/lib/hooks/useMonthsToClose';
 import { usePendingReimbursables } from '@/lib/hooks/usePendingReimbursables';
-import { CloseLastMonthButton } from '@/components/month/CloseLastMonthButton';
+import { ClosePastMonths } from '@/components/month/ClosePastMonths';
 import { useMonthContext } from '@/components/month/MonthContext';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -94,19 +94,19 @@ export function ExpensesHomeCard() {
 
 /**
  * Gastos por categoria: a thin bar and what is left for each category. No total of all of them
- * together — it read as if the whole sum could go to anything (the owner asked it out). Once the
- * month turned, "Fechar outubro" at its foot, until it is closed.
+ * together — it read as if the whole sum could go to anything (the owner asked it out). With any
+ * month before this one still open, the buttons that close it at its foot.
  */
 export function BudgetHomeCard() {
   const { month, summary, error } = useMonthContext();
   const { settings } = useSettings();
-  const toClose = useMonthToClose(month, settings?.topics);
+  const toClose = useMonthsToClose(month, settings?.topics);
 
   return (
     <HomeCard
       module="budget"
       href={`/mes/${month}/categorias`}
-      action={toClose && <CloseLastMonthButton {...toClose} />}
+      action={toClose && <ClosePastMonths {...toClose} />}
     >
       {error && !summary ? (
         <CardNote tone="danger">{error}</CardNote>

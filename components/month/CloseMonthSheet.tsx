@@ -8,6 +8,8 @@ interface CloseMonthSheetProps {
   summary: MonthSummary;
   /** The month that gets the leftovers. */
   target: Month;
+  /** Closing several at once: them, with `summary` showing what the last one would end with. */
+  months?: Month[];
   /** Runs the close itself with the answer; resolves when the month is closed. */
   onConfirm: (bringLeftovers: boolean) => Promise<void>;
   onCancel: () => void;
@@ -15,9 +17,14 @@ interface CloseMonthSheetProps {
 
 const hasLeftovers = (summary: MonthSummary) => summary.topics.some((topic) => topic.remaining !== 0);
 
-/** What to tell the person once the month is closed. */
-export function closedMonthMessage(summary: MonthSummary, target: Month, bringLeftovers: boolean): string {
-  const closed = `${formatMonthLabel(summary.month)} fechado.`;
+/** What to tell the person once the month (or the `months`) is closed. */
+export function closedMonthMessage(
+  summary: MonthSummary,
+  target: Month,
+  bringLeftovers: boolean,
+  months?: Month[],
+): string {
+  const closed = months ? `${months.length} meses fechados.` : `${formatMonthLabel(summary.month)} fechado.`;
   if (!hasLeftovers(summary)) return closed;
   return bringLeftovers
     ? `${closed} O que restou foi para ${formatMonthLabel(target)}.`
@@ -33,9 +40,10 @@ const PRIMARY =
  * "Fechar mês" with the preview the bot never had: every envelope's leftover — including the
  * negative ones — and the question of whether they go on to `target`, where they land as "mês
  * passado". The answer closes the month: there is no closed month still waiting for one. With
- * nothing left in any category, there is nothing to ask.
+ * nothing left in any category, there is nothing to ask. Closing several, each passes its
+ * leftovers to the next, so the list is what the last one ends with and the question is about that.
  */
-export function CloseMonthSheet({ summary, target, onConfirm, onCancel }: CloseMonthSheetProps) {
+export function CloseMonthSheet({ summary, target, months, onConfirm, onCancel }: CloseMonthSheetProps) {
   const [answer, setAnswer] = useState<boolean | null>(null);
   const busy = answer !== null;
 
@@ -49,11 +57,23 @@ export function CloseMonthSheet({ summary, target, onConfirm, onCancel }: CloseM
   }
 
   return (
-    <BottomSheet open title={`Fechar ${formatMonthLabel(summary.month)}`} onClose={onCancel}>
+    <BottomSheet
+      open
+      title={months ? `Fechar ${months.length} meses` : `Fechar ${formatMonthLabel(summary.month)}`}
+      onClose={onCancel}
+    >
       <div className="flex flex-col gap-5">
-        <p className="text-muted text-sm leading-relaxed">
-          Depois de fechado, ele não aceita mais lançamentos (dá para reabrir).
-        </p>
+        {months ? (
+          <p className="text-muted text-sm leading-relaxed">
+            De {formatMonthLabel(months[0])} a {formatMonthLabel(months[months.length - 1])}. Depois de
+            fechados, eles não aceitam mais lançamentos (dá para reabrir). Abaixo, o que restou somando
+            todos.
+          </p>
+        ) : (
+          <p className="text-muted text-sm leading-relaxed">
+            Depois de fechado, ele não aceita mais lançamentos (dá para reabrir).
+          </p>
+        )}
 
         <ul className="border-border divide-border divide-y rounded-xl border">
           {summary.topics.map((topic) => (

@@ -4,7 +4,7 @@ Aplicativo web mobile-first de orçamento doméstico por envelopes (categorias c
 percentuais definidos pelo usuário), substituindo uma planilha. Renda, gastos, custos
 fixos e imprevistos são lançados manualmente; o app calcula quanto ainda pode
 ser gasto em cada categoria, descontando o rateio dos custos fixos/imprevistos e
-carregando a sobra de um mês para o outro (rollover). Gastos marcados como "feitos no
+carregando a sobra de um mês para o outro quando o mês é fechado (rollover). Gastos marcados como "feitos no
 cartão" entram na fatura do cartão, além de contarem no orçamento normal da categoria em que
 foram lançados — e **fatura e orçamento são coisas separadas** (veja o módulo Cartão).
 
@@ -149,9 +149,11 @@ botão fecha); renda e gasto abrem o formulário ali mesmo na Início. Nada diss
   duas rateadas entre as categorias, e separá-las só obrigava a adivinhar em qual das duas o gasto
   tinha sido lançado; cada linha diz qual das duas é.
 - **Gastos por categoria** (`/mes/[mês]/categorias`) — metas em % da renda, "posso gastar", sobra
-  por categoria, custos fixos e imprevistos com o rateio, e "Fechar mês". Quando o mês vira, o botão
-  "Fechar outubro" aparece no widget e no topo da tela até o mês anterior ser fechado; ao fechar, o
-  app pergunta se o que restou vem para o mês seguinte. Detalhe da categoria em
+  por categoria, custos fixos e imprevistos com o rateio, e "Fechar mês". **A sobra só passa para o
+  mês seguinte com o mês fechado.** Enquanto houver mês anterior aberto, o widget e o topo da tela
+  mostram "Fechar outubro" e, com mais de um aberto, "Fechar todos os meses anteriores"; ao fechar, o
+  app pergunta se o que restou vem para o mês atual. Reabrir um mês devolve a sobra para ele até
+  fechar de novo. Detalhe da categoria em
   `/mes/[mês]/categoria/[id]`. Desligado, o gasto continua sendo lançado numa categoria (que segue
   editável na engrenagem de Lançamentos, com nome, descrição e cor), mas somem as metas, o
   percentual e a regra dos 100%. As regras das categorias estão em "Categorias" logo abaixo.
@@ -1096,15 +1098,20 @@ interface BudgetRepository {
   (`pg_advisory_xact_lock`) e recalcula em cascata o `carryIn` dos meses seguintes; o mesmo vale
   ao reabrir ou apagar um mês.
 - **Fechar o mês** (`closeMonth(month, true)`) congela a competência e abre a seguinte na mesma
-  transação, já com a sobra de cada categoria como `carryIn`. A tela mostra essa prévia e pergunta
-  se a sobra vem junto. Até a resposta, ela passa como sempre passou (nada muda para quem não fecha
-  o mês); com "Não trazer", `closeMonth(month, openNext, true)` grava `leftovers_dropped` no mês
-  fechado e o mês seguinte fica com `carryIn` zerado, mesmo que já exista. Reabrir apaga a resposta,
-  a sobra volta e a pergunta é feita de novo no próximo fechamento.
-- **O botão da virada do mês** (`useMonthToClose`) só aparece no mês de hoje e olha o último mês
-  guardado antes dele, que é de onde a sobra vem mesmo quando um mês inteiro ficou sem uso.
-  Enquanto ele aparece, o "Fechar mês" do fim da tela some, para não fechar o mês que acabou de
-  começar por engano.
+  transação, já com a sobra de cada categoria como `carryIn`. **Só um mês fechado passa sobra**
+  (`carrySource`): de um mês aberto ou reaberto, o seguinte recebe zero, mesmo que já esteja em uso.
+  A tela mostra a prévia e pergunta se a sobra vem junto; com "Não trazer",
+  `closeMonth(month, openNext, true)` grava `leftovers_dropped` no mês fechado. Reabrir apaga a
+  resposta, tira a sobra do mês seguinte e a pergunta é feita de novo no próximo fechamento.
+- **Os botões da virada do mês** (`useMonthsToClose`) só aparecem no mês de hoje e olham os meses
+  guardados antes dele (`monthsToClose`). Com mais de um aberto, **Fechar todos os meses anteriores**
+  (`closeMonthsBefore`) fecha todos de uma vez: cada um passa a sobra para o seguinte, a tela mostra
+  o que chegaria ao fim e a resposta vale para o mês de hoje, gravada só no último mês antes dele.
+  Enquanto esses botões aparecem, o "Fechar mês" do fim da tela some, para não fechar o mês que
+  acabou de começar por engano.
+- **Contas que já existiam:** `carryOnCloseMigration` recalcula uma vez todos os meses de todas as
+  contas. Meses abertos deixam de passar sobra, e fechá-los com "Trazer" devolve os mesmos números.
+  Restaurar um backup antigo faz o mesmo recálculo.
 
 **`IndexedDbBudgetRepository`** (Dexie.js) continua no código, mas só para a importação única
 dos dados locais da versão v1 (`lib/storage/localMigration.ts`), oferecida por um banner e na

@@ -31,6 +31,7 @@ export async function register() {
     { runReserveModuleMigration },
     { runRecurringLaunchLink },
     { runModulesAlwaysOnMigration },
+    { runCarryOnCloseMigration },
     { syncModules },
   ] = await Promise.all([
     import('./lib/server/scheduler'),
@@ -40,6 +41,7 @@ export async function register() {
     import('./lib/server/reserveModuleMigration'),
     import('./lib/server/recurringLaunchLink'),
     import('./lib/server/modulesAlwaysOnMigration'),
+    import('./lib/server/carryOnCloseMigration'),
     import('./lib/server/adminRepository'),
   ]);
 
@@ -72,6 +74,12 @@ export async function register() {
     await runModulesAlwaysOnMigration(getDb());
   } catch (err) {
     console.error('[módulos] falha ao dar a Início padrão a todos:', err);
+  }
+
+  try {
+    await runCarryOnCloseMigration(getDb());
+  } catch (err) {
+    console.error('[orçamento] falha ao recalcular a sobra dos meses:', err);
   }
 
   // Every start: each account's modules as its access says (all, but the restricted ones it may
