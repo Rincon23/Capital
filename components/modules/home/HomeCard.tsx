@@ -16,12 +16,15 @@ export function HomeCard({
   module,
   href,
   title,
+  action,
   children,
 }: {
   module: ModuleKey;
   /** The module's screen; the whole card opens it. */
   href?: string;
   title?: string;
+  /** A button at the foot of the card, in the frame but out of the link (a link cannot hold one). */
+  action?: ReactNode;
   children: ReactNode;
 }) {
   const visual = MODULE_VISUALS[module];
@@ -37,13 +40,23 @@ export function HomeCard({
       {children}
     </>
   );
-  return href ? (
-    <Link href={href} className={`${FRAME} ${LINKED}`} data-tour={`card-${module}`}>
-      {content}
-    </Link>
-  ) : (
-    <section className={FRAME} data-tour={`card-${module}`}>
-      {content}
+  if (href && !action) {
+    return (
+      <Link href={href} className={`${FRAME} ${LINKED}`} data-tour={`card-${module}`}>
+        {content}
+      </Link>
+    );
+  }
+  return (
+    <section className={`${FRAME} ${href ? 'hover:border-primary/40' : ''}`} data-tour={`card-${module}`}>
+      {href ? (
+        <Link href={href} className="flex flex-col gap-3 transition active:scale-[0.99]">
+          {content}
+        </Link>
+      ) : (
+        content
+      )}
+      {action}
     </section>
   );
 }

@@ -149,7 +149,9 @@ botão fecha); renda e gasto abrem o formulário ali mesmo na Início. Nada diss
   duas rateadas entre as categorias, e separá-las só obrigava a adivinhar em qual das duas o gasto
   tinha sido lançado; cada linha diz qual das duas é.
 - **Gastos por categoria** (`/mes/[mês]/categorias`) — metas em % da renda, "posso gastar", sobra
-  por categoria, custos fixos e imprevistos com o rateio, e "Fechar mês". Detalhe da categoria em
+  por categoria, custos fixos e imprevistos com o rateio, e "Fechar mês". Quando o mês vira, o botão
+  "Fechar outubro" aparece no widget e no topo da tela até o mês anterior ser fechado; ao fechar, o
+  app pergunta se o que restou vem para o mês seguinte. Detalhe da categoria em
   `/mes/[mês]/categoria/[id]`. Desligado, o gasto continua sendo lançado numa categoria (que segue
   editável na engrenagem de Lançamentos, com nome, descrição e cor), mas somem as metas, o
   percentual e a regra dos 100%. As regras das categorias estão em "Categorias" logo abaixo.
@@ -1094,8 +1096,15 @@ interface BudgetRepository {
   (`pg_advisory_xact_lock`) e recalcula em cascata o `carryIn` dos meses seguintes; o mesmo vale
   ao reabrir ou apagar um mês.
 - **Fechar o mês** (`closeMonth(month, true)`) congela a competência e abre a seguinte na mesma
-  transação, já com a sobra de cada categoria como `carryIn`. A tela mostra essa prévia antes de
-  confirmar e leva você para o mês novo.
+  transação, já com a sobra de cada categoria como `carryIn`. A tela mostra essa prévia e pergunta
+  se a sobra vem junto. Até a resposta, ela passa como sempre passou (nada muda para quem não fecha
+  o mês); com "Não trazer", `closeMonth(month, openNext, true)` grava `leftovers_dropped` no mês
+  fechado e o mês seguinte fica com `carryIn` zerado, mesmo que já exista. Reabrir apaga a resposta,
+  a sobra volta e a pergunta é feita de novo no próximo fechamento.
+- **O botão da virada do mês** (`useMonthToClose`) só aparece no mês de hoje e olha o último mês
+  guardado antes dele, que é de onde a sobra vem mesmo quando um mês inteiro ficou sem uso.
+  Enquanto ele aparece, o "Fechar mês" do fim da tela some, para não fechar o mês que acabou de
+  começar por engano.
 
 **`IndexedDbBudgetRepository`** (Dexie.js) continua no código, mas só para a importação única
 dos dados locais da versão v1 (`lib/storage/localMigration.ts`), oferecida por um banner e na
@@ -1198,12 +1207,13 @@ Os demais testes:
   etapas e o Capital arredonda cada uma. Inclui as regras da categoria "A receber".
 - **`lib/server/__tests__/budgetRepository.test.ts`:** cobre o repositório Postgres contra o
   schema e as migrações reais, num Postgres em memória (PGlite). Casos: seed, cascata de
-  rollover, mês fechado/inexistente, fechar abrindo o mês seguinte, apagar mês, export→import,
+  rollover, mês fechado/inexistente, fechar abrindo o mês seguinte, fechar sem trazer a sobra,
+  apagar mês, export→import,
   módulos, áreas da Início e avisos vistos por usuário (e no backup, inclusive os antigos com
   rodapé), isolamento entre contas e escritas
   simultâneas.
 - **Componentes** (`components/**/__tests__`, Testing Library): o formulário de gasto com a
-  categoria "A receber" e sem o módulo Cartão, e a prévia do "Fechar mês".
+  categoria "A receber" e sem o módulo Cartão, a prévia do "Fechar mês" e o botão da virada do mês.
 - **`lib/reminders/__tests__/schedule.test.ts`:** os lembretes com relógio falso em São Paulo:
   mês curto, vários dias da semana, aviso antecipado, repetição até "Realizado", atrasados,
   horários do usuário, tarefas agrupadas e o que não dispara antes da criação.

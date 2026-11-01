@@ -315,6 +315,8 @@ export const months = pgTable(
     topicsSnapshot: jsonb('topics_snapshot').$type<TopicConfig[]>().notNull().default([]),
     closed: boolean('closed').notNull().default(false),
     closedAt: timestamp('closed_at', { withTimezone: true }),
+    /** Closed saying no to bringing the leftovers: the month after it starts without them. */
+    leftoversDropped: boolean('leftovers_dropped').notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

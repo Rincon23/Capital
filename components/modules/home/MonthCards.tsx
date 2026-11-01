@@ -9,8 +9,11 @@ import {
   type Expense,
   type Income,
 } from '@/lib/budget';
+import { useMonthToClose } from '@/lib/hooks/useMonthToClose';
 import { usePendingReimbursables } from '@/lib/hooks/usePendingReimbursables';
+import { CloseLastMonthButton } from '@/components/month/CloseLastMonthButton';
 import { useMonthContext } from '@/components/month/MonthContext';
+import { useSettings } from '@/components/providers/SettingsProvider';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { CardNote, HomeCard, HomeTile, Skeleton, Stat } from './HomeCard';
 
@@ -91,13 +94,20 @@ export function ExpensesHomeCard() {
 
 /**
  * Gastos por categoria: a thin bar and what is left for each category. No total of all of them
- * together — it read as if the whole sum could go to anything (the owner asked it out).
+ * together — it read as if the whole sum could go to anything (the owner asked it out). Once the
+ * month turned, "Fechar outubro" at its foot, until it is closed.
  */
 export function BudgetHomeCard() {
   const { month, summary, error } = useMonthContext();
+  const { settings } = useSettings();
+  const toClose = useMonthToClose(month, settings?.topics);
 
   return (
-    <HomeCard module="budget" href={`/mes/${month}/categorias`}>
+    <HomeCard
+      module="budget"
+      href={`/mes/${month}/categorias`}
+      action={toClose && <CloseLastMonthButton {...toClose} />}
+    >
       {error && !summary ? (
         <CardNote tone="danger">{error}</CardNote>
       ) : (

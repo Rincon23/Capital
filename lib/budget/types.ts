@@ -409,4 +409,6 @@ export interface MonthData {
    */
   topicsSnapshot: TopicConfig[];
   closed?: boolean;
+  /** Closed saying no to bringing the leftovers: the month after it starts with no carryIn. */
+  leftoversDropped?: boolean;
 }

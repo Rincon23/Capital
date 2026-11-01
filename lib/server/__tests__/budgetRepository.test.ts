@@ -522,6 +522,96 @@ describe('PostgresBudgetRepository', () => {
     expect(await repo.listMonths()).toEqual(['2026-01']);
   });
 
+  it('closes leaving the leftovers behind: the month opened after it starts with nothing', async () => {
+    const { repo } = await newAccount();
+    const diversos = await diversosId(repo);
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+
+    await repo.closeMonth('2026-01', true, true);
+
+    expect((await repo.getMonth('2026-01'))?.leftoversDropped).toBe(true);
+    const february = (await repo.getMonth('2026-02'))!;
+    expect(february.carryIn[diversos]).toBe(0);
+    expect(computeMonthSummary(february).balance).toBe(0);
+  });
+
+  it('a month not stored yet reads the answer too, and keeps it when it is first written', async () => {
+    const { repo } = await newAccount();
+    const diversos = await diversosId(repo);
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+
+    await repo.closeMonth('2026-01', false, true);
+
+    expect(await repo.listMonths()).toEqual(['2026-01']);
+    expect((await repo.peekMonth('2026-02')).carryIn[diversos]).toBe(0);
+    await repo.saveExpense('2026-02', fixedCost({ date: '2026-02-02' }));
+    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(0);
+  });
+
+  it('the answer reaches a month already in use, and every month after it', async () => {
+    const { repo } = await newAccount();
+    const diversos = await diversosId(repo);
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await repo.saveIncome('2026-02', { id: 'i2', source: 'Salário', amount: 1000 });
+    await repo.ensureMonth('2026-03');
+    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(200);
+    expect((await repo.getMonth('2026-03'))?.carryIn[diversos]).toBe(400);
+
+    await repo.closeMonth('2026-01', false, true);
+
+    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(0);
+    // February still leaves its own 20% for March.
+    expect((await repo.getMonth('2026-03'))?.carryIn[diversos]).toBe(200);
+  });
+
+  it('later writes never bring dropped leftovers back; reopening does, and asks again', async () => {
+    const { repo } = await newAccount();
+    const diversos = await diversosId(repo);
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await repo.saveIncome('2026-02', { id: 'i2', source: 'Salário', amount: 1000 });
+    await repo.closeMonth('2026-01', false, true);
+
+    await repo.saveExpense('2026-02', fixedCost({ date: '2026-02-02' }));
+    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(0);
+
+    await repo.reopenMonth('2026-01');
+    const january = (await repo.getMonth('2026-01'))!;
+    expect(january.closed).toBe(false);
+    expect(january.leftoversDropped).toBeUndefined();
+    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(200);
+
+    await repo.closeMonth('2026-01');
+    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(200);
+  });
+
+  it('skips a month nobody used: the answer goes to the next month that exists', async () => {
+    const { repo } = await newAccount();
+    const diversos = await diversosId(repo);
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await repo.ensureMonth('2026-03');
+    expect((await repo.getMonth('2026-03'))?.carryIn[diversos]).toBe(200);
+
+    await repo.closeMonth('2026-01', false, true);
+
+    expect(await repo.listMonths()).toEqual(['2026-01', '2026-03']);
+    expect((await repo.getMonth('2026-03'))?.carryIn[diversos]).toBe(0);
+  });
+
+  it('keeps the answer about the leftovers through a backup', async () => {
+    const { repo } = await newAccount();
+    const diversos = await diversosId(repo);
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await repo.saveIncome('2026-02', { id: 'i2', source: 'Salário', amount: 1000 });
+    await repo.closeMonth('2026-01', false, true);
+
+    const { repo: target } = await newAccount();
+    await target.importData(await repo.exportData());
+
+    expect((await target.getMonth('2026-01'))?.leftoversDropped).toBe(true);
+    await target.saveExpense('2026-02', fixedCost({ date: '2026-02-02' }));
+    expect((await target.getMonth('2026-02'))?.carryIn[diversos]).toBe(0);
+  });
+
   it('applies concurrent writes to the same month without losing any', async () => {
     const { repo } = await newAccount();
     await repo.ensureMonth('2026-01');

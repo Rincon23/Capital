@@ -220,4 +220,30 @@ export const historyChecks: SelfCheck[] = [
         expectEqual(await budget.listMonths(), [first, second], 'Meses no histórico');
       }),
   },
+  {
+    id: 'history.dropLeftovers',
+    name: 'Fechar o mês sem trazer a sobra',
+    run: ({ scratch }) =>
+      scratch(async (account) => {
+        const { budget, month } = account;
+        const diversos = await presetTopic(account, 'diversos');
+        const first = shiftMonth(month, -2);
+        const second = nextMonth(first);
+        await budget.saveIncome(first, {
+          id: createId(),
+          source: 'Salário',
+          amount: 1000,
+          date: `${first}-05`,
+        });
+        await budget.ensureMonth(second);
+        const carried = async () => (await budget.getMonth(second))?.carryIn[diversos] ?? 0;
+        expect((await carried()) > 0, 'A sobra não chegou ao mês seguinte antes de fechar.');
+
+        await budget.closeMonth(first, false, true);
+        expectEqual(await carried(), 0, 'Sobra de Diversos depois de fechar sem trazer');
+
+        await budget.reopenMonth(first);
+        expect((await carried()) > 0, 'A sobra não voltou ao reabrir o mês.');
+      }),
+  },
 ];

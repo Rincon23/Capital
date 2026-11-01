@@ -21,7 +21,11 @@ export function ClosedMonthBanner() {
 
   return (
     <div className="bg-warning-bg text-warning flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm">
-      <span>Este mês está fechado.</span>
+      <span>
+        {monthData.leftoversDropped
+          ? 'Este mês está fechado, e o que restou não passou para o seguinte.'
+          : 'Este mês está fechado.'}
+      </span>
       <button
         type="button"
         onClick={() => void handleReopen()}

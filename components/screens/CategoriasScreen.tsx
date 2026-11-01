@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Percent } from 'lucide-react';
 import { formatMonthLabel, nextMonth } from '@/lib/budget';
+import { useMonthToClose } from '@/lib/hooks/useMonthToClose';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ModuleGate } from '@/components/modules/ModuleGate';
 import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
@@ -11,7 +12,8 @@ import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
 import { useHomeHref } from '@/components/modules/useHomeHref';
 import { useModuleIntro } from '@/components/modules/useModuleIntro';
 import { ClosedMonthBanner } from '@/components/month/ClosedMonthBanner';
-import { CloseMonthSheet } from '@/components/month/CloseMonthSheet';
+import { CloseLastMonthButton } from '@/components/month/CloseLastMonthButton';
+import { CloseMonthSheet, closedMonthMessage } from '@/components/month/CloseMonthSheet';
 import { FixedCostsCard } from '@/components/month/FixedCostsCard';
 import { useMonthContext } from '@/components/month/MonthContext';
 import { MonthSwipe } from '@/components/month/MonthSwipe';
@@ -36,6 +38,7 @@ function Categorias() {
   const backHref = useHomeHref();
   const { month, summary, monthData, loading, error, closeMonth, refresh } = useMonthContext();
   const { settings, saveSettings } = useSettings();
+  const toClose = useMonthToClose(month, settings?.topics);
   const { showToast } = useToast();
   const router = useRouter();
   const [closing, setClosing] = useState(false);
@@ -60,12 +63,12 @@ function Categorias() {
     setHelping(true);
   }, []);
 
-  /** Closes the month and opens the next one carrying the leftovers, then goes to it. */
-  async function handleCloseMonth() {
+  /** Closes the month with the answer about the leftovers and opens the next one, then goes to it. */
+  async function handleCloseMonth(bringLeftovers: boolean) {
     try {
-      await closeMonth(true);
+      await closeMonth(true, !bringLeftovers);
       setClosing(false);
-      showToast('Mês fechado com sucesso! Seus dados foram atualizados.');
+      if (summary) showToast(closedMonthMessage(summary, nextMonth(month), bringLeftovers));
       router.push(`/mes/${nextMonth(month)}/categorias`);
     } catch {
       showToast('Não foi possível fechar o mês. Tente de novo.', 'error');
@@ -109,6 +112,12 @@ function Categorias() {
               </div>
             )}
 
+            {toClose && (
+              <div data-tour="fechar-mes">
+                <CloseLastMonthButton {...toClose} />
+              </div>
+            )}
+
             <SummaryHeader summary={summary} />
 
             <section className="flex flex-col gap-3" aria-labelledby="categorias-titulo">
@@ -141,7 +150,8 @@ function Categorias() {
               />
             </div>
 
-            {!monthData?.closed && (
+            {/* One at a time: with last month open, this one would close the month just begun. */}
+            {!monthData?.closed && !toClose && (
               <button
                 type="button"
                 onClick={() => setClosing(true)}
@@ -158,6 +168,7 @@ function Categorias() {
       {closing && summary && (
         <CloseMonthSheet
           summary={summary}
+          target={nextMonth(month)}
           onConfirm={handleCloseMonth}
           onCancel={() => {
             setClosing(false);

@@ -4,7 +4,7 @@ import { DEFAULT_SPECIAL_CATEGORY_LABELS } from '../budget/categories';
 import { DEFAULT_SPECIAL_CATEGORY_COLORS } from '../budget/colors';
 import { nextMonth } from '../budget/date';
 import { installmentExpense, installmentsDueIn } from '../budget/installments';
-import { cascadeCarryIn, createMonthData } from '../budget/rollover';
+import { carrySource, cascadeCarryIn, createMonthData } from '../budget/rollover';
 import { createDefaultSettings } from '../budget/seed';
 import { keepEveryTopic } from '../budget/topics';
 import type {
@@ -315,20 +315,29 @@ export class PostgresBudgetRepository implements BudgetRepository {
   // Month lifecycle
   // -------------------------------------------------------------------------
 
-  async closeMonth(month: Month, openNext = false): Promise<void> {
+  async closeMonth(month: Month, openNext = false, dropLeftovers = false): Promise<void> {
     await this.write(async (tx) => {
       await this.ensureMonthIn(tx, month);
-      await tx.update(months).set({ closed: true, closedAt: new Date() }).where(this.monthKey(month));
+      await tx
+        .update(months)
+        .set({ closed: true, closedAt: new Date(), leftoversDropped: dropLeftovers })
+        .where(this.monthKey(month));
       // "Fechar mês" closes and opens in one go: the next month is created inside this same
       // transaction, already carrying each envelope's leftover from the month just closed.
       if (openNext) await this.ensureMonthIn(tx, nextMonth(month));
+      // The months after it may already be in use: the answer about the leftovers reaches them too.
+      await this.recascade(tx, month);
     });
   }
 
+  /** The question about the leftovers goes with the closing: reopened, they carry again. */
   async reopenMonth(month: Month): Promise<void> {
     await this.write(async (tx) => {
       if (!(await this.monthRow(tx, month))) throw new MonthNotFoundError(month);
-      await tx.update(months).set({ closed: false, closedAt: null }).where(this.monthKey(month));
+      await tx
+        .update(months)
+        .set({ closed: false, closedAt: null, leftoversDropped: false })
+        .where(this.monthKey(month));
       await this.recascade(tx, month);
     });
   }
@@ -583,7 +592,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
       .orderBy(desc(months.month))
       .limit(1);
     const [previous] = prior ? await this.loadMonths(ex, eq(months.month, prior.month)) : [];
-    const created = createMonthData(month, settings.topics, previous ? computeMonthSummary(previous) : null);
+    const created = createMonthData(month, settings.topics, carrySource(previous, computeMonthSummary));
     // A month that does not exist yet still shows the instalments it will be charged, so the
     // preview never changes the moment something is written to it.
     return { ...created, expenses: await this.installmentExpensesFor(ex, month) };
@@ -619,6 +628,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
       carryIn: row.carryIn,
       topicsSnapshot: row.topicsSnapshot,
       closed: row.closed,
+      ...(row.leftoversDropped ? { leftoversDropped: true } : {}),
     }));
   }
 
@@ -742,6 +752,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
         topicsSnapshot: m.topicsSnapshot,
         closed: m.closed ?? false,
         closedAt: m.closed ? new Date() : null,
+        leftoversDropped: m.leftoversDropped ?? false,
       })),
     );
 

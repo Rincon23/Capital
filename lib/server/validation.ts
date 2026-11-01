@@ -200,6 +200,7 @@ export const monthDataSchema = z.object({
     .refine((value) => Object.keys(value).length <= MAX_TOPICS, 'Dados inválidos.'),
   topicsSnapshot: z.array(topicSchema).max(MAX_TOPICS),
   closed: z.boolean().optional(),
+  leftoversDropped: z.boolean().optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -475,7 +476,10 @@ export const aiProblemReportSchema = z.object({
 });
 
 /** Body of "fechar mês": whether to open the next month in the same transaction. */
-export const closeMonthSchema = z.object({ openNext: z.boolean().optional() });
+export const closeMonthSchema = z.object({
+  openNext: z.boolean().optional(),
+  dropLeftovers: z.boolean().optional(),
+});
 
 // ---------------------------------------------------------------------------
 // Diagrama

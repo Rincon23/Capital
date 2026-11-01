@@ -75,9 +75,10 @@ export interface BudgetRepository {
 
   /**
    * Freezes the month. With `openNext`, the following month is created in the same
-   * transaction, already carrying each envelope's leftover (what "Fechar mês" does).
+   * transaction, already carrying each envelope's leftover (what "Fechar mês" does). With
+   * `dropLeftovers` the leftovers stay behind: the month after it starts with no carryIn.
    */
-  closeMonth(month: Month, openNext?: boolean): Promise<void>;
+  closeMonth(month: Month, openNext?: boolean, dropLeftovers?: boolean): Promise<void>;
   /** Reopens a closed month and recomputes carryIn for every later month that already exists. */
   reopenMonth(month: Month): Promise<void>;
   /** Permanently deletes a stored month and recomputes carryIn for every later month. No-op if the month was never persisted. */

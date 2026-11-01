@@ -253,6 +253,13 @@
       "when": 1793379387038,
       "tag": "0035_frases_voce_sabia",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793544964644,
+      "tag": "0036_fechar_mes_sem_sobra",
+      "breakpoints": true
     }
   ]
 }

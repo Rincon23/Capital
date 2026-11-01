@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { computeMonthSummary, type MonthData, type TopicConfig } from '@/lib/budget';
-import { CloseMonthSheet } from '../CloseMonthSheet';
+import { CloseMonthSheet, closedMonthMessage } from '../CloseMonthSheet';
 
 const TOPICS: TopicConfig[] = [
   { id: 'diversos', name: 'Diversos', targetPct: 0.5, order: 0 },
@@ -28,46 +28,82 @@ function september(): MonthData {
   };
 }
 
+function renderSheet(month: MonthData, onConfirm = vi.fn(), onCancel = vi.fn()) {
+  render(
+    <CloseMonthSheet
+      summary={computeMonthSummary(month)}
+      target="2026-10"
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    />,
+  );
+}
+
 describe('CloseMonthSheet', () => {
   it('mostra a sobra de cada categoria, o total e para onde elas vão', () => {
-    render(
-      <CloseMonthSheet summary={computeMonthSummary(september())} onConfirm={vi.fn()} onCancel={vi.fn()} />,
-    );
+    renderSheet(september());
 
     expect(screen.getByText('Diversos')).toBeInTheDocument();
     expect(screen.getByText('-R$ 100,00')).toBeInTheDocument();
     expect(screen.getByText('R$ 500,00')).toBeInTheDocument();
-    expect(screen.getByText(/Outubro 2026/)).toBeInTheDocument();
+    expect(screen.getByText('Trazer o que restou para Outubro 2026?')).toBeInTheDocument();
     // Total: -100 + 500.
     expect(screen.getByText('R$ 400,00')).toBeInTheDocument();
   });
 
   it('avisa que as sobras negativas também são carregadas', () => {
-    render(
-      <CloseMonthSheet summary={computeMonthSummary(september())} onConfirm={vi.fn()} onCancel={vi.fn()} />,
-    );
+    renderSheet(september());
     expect(screen.getByText(/começam o mês devendo/i)).toBeInTheDocument();
   });
 
   it('não avisa nada quando todas as sobras são positivas', () => {
     const month = september();
     month.expenses = [];
-    render(<CloseMonthSheet summary={computeMonthSummary(month)} onConfirm={vi.fn()} onCancel={vi.fn()} />);
+    renderSheet(month);
     expect(screen.queryByText(/começam o mês devendo/i)).not.toBeInTheDocument();
   });
 
-  it('só fecha o mês quando o usuário confirma', async () => {
+  it('só fecha o mês com a resposta da pessoa, e cada botão dá a sua', async () => {
     const onConfirm = vi.fn().mockResolvedValue(undefined);
     const onCancel = vi.fn();
-    render(
-      <CloseMonthSheet summary={computeMonthSummary(september())} onConfirm={onConfirm} onCancel={onCancel} />,
-    );
+    renderSheet(september(), onConfirm, onCancel);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Fechar' })[1]);
     expect(onCancel).toHaveBeenCalledTimes(1);
     expect(onConfirm).not.toHaveBeenCalled();
 
+    fireEvent.click(screen.getByRole('button', { name: 'Não trazer' }));
+    await waitFor(() => expect(onConfirm).toHaveBeenLastCalledWith(false));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Trazer' })).toBeEnabled());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Trazer' }));
+    await waitFor(() => expect(onConfirm).toHaveBeenLastCalledWith(true));
+  });
+
+  it('não pergunta nada quando nenhuma categoria tem sobra', async () => {
+    const month = september();
+    month.incomes = [];
+    month.expenses = [];
+    const onConfirm = vi.fn().mockResolvedValue(undefined);
+    renderSheet(month, onConfirm);
+
+    expect(screen.queryByText(/Trazer o que restou/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Fechar mês' }));
-    await waitFor(() => expect(onConfirm).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledWith(true));
+  });
+
+  it('diz o que aconteceu com o que restou', () => {
+    const summary = computeMonthSummary(september());
+    expect(closedMonthMessage(summary, '2026-10', true)).toBe(
+      'Setembro 2026 fechado. O que restou foi para Outubro 2026.',
+    );
+    expect(closedMonthMessage(summary, '2026-10', false)).toBe(
+      'Setembro 2026 fechado. Outubro 2026 começa sem o que restou.',
+    );
+
+    const empty = september();
+    empty.incomes = [];
+    empty.expenses = [];
+    expect(closedMonthMessage(computeMonthSummary(empty), '2026-10', true)).toBe('Setembro 2026 fechado.');
   });
 });

@@ -46,11 +46,13 @@ describe('HttpBudgetRepository', () => {
     const fetchMock = mockFetch(204);
     await repo.closeMonth('2026-01', true);
     await repo.closeMonth('2026-02');
+    await repo.closeMonth('2026-03', false, true);
 
-    const [closeAndOpen, closeOnly] = fetchMock.mock.calls;
+    const [closeAndOpen, closeOnly, withoutLeftovers] = fetchMock.mock.calls;
     expect(closeAndOpen[0]).toBe('/api/v1/months/2026-01/close');
-    expect(JSON.parse(closeAndOpen[1].body)).toEqual({ openNext: true });
-    expect(JSON.parse(closeOnly[1].body)).toEqual({ openNext: false });
+    expect(JSON.parse(closeAndOpen[1].body)).toEqual({ openNext: true, dropLeftovers: false });
+    expect(JSON.parse(closeOnly[1].body)).toEqual({ openNext: false, dropLeftovers: false });
+    expect(JSON.parse(withoutLeftovers[1].body)).toEqual({ openNext: false, dropLeftovers: true });
   });
 
   it('turns 401 into NotAuthenticatedError and tells the app to go to /login', async () => {

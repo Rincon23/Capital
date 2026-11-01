@@ -1,30 +1,50 @@
 'use client';
 
 import { useState } from 'react';
-import { formatBRL, formatMonthLabel, nextMonth, type MonthSummary } from '@/lib/budget';
+import { formatBRL, formatMonthLabel, type Month, type MonthSummary } from '@/lib/budget';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 
 interface CloseMonthSheetProps {
   summary: MonthSummary;
-  /** Runs the close itself; resolves when the month is closed and the next one is open. */
-  onConfirm: () => Promise<void>;
+  /** The month that gets the leftovers. */
+  target: Month;
+  /** Runs the close itself with the answer; resolves when the month is closed. */
+  onConfirm: (bringLeftovers: boolean) => Promise<void>;
   onCancel: () => void;
 }
 
+const hasLeftovers = (summary: MonthSummary) => summary.topics.some((topic) => topic.remaining !== 0);
+
+/** What to tell the person once the month is closed. */
+export function closedMonthMessage(summary: MonthSummary, target: Month, bringLeftovers: boolean): string {
+  const closed = `${formatMonthLabel(summary.month)} fechado.`;
+  if (!hasLeftovers(summary)) return closed;
+  return bringLeftovers
+    ? `${closed} O que restou foi para ${formatMonthLabel(target)}.`
+    : `${closed} ${formatMonthLabel(target)} começa sem o que restou.`;
+}
+
+const OUTLINE =
+  'border-border text-foreground min-h-[44px] flex-1 rounded-lg border px-4 py-2 font-medium disabled:opacity-50';
+const PRIMARY =
+  'bg-primary text-primary-foreground min-h-[44px] flex-1 rounded-lg px-4 py-2 font-semibold disabled:opacity-50';
+
 /**
  * "Fechar mês" with the preview the bot never had: every envelope's leftover — including the
- * negative ones — exactly as it will land in the next month as "mês passado".
+ * negative ones — and the question of whether they go on to `target`, where they land as "mês
+ * passado". The answer closes the month: there is no closed month still waiting for one. With
+ * nothing left in any category, there is nothing to ask.
  */
-export function CloseMonthSheet({ summary, onConfirm, onCancel }: CloseMonthSheetProps) {
-  const [busy, setBusy] = useState(false);
-  const next = nextMonth(summary.month);
+export function CloseMonthSheet({ summary, target, onConfirm, onCancel }: CloseMonthSheetProps) {
+  const [answer, setAnswer] = useState<boolean | null>(null);
+  const busy = answer !== null;
 
-  async function handleConfirm() {
-    setBusy(true);
+  async function handleConfirm(bringLeftovers: boolean) {
+    setAnswer(bringLeftovers);
     try {
-      await onConfirm();
+      await onConfirm(bringLeftovers);
     } finally {
-      setBusy(false);
+      setAnswer(null);
     }
   }
 
@@ -32,8 +52,7 @@ export function CloseMonthSheet({ summary, onConfirm, onCancel }: CloseMonthShee
     <BottomSheet open title={`Fechar ${formatMonthLabel(summary.month)}`} onClose={onCancel}>
       <div className="flex flex-col gap-5">
         <p className="text-muted text-sm leading-relaxed">
-          Depois de fechado, este mês não aceita mais lançamentos (dá para reabrir). As sobras abaixo viram o
-          &ldquo;mês passado&rdquo; de {formatMonthLabel(next)}, que será aberto para você.
+          Depois de fechado, ele não aceita mais lançamentos (dá para reabrir).
         </p>
 
         <ul className="border-border divide-border divide-y rounded-xl border">
@@ -60,30 +79,47 @@ export function CloseMonthSheet({ summary, onConfirm, onCancel }: CloseMonthShee
           </li>
         </ul>
 
-        {summary.topics.some((topic) => topic.remaining < 0) && (
-          <p className="bg-warning-bg text-warning rounded-lg px-3 py-2 text-xs">
-            Sobra negativa também passa: essas categorias começam o mês devendo.
-          </p>
-        )}
+        {hasLeftovers(summary) ? (
+          <>
+            <p className="text-foreground font-semibold">Trazer o que restou para {formatMonthLabel(target)}?</p>
 
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={busy}
-            className="border-border text-foreground min-h-[44px] flex-1 rounded-lg border px-4 py-2 font-medium disabled:opacity-50"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={handleConfirm}
-            disabled={busy}
-            className="bg-primary text-primary-foreground min-h-[44px] flex-1 rounded-lg px-4 py-2 font-semibold disabled:opacity-50"
-          >
-            {busy ? 'Fechando…' : 'Fechar mês'}
-          </button>
-        </div>
+            {summary.topics.some((topic) => topic.remaining < 0) && (
+              <p className="bg-warning-bg text-warning rounded-lg px-3 py-2 text-xs">
+                O que ficou negativo também vem: essas categorias começam o mês devendo.
+              </p>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => void handleConfirm(false)}
+                disabled={busy}
+                className={OUTLINE}
+              >
+                {answer === false ? 'Fechando…' : 'Não trazer'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirm(true)}
+                disabled={busy}
+                className={PRIMARY}
+              >
+                {answer === true ? 'Fechando…' : 'Trazer'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="flex">
+            <button
+              type="button"
+              onClick={() => void handleConfirm(true)}
+              disabled={busy}
+              className={PRIMARY}
+            >
+              {busy ? 'Fechando…' : 'Fechar mês'}
+            </button>
+          </div>
+        )}
       </div>
     </BottomSheet>
   );
