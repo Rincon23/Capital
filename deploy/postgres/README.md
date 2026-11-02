@@ -63,8 +63,12 @@ O script gera um `.env` com senhas aleatórias (se ainda não existir), cria
 - Os dumps ficam em `~/capitalapp/data/backups/daily` e `weekly` (formato custom do `pg_dump`) e
   são feitos todo dia a partir das 3h. Se o Pi estiver desligado nesse horário, o backup sai assim
   que ele voltar. Para acompanhar: `docker logs capital-db-backup`.
-- **Tire a pasta de backups do Pi.** Um backup só no Pi não protege contra a perda do Pi. O
-  Syncthing já roda aqui: compartilhe `~/capitalapp/data/backups` com o PC.
+- `backups/config` guarda cópias do `.env.local` do app e do `.env` do banco (atualizadas quando
+  mudam). Sem a `ENCRYPTION_KEY`, os dados criptografados de um dump não voltam.
+- **A pasta sai do Pi pelo Syncthing:** o container `syncthing` monta `~/capitalapp/data/backups`
+  em `/var/capital-backups`, compartilhada como "Backup Capital" (só envio) com o "Servidor".
+  No servidor, use "Receber apenas" com versionamento "Lixeira", para os dumps que a rotação
+  apaga no Pi continuarem lá.
 - Para restaurar, pare o app, rode o script e suba o app de novo:
 
   ```bash

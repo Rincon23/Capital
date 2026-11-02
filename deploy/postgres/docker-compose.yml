@@ -71,6 +71,10 @@ services:
     volumes:
       - ./backup.sh:/backup.sh:ro
       - ${BACKUP_DIR:?defina BACKUP_DIR no .env}:/backups
+      # ~/capitalapp só para leitura: o backup.sh copia os .env (app e banco) para
+      # backups/config. A pasta inteira, e não os arquivos: um arquivo que ainda não existe
+      # (app não instalado) viraria uma pasta criada pelo Docker no lugar dele.
+      - ..:/capitalapp:ro
     networks: [capital-db]
     depends_on:
       postgres:

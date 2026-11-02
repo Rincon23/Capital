@@ -34,8 +34,28 @@ run_backup() {
   find "$DIR/weekly" -type f -mtime +27 -delete
 }
 
+# Sem estes, um dump não volta inteiro: a ENCRYPTION_KEY do app (dados criptografados) e as
+# senhas do banco. Copiados só quando mudam, para o Syncthing não ver um arquivo novo à toa.
+save_config() {
+  mkdir -p "$DIR/config"
+  chmod 700 "$DIR/config" 2>/dev/null || true
+  for pair in Capital/.env.local:app.env.local db/.env:db.env; do
+    src="/capitalapp/${pair%%:*}"
+    dst="$DIR/config/${pair##*:}"
+    [ -f "$src" ] || continue
+    cmp -s "$src" "$dst" && continue
+    if cp "$src" "$dst.tmp" && chmod 600 "$dst.tmp" && mv "$dst.tmp" "$dst"; then
+      log "config salva: ${pair##*:}"
+    else
+      rm -f "$dst.tmp"
+      log "aviso: não consegui copiar ${pair%%:*}" >&2
+    fi
+  done
+}
+
 log "backup do Capital ativo: bancos [$DATABASES], diário a partir das ${HOUR}h"
 while true; do
+  save_config
   day=$(date +%F)
   hour=$(date +%H)
   hour=${hour#0}
