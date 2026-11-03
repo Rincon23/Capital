@@ -258,6 +258,88 @@ describe('PostgresBudgetRepository', () => {
     await expect(repo.reopenMonth('2099-12')).rejects.toBeInstanceOf(MonthNotFoundError);
   });
 
+  it('a new expense dated in an earlier closed month goes there, and the leftovers it brought go down', async () => {
+    const { repo } = await newAccount();
+    const diversos = await diversosId(repo);
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await repo.closeMonth('2026-01', true);
+    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(200);
+
+    const late: Expense = {
+      id: 'tarde',
+      categoryKind: 'topic',
+      topicId: diversos,
+      description: 'Mercado',
+      amount: 30,
+      date: '2026-01-28',
+    };
+    expect(await repo.lateExpenseDestination('2026-02', late.date)).toEqual({
+      month: '2026-01',
+      closed: true,
+      reachesFrom: true,
+    });
+    expect(await repo.saveNewExpense('2026-02', late)).toEqual({ month: '2026-01', closed: true, reachesFrom: true });
+
+    const january = (await repo.getMonth('2026-01'))!;
+    expect(january.closed).toBe(true);
+    expect(january.expenses.map((e) => e.id)).toEqual(['tarde']);
+    expect(computeMonthSummary(january).topics.find((t) => t.topicId === diversos)?.remaining).toBe(170);
+    expect((await repo.getMonth('2026-02'))?.expenses).toEqual([]);
+    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(170);
+
+    // "Desfazer" takes it back from the closed month; an ordinary delete there is still refused.
+    await expect(repo.deleteExpense('2026-01', 'tarde')).rejects.toBeInstanceOf(MonthClosedError);
+    await repo.undoLateExpense('2026-01', 'tarde');
+    expect((await repo.getMonth('2026-01'))?.expenses).toEqual([]);
+    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(200);
+  });
+
+  it('a late expense in a month closed without its leftovers changes only that month', async () => {
+    const { repo } = await newAccount();
+    const diversos = await diversosId(repo);
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await repo.closeMonth('2026-01', true, true);
+
+    const destination = await repo.saveNewExpense('2026-02', fixedCost({ id: 'luz', amount: 100, date: '2026-01-10' }));
+    expect(destination).toEqual({ month: '2026-01', closed: true, reachesFrom: false });
+    // Diversos is 20% of the fixed cost.
+    expect(computeMonthSummary((await repo.getMonth('2026-01'))!).topics.find((t) => t.topicId === diversos)?.remaining).toBe(180);
+    expect((await repo.getMonth('2026-02'))?.carryIn[diversos]).toBe(0);
+  });
+
+  it('a new expense stays in its month when the date is of that month, later, or of a month never used', async () => {
+    const { repo } = await newAccount();
+    await repo.saveIncome('2026-03', { id: 'i1', source: 'Salário', amount: 1000 });
+
+    expect(await repo.saveNewExpense('2026-03', fixedCost({ id: 'a', date: '2026-03-05' }))).toBeNull();
+    expect(await repo.saveNewExpense('2026-03', fixedCost({ id: 'b', date: '2026-04-05' }))).toBeNull();
+    // February was never used: creating it would cut what reached March.
+    expect(await repo.saveNewExpense('2026-03', fixedCost({ id: 'c', date: '2026-02-20' }))).toBeNull();
+    expect(await repo.listMonths()).toEqual(['2026-03']);
+    expect((await repo.getMonth('2026-03'))?.expenses.map((e) => e.id)).toEqual(['a', 'b', 'c']);
+
+    // From a closed month nothing goes anywhere: the closed month refuses, as always.
+    await repo.saveIncome('2026-01', { id: 'i0', source: 'Salário', amount: 1000 });
+    await repo.closeMonth('2026-03');
+    await expect(repo.saveNewExpense('2026-03', fixedCost({ id: 'd', date: '2026-01-05' }))).rejects.toBeInstanceOf(
+      MonthClosedError,
+    );
+  });
+
+  it('"Desfazer" of a late expense only works right after it went in', async () => {
+    const { repo } = await newAccount();
+    await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });
+    await repo.closeMonth('2026-01', true);
+    await repo.saveNewExpense('2026-02', fixedCost({ id: 'velho', date: '2026-01-10' }));
+    await db
+      .update(schema.expenses)
+      .set({ createdAt: new Date(Date.now() - 60 * 60_000) })
+      .where(eq(schema.expenses.id, 'velho'));
+
+    await expect(repo.undoLateExpense('2026-01', 'velho')).rejects.toThrow(/não dá mais para desfazer/);
+    expect((await repo.getMonth('2026-01'))?.expenses.map((e) => e.id)).toEqual(['velho']);
+  });
+
   it('reopening a month allows writes again and re-cascades the months after it', async () => {
     const { repo } = await newAccount();
     const diversos = await diversosId(repo);

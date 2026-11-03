@@ -80,6 +80,47 @@ export function cascadeCarryIn(
   return result;
 }
 
+/** A month already in use, as far as its leftovers are concerned. */
+export type MonthStatus = Pick<MonthData, 'month' | 'closed' | 'leftoversDropped'>;
+
+/** Where a new expense dated in an earlier month goes (see `lateExpenseDestination`). */
+export interface LateExpenseDestination {
+  /** The month of the expense's date. */
+  month: Month;
+  /** That month is already closed: the expense goes in all the same. */
+  closed: boolean;
+  /**
+   * Its leftovers reach the month the expense was entered in (every month on the way closed
+   * bringing them), so that month's categories go down with it.
+   */
+  reachesFrom: boolean;
+}
+
+/**
+ * A new expense entered while in `from` with the date of an earlier month goes to that month: a
+ * forgotten expense belongs to the month it was spent in, even after that month was closed —
+ * closing settled the leftovers, and they are recomputed with it. A month never used is left
+ * alone (creating it now would cut the leftovers that reached `from`), and so is everything while
+ * `from` itself is closed. `months` are the months in use, in any order. Null: it stays in `from`.
+ */
+export function lateExpenseDestination(
+  from: Month,
+  date: string,
+  months: MonthStatus[],
+): LateExpenseDestination | null {
+  const month = date.slice(0, 7);
+  if (month >= from || months.some((m) => m.month === from && m.closed)) return null;
+  const way = months
+    .filter((m) => m.month >= month && m.month < from)
+    .sort((a, b) => a.month.localeCompare(b.month));
+  if (way[0]?.month !== month) return null;
+  return {
+    month,
+    closed: way[0].closed === true,
+    reachesFrom: way.every((m) => m.closed && !m.leftoversDropped),
+  };
+}
+
 /**
  * The last month of `chain` as it would stand with every month in it closed, the leftovers of each
  * going on to the next: what "Fechar todos os meses anteriores" shows before it is confirmed.

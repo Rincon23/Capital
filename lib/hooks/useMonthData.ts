@@ -5,12 +5,13 @@ import {
   computeMonthSummary,
   type Expense,
   type Income,
+  type LateExpenseDestination,
   type Month,
   type MonthData,
   type MonthSummary,
   type TopicConfig,
 } from '@/lib/budget';
-import { budgetRepository } from '@/lib/storage';
+import { budgetRepository, saveNewExpense as saveNewExpenseIn, undoLateExpense } from '@/lib/storage';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
 
 export interface UseMonthDataResult {
@@ -20,7 +21,14 @@ export interface UseMonthDataResult {
   error: string | null;
   refresh: () => Promise<void>;
   saveExpense: (expense: Expense) => Promise<void>;
+  /**
+   * A new expense of "Lançar gasto": dated in an earlier month already in use, it goes there (see
+   * `lateExpenseDestination`), which the answer says.
+   */
+  saveNewExpense: (expense: Expense) => Promise<LateExpenseDestination | null>;
   deleteExpense: (expenseId: string) => Promise<void>;
+  /** "Desfazer" of a new expense that went to the earlier month `destination`. */
+  undoLateExpense: (destination: Month, expenseId: string) => Promise<void>;
   saveIncome: (income: Income) => Promise<void>;
   deleteIncome: (incomeId: string) => Promise<void>;
   /**
@@ -64,11 +72,12 @@ export function useMonthData(month: Month, currentTopics?: TopicConfig[]): UseMo
   }, [refresh]);
 
   const guard = useCallback(
-    async (action: () => Promise<void>) => {
+    async <T>(action: () => Promise<T>): Promise<T> => {
       setError(null);
       try {
-        await action();
+        const result = await action();
         await refresh();
+        return result;
       } catch (err) {
         setError(toStorageErrorMessage(err, 'Erro ao salvar.'));
         throw err;
@@ -81,9 +90,17 @@ export function useMonthData(month: Month, currentTopics?: TopicConfig[]): UseMo
     (expense: Expense) => guard(() => budgetRepository.saveExpense(month, expense)),
     [guard, month],
   );
+  const saveNewExpense = useCallback(
+    (expense: Expense) => guard(() => saveNewExpenseIn(month, expense)),
+    [guard, month],
+  );
   const deleteExpense = useCallback(
     (id: string) => guard(() => budgetRepository.deleteExpense(month, id)),
     [guard, month],
+  );
+  const undoLate = useCallback(
+    (destination: Month, id: string) => guard(() => undoLateExpense(destination, id)),
+    [guard],
   );
   const saveIncome = useCallback(
     (income: Income) => guard(() => budgetRepository.saveIncome(month, income)),
@@ -110,7 +127,9 @@ export function useMonthData(month: Month, currentTopics?: TopicConfig[]): UseMo
     error,
     refresh,
     saveExpense,
+    saveNewExpense,
     deleteExpense,
+    undoLateExpense: undoLate,
     saveIncome,
     deleteIncome,
     closeMonth,

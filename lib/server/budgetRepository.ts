@@ -4,7 +4,14 @@ import { DEFAULT_SPECIAL_CATEGORY_LABELS } from '../budget/categories';
 import { DEFAULT_SPECIAL_CATEGORY_COLORS } from '../budget/colors';
 import { nextMonth } from '../budget/date';
 import { installmentExpense, installmentsDueIn } from '../budget/installments';
-import { carrySource, cascadeCarryIn, createMonthData } from '../budget/rollover';
+import {
+  carrySource,
+  cascadeCarryIn,
+  createMonthData,
+  lateExpenseDestination,
+  type LateExpenseDestination,
+  type MonthStatus,
+} from '../budget/rollover';
 import { createDefaultSettings } from '../budget/seed';
 import { keepEveryTopic } from '../budget/topics';
 import type {
@@ -53,6 +60,9 @@ type ExpenseRow = typeof expenses.$inferSelect;
 
 /** Rows per INSERT when writing many entries at once (keeps well under Postgres' parameter limit). */
 const INSERT_CHUNK = 500;
+
+/** How long "Desfazer" can still take back an expense that went into an earlier (maybe closed) month. */
+const LATE_EXPENSE_UNDO_MS = 10 * 60_000;
 
 function toIncome(row: IncomeRow): Income {
   const income: Income = { id: row.id, source: row.source, amount: row.amount };
@@ -263,6 +273,57 @@ export class PostgresBudgetRepository implements BudgetRepository {
       await tx
         .delete(expenses)
         .where(and(eq(expenses.userId, this.userId), eq(expenses.month, month), eq(expenses.id, expenseId)));
+      await this.recascade(tx, month);
+    });
+  }
+
+  /**
+   * A new expense of "Lançar gasto", entered while in `month`. Dated in an earlier month already in
+   * use, it goes there, even if that month is closed (see `lateExpenseDestination`); otherwise it is
+   * an ordinary expense of `month`. Returns where it went when that was not `month`.
+   */
+  async saveNewExpense(month: Month, expense: Expense): Promise<LateExpenseDestination | null> {
+    return this.write(async (tx) => {
+      const destination = expense.installmentId
+        ? null
+        : lateExpenseDestination(month, expense.date, await this.monthStatuses(tx));
+      if (!destination) await this.ensureOpenMonthIn(tx, month);
+      const target = destination?.month ?? month;
+      await this.insertExpenseIn(tx, target, expense);
+      await this.recascade(tx, target);
+      return destination;
+    });
+  }
+
+  /** Where a new expense with this date would go from `month` (see `saveNewExpense`), shown before saving. */
+  async lateExpenseDestination(month: Month, date: string): Promise<LateExpenseDestination | null> {
+    return lateExpenseDestination(month, date, await this.monthStatuses(this.db));
+  }
+
+  /**
+   * "Desfazer" right after `saveNewExpense` put an expense in an earlier month. That month may be
+   * closed, so only an expense that has just been created there can be taken back this way.
+   */
+  async undoLateExpense(month: Month, expenseId: string): Promise<void> {
+    await this.write(async (tx) => {
+      const deleted = await tx
+        .delete(expenses)
+        .where(
+          and(
+            eq(expenses.userId, this.userId),
+            eq(expenses.month, month),
+            eq(expenses.id, expenseId),
+            gte(expenses.createdAt, new Date(Date.now() - LATE_EXPENSE_UNDO_MS)),
+          ),
+        )
+        .returning({ id: expenses.id });
+      if (deleted.length === 0) {
+        throw new HttpError(
+          409,
+          'UNDO_EXPIRED',
+          'Esse gasto não dá mais para desfazer. Reabra o mês para excluir.',
+        );
+      }
       await this.recascade(tx, month);
     });
   }
@@ -599,6 +660,16 @@ export class PostgresBudgetRepository implements BudgetRepository {
   private async monthRow(ex: Executor, month: Month): Promise<MonthRow | undefined> {
     const [row] = await ex.select().from(months).where(this.monthKey(month));
     return row;
+  }
+
+  /** Every month in use, oldest first, with whether (and how) it was closed. */
+  private async monthStatuses(ex: Executor): Promise<MonthStatus[]> {
+    const rows = await ex
+      .select({ month: months.month, closed: months.closed, leftoversDropped: months.leftoversDropped })
+      .from(months)
+      .where(eq(months.userId, this.userId))
+      .orderBy(asc(months.month));
+    return rows;
   }
 
   private async requireOpenMonthIn(tx: Transaction, month: Month): Promise<void> {

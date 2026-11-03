@@ -6,6 +6,7 @@ export * from './walletHttpRepository';
 export * from './notifications';
 export * from './notificationsFeed';
 export * from './monthClosing';
+export * from './newExpenses';
 export * from './reimbursables';
 export * from './reminders';
 export * from './banks';

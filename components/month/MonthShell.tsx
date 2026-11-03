@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
+  computeMonthSummary,
   currentMonthKey,
   expenseFeedback,
+  formatMonthName,
   resolveSpecialCategoryLabels,
   withCurrentTopicDisplay,
   type CategoryKind,
@@ -13,7 +15,7 @@ import {
 } from '@/lib/budget';
 import { useMonthData } from '@/lib/hooks/useMonthData';
 import { isModuleOn } from '@/lib/modules';
-import { walletRepository } from '@/lib/storage';
+import { budgetRepository, fetchLateExpenseDestination, walletRepository } from '@/lib/storage';
 import { setLastViewedMonth } from '@/lib/storage/preferences';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { subscribeTourSheets } from '@/components/modules/tour/tourSheets';
@@ -93,6 +95,7 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
   const openIncomeForm = useCallback((initial?: Income) => {
     setIncomeForm({ open: true, initial });
   }, []);
+  const lateDestinationOf = useCallback((date: string) => fetchLateExpenseDestination(month, date), [month]);
 
   // A hard storage failure (e.g. the server or its database unreachable) leaves monthData
   // null forever; show the error instead of letting every child spin on "Carregando…".
@@ -116,23 +119,41 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
   /**
    * A new expense (the form): saved, then a toast with what it did to its category,
    * with "Desfazer" — how the envelope is learned by using it. Editing one says nothing.
+   * Dated in an earlier month already in use, it went there (`saveNewExpense`), and the toast says
+   * so: with that month's leftovers reaching this one, this month's numbers are the ones that moved.
    */
   async function saveNewExpense(expense: Expense) {
-    await monthData.saveExpense(expense);
+    const destination = await monthData.saveNewExpense(expense);
     if (!settings) return;
-    const message = expenseFeedback({
+    const elsewhere = destination && !destination.reachesFrom ? destination.month : null;
+    const summary = !isModuleOn(settings, 'budget')
+      ? null
+      : elsewhere
+        ? await budgetRepository
+            .peekMonth(elsewhere)
+            .then((data) => computeMonthSummary(data, settings.topics))
+            .catch(() => null)
+        : monthData.summary;
+    const feedback = expenseFeedback({
       expense,
-      summary: isModuleOn(settings, 'budget') ? monthData.summary : null,
+      summary,
+      counted: Boolean(elsewhere),
       labels: resolveSpecialCategoryLabels(settings.specialCategories),
-      month,
+      month: elsewhere ?? month,
       currentMonth: currentMonthKey(),
     });
+    const message = destination
+      ? `Lançado em ${formatMonthName(destination.month).toLowerCase()}. ${feedback}`
+      : feedback;
     showToast(message, 'success', {
       action: {
         label: 'Desfazer',
         onClick: () => {
-          void monthData
-            .deleteExpense(expense.id)
+          void (
+            destination
+              ? monthData.undoLateExpense(destination.month, expense.id)
+              : monthData.deleteExpense(expense.id)
+          )
             .then(() => showToast('Gasto desfeito.', 'info'))
             .catch(() => showToast('Não foi possível desfazer. Tente de novo.', 'error'));
         },
@@ -184,6 +205,7 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
           note={expenseForm.singleInstallment ? SINGLE_INSTALLMENT_NOTE : undefined}
           onClose={() => setExpenseForm({ open: false })}
           onSave={expenseForm.initial ? monthData.saveExpense : saveNewExpense}
+          lateDestinationOf={expenseForm.initial ? undefined : lateDestinationOf}
           onDelete={monthData.deleteExpense}
           onSaveInstallment={
             isModuleOn(settings, 'card')

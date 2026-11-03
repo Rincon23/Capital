@@ -61,6 +61,38 @@ export const expensesChecks: SelfCheck[] = [
         expectEqual((await budget.getMonth(past))?.expenses.length, 1, 'Gastos no mês reaberto');
       }),
   },
+  {
+    id: 'expenses.late',
+    name: 'Gasto com data do mês fechado entra nele',
+    run: ({ scratch }) =>
+      scratch(async (account) => {
+        const { budget, month } = account;
+        const diversos = await presetTopic(account, 'diversos');
+        const past = previousMonth(month);
+        await budget.saveIncome(past, {
+          id: createId(),
+          source: 'Salário',
+          amount: 1000,
+          date: `${past}-05`,
+        });
+        await budget.closeMonth(past, true);
+        const carried = (await budget.getMonth(month))?.carryIn[diversos] ?? 0;
+
+        const late = expense({ categoryKind: 'topic', topicId: diversos, amount: 30, date: `${past}-28` });
+        const destination = await budget.saveNewExpense(month, late);
+        expectEqual(destination?.month, past, 'Mês para onde foi o gasto');
+        expectEqual((await budget.getMonth(past))?.expenses.length, 1, 'Gastos no mês fechado');
+        expectEqual((await budget.getMonth(month))?.expenses.length ?? 0, 0, 'Gastos no mês de hoje');
+        expectEqual(
+          (await budget.getMonth(month))?.carryIn[diversos],
+          carried - 30,
+          'Sobra que veio do mês fechado',
+        );
+
+        await budget.undoLateExpense(past, late.id);
+        expectEqual((await budget.getMonth(month))?.carryIn[diversos], carried, 'Sobra depois de desfazer');
+      }),
+  },
 ];
 
 export const budgetChecks: SelfCheck[] = [

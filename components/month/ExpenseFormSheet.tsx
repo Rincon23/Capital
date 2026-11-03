@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CreditCard } from 'lucide-react';
 import {
   amountToInputValue,
   currentMonthKey,
+  formatMonthName,
   monthsTouchedBy,
   nextChargeDate,
   parseAmountInput,
@@ -18,6 +19,7 @@ import {
   type ExpenseSource,
   type InstallmentAccounting,
   type InstallmentPlan,
+  type LateExpenseDestination,
   type Month,
   type SpecialCategoryLabels,
   type TopicConfig,
@@ -31,6 +33,19 @@ import { BottomSheet } from '@/components/ui/BottomSheet';
 import { CardPicker } from '@/components/ui/CardPicker';
 import { CategoryPicker } from '@/components/ui/CategoryPicker';
 import { Chip } from '@/components/ui/Chip';
+
+/** What happens to a new expense dated in an earlier month, said before it is saved. */
+function lateExpenseNotice(destination: LateExpenseDestination, from: Month): string {
+  const there = formatMonthName(destination.month);
+  const here = formatMonthName(from).toLowerCase();
+  if (!destination.closed) {
+    return `Esse gasto vai para ${there.toLowerCase()}, o mês da data, e sai das categorias de lá.`;
+  }
+  const closed = `${there} já está fechado, mas o gasto entra nele assim mesmo e sai das categorias de lá.`;
+  return destination.reachesFrom
+    ? `${closed} Como o que restou veio para ${here}, ${here} diminui junto.`
+    : `${closed} O que restou de ${there.toLowerCase()} não veio para ${here}, então ${here} não muda.`;
+}
 
 function defaultDateForMonth(month: Month): string {
   const today = new Date();
@@ -75,6 +90,11 @@ interface ExpenseFormSheetProps {
   installmentDraft?: { count: number; accounting: InstallmentAccounting };
   /** Competences already closed: a purchase whose charges land in one is refused here too. */
   closedMonths?: Month[];
+  /**
+   * Where a new expense dated in an earlier month goes (see `lateExpenseDestination`), so the form
+   * says it before saving. Without it, a date outside `month` is only a warning.
+   */
+  lateDestinationOf?: (date: string) => Promise<LateExpenseDestination | null>;
   onClose: () => void;
   onSave: (expense: Expense) => Promise<void>;
   onDelete?: (expenseId: string) => Promise<void>;
@@ -96,6 +116,7 @@ export function ExpenseFormSheet({
   allowSplit,
   installmentDraft,
   closedMonths = [],
+  lateDestinationOf,
   onClose,
   onSave,
   onDelete,
@@ -148,6 +169,7 @@ export function ExpenseFormSheet({
   });
   const [errors, setErrors] = useState<string[]>([]);
   const [closed, setClosed] = useState<Month[] | null>(null);
+  const [late, setLate] = useState<{ date: string; destination: LateExpenseDestination | null } | null>(null);
   const [saving, setSaving] = useState(false);
 
   const needsTopic = categoryKind === 'topic';
@@ -156,6 +178,22 @@ export function ExpenseFormSheet({
   // line of a month, and turning it into a series would rewrite months it never touched.
   const canSplit = Boolean(onSaveInstallment) && onCard && (allowSplit ?? (!initial && !draft));
   const parsedAmount = parseAmountInput(amount);
+  // A date of an earlier month may send the expense there: asked as soon as the date says so.
+  const earlierDate =
+    Boolean(lateDestinationOf) && /^\d{4}-\d{2}-\d{2}$/.test(date) && date.slice(0, 7) < month;
+  useEffect(() => {
+    if (!earlierDate || !lateDestinationOf) return;
+    let current = true;
+    lateDestinationOf(date)
+      .then((destination) => {
+        if (current) setLate({ date, destination });
+      })
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, [earlierDate, lateDestinationOf, date]);
+  const destination = earlierDate && late?.date === date ? late.destination : null;
   const categoryLabel =
     categoryKind === 'topic'
       ? (activeTopics.find((t) => t.id === topicId)?.name ?? 'a categoria')
@@ -329,7 +367,9 @@ export function ExpenseFormSheet({
           />
           {!date.startsWith(month) && (
             <span className="text-warning text-xs">
-              Essa data está fora de {month}. Tudo bem, é só um aviso.
+              {destination && !(canSplit && splitting)
+                ? lateExpenseNotice(destination, month)
+                : `Essa data está fora de ${month}. Tudo bem, é só um aviso.`}
             </span>
           )}
         </label>

@@ -52,7 +52,7 @@ const MAX_TOPICS = QUOTAS.topics;
 export const monthKeySchema = z.string().regex(/^(19[7-9]\d|20\d\d|2100)-(0[1-9]|1[0-2])$/, 'Mês inválido.');
 
 /** A real calendar day ("2024-02-30" is refused). */
-const isoDate = z.iso.date('Data inválida.');
+export const isoDate = z.iso.date('Data inválida.');
 const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Horário inválido.');
 /** Older data may carry null or '' where a field is simply absent. */
 const absentAsUndefined = (value: unknown) => (value === null || value === '' ? undefined : value);

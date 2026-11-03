@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { computeMonthSummary } from '../calculations';
-import { carrySource, cascadeCarryIn, lastMonthWithAllClosed } from '../rollover';
+import { carrySource, cascadeCarryIn, lastMonthWithAllClosed, lateExpenseDestination } from '../rollover';
 import type { MonthData, TopicConfig } from '../types';
 
 const TOPICS: TopicConfig[] = [{ id: 'diversos', name: 'Diversos', targetPct: 1, order: 0 }];
@@ -54,5 +54,42 @@ describe('sobra entre os meses', () => {
     expect(last.carryIn.diversos).toBe(100);
     expect(chain[3].closed).toBeUndefined();
     expect(lastMonthWithAllClosed([], computeMonthSummary)).toBeUndefined();
+  });
+});
+
+describe('gasto com data de um mês anterior', () => {
+  const status = (month: string, closed = false, leftoversDropped = false) => ({ month, closed, leftoversDropped });
+
+  it('vai para o mês da data, fechado ou não, dizendo se a sobra dele chega até aqui', () => {
+    expect(lateExpenseDestination('2026-11', '2026-10-28', [status('2026-10', true), status('2026-11')])).toEqual({
+      month: '2026-10',
+      closed: true,
+      reachesFrom: true,
+    });
+    expect(lateExpenseDestination('2026-11', '2026-10-28', [status('2026-10', true, true)])).toEqual({
+      month: '2026-10',
+      closed: true,
+      reachesFrom: false,
+    });
+    expect(lateExpenseDestination('2026-11', '2026-10-28', [status('2026-10')])).toEqual({
+      month: '2026-10',
+      closed: false,
+      reachesFrom: false,
+    });
+  });
+
+  it('a sobra só chega se todos os meses do caminho foram fechados trazendo', () => {
+    const way = [status('2026-08', true), status('2026-09', true), status('2026-11')];
+    expect(lateExpenseDestination('2026-11', '2026-08-15', way)?.reachesFrom).toBe(true);
+    way[1] = status('2026-09');
+    expect(lateExpenseDestination('2026-11', '2026-08-15', way)?.reachesFrom).toBe(false);
+  });
+
+  it('fica onde foi lançado: mesmo mês, mês depois, mês nunca usado ou lançado num mês fechado', () => {
+    const months = [status('2026-09', true), status('2026-11')];
+    expect(lateExpenseDestination('2026-11', '2026-11-02', months)).toBeNull();
+    expect(lateExpenseDestination('2026-11', '2026-12-02', months)).toBeNull();
+    expect(lateExpenseDestination('2026-11', '2026-10-02', months)).toBeNull();
+    expect(lateExpenseDestination('2026-10', '2026-09-02', [status('2026-09', true), status('2026-10', true)])).toBeNull();
   });
 });

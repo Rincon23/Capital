@@ -121,3 +121,37 @@ describe('ExpenseFormSheet sem o módulo Cartão de crédito', () => {
     expect((onSave.mock.calls[0][0] as Expense).singleInstallmentCard).toBe(true);
   });
 });
+
+describe('ExpenseFormSheet com a data de um mês anterior', () => {
+  it('diz que o gasto vai para o mês fechado da data e que a sobra trazida diminui', async () => {
+    const lateDestinationOf = vi
+      .fn()
+      .mockResolvedValue({ month: '2026-08', closed: true, reachesFrom: true });
+    renderSheet({ lateDestinationOf });
+
+    fireEvent.change(screen.getByLabelText('Data'), { target: { value: '2026-08-30' } });
+
+    expect(
+      await screen.findByText(
+        'Agosto já está fechado, mas o gasto entra nele assim mesmo e sai das categorias de lá. Como o que restou veio para setembro, setembro diminui junto.',
+      ),
+    ).toBeInTheDocument();
+    expect(lateDestinationOf).toHaveBeenCalledWith('2026-08-30');
+  });
+
+  it('sem a sobra trazida, diz que o mês de agora não muda', async () => {
+    renderSheet({
+      lateDestinationOf: vi.fn().mockResolvedValue({ month: '2026-08', closed: true, reachesFrom: false }),
+    });
+    fireEvent.change(screen.getByLabelText('Data'), { target: { value: '2026-08-30' } });
+    expect(await screen.findByText(/então setembro não muda\.$/)).toBeInTheDocument();
+  });
+
+  it('um mês que nunca foi usado só leva o aviso de sempre', async () => {
+    const lateDestinationOf = vi.fn().mockResolvedValue(null);
+    renderSheet({ lateDestinationOf });
+    fireEvent.change(screen.getByLabelText('Data'), { target: { value: '2026-08-30' } });
+    await waitFor(() => expect(lateDestinationOf).toHaveBeenCalled());
+    expect(screen.getByText('Essa data está fora de 2026-09. Tudo bem, é só um aviso.')).toBeInTheDocument();
+  });
+});
