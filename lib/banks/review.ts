@@ -306,7 +306,7 @@ export interface CategoryChoice {
 }
 
 /**
- * Pluggy's categories in the words people name their own envelopes with: a suggestion only comes
+ * Pluggy's categories in the words people name their own categories with: a suggestion only comes
  * out when the person has a category called like one of these.
  */
 const PLUGGY_CATEGORY_WORDS: Record<string, string[]> = {

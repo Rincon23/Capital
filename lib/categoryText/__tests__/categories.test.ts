@@ -17,7 +17,7 @@ const byKind = (kind: string, topicId?: string) =>
   options.find((o) => o.categoryKind === kind && o.topicId === topicId) as CategoryOption;
 
 describe('categoryOptions', () => {
-  it('lists the active envelopes, the special categories and "A receber" when it is on', () => {
+  it('lists the active categories, the special ones and "A receber" when it is on', () => {
     expect(options.map((o) => o.label)).toEqual([
       'Diversos',
       'Investimentos',

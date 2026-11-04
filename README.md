@@ -1,7 +1,7 @@
 # Capital
 
-Aplicativo web mobile-first de orçamento doméstico por envelopes (categorias com
-percentuais definidos pelo usuário), substituindo uma planilha. Renda, gastos, custos
+Aplicativo web mobile-first de orçamento doméstico por categorias (cada uma com
+um percentual da renda definido pelo usuário), substituindo uma planilha. Renda, gastos, custos
 fixos e imprevistos são lançados manualmente; o app calcula quanto ainda pode
 ser gasto em cada categoria, descontando o rateio dos custos fixos/imprevistos e
 carregando a sobra de um mês para o outro quando o mês é fechado (rollover). Gastos marcados como "feitos no

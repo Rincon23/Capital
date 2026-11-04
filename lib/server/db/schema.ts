@@ -158,7 +158,7 @@ export const moduleAccess = pgTable('module_access', {
 // Budget
 // ---------------------------------------------------------------------------
 
-/** One row per user: envelope config + special category labels/colors (the `BudgetSettings` shape). */
+/** One row per user: category config + special category labels/colors (the `BudgetSettings` shape). */
 export const budgetSettings = pgTable('budget_settings', {
   userId: uuid('user_id')
     .primaryKey()

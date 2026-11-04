@@ -39,7 +39,7 @@ import { checkQuota, QUOTAS } from './quotas';
 /**
  * What a sibling repository gets while writing inside the budget's transaction. The wallet uses
  * it to change its own tables and the month's expenses atomically — allocating to a bucket and
- * charging the envelope, launching a recurring expense, creating the charges of a plan.
+ * charging the category, launching a recurring expense, creating the charges of a plan.
  */
 export interface MonthWriteContext {
   tx: Transaction;
@@ -131,7 +131,7 @@ function chunks<T>(list: T[], size: number): T[][] {
  * BudgetRepository on Postgres, scoped to one user: every write to a month re-cascades
  * carryIn for the later months (which only a closed month feeds, see `carrySource`), writes
  * to a closed month are rejected, and the default
- * envelopes are seeded on first read. Each month is stored as a `months` row plus its `incomes` and
+ * categories are seeded on first read. Each month is stored as a `months` row plus its `incomes` and
  * `expenses` rows, and read back as the exact `MonthData` shape.
  *
  * Every write runs in a transaction holding a per-user advisory lock, so concurrent writes
@@ -400,7 +400,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
         .set({ closed: true, closedAt: new Date(), leftoversDropped: dropLeftovers })
         .where(this.monthKey(month));
       // "Fechar mês" closes and opens in one go: the next month is created inside this same
-      // transaction, already carrying each envelope's leftover from the month just closed.
+      // transaction, already carrying each category's leftover from the month just closed.
       if (openNext) await this.ensureMonthIn(tx, nextMonth(month));
       // The months after it may already be in use: the answer about the leftovers reaches them too.
       await this.recascade(tx, month);
@@ -777,7 +777,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
     const existing = await this.readSettings(ex);
     if (existing) return existing;
 
-    // First read for this account: seed the default envelopes (no demo month) and the Início of
+    // First read for this account: seed the default categories (no demo month) and the Início of
     // the template (lib/server/homeTemplate.ts). Only this first-ever row is created with the
     // onboarding still pending.
     const defaults = createDefaultSettings();

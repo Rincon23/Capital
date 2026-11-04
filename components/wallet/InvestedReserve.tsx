@@ -408,7 +408,7 @@ function TradeSheet({
 
 /**
  * Moving money between the free reserve and a categoria, in both directions. "Guardar" buys
- * quotas for the categoria and charges the envelope it feeds; "Retirar" is the same thing
+ * quotas for the categoria and charges the category it feeds; "Retirar" is the same thing
  * backwards — the quotas go back to the free reserve and the month receives an estorno, so it
  * stops showing an expense the person undid.
  */

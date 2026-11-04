@@ -37,7 +37,7 @@ const PRIMARY =
   'bg-primary text-primary-foreground min-h-[44px] flex-1 rounded-lg px-4 py-2 font-semibold disabled:opacity-50';
 
 /**
- * "Fechar mês" with the preview the bot never had: every envelope's leftover — including the
+ * "Fechar mês" with the preview the bot never had: every category's leftover — including the
  * negative ones — and the question of whether they go on to `target`, where they land as "mês
  * passado". The answer closes the month: there is no closed month still waiting for one. With
  * nothing left in any category, there is nothing to ask. Closing several, each passes its

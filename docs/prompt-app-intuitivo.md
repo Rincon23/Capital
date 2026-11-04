@@ -2,7 +2,7 @@
 
 ## Contexto
 
-Capital é um PWA mobile-first de orçamento por envelopes (Next.js 16 + Postgres no Orange Pi,
+Capital é um PWA mobile-first de orçamento por categorias (Next.js 16 + Postgres no Orange Pi,
 leia o `AGENTS.md` e os guias em `node_modules/next/dist/docs/` antes de escrever código). Tudo
 é módulo (`lib/modules/catalog.ts`), a Início é um launcher estilo celular
 (`components/modules/home/HomeScreen.tsx`) e a ajuda de cada módulo é um tour do driver.js
@@ -129,7 +129,7 @@ Faça uma fase de cada vez, nesta ordem. Cada fase precisa ficar boa sozinha.
 4. "A receber" e "Fora do orçamento": o selo ("Não recomendado") fica; a explicação vira uma
    linha curta + ⓘ.
 5. **Retorno depois de salvar**: toast "R$ 45,00 em Diversos · ainda dá R$ 320,00 este mês"
-   (ou "passou R$ 30,00 da meta"), com **Desfazer**. É assim que a pessoa aprende o envelope.
+   (ou "passou R$ 30,00 da meta"), com **Desfazer**. É assim que a pessoa aprende a categoria.
 
 ### P5 — Palavras do dia a dia
 

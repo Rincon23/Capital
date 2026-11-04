@@ -109,7 +109,7 @@ export interface WalletRepository {
   tradeQuotas(delta: number): Promise<void>;
   saveBucket(bucket: InvestmentBucket): Promise<void>;
   deleteBucket(id: string): Promise<void>;
-  /** Moves money in or out of a bucket: the quotas follow, and so does the bucket's envelope. */
+  /** Moves money in or out of a bucket: the quotas follow, and so does the bucket's category. */
   allocate(input: AllocateInput): Promise<void>;
   /** Asks the server for a fresh quote. */
   refreshPrice(): Promise<void>;

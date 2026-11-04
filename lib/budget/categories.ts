@@ -8,7 +8,7 @@ import type {
 } from './types';
 
 /**
- * Default labels for the special (non-envelope) categories. "A receber" is the user-facing
+ * Default labels for the special categories. "A receber" is the user-facing
  * name of what the old Telegram bot called "Ressarcido" — that name never shows in the app.
  */
 export const DEFAULT_SPECIAL_CATEGORY_LABELS: ResolvedSpecialCategoryLabels = {
@@ -53,7 +53,7 @@ export function resolveSpecialCategoryLabels(
   return { ...DEFAULT_SPECIAL_CATEGORY_LABELS, ...labels };
 }
 
-/** The label for a non-envelope category; '' for 'topic', which is named by its own envelope. */
+/** The label for a special category; '' for 'topic', which carries its own name. */
 export function specialCategoryLabel(kind: CategoryKind, labels: SpecialCategoryLabels | undefined): string {
   if (kind === 'topic') return '';
   return resolveSpecialCategoryLabels(labels)[kind];

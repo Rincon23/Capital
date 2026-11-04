@@ -35,7 +35,7 @@ export function LoginScreen({
         <h1 className="text-foreground text-2xl font-bold" aria-label="Capital plus">
           Capital +
         </h1>
-        <p className="text-muted text-sm">Orçamento doméstico por envelopes</p>
+        <p className="text-muted text-sm">Orçamento doméstico por categorias</p>
       </header>
 
       {mode === 'sign-in' && (

@@ -2,7 +2,7 @@
 
 ## Contexto
 
-Capital é um PWA mobile-first de orçamento por envelopes (Next.js 16 + Postgres no Orange Pi, usado
+Capital é um PWA mobile-first de orçamento por categorias (Next.js 16 + Postgres no Orange Pi, usado
 pelo dono e por amigos; leia o `AGENTS.md` e os guias em `node_modules/next/dist/docs/` antes de
 escrever código). Tudo é módulo (`lib/modules/catalog.ts`), a Início é um launcher estilo celular e
 a ajuda de cada módulo é um tour do driver.js (`lib/modules/tours.ts`). O `README.md` descreve o

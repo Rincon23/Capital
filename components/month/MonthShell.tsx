@@ -118,7 +118,7 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
 
   /**
    * A new expense (the form): saved, then a toast with what it did to its category,
-   * with "Desfazer" — how the envelope is learned by using it. Editing one says nothing.
+   * with "Desfazer" — how the category is learned by using it. Editing one says nothing.
    * Dated in an earlier month already in use, it went there (`saveNewExpense`), and the toast says
    * so: with that month's leftovers reaching this one, this month's numbers are the ones that moved.
    */

@@ -2,7 +2,7 @@ import { resolveSpecialCategoryLabels } from './categories';
 import type { BudgetSettings, SpecialCategoryColors, TopicConfig } from './types';
 
 /**
- * Default categorical palette for envelopes, in fixed order. Hex (not CSS vars)
+ * Default categorical palette for the categories, in fixed order. Hex (not CSS vars)
  * so it round-trips through `<input type="color">` and the database. Mirrors the
  * light-theme `--series-*` tokens in app/globals.css.
  */
@@ -17,7 +17,7 @@ export const DEFAULT_TOPIC_COLORS = [
   '#e34948',
 ] as const;
 
-/** Defaults for the special (non-envelope) categories. */
+/** Defaults for the special categories. */
 export const DEFAULT_SPECIAL_CATEGORY_COLORS: SpecialCategoryColors = {
   fixedCost: '#6b7280',
   unforeseen: '#d97706',

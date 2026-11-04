@@ -31,7 +31,7 @@ const WalletContext = createContext<WalletContextValue | null>(null);
 /**
  * Loads the whole Carteira once for every screen under /carteira, and reloads it after each
  * write — the four areas share numbers (an instalment changes the cash report, an allocation
- * changes an envelope), so there is no point in keeping them apart.
+ * changes a category), so there is no point in keeping them apart.
  */
 export function WalletProvider({ children }: { children: ReactNode }) {
   const [snapshot, setSnapshot] = useState<WalletSnapshot | null>(null);

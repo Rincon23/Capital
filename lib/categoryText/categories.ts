@@ -6,7 +6,7 @@ import type { CategoryOption } from './types';
 
 /**
  * The categories an expense can go to for this user, in the order the form shows them: the
- * active envelopes, the special categories and "A receber" when that module is on. A text is
+ * active categories, the special ones and "A receber" when that module is on. A text is
  * read against these names, never a fixed list.
  */
 export function categoryOptions(

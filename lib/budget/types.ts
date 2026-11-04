@@ -11,10 +11,10 @@ export type Month = string;
 
 /**
  * Kind of expense category. 'reimbursable' ("A receber") is money paid for someone else who will
- * pay it back: it consumes no envelope, and it lands on the card bill when it was a card
+ * pay it back: it consumes no category's budget, and it lands on the card bill when it was a card
  * purchase — but it does not have to be one, because lending someone cash is the same thing.
  * 'uncounted' ("Fora do orçamento") is the escape hatch: the expense is recorded and, when it
- * is a card purchase, lands on the bill, but it consumes no envelope either — which is why the
+ * is a card purchase, lands on the bill, but it consumes no category's budget either — which is why the
  * app marks it as "Não recomendado" wherever it is offered.
  */
 export type CategoryKind = 'topic' | 'fixedCost' | 'unforeseen' | 'reimbursable' | 'uncounted';
@@ -23,7 +23,7 @@ export type CategoryKind = 'topic' | 'fixedCost' | 'unforeseen' | 'reimbursable'
 export type TopicPreset = 'diversos' | 'investimentos' | 'metas' | 'conhecimentos';
 
 /**
- * A budget envelope ("Diversos", "Investimentos", ...). Never deleted, only archived: past months
+ * A budget category ("Diversos", "Investimentos", ...). Never deleted, only archived: past months
  * keep what it had, and archived categories are never shown.
  */
 export interface TopicConfig {
@@ -37,12 +37,12 @@ export interface TopicConfig {
   targetPct: number;
   order: number;
   archived?: boolean;
-  /** Hex color (e.g. "#2a78d6") for this envelope in charts and card accents. Optional for older data. */
+  /** Hex color (e.g. "#2a78d6") for this category in charts and card accents. Optional for older data. */
   color?: string;
 }
 
 /**
- * User-configurable labels for the special (non-envelope) categories. 'reimbursable' and
+ * User-configurable labels for the special categories. 'reimbursable' and
  * 'uncounted' may be absent in older data; resolve with `resolveSpecialCategoryLabels`.
  */
 export interface SpecialCategoryLabels {
@@ -55,7 +55,7 @@ export interface SpecialCategoryLabels {
 /** Every special-category label filled in (what the UI renders). */
 export type ResolvedSpecialCategoryLabels = Required<SpecialCategoryLabels>;
 
-/** Hex colors for the special (non-envelope) categories. */
+/** Hex colors for the special categories. */
 export interface SpecialCategoryColors {
   fixedCost: string;
   unforeseen: string;
@@ -70,7 +70,7 @@ export interface SpecialCategoryColors {
 export interface ModuleFlags {
   /** Expenses and incomes of the month (the "Lançamentos" screen and the expense form). */
   expenses: boolean;
-  /** Envelope budgeting: targets, "posso gastar", leftovers and closing the month. */
+  /** Budgeting by category: targets, "posso gastar", leftovers and closing the month. */
   budget: boolean;
   /**
    * The whole credit card: the "foi no cartão?" question, the registered cards, splitting a
@@ -166,7 +166,7 @@ export interface Income {
   amount: number;
   date?: string;
   /**
-   * The one envelope that gets this whole income. Absent means the income is split across every
+   * The one category that gets this whole income. Absent means the income is split across every
    * category by its % — the recommended way; sending it all to one category is allowed, but the
    * app marks it as "Não recomendado" wherever it is offered.
    */
@@ -361,7 +361,7 @@ export interface InvestmentReserve {
 export interface InvestmentBucket {
   id: string;
   name: string;
-  /** The envelope this bucket saves for; the allocation expense lands there. */
+  /** The category this bucket saves for; the allocation expense lands there. */
   topicId?: string;
   quotas: number;
 }

@@ -19,7 +19,7 @@ export interface TopicResult {
   incomeShare: number;
   /** Incomes sent to this topic alone ("Uma categoria só"), which skip the %. */
   directIncome: number;
-  /** Hex color for this envelope (from config, or a palette default). */
+  /** Hex color for this category (from config, or a palette default). */
   color: string;
   /** Money spent in this topic this month ("Valor Gasto"). */
   spent: number;
@@ -90,7 +90,7 @@ export function computeUnforeseenTotal(expenses: Expense[]): number {
 
 /**
  * Money paid for someone else who will pay it back ("A receber"). It is on the card bill,
- * but it is not money the user spent: it stays out of every envelope, out of the fixed-cost
+ * but it is not money the user spent: it stays out of every category, out of the fixed-cost
  * apportionment and out of expenseTotal.
  */
 export function computeReimbursableTotal(expenses: Expense[]): number {
@@ -106,7 +106,7 @@ export function computeReimbursablePendingTotal(expenses: Expense[]): number {
 
 /**
  * Money the person deliberately left out of the budget ("Fora do orçamento"). Like "A receber",
- * it stays out of every envelope, out of the fixed-cost apportionment and out of expenseTotal —
+ * it stays out of every category, out of the fixed-cost apportionment and out of expenseTotal —
  * the difference is that this one really was spent, which is why the app discourages it.
  */
 export function computeUncountedTotal(expenses: Expense[]): number {

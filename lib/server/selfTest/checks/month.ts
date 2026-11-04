@@ -97,7 +97,7 @@ export const expensesChecks: SelfCheck[] = [
 
 export const budgetChecks: SelfCheck[] = [
   {
-    id: 'budget.envelopes',
+    id: 'budget.categories',
     name: '"Ainda posso gastar" de cada categoria',
     run: ({ scratch }) =>
       scratch(async (account) => {

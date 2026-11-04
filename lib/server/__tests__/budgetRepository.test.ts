@@ -49,7 +49,7 @@ async function diversosId(repo: PostgresBudgetRepository): Promise<string> {
 }
 
 describe('PostgresBudgetRepository', () => {
-  it('seeds the default envelopes once, with no demo month', async () => {
+  it('seeds the default categories once, with no demo month', async () => {
     const { repo } = await newAccount();
     const first = await repo.getSettings();
     expect(first.topics.map((t) => t.name)).toEqual(['Diversos', 'Investimentos', 'Metas', 'Conhecimentos']);
@@ -581,7 +581,7 @@ describe('PostgresBudgetRepository', () => {
     await expect(repo.setReimbursed('2026-02', other.id, null)).rejects.toThrow();
   });
 
-  it('keeps an "A receber" expense on the card bill and out of every envelope', async () => {
+  it('keeps an "A receber" expense on the card bill and out of every category', async () => {
     const { repo } = await newAccount();
     const diversos = await diversosId(repo);
     await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });

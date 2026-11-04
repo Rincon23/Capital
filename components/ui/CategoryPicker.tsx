@@ -32,7 +32,7 @@ interface CategoryOption {
 }
 
 /**
- * The category of an expense: one chip per active envelope, plus the special categories.
+ * The category of an expense: one chip per active category, plus the special categories.
  * Shared by the expense form and by the Carteira forms (recurring templates, instalment plans),
  * so a category means the same thing and looks the same everywhere.
  *

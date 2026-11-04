@@ -62,7 +62,7 @@ export function RecorrentesScreen() {
   );
 }
 
-/** The name of a template's category, envelope or special. */
+/** The name of a template's category, regular or special. */
 function categoryLabel(
   item: RecurringExpense,
   topics: TopicConfig[],

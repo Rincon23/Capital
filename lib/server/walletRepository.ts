@@ -94,7 +94,7 @@ const AUTO_REFRESH_WAIT_MS = 4_000;
 /**
  * The Carteira on Postgres, scoped to one user. Anything that also creates an expense (launching
  * an instalment, allocating money to a bucket) runs inside the budget repository's transaction,
- * so the envelope and the carryIn cascade stay consistent with the wallet's own tables.
+ * so the category and the carryIn cascade stay consistent with the wallet's own tables.
  */
 export class PostgresWalletRepository implements WalletRepository {
   constructor(
@@ -852,8 +852,8 @@ export class PostgresWalletRepository implements WalletRepository {
 
   /**
    * Moves `amount` between the free reserve and a bucket. Putting money in buys quotas for the
-   * bucket and charges its envelope, exactly as the bot did; taking money out is the same
-   * operation backwards — the quotas go back to the free reserve and the envelope is credited,
+   * bucket and charges its category, exactly as the bot did; taking money out is the same
+   * operation backwards — the quotas go back to the free reserve and the category is credited,
    * as a negative expense, so the month stops showing money the person did not spend after all.
    * Both halves happen in one transaction.
    */
