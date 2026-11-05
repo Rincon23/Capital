@@ -159,6 +159,30 @@ export interface BudgetSettings {
    * null means the default (see `resolveQuickCategories`).
    */
   quickCategories?: QuickCategoryKey[] | null;
+  /**
+   * The tags the person made, for expenses and for incomes (see `Tag`). Absent in older data, which
+   * simply has none. Changed only through the tag operations (lib/storage/tags.ts), never by an
+   * ordinary save of the settings.
+   */
+  tags?: Tag[];
+}
+
+/** Which entries a tag is for: a tag of expenses never shows on an income, and vice versa. */
+export type TagKind = 'expense' | 'income';
+
+/**
+ * A label the person puts on expenses ("Mercado", "Viagem") or on incomes ("Bico"), to find and
+ * add them up later in Lançamentos. Unlike a category it changes **no number**: nothing in the
+ * budget, the leftovers, the bill or the history ever reads it. Entries keep the tag's id, so
+ * renaming it renames it everywhere.
+ */
+export interface Tag {
+  id: string;
+  name: string;
+  kind: TagKind;
+  /** Hex colour of its pill; absent means the neutral one. */
+  color?: string;
+  order: number;
 }
 
 export interface Income {
@@ -172,6 +196,8 @@ export interface Income {
    * app marks it as "Não recomendado" wherever it is offered.
    */
   topicId?: string;
+  /** Ids of its tags (of kind 'income'). Absent or empty: none. */
+  tagIds?: string[];
 }
 
 /**
@@ -214,6 +240,8 @@ export interface Expense {
   reimbursedAt?: string;
   /** The recurring template ("Contas do mês") this expense was launched from. */
   recurringId?: string;
+  /** Ids of its tags (of kind 'expense'). Absent or empty: none. They change no number. */
+  tagIds?: string[];
 }
 
 /** An "A receber" expense still not paid back, with the month it was recorded in. */
@@ -264,6 +292,8 @@ export interface InstallmentPlan {
   advancedCount?: number;
   /** The recurring template ("Contas do mês") this purchase was launched from, when it was. */
   recurringId?: string;
+  /** Tags every charge of this purchase is born with (see `Tag`). */
+  tagIds?: string[];
 }
 
 /** A template for an expense that repeats every month (the bot's "custos fixos"). */
@@ -291,6 +321,8 @@ export interface RecurringExpense {
    * the "Contas do mês" checklist and the notice on the day. Absent: the person did not say.
    */
   dueDay?: number;
+  /** Tags the expense launched from it is born with; changing them leaves past launches alone. */
+  tagIds?: string[];
 }
 
 /** Whether a card's bill for a competence falls due in that same month or in the next one. */

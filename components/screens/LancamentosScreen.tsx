@@ -19,6 +19,8 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { useSettings } from '@/components/providers/SettingsProvider';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Chip } from '@/components/ui/Chip';
+import { TagsSettings } from '@/components/tags/TagsSettings';
+import { TagPills } from '@/components/tags/TagPills';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { useToast } from '@/components/ui/Toast';
 import {
@@ -27,10 +29,12 @@ import {
   formatBRL,
   formatMonthLabel,
   formatMonthShort,
+  expenseMatches,
+  incomeMatches,
+  tagsOfKind,
   REIMBURSABLE_EXPLANATION,
   UNCOUNTED_ADVICE,
   UNCOUNTED_EXPLANATION,
-  quickCategoryKey,
   resolveSpecialCategoryLabels,
   specialCategoryLabel,
   sum,
@@ -48,7 +52,9 @@ import { setReimbursed } from '@/lib/storage';
 /**
  * Two tabs: every expense of the month in one list ("Gastos"), and the income ("Renda"). Which
  * categories the list shows is a filter, not a tab — the person sees everything first and narrows
- * it down to "só Metas" (or "só Custos Fixos e Imprevistos") when they want to.
+ * it down to "só Metas" (or "só Custos Fixos e Imprevistos") when they want to. Tags filter both
+ * tabs the same way ("Mercado" shows what went to the supermarket, and the total line says how
+ * much); categories and tags together means both ("Prazeres e Confortos" with "Restaurante").
  */
 type TabKey = 'expenses' | 'income';
 
@@ -64,15 +70,28 @@ function formatDate(iso: string): string {
   return `${d}/${m}`;
 }
 
-export function LancamentosScreen({ initialFilter }: { initialFilter?: LancamentosFilter }) {
+export function LancamentosScreen({
+  initialFilter,
+  initialTags,
+}: {
+  initialFilter?: LancamentosFilter;
+  /** Tags already chosen (`?tags=`): the filter goes along when the month changes. */
+  initialTags?: string[];
+}) {
   return (
     <ModuleGate module="expenses">
-      <Lancamentos initialFilter={initialFilter} />
+      <Lancamentos initialFilter={initialFilter} initialTags={initialTags} />
     </ModuleGate>
   );
 }
 
-function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
+function Lancamentos({
+  initialFilter,
+  initialTags,
+}: {
+  initialFilter?: LancamentosFilter;
+  initialTags?: string[];
+}) {
   const backHref = useHomeHref();
   const { month, monthData, loading, error, openExpenseForm, openIncomeForm, deleteMonth, refresh } =
     useMonthContext();
@@ -82,6 +101,8 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
   const { showToast } = useToast();
   const [tab, setTab] = useState<TabKey>('expenses');
   const [filter, setFilter] = useState<LancamentosFilter[]>(initialFilter ? [initialFilter] : []);
+  /** Tag ids of either kind: the tab on screen uses the ones of its own kind. */
+  const [tagFilter, setTagFilter] = useState<string[]>(initialTags ?? []);
   const [filtering, setFiltering] = useState(false);
   const [search, setSearch] = useState('');
   const [configuring, setConfiguring] = useState(false);
@@ -132,6 +153,18 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
   ];
   const filterLabel = (key: LancamentosFilter) =>
     filterOptions.find((option) => option.key === key)?.label ?? '—';
+  const expenseTags = useMemo(() => tagsOfKind(settings?.tags, 'expense'), [settings?.tags]);
+  const incomeTags = useMemo(() => tagsOfKind(settings?.tags, 'income'), [settings?.tags]);
+  const tabTags = tab === 'income' ? incomeTags : expenseTags;
+  const expenseTagFilter = useMemo(
+    () => tagFilter.filter((id) => expenseTags.some((tag) => tag.id === id)),
+    [tagFilter, expenseTags],
+  );
+  const incomeTagFilter = useMemo(
+    () => tagFilter.filter((id) => incomeTags.some((tag) => tag.id === id)),
+    [tagFilter, incomeTags],
+  );
+  const tabTagFilter = tab === 'income' ? incomeTagFilter : expenseTagFilter;
   const onlyReimbursable = filter.length === 1 && filter[0] === 'reimbursable';
   useEffect(() => {
     if (onlyReimbursable) visit('meet-reimbursable');
@@ -146,20 +179,21 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
   // reversed before the (stable) sort by day, the last one made tops its day.
   const filteredExpenses = useMemo(() => {
     if (!monthData) return [];
+    const by = { categories: filter, tagIds: expenseTagFilter, search, tags: settings?.tags };
     return [...monthData.expenses]
       .reverse()
-      .filter((e) => filter.length === 0 || filter.includes(quickCategoryKey(e)))
-      .filter((e) => e.description.toLowerCase().includes(search.toLowerCase()))
+      .filter((e) => expenseMatches(e, by))
       .sort((a, b) => expenseListDate(b).localeCompare(expenseListDate(a)));
-  }, [monthData, filter, search]);
+  }, [monthData, filter, expenseTagFilter, search, settings?.tags]);
 
   const filteredIncomes = useMemo(() => {
     if (!monthData) return [];
+    const by = { tagIds: incomeTagFilter, search, tags: settings?.tags };
     return [...monthData.incomes]
       .reverse()
-      .filter((i) => i.source.toLowerCase().includes(search.toLowerCase()))
+      .filter((i) => incomeMatches(i, by))
       .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
-  }, [monthData, search]);
+  }, [monthData, incomeTagFilter, search, settings?.tags]);
 
   const header = (
     <PageHeader
@@ -183,8 +217,11 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
       <MonthSwitcher month={month} path="/lancamentos" />
     </div>
   );
-  /** Swiping sideways (or the ‹ ›) goes to the same list of the other month. */
-  const changeMonth = (next: Month) => router.replace(`/mes/${next}/lancamentos`);
+  /** Swiping sideways (or the ‹ ›) goes to the same list of the other month, with the same tags. */
+  const changeMonth = (next: Month) =>
+    router.replace(
+      `/mes/${next}/lancamentos${tagFilter.length > 0 ? `?tags=${tagFilter.map(encodeURIComponent).join(',')}` : ''}`,
+    );
 
   if (loading || !monthData || !settings) {
     return (
@@ -247,7 +284,8 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
   }
 
   /** The list of "A receber": owed from any month up to this one, and what this month got back. */
-  const matches = (expense: Expense) => expense.description.toLowerCase().includes(search.toLowerCase());
+  const matches = (expense: Expense) =>
+    expenseMatches(expense, { tagIds: expenseTagFilter, search, tags: settings.tags });
   const owedEntries = (owed.pending ?? []).filter((entry) => matches(entry.expense));
   const paidEntries = [
     ...filteredExpenses.filter((expense) => expense.reimbursedAt).map((expense) => ({ month, expense })),
@@ -256,7 +294,15 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
       .map(({ month: entryMonth, expense }) => ({ month: entryMonth, expense })),
   ];
   // What the filter's button promises: with "A receber" alone, what earlier months still owe counts too.
-  const filterCount = onlyReimbursable ? owedEntries.length + paidEntries.length : filteredExpenses.length;
+  const filterCount =
+    tab === 'income'
+      ? filteredIncomes.length
+      : onlyReimbursable
+        ? owedEntries.length + paidEntries.length
+        : filteredExpenses.length;
+  /** How many filters the tab on screen has on: its categories (Gastos only) and its tags. */
+  const activeFilters = (tab === 'expenses' ? filter.length : 0) + tabTagFilter.length;
+  const tagName = (id: string) => tabTags.find((tag) => tag.id === id)?.name ?? '—';
 
   function handleEditIncome(income: Income) {
     openIncomeForm(income);
@@ -266,6 +312,18 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
     setFilter((current) =>
       current.includes(key) ? current.filter((item) => item !== key) : [...current, key],
     );
+  }
+
+  function toggleTag(id: string) {
+    setTagFilter((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
+  }
+
+  /** "Ver todos": every filter of the tab on screen goes. */
+  function clearFilters() {
+    if (tab === 'expenses') setFilter([]);
+    setTagFilter((current) => current.filter((id) => !tabTags.some((tag) => tag.id === id)));
   }
 
   function expenseCategory(expense: Expense): string {
@@ -326,39 +384,41 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={tab === 'income' ? 'Buscar pela fonte...' : 'Buscar pela descrição...'}
+            placeholder={tab === 'income' ? 'Buscar pela fonte ou tag...' : 'Buscar pela descrição ou tag...'}
             className="border-border bg-card text-foreground focus:ring-primary min-h-[44px] min-w-0 flex-1 rounded-lg border px-3 py-2 text-base outline-none focus:ring-2"
           />
-          {tab === 'expenses' && (
-            <button
-              type="button"
-              onClick={() => setFiltering(true)}
-              aria-label={
-                filter.length > 0
-                  ? `Filtrar por categoria (${filter.length} escolhidas)`
-                  : 'Filtrar por categoria'
-              }
-              data-tour="lancamentos-filtro"
-              className={`relative flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg border px-3 text-sm font-semibold ${
-                filter.length > 0
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-border bg-card text-foreground'
-              }`}
-            >
-              <ListFilter aria-hidden className="h-5 w-5" />
-              Filtrar
-              {filter.length > 0 && (
-                <span className="bg-primary text-primary-foreground flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs">
-                  {filter.length}
-                </span>
-              )}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setFiltering(true)}
+            aria-label={
+              tab === 'income'
+                ? activeFilters > 0
+                  ? `Filtrar por tag (${activeFilters} escolhidas)`
+                  : 'Filtrar por tag'
+                : activeFilters > 0
+                  ? `Filtrar por categoria ou tag (${activeFilters} escolhidas)`
+                  : 'Filtrar por categoria ou tag'
+            }
+            data-tour="lancamentos-filtro"
+            className={`relative flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg border px-3 text-sm font-semibold ${
+              activeFilters > 0
+                ? 'border-primary bg-primary/10 text-primary'
+                : 'border-border bg-card text-foreground'
+            }`}
+          >
+            <ListFilter aria-hidden className="h-5 w-5" />
+            Filtrar
+            {activeFilters > 0 && (
+              <span className="bg-primary text-primary-foreground flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs">
+                {activeFilters}
+              </span>
+            )}
+          </button>
         </div>
 
-        {tab === 'expenses' && filter.length > 0 && (
+        {activeFilters > 0 && (
           <div className="flex flex-wrap items-center gap-2 px-4" data-no-swipe-nav>
-            {filter.map((key) => (
+            {(tab === 'expenses' ? filter : []).map((key) => (
               <button
                 key={key}
                 type="button"
@@ -371,9 +431,21 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
                 <X aria-hidden className="h-4 w-4" />
               </button>
             ))}
+            {tabTagFilter.map((id) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => toggleTag(id)}
+                aria-label={`Tirar a tag ${tagName(id)} do filtro`}
+                className="border-primary text-primary bg-primary/10 flex min-h-[32px] items-center gap-1 rounded-full border pr-2 pl-3 text-sm font-medium"
+              >
+                #{tagName(id)}
+                <X aria-hidden className="h-4 w-4" />
+              </button>
+            ))}
             <button
               type="button"
-              onClick={() => setFilter([])}
+              onClick={clearFilters}
               className="text-muted hover:text-foreground min-h-[32px] px-1 text-sm font-medium underline underline-offset-2"
             >
               Ver todos
@@ -441,14 +513,17 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
                     >
                       <span className="min-w-0">
                         <span className="text-foreground block truncate font-medium">{income.source}</span>
-                        {(income.date || income.topicId) && (
-                          <span className="text-muted block text-xs">
-                            {[
-                              income.date && formatDate(income.date),
-                              income.topicId && `Só ${topicName(settings.topics, income.topicId)}`,
-                            ]
-                              .filter(Boolean)
-                              .join(' · ')}
+                        {(income.date || income.topicId || (income.tagIds?.length ?? 0) > 0) && (
+                          <span className="text-muted flex flex-wrap items-center gap-x-1 text-xs">
+                            <span>
+                              {[
+                                income.date && formatDate(income.date),
+                                income.topicId && `Só ${topicName(settings.topics, income.topicId)}`,
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </span>
+                            <TagPills tagIds={income.tagIds} tags={incomeTags} />
                           </span>
                         )}
                       </span>
@@ -467,8 +542,11 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
                         <span className="text-foreground block truncate font-medium">
                           {expense.description}
                         </span>
-                        <span className="text-muted block text-xs">
-                          {expenseDayLabel(expense)} · {expenseCategory(expense)}
+                        <span className="text-muted flex flex-wrap items-center gap-x-1 text-xs">
+                          <span className="min-w-0">
+                            {expenseDayLabel(expense)} · {expenseCategory(expense)}
+                          </span>
+                          <TagPills tagIds={expense.tagIds} tags={expenseTags} />
                         </span>
                       </span>
                       <span className="text-foreground font-semibold">{formatBRL(expense.amount)}</span>
@@ -498,24 +576,50 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
       <MonthActions defaultCategoryKind={defaultKind} />
 
       {filtering && (
-        <BottomSheet open title="Filtrar gastos" onClose={() => setFiltering(false)}>
+        <BottomSheet
+          open
+          title={tab === 'income' ? 'Filtrar rendas' : 'Filtrar gastos'}
+          onClose={() => setFiltering(false)}
+        >
           <div className="flex flex-col gap-4">
-            <p className="text-muted text-sm">Mostrar só os gastos destas categorias:</p>
-            <div className="flex flex-wrap gap-2">
-              {filterOptions.map((option) => (
-                <Chip
-                  key={option.key}
-                  label={option.label}
-                  selected={filter.includes(option.key)}
-                  onClick={() => toggleFilter(option.key)}
-                />
-              ))}
-            </div>
+            {tab === 'expenses' && (
+              <>
+                <p className="text-muted text-sm">Categorias:</p>
+                <div className="flex flex-wrap gap-2">
+                  {filterOptions.map((option) => (
+                    <Chip
+                      key={option.key}
+                      label={option.label}
+                      selected={filter.includes(option.key)}
+                      onClick={() => toggleFilter(option.key)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+            <p className="text-muted text-sm">Tags:</p>
+            {tabTags.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {tabTags.map((tag) => (
+                  <Chip
+                    key={tag.id}
+                    label={`#${tag.name}`}
+                    selected={tagFilter.includes(tag.id)}
+                    onClick={() => toggleTag(tag.id)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-muted text-xs">
+                Nenhuma tag {tab === 'income' ? 'de renda' : 'de gasto'} ainda. Crie no formulário ou na
+                engrenagem.
+              </p>
+            )}
             <div className="flex gap-3 pt-1">
               <button
                 type="button"
-                onClick={() => setFilter([])}
-                disabled={filter.length === 0}
+                onClick={clearFilters}
+                disabled={activeFilters === 0}
                 className="border-border text-foreground min-h-[44px] flex-1 rounded-lg border px-4 text-sm font-medium disabled:opacity-50"
               >
                 Ver todos
@@ -525,7 +629,14 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
                 onClick={() => setFiltering(false)}
                 className="bg-primary text-primary-foreground min-h-[44px] flex-1 rounded-lg px-4 text-sm font-semibold"
               >
-                Mostrar {filterCount} {filterCount === 1 ? 'gasto' : 'gastos'}
+                Mostrar {filterCount}{' '}
+                {tab === 'income'
+                  ? filterCount === 1
+                    ? 'renda'
+                    : 'rendas'
+                  : filterCount === 1
+                    ? 'gasto'
+                    : 'gastos'}
               </button>
             </div>
           </div>
@@ -535,6 +646,7 @@ function Lancamentos({ initialFilter }: { initialFilter?: LancamentosFilter }) {
       {configuring && (
         <ModuleSettingsSheet module="expenses" onClose={() => setConfiguring(false)}>
           <CategoriesSettings withTargets={false} onSaved={() => setConfiguring(false)} />
+          <TagsSettings />
         </ModuleSettingsSheet>
       )}
     </div>

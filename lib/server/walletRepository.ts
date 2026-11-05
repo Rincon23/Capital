@@ -209,6 +209,7 @@ export class PostgresWalletRepository implements WalletRepository {
       ...(row.installmentCount ? { installmentCount: row.installmentCount } : {}),
       ...(row.installmentAccounting ? { installmentAccounting: row.installmentAccounting } : {}),
       ...(row.dueDay ? { dueDay: row.dueDay } : {}),
+      ...(row.tagIds.length > 0 ? { tagIds: row.tagIds } : {}),
     }));
   }
 
@@ -232,6 +233,7 @@ export class PostgresWalletRepository implements WalletRepository {
       ...(row.paidCount ? { paidCount: row.paidCount } : {}),
       ...(row.advancedCount ? { advancedCount: row.advancedCount } : {}),
       ...(row.recurringId ? { recurringId: row.recurringId } : {}),
+      ...(row.tagIds.length > 0 ? { tagIds: row.tagIds } : {}),
     }));
   }
 
@@ -536,7 +538,10 @@ export class PostgresWalletRepository implements WalletRepository {
   // -------------------------------------------------------------------------
 
   async saveRecurring(item: RecurringExpense): Promise<void> {
+    // Absent (an older client) keeps the tags the template already has.
+    const tagIds = await this.budget.cleanTagIdsIn(this.db, 'expense', item.tagIds);
     const values = {
+      ...(tagIds !== undefined ? { tagIds } : {}),
       categoryKind: item.categoryKind,
       topicId: item.topicId ?? null,
       description: item.description,
@@ -614,6 +619,7 @@ export class PostgresWalletRepository implements WalletRepository {
       ...(onCard && item.cardId ? { cardId: item.cardId } : {}),
       source: 'recurring',
       recurringId: item.id,
+      ...(item.tagIds ? { tagIds: item.tagIds } : {}),
     });
     return 'launched';
   }
@@ -684,9 +690,22 @@ export class PostgresWalletRepository implements WalletRepository {
   /** The half of `saveInstallment` that runs inside a write, shared with `advanceInstallment`. */
   private async writePlan(
     { tx, addExpense, touch, openMonths }: MonthWriteContext,
-    plan: InstallmentPlan,
+    sent: InstallmentPlan,
   ): Promise<void> {
+    // Without tags in what was sent (an older client), the purchase keeps the ones it has — and so
+    // do the charges rebuilt below.
+    const cleaned = await this.budget.cleanTagIdsIn(tx, 'expense', sent.tagIds);
+    const [stored] =
+      cleaned === undefined
+        ? await tx
+            .select({ tagIds: installments.tagIds })
+            .from(installments)
+            .where(and(eq(installments.userId, this.userId), eq(installments.id, sent.id)))
+        : [];
+    const tagIds = cleaned ?? stored?.tagIds ?? [];
+    const plan: InstallmentPlan = { ...sent, ...(tagIds.length > 0 ? { tagIds } : { tagIds: undefined }) };
     const values = {
+      tagIds,
       name: plan.name,
       categoryKind: plan.categoryKind,
       topicId: plan.topicId ?? null,

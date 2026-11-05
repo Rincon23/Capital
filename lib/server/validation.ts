@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { HomeWidgetKey, ModuleKey, NavKey, QuickCategoryKey } from '@/lib/budget';
+import { TAG_LIMITS, type HomeWidgetKey, type ModuleKey, type NavKey, type QuickCategoryKey } from '@/lib/budget';
 import {
   HOME_WIDGET_KEYS,
   MAX_HOME_PAGES,
@@ -123,6 +123,25 @@ const quickCategorySchema = z.union([
 const label = z.string().max(60);
 const color = z.string().max(20);
 
+/** A tag of expenses or incomes (`Tag`): it changes no number, it only labels entries. */
+export const tagSchema = z.object({
+  id: z.string().min(1).max(100),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Dê um nome para a tag.')
+    .max(TAG_LIMITS.name, `O nome da tag pode ter até ${TAG_LIMITS.name} letras.`),
+  kind: z.enum(['expense', 'income']),
+  color: z.preprocess(absentAsUndefined, color.optional()),
+  order: z.number().int().min(0).max(100_000),
+});
+
+/** The tags on an entry, a template or a plan: which ones exist is checked by the repository. */
+const tagIdsSchema = z.array(z.string().min(1).max(100)).max(TAG_LIMITS.perEntry, `Dá para pôr até ${TAG_LIMITS.perEntry} tags.`);
+
+/** Body of "pôr ou tirar tags" of an entry, allowed in a closed month too. */
+export const entryTagsSchema = z.object({ tagIds: tagIdsSchema });
+
 export const settingsSchema = z.object({
   topics: z
     .array(topicSchema)
@@ -158,6 +177,11 @@ export const settingsSchema = z.object({
     .max(MAX_TOPICS + 4)
     .nullable()
     .optional(),
+  // Read only from a backup: an ordinary save never changes the tags (see `saveTag`).
+  tags: z
+    .array(tagSchema)
+    .max(TAG_LIMITS.perKind * 2)
+    .optional(),
 });
 
 export const incomeSchema = z.object({
@@ -166,6 +190,8 @@ export const incomeSchema = z.object({
   amount: z.number(),
   date: z.preprocess(absentAsUndefined, isoDate.optional()),
   topicId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
+  // Absent (an older client) keeps the tags the income already has.
+  tagIds: tagIdsSchema.optional(),
 });
 
 const categoryKindSchema = z.enum(['topic', 'fixedCost', 'unforeseen', 'reimbursable', 'uncounted']);
@@ -189,6 +215,8 @@ export const expenseSchema = z.object({
   reimbursedAt: z.preprocess(absentAsUndefined, z.iso.datetime().optional()),
   /** The recurring template ("Contas do mês") it was launched from. */
   recurringId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
+  // Absent (an older client) keeps the tags the expense already has.
+  tagIds: tagIdsSchema.optional(),
 });
 
 export const monthDataSchema = z.object({
@@ -222,6 +250,7 @@ export const recurringExpenseSchema = z.object({
   installmentAccounting: z.preprocess(absentAsUndefined, z.enum(['installment', 'upfront']).optional()),
   /** The day of the month it falls due; absent when the person did not say. */
   dueDay: z.preprocess(absentAsUndefined, z.number().int().min(1).max(31).optional()),
+  tagIds: tagIdsSchema.optional(),
 });
 
 export const installmentPlanSchema = z.object({
@@ -242,6 +271,7 @@ export const installmentPlanSchema = z.object({
   advancedCount: z.preprocess(absentAsUndefined, z.number().int().min(0).max(120).optional()),
   /** The recurring template it was launched from ("Contas do mês"). */
   recurringId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
+  tagIds: tagIdsSchema.optional(),
 });
 
 export const creditCardSchema = z.object({
@@ -636,10 +666,10 @@ const diagramBackupSchema = z.object({
 }) satisfies z.ZodType<DiagramBackup>;
 
 export const backupSchema = z.object({
-  // v2 added the modules and the "A receber" category, v3 the (now obsolete) bottom bar; older
-  // files still import. The Diagrama came later and is optional: a backup without it leaves the
-  // Diagrama as it is.
-  version: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  // v2 added the modules and the "A receber" category, v3 the (now obsolete) bottom bar, v4 the
+  // tags; older files still import. The Diagrama came later and is optional: a backup without it
+  // leaves the Diagrama as it is.
+  version: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
   exportedAt: z.string(),
   settings: settingsSchema,
   months: z.array(monthDataSchema).max(1200),

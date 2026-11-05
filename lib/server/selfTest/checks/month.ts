@@ -45,6 +45,48 @@ export const expensesChecks: SelfCheck[] = [
       }),
   },
   {
+    id: 'expenses.tags',
+    name: 'Tag entra até em mês fechado e não muda nenhum número',
+    run: ({ scratch }) =>
+      scratch(async (account) => {
+        const { budget, month } = account;
+        const past = previousMonth(month);
+        const diversos = await presetTopic(account, 'diversos');
+        await budget.saveIncome(past, {
+          id: createId(),
+          source: 'Salário',
+          amount: 2000,
+          date: `${past}-05`,
+        });
+        const groceries = expense({
+          categoryKind: 'topic',
+          topicId: diversos,
+          description: 'Mercado',
+          amount: 80,
+          date: `${past}-10`,
+        });
+        await budget.saveExpense(past, groceries);
+        await budget.closeMonth(past, true);
+        const before = computeMonthSummary((await budget.getMonth(past))!);
+        const carried = (await budget.getMonth(month))?.carryIn[diversos];
+
+        const tags = await budget.saveTag({ id: createId(), name: 'Mercado', kind: 'expense', order: 0 });
+        await budget.setEntryTags(past, 'expense', groceries.id, [tags[0].id]);
+
+        const data = await budget.getMonth(past);
+        expect(data, 'O mês fechado sumiu.');
+        expectEqual(
+          data.expenses.find((item) => item.id === groceries.id)?.tagIds,
+          [tags[0].id],
+          'Tags do gasto',
+        );
+        const after = computeMonthSummary(data);
+        expectEqual(after.expenseTotal, before.expenseTotal, 'Total gasto depois da tag');
+        expectEqual(after.availableTotal, before.availableTotal, 'Ainda dá para gastar depois da tag');
+        expectEqual((await budget.getMonth(month))?.carryIn[diversos], carried, 'Sobra levada depois da tag');
+      }),
+  },
+  {
     id: 'expenses.closed',
     name: 'Mês fechado não aceita lançamento',
     run: ({ scratch }) =>

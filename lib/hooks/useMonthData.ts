@@ -9,9 +9,15 @@ import {
   type Month,
   type MonthData,
   type MonthSummary,
+  type TagKind,
   type TopicConfig,
 } from '@/lib/budget';
-import { budgetRepository, saveNewExpense as saveNewExpenseIn, undoLateExpense } from '@/lib/storage';
+import {
+  budgetRepository,
+  saveNewExpense as saveNewExpenseIn,
+  setEntryTags as setEntryTagsIn,
+  undoLateExpense,
+} from '@/lib/storage';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
 
 export interface UseMonthDataResult {
@@ -31,6 +37,8 @@ export interface UseMonthDataResult {
   undoLateExpense: (destination: Month, expenseId: string) => Promise<void>;
   saveIncome: (income: Income) => Promise<void>;
   deleteIncome: (incomeId: string) => Promise<void>;
+  /** The tags of an expense or income; allowed in a closed month too (they change no number). */
+  setEntryTags: (kind: TagKind, entryId: string, tagIds: string[]) => Promise<void>;
   /**
    * With `openNext`, also opens the following month; with `dropLeftovers`, the month after this
    * one starts without its leftovers.
@@ -110,6 +118,10 @@ export function useMonthData(month: Month, currentTopics?: TopicConfig[]): UseMo
     (id: string) => guard(() => budgetRepository.deleteIncome(month, id)),
     [guard, month],
   );
+  const setEntryTags = useCallback(
+    (kind: TagKind, id: string, tagIds: string[]) => guard(() => setEntryTagsIn(month, kind, id, tagIds)),
+    [guard, month],
+  );
   const closeMonth = useCallback(
     (openNext = false, dropLeftovers = false) =>
       guard(() => budgetRepository.closeMonth(month, openNext, dropLeftovers)),
@@ -132,6 +144,7 @@ export function useMonthData(month: Month, currentTopics?: TopicConfig[]): UseMo
     undoLateExpense: undoLate,
     saveIncome,
     deleteIncome,
+    setEntryTags,
     closeMonth,
     reopenMonth,
     deleteMonth,

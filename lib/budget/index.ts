@@ -13,6 +13,7 @@ export * from './reserve';
 export * from './rollover';
 export * from './validation';
 export * from './topics';
+export * from './tags';
 export * from './seed';
 export * from './id';
 export * from './date';

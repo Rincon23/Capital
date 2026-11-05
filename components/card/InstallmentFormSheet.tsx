@@ -19,6 +19,7 @@ import {
   type TopicConfig,
 } from '@/lib/budget';
 import { AmountInput } from '@/components/ui/AmountInput';
+import { TagPicker } from '@/components/tags/TagPicker';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { CardPicker } from '@/components/ui/CardPicker';
 import { CategoryPicker, type CategoryValue } from '@/components/ui/CategoryPicker';
@@ -97,6 +98,7 @@ export function InstallmentFormSheet({
     firstDebitDate: prefill?.firstDebitDate ?? (defaultCard ? nextChargeDate(defaultCard) : today),
     accounting: (prefill?.accounting ?? 'upfront') as InstallmentAccounting,
   });
+  const [tagIds, setTagIds] = useState<string[]>(prefill?.tagIds ?? []);
   const [pastMode, setPastMode] = useState<PastMode>('skip');
   const [paid, setPaid] = useState(String(plan?.paidCount ?? ''));
   /** "Adiantar parcelas" tocado por engano: salvar devolve as parcelas ao parcelamento. */
@@ -142,6 +144,7 @@ export function InstallmentFormSheet({
       // "Adiantar parcelas" is its own operation; editing the purchase never undoes one by
       // accident — only the button that says so does.
       ...(plan?.advancedCount && !undoAdvance ? { advancedCount: plan.advancedCount } : {}),
+      tagIds,
     };
   }
 
@@ -272,6 +275,8 @@ export function InstallmentFormSheet({
             onUndo={setUndoAdvance}
           />
         ) : null}
+
+        <TagPicker kind="expense" value={tagIds} onChange={setTagIds} />
 
         {plan && (
           <p className="text-muted text-xs">

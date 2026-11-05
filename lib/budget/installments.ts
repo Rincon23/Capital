@@ -173,6 +173,7 @@ export function installmentExpense(plan: InstallmentPlan, number: number, dueDat
   };
   if (plan.cardId) expense.cardId = plan.cardId;
   if (plan.topicId) expense.topicId = plan.topicId;
+  if (plan.tagIds?.length) expense.tagIds = [...plan.tagIds];
   return expense;
 }
 
@@ -239,6 +240,7 @@ export function upfrontExpense(plan: InstallmentPlan, date = upfrontDate(plan)):
   };
   if (plan.cardId) expense.cardId = plan.cardId;
   if (plan.topicId) expense.topicId = plan.topicId;
+  if (plan.tagIds?.length) expense.tagIds = [...plan.tagIds];
   return expense;
 }
 
@@ -299,6 +301,7 @@ export function advanceExpense(plan: InstallmentPlan, input: AdvanceInput, id: s
   };
   if (plan.cardId) expense.cardId = plan.cardId;
   if (!upfront && plan.topicId) expense.topicId = plan.topicId;
+  if (plan.tagIds?.length) expense.tagIds = [...plan.tagIds];
   return expense;
 }
 

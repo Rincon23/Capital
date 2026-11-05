@@ -12,6 +12,7 @@ import {
   max,
   notInArray,
   sql,
+  type AnyColumn,
   type SQL,
 } from 'drizzle-orm';
 import { computeMonthSummary } from '../budget/calculations';
@@ -28,6 +29,7 @@ import {
   type MonthStatus,
 } from '../budget/rollover';
 import { createDefaultSettings } from '../budget/seed';
+import { TAG_LIMITS, cleanTagIds, sanitizeTags, tagIdSet, tagNameProblem, type TagRefs } from '../budget/tags';
 import {
   consolidateBudgetData,
   consolidateMonthTopics,
@@ -42,6 +44,8 @@ import type {
   Month,
   MonthData,
   PendingReimbursable,
+  Tag,
+  TagKind,
 } from '../budget/types';
 import {
   BACKUP_VERSION,
@@ -97,8 +101,13 @@ function toIncome(row: IncomeRow): Income {
   const income: Income = { id: row.id, source: row.source, amount: row.amount };
   if (row.date) income.date = row.date;
   if (row.topicId) income.topicId = row.topicId;
+  if (row.tagIds.length > 0) income.tagIds = row.tagIds;
   return income;
 }
+
+/** A JSON list with one id, for `@>` ("has this tag") and `||` (adding it). */
+const TAG_PER_ENTRY = TAG_LIMITS.perEntry;
+const oneTag = (id: string) => sql`${JSON.stringify([id])}::jsonb`;
 
 function toExpense(row: ExpenseRow): Expense {
   const expense: Expense = {
@@ -116,12 +125,18 @@ function toExpense(row: ExpenseRow): Expense {
   if (row.installmentNumber !== null) expense.installmentNumber = row.installmentNumber;
   if (row.reimbursedAt) expense.reimbursedAt = row.reimbursedAt.toISOString();
   if (row.recurringId) expense.recurringId = row.recurringId;
+  if (row.tagIds.length > 0) expense.tagIds = row.tagIds;
   return expense;
 }
 
-/** The columns of an expense, without the keys that identify the row. */
-function expenseValues(month: Month, expense: Expense) {
+/**
+ * The columns of an expense, without the keys that identify the row. `tagIds` are the ones it may
+ * keep (see `cleanTagIds`); undefined leaves the tags of an expense that already exists alone —
+ * what an older client, which does not know about tags, sends.
+ */
+function expenseValues(month: Month, expense: Expense, tagIds?: string[]) {
   return {
+    ...(tagIds !== undefined ? { tagIds } : {}),
     month,
     categoryKind: expense.categoryKind,
     topicId: expense.topicId ?? null,
@@ -246,12 +261,14 @@ export class PostgresBudgetRepository implements BudgetRepository {
   async saveIncome(month: Month, income: Income): Promise<void> {
     await this.write(async (tx) => {
       await this.ensureOpenMonthIn(tx, month);
+      const tagIds = await this.cleanTagIdsIn(tx, 'income', income.tagIds);
       const values = {
         month,
         source: income.source,
         amount: income.amount,
         date: income.date || null,
         topicId: income.topicId || null,
+        ...(tagIds !== undefined ? { tagIds } : {}),
       };
       const [last] = await tx
         .select({
@@ -413,6 +430,204 @@ export class PostgresBudgetRepository implements BudgetRepository {
   }
 
   // -------------------------------------------------------------------------
+  // Tags: labels that change no number (lib/budget/tags.ts)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Puts or takes tags off an expense or an income. Allowed in a closed month too, like "Já me
+   * pagou": a tag changes no number of the budget, so nothing is recomputed either.
+   */
+  async setEntryTags(month: Month, kind: TagKind, entryId: string, tagIds: string[]): Promise<void> {
+    await this.write(async (tx) => {
+      const clean = (await this.cleanTagIdsIn(tx, kind, tagIds)) ?? [];
+      const table = kind === 'expense' ? expenses : incomes;
+      const updated = await tx
+        .update(table)
+        .set({ tagIds: clean })
+        .where(and(eq(table.userId, this.userId), eq(table.month, month), eq(table.id, entryId)))
+        .returning({ id: table.id });
+      if (updated.length === 0) {
+        throw new HttpError(404, 'NOT_FOUND', kind === 'expense' ? 'Esse gasto não existe mais.' : 'Essa renda não existe mais.');
+      }
+    });
+  }
+
+  /**
+   * Creates a tag or changes one (its name, its colour, its place). The kind of a tag never
+   * changes. A name already taken in the same kind, or the name of a category, is refused.
+   * Returns every tag of the account.
+   */
+  async saveTag(tag: Tag): Promise<Tag[]> {
+    return this.write(async (tx) => {
+      const settings = await this.settingsIn(tx);
+      const tags = settings.tags ?? [];
+      const existing = tags.find((item) => item.id === tag.id);
+      const kind = existing?.kind ?? tag.kind;
+      const problem = tagNameProblem(tag.name, kind, tags, settings.topics, existing?.id);
+      if (problem) throw new HttpError(400, 'INVALID_INPUT', problem);
+      const saved: Tag = {
+        id: tag.id,
+        name: tag.name.replace(/\s+/g, ' ').trim(),
+        kind,
+        order: tag.order,
+        ...(tag.color ? { color: tag.color } : {}),
+      };
+      const next = existing ? tags.map((item) => (item.id === tag.id ? saved : item)) : [...tags, saved];
+      await this.writeTags(tx, next);
+      return next;
+    });
+  }
+
+  /**
+   * Deletes a tag and takes it off every expense, income, recurring template and instalment plan,
+   * in one transaction. The numbers do not change. Returns the tags left and where this one was,
+   * which is what "Desfazer" (`restoreTag`) needs.
+   */
+  async deleteTag(id: string): Promise<{ tags: Tag[]; refs: TagRefs }> {
+    return this.write(async (tx) => {
+      const tags = (await this.settingsIn(tx)).tags ?? [];
+      const refs: TagRefs = { expenses: [], incomes: [], recurring: [], installments: [] };
+      if (!tags.some((tag) => tag.id === id)) return { tags, refs };
+
+      const without = (column: AnyColumn) => sql`${column} - ${id}::text`;
+      refs.expenses = await tx
+        .update(expenses)
+        .set({ tagIds: without(expenses.tagIds) })
+        .where(and(eq(expenses.userId, this.userId), sql`${expenses.tagIds} @> ${oneTag(id)}`))
+        .returning({ month: expenses.month, id: expenses.id });
+      refs.incomes = await tx
+        .update(incomes)
+        .set({ tagIds: without(incomes.tagIds) })
+        .where(and(eq(incomes.userId, this.userId), sql`${incomes.tagIds} @> ${oneTag(id)}`))
+        .returning({ month: incomes.month, id: incomes.id });
+      refs.recurring = (
+        await tx
+          .update(recurringExpenses)
+          .set({ tagIds: without(recurringExpenses.tagIds) })
+          .where(and(eq(recurringExpenses.userId, this.userId), sql`${recurringExpenses.tagIds} @> ${oneTag(id)}`))
+          .returning({ id: recurringExpenses.id })
+      ).map((row) => row.id);
+      refs.installments = (
+        await tx
+          .update(installments)
+          .set({ tagIds: without(installments.tagIds) })
+          .where(and(eq(installments.userId, this.userId), sql`${installments.tagIds} @> ${oneTag(id)}`))
+          .returning({ id: installments.id })
+      ).map((row) => row.id);
+
+      const next = tags.filter((tag) => tag.id !== id);
+      await this.writeTags(tx, next);
+      return { tags: next, refs };
+    });
+  }
+
+  /**
+   * "Desfazer" after `deleteTag`: the tag comes back and goes back on the entries, templates and
+   * plans it was on (those that still exist and still have room for it). Returns every tag.
+   */
+  async restoreTag(tag: Tag, refs: TagRefs): Promise<Tag[]> {
+    return this.write(async (tx) => {
+      const settings = await this.settingsIn(tx);
+      const tags = settings.tags ?? [];
+      let next = tags;
+      if (!tags.some((item) => item.id === tag.id)) {
+        const problem = tagNameProblem(tag.name, tag.kind, tags, settings.topics);
+        if (problem) throw new HttpError(409, 'CONFLICT', problem);
+        next = [...tags, tag];
+        await this.writeTags(tx, next);
+      }
+
+      const withTag = (column: AnyColumn) => sql`${column} || ${oneTag(tag.id)}`;
+      const room = (column: AnyColumn) =>
+        sql`not (${column} @> ${oneTag(tag.id)}) and jsonb_array_length(${column}) < ${TAG_PER_ENTRY}`;
+      const kindIs = (kind: TagKind) => tag.kind === kind;
+      if (kindIs('expense') && refs.expenses.length > 0) {
+        await tx
+          .update(expenses)
+          .set({ tagIds: withTag(expenses.tagIds) })
+          .where(
+            and(
+              eq(expenses.userId, this.userId),
+              inArray(
+                expenses.id,
+                refs.expenses.map((ref) => ref.id),
+              ),
+              room(expenses.tagIds),
+            ),
+          );
+      }
+      if (kindIs('income') && refs.incomes.length > 0) {
+        await tx
+          .update(incomes)
+          .set({ tagIds: withTag(incomes.tagIds) })
+          .where(
+            and(
+              eq(incomes.userId, this.userId),
+              inArray(
+                incomes.id,
+                refs.incomes.map((ref) => ref.id),
+              ),
+              room(incomes.tagIds),
+            ),
+          );
+      }
+      if (kindIs('expense') && refs.recurring.length > 0) {
+        await tx
+          .update(recurringExpenses)
+          .set({ tagIds: withTag(recurringExpenses.tagIds) })
+          .where(
+            and(
+              eq(recurringExpenses.userId, this.userId),
+              inArray(recurringExpenses.id, refs.recurring),
+              room(recurringExpenses.tagIds),
+            ),
+          );
+      }
+      if (kindIs('expense') && refs.installments.length > 0) {
+        await tx
+          .update(installments)
+          .set({ tagIds: withTag(installments.tagIds) })
+          .where(
+            and(
+              eq(installments.userId, this.userId),
+              inArray(installments.id, refs.installments),
+              room(installments.tagIds),
+            ),
+          );
+      }
+      return next;
+    });
+  }
+
+  /** How many expenses and incomes carry each tag, by tag id (a tag on nothing is absent). */
+  async tagUsage(): Promise<Record<string, number>> {
+    const usage: Record<string, number> = {};
+    for (const table of [expenses, incomes] as const) {
+      const rows = await this.db
+        .select({
+          tag: sql<string>`jsonb_array_elements_text(${table.tagIds})`,
+          count: sql<number>`count(*)`.mapWith(Number),
+        })
+        .from(table)
+        .where(eq(table.userId, this.userId))
+        .groupBy(sql`1`);
+      for (const row of rows) usage[row.tag] = (usage[row.tag] ?? 0) + row.count;
+    }
+    return usage;
+  }
+
+  /** The ids an entry of `kind` may keep (see `cleanTagIds`); undefined stays undefined. */
+  async cleanTagIdsIn(ex: Executor, kind: TagKind, tagIds: string[] | undefined): Promise<string[] | undefined> {
+    if (tagIds === undefined) return undefined;
+    if (tagIds.length === 0) return [];
+    return cleanTagIds(tagIds, tagIdSet(await this.readSettings(ex), kind));
+  }
+
+  private async writeTags(tx: Transaction, tags: Tag[]): Promise<void> {
+    await tx.update(budgetSettings).set({ tags }).where(eq(budgetSettings.userId, this.userId));
+  }
+
+  // -------------------------------------------------------------------------
   // Month lifecycle
   // -------------------------------------------------------------------------
 
@@ -520,11 +735,13 @@ export class PostgresBudgetRepository implements BudgetRepository {
   async importData(payload: BackupPayload): Promise<void> {
     // A backup from before the four fixed categories may have others: they fold into Prazeres e
     // Confortos, with their entries and leftovers (`consolidateBudgetData`).
-    const { settings, months: monthList } = consolidateBudgetData(payload.settings, payload.months);
+    const consolidated = consolidateBudgetData(payload.settings, payload.months);
+    const settings = { ...consolidated.settings, tags: sanitizeTags(consolidated.settings.tags, consolidated.settings.topics) };
+    const monthList = consolidated.months;
     await this.write(async (tx) => {
       await tx.delete(months).where(eq(months.userId, this.userId));
       await this.upsertSettings(tx, settings, true);
-      await this.insertMonths(tx, monthList);
+      await this.insertMonths(tx, monthList, settings);
       // A backup from before leftovers needed a closed month still has them on open months.
       const [earliest] = monthList.map((data) => data.month).sort();
       if (earliest) await this.recascade(tx, earliest);
@@ -664,7 +881,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
 
   /** Writes one expense, keeping its place in the month's list (a new one goes last). */
   private async insertExpenseIn(tx: Transaction, month: Month, expense: Expense): Promise<void> {
-    const values = expenseValues(month, expense);
+    const values = expenseValues(month, expense, await this.cleanTagIdsIn(tx, 'expense', expense.tagIds));
     const [last] = await tx
       .select({
         position: max(expenses.position),
@@ -707,6 +924,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
       ...(row.paidCount ? { paidCount: row.paidCount } : {}),
       ...(row.advancedCount ? { advancedCount: row.advancedCount } : {}),
       ...(row.recurringId ? { recurringId: row.recurringId } : {}),
+      ...(row.tagIds.length > 0 ? { tagIds: row.tagIds } : {}),
     }));
   }
 
@@ -909,6 +1127,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
       homeCardSizes: row.homeCardSizes,
       homeHidden: row.homeHidden,
       quickCategories: row.quickCategories,
+      tags: row.tags,
     };
   }
 
@@ -953,6 +1172,9 @@ export class PostgresBudgetRepository implements BudgetRepository {
       ...(restoringBackup && settings.onboardingCompleted !== undefined
         ? { onboardingCompleted: settings.onboardingCompleted }
         : {}),
+      // The tags change only through their own operations (`saveTag`, `deleteTag`): a save built
+      // from settings read a moment earlier must not bring back a deleted tag nor drop a new one.
+      ...(restoringBackup ? { tags: settings.tags ?? [] } : {}),
     };
     await ex
       .insert(budgetSettings)
@@ -960,9 +1182,11 @@ export class PostgresBudgetRepository implements BudgetRepository {
       .onConflictDoUpdate({ target: budgetSettings.userId, set: values });
   }
 
-  /** Inserts whole months (row + entries, keeping each list's order). */
-  private async insertMonths(tx: Transaction, list: MonthData[]): Promise<void> {
+  /** Inserts whole months (row + entries, keeping each list's order), with the tags `settings` has. */
+  private async insertMonths(tx: Transaction, list: MonthData[], settings: BudgetSettings): Promise<void> {
     if (list.length === 0) return;
+    const expenseTags = tagIdSet(settings, 'expense');
+    const incomeTags = tagIdSet(settings, 'income');
 
     await tx.insert(months).values(
       list.map((m) => ({
@@ -985,6 +1209,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
         amount: income.amount,
         date: income.date || null,
         topicId: income.topicId || null,
+        tagIds: cleanTagIds(income.tagIds, incomeTags),
         position,
       })),
     );
@@ -995,7 +1220,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
         userId: this.userId,
         id: expense.id,
         position,
-        ...expenseValues(m.month, expense),
+        ...expenseValues(m.month, expense, cleanTagIds(expense.tagIds, expenseTags)),
       })),
     );
     for (const chunk of chunks(expenseRows, INSERT_CHUNK)) await tx.insert(expenses).values(chunk);

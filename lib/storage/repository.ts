@@ -3,13 +3,13 @@ import type { DiagramBackup } from '../diagram/types';
 
 /**
  * What a backup exported today declares. Version 2 added the modules and the "A receber"
- * category; version 3, the bottom bar and the dismissed notices.
+ * category; version 3, the bottom bar and the dismissed notices; version 4, the tags.
  */
-export const BACKUP_VERSION = 3;
+export const BACKUP_VERSION = 4;
 
 export interface BackupPayload {
   /** Older versions are still accepted on import: they simply lack the newer fields. */
-  version: 1 | 2 | 3;
+  version: 1 | 2 | 3 | 4;
   exportedAt: string;
   settings: BudgetSettings;
   months: MonthData[];

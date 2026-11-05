@@ -203,6 +203,12 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
           defaultCategoryKind={expenseForm.defaultCategoryKind}
           autoFocusAmount={!expenseForm.forTour}
           note={expenseForm.singleInstallment ? SINGLE_INSTALLMENT_NOTE : undefined}
+          tagsOnly={Boolean(expenseForm.initial && monthData.monthData?.closed)}
+          onSaveTags={
+            expenseForm.initial
+              ? (tagIds) => monthData.setEntryTags('expense', expenseForm.initial!.id, tagIds)
+              : undefined
+          }
           onClose={() => setExpenseForm({ open: false })}
           onSave={expenseForm.initial ? monthData.saveExpense : saveNewExpense}
           lateDestinationOf={expenseForm.initial ? undefined : lateDestinationOf}
@@ -231,6 +237,12 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
                     month >= currentMonthKey(),
                   )
                 : settings.topics
+              : undefined
+          }
+          tagsOnly={Boolean(incomeForm.initial && monthData.monthData?.closed)}
+          onSaveTags={
+            incomeForm.initial
+              ? (tagIds) => monthData.setEntryTags('income', incomeForm.initial!.id, tagIds)
               : undefined
           }
           onClose={() => setIncomeForm({ open: false })}

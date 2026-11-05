@@ -36,6 +36,7 @@ import type {
   QuickCategoryKey,
   SpecialCategoryColors,
   SpecialCategoryLabels,
+  Tag,
   TopicConfig,
 } from '../../budget/types';
 import type {
@@ -192,6 +193,8 @@ export const budgetSettings = pgTable('budget_settings', {
   homeHidden: jsonb('home_hidden').$type<HomeWidgetKey[]>().notNull().default([]),
   /** The categories the expense form shows straight away; null means the default. */
   quickCategories: jsonb('quick_categories').$type<QuickCategoryKey[]>(),
+  /** The tags of expenses and incomes (the `Tag` shape); they change no number. */
+  tags: jsonb('tags').$type<Tag[]>().notNull().default([]),
   updatedAt: updatedAt(),
 });
 
@@ -342,6 +345,8 @@ export const incomes = pgTable(
     date: date('date', { mode: 'string' }),
     /** The one category that gets this whole income; null means split by % (see Income). */
     topicId: text('topic_id'),
+    /** Ids of its tags (`budget_settings.tags`, kind 'income'). */
+    tagIds: jsonb('tag_ids').$type<string[]>().notNull().default([]),
     position: integer('position').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -388,6 +393,8 @@ export const expenses = pgTable(
      * its expenses, which simply stop pointing anywhere.
      */
     recurringId: text('recurring_id'),
+    /** Ids of its tags (`budget_settings.tags`, kind 'expense'). They change no number. */
+    tagIds: jsonb('tag_ids').$type<string[]>().notNull().default([]),
     position: integer('position').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -431,6 +438,8 @@ export const recurringExpenses = pgTable(
     installmentAccounting: text('installment_accounting').$type<InstallmentAccounting>(),
     /** The day of the month it falls due (1–31); null when the person did not say. */
     dueDay: integer('due_day'),
+    /** Tags the expense launched from it is born with. */
+    tagIds: jsonb('tag_ids').$type<string[]>().notNull().default([]),
     position: integer('position').notNull(),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -515,6 +524,8 @@ export const installments = pgTable(
     advancedCount: integer('advanced_count').notNull().default(0),
     /** The recurring template it was launched from, when it was (see `expenses.recurring_id`). */
     recurringId: text('recurring_id'),
+    /** Tags every charge of the purchase is born with. */
+    tagIds: jsonb('tag_ids').$type<string[]>().notNull().default([]),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

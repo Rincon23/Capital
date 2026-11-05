@@ -33,6 +33,7 @@ import { BottomSheet } from '@/components/ui/BottomSheet';
 import { CardPicker } from '@/components/ui/CardPicker';
 import { CategoryPicker } from '@/components/ui/CategoryPicker';
 import { Chip } from '@/components/ui/Chip';
+import { TagPicker } from '@/components/tags/TagPicker';
 
 /** What happens to a new expense dated in an earlier month, said before it is saved. */
 function lateExpenseNotice(destination: LateExpenseDestination, from: Month): string {
@@ -95,6 +96,12 @@ interface ExpenseFormSheetProps {
    * says it before saving. Without it, a date outside `month` is only a warning.
    */
   lateDestinationOf?: (date: string) => Promise<LateExpenseDestination | null>;
+  /**
+   * The expense is in a closed month: only its tags may change (they change no number), saved
+   * with `onSaveTags`; every other field is shown but locked.
+   */
+  tagsOnly?: boolean;
+  onSaveTags?: (tagIds: string[]) => Promise<void>;
   onClose: () => void;
   onSave: (expense: Expense) => Promise<void>;
   onDelete?: (expenseId: string) => Promise<void>;
@@ -117,6 +124,8 @@ export function ExpenseFormSheet({
   installmentDraft,
   closedMonths = [],
   lateDestinationOf,
+  tagsOnly = false,
+  onSaveTags,
   onClose,
   onSave,
   onDelete,
@@ -167,6 +176,7 @@ export function ExpenseFormSheet({
       accounting: (installmentDraft?.accounting ?? 'upfront') as InstallmentAccounting,
     };
   });
+  const [tagIds, setTagIds] = useState<string[]>(prefill?.tagIds ?? []);
   const [errors, setErrors] = useState<string[]>([]);
   const [closed, setClosed] = useState<Month[] | null>(null);
   const [late, setLate] = useState<{ date: string; destination: LateExpenseDestination | null } | null>(null);
@@ -202,6 +212,19 @@ export function ExpenseFormSheet({
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setClosed(null);
+    if (tagsOnly) {
+      if (!onSaveTags) return;
+      setSaving(true);
+      try {
+        await onSaveTags(tagIds);
+        onClose();
+      } catch (err) {
+        setErrors([err instanceof Error ? err.message : 'Não foi possível salvar. Tente novamente.']);
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
     const result = validateExpense({ categoryKind, topicId, amount: parsedAmount, date });
     if (!result.valid) {
       setErrors(result.errors);
@@ -232,6 +255,7 @@ export function ExpenseFormSheet({
           ...(cardId ? { cardId } : {}),
           // Launched from a bill of "Contas do mês": that bill counts as launched this month.
           ...(prefill?.recurringId ? { recurringId: prefill.recurringId } : {}),
+          tagIds,
         }
       : null;
 
@@ -269,6 +293,7 @@ export function ExpenseFormSheet({
             : {}),
           // The bill of "Contas do mês" it came from, kept through any edit.
           ...(prefill?.recurringId ? { recurringId: prefill.recurringId } : {}),
+          tagIds,
         });
       }
       onClose();
@@ -300,115 +325,125 @@ export function ExpenseFormSheet({
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         {note && <div className="bg-background text-muted rounded-xl px-3 py-2 text-xs">{note}</div>}
-
-        <AmountInput
-          value={amount}
-          onChange={setAmount}
-          autoFocus={autoFocusAmount && !prefill}
-          trailing={
-            cardEnabled ? (
-              // "A compra foi no cartão?" as a small card that lights up green, right by the amount.
-              <button
-                type="button"
-                role="checkbox"
-                aria-checked={singleInstallmentCard}
-                aria-label="A compra foi no cartão?"
-                title={singleInstallmentCard ? 'Foi no cartão' : 'Foi no cartão? Toque para marcar'}
-                onClick={() => setSingleInstallmentCard((current) => !current)}
-                data-tour="cartao-pergunta"
-                className={`flex shrink-0 flex-col items-center gap-0.5 rounded-xl border px-2 py-1 transition-colors ${
-                  singleInstallmentCard
-                    ? 'border-success bg-success-bg text-success'
-                    : 'border-border text-foreground hover:border-primary/50'
-                }`}
-              >
-                <CreditCard aria-hidden className="h-6 w-6" />
-                <span className="text-[10px] leading-none font-semibold">Cartão</span>
-              </button>
-            ) : undefined
-          }
-        />
-
-        <CategoryPicker
-          topics={topics}
-          specialCategories={labels}
-          value={{ categoryKind, topicId }}
-          onChange={(next) => {
-            setCategoryKind(next.categoryKind);
-            setTopicId(next.topicId);
-          }}
-          showReimbursable={showReimbursable}
-          quick={quick}
-          onQuickChange={
-            settingsContext && currentSettings
-              ? (next) => settingsContext.saveSettings({ ...currentSettings, quickCategories: next })
-              : undefined
-          }
-        />
-
-        <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
-          Descrição
-          <input
-            type="text"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Ex.: Almoço, gasolina..."
-            className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] rounded-lg border px-3 py-2 text-base outline-none focus:ring-2"
-          />
-        </label>
-
-        <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
-          Data
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] rounded-lg border px-3 py-2 text-base outline-none focus:ring-2"
-          />
-          {!date.startsWith(month) && (
-            <span className="text-warning text-xs">
-              {destination && !(canSplit && splitting)
-                ? lateExpenseNotice(destination, month)
-                : `Essa data está fora de ${month}. Tudo bem, é só um aviso.`}
-            </span>
-          )}
-        </label>
-
-        {onCard && (
-          <CardPicker
-            cards={cards}
-            value={cardId}
-            onChange={(id) => {
-              setCardId(id);
-              const chosen = cards.find((card) => card.id === id);
-              setInstallment((current) => ({
-                ...current,
-                firstDebitDate: chosen ? nextChargeDate(chosen) : todayISO(),
-              }));
-            }}
-            tourAnchor="cartao-qual"
-          />
-        )}
-
-        {canSplit && (
-          <div data-tour="cartao-parcelar">
-            <p className="text-muted mb-2 text-sm font-medium">Como você pagou?</p>
-            <div className="flex flex-wrap gap-2">
-              <Chip label="À vista" selected={!splitting} onClick={() => setSplitting(false)} />
-              <Chip label="Parcelado" selected={splitting} onClick={() => setSplitting(true)} />
-            </div>
+        {tagsOnly && (
+          <div className="bg-background text-muted rounded-xl px-3 py-2 text-xs">
+            Mês fechado: só as tags podem mudar.
           </div>
         )}
 
-        {canSplit && splitting && (
-          <InstallmentOptions
-            value={installment}
-            onChange={setInstallment}
-            totalAmount={parsedAmount}
-            categoryLabel={categoryLabel}
-            purchaseMonth={date.slice(0, 7)}
+        {/* In a closed month every field but the tags is locked. */}
+        <fieldset disabled={tagsOnly} className="m-0 flex min-w-0 flex-col gap-5 border-0 p-0">
+          <AmountInput
+            value={amount}
+            onChange={setAmount}
+            autoFocus={autoFocusAmount && !prefill}
+            trailing={
+              cardEnabled ? (
+                // "A compra foi no cartão?" as a small card that lights up green, right by the amount.
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={singleInstallmentCard}
+                  aria-label="A compra foi no cartão?"
+                  title={singleInstallmentCard ? 'Foi no cartão' : 'Foi no cartão? Toque para marcar'}
+                  onClick={() => setSingleInstallmentCard((current) => !current)}
+                  data-tour="cartao-pergunta"
+                  className={`flex shrink-0 flex-col items-center gap-0.5 rounded-xl border px-2 py-1 transition-colors ${
+                    singleInstallmentCard
+                      ? 'border-success bg-success-bg text-success'
+                      : 'border-border text-foreground hover:border-primary/50'
+                  }`}
+                >
+                  <CreditCard aria-hidden className="h-6 w-6" />
+                  <span className="text-[10px] leading-none font-semibold">Cartão</span>
+                </button>
+              ) : undefined
+            }
           />
-        )}
+
+          <CategoryPicker
+            topics={topics}
+            specialCategories={labels}
+            value={{ categoryKind, topicId }}
+            onChange={(next) => {
+              setCategoryKind(next.categoryKind);
+              setTopicId(next.topicId);
+            }}
+            showReimbursable={showReimbursable}
+            quick={quick}
+            onQuickChange={
+              settingsContext && currentSettings
+                ? (next) => settingsContext.saveSettings({ ...currentSettings, quickCategories: next })
+                : undefined
+            }
+          />
+
+          <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
+            Descrição
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Ex.: Almoço, gasolina..."
+              className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] rounded-lg border px-3 py-2 text-base outline-none focus:ring-2"
+            />
+          </label>
+
+          <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
+            Data
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] rounded-lg border px-3 py-2 text-base outline-none focus:ring-2"
+            />
+            {!date.startsWith(month) && (
+              <span className="text-warning text-xs">
+                {destination && !(canSplit && splitting)
+                  ? lateExpenseNotice(destination, month)
+                  : `Essa data está fora de ${month}. Tudo bem, é só um aviso.`}
+              </span>
+            )}
+          </label>
+
+          {onCard && (
+            <CardPicker
+              cards={cards}
+              value={cardId}
+              onChange={(id) => {
+                setCardId(id);
+                const chosen = cards.find((card) => card.id === id);
+                setInstallment((current) => ({
+                  ...current,
+                  firstDebitDate: chosen ? nextChargeDate(chosen) : todayISO(),
+                }));
+              }}
+              tourAnchor="cartao-qual"
+            />
+          )}
+
+          {canSplit && (
+            <div data-tour="cartao-parcelar">
+              <p className="text-muted mb-2 text-sm font-medium">Como você pagou?</p>
+              <div className="flex flex-wrap gap-2">
+                <Chip label="À vista" selected={!splitting} onClick={() => setSplitting(false)} />
+                <Chip label="Parcelado" selected={splitting} onClick={() => setSplitting(true)} />
+              </div>
+            </div>
+          )}
+
+          {canSplit && splitting && (
+            <InstallmentOptions
+              value={installment}
+              onChange={setInstallment}
+              totalAmount={parsedAmount}
+              categoryLabel={categoryLabel}
+              purchaseMonth={date.slice(0, 7)}
+            />
+          )}
+        </fieldset>
+
+        <TagPicker kind="expense" value={tagIds} onChange={setTagIds} />
 
         {closed && <ClosedMonthsNotice months={closed} onNavigate={onClose} />}
 
@@ -421,7 +456,7 @@ export function ExpenseFormSheet({
         )}
 
         <div className="flex gap-3 pt-1">
-          {initial && onDelete && (
+          {initial && onDelete && !tagsOnly && (
             <button
               type="button"
               onClick={handleDelete}

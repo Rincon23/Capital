@@ -8,6 +8,7 @@ export * from './notificationsFeed';
 export * from './monthClosing';
 export * from './newExpenses';
 export * from './reimbursables';
+export * from './tags';
 export * from './reminders';
 export * from './banks';
 export * from './diagram';

@@ -40,6 +40,7 @@ import { BottomSheet } from '@/components/ui/BottomSheet';
 import { InstallmentOptions, MAX_INSTALLMENTS } from '@/components/card/InstallmentOptions';
 import { CardPicker } from '@/components/ui/CardPicker';
 import { Chip } from '@/components/ui/Chip';
+import { TagPicker } from '@/components/tags/TagPicker';
 import { CategoryPicker, type CategoryValue } from '@/components/ui/CategoryPicker';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { Switch } from '@/components/ui/Switch';
@@ -168,6 +169,7 @@ function Recorrentes() {
         ...(onCard && item.cardId ? { cardId: item.cardId } : {}),
         source: 'recurring',
         recurringId: item.id,
+        ...(item.tagIds ? { tagIds: item.tagIds } : {}),
       },
       // Um modelo parcelado abre o formulário já em "Parcelado", com o número de vezes e a
       // forma de contabilizar que ele guarda: lançar é confirmar, não preencher de novo.
@@ -684,6 +686,7 @@ function RecurringFormSheet({
     initial ? initial.cardId : (defaultCard?.id ?? undefined),
   );
   const [dueDay, setDueDay] = useState(initial?.dueDay ? String(initial.dueDay) : '');
+  const [tagIds, setTagIds] = useState<string[]>(initial?.tagIds ?? []);
   const [splitting, setSplitting] = useState(Boolean(initial?.installmentCount));
   const [installment, setInstallment] = useState({
     count: String(initial?.installmentCount ?? 10),
@@ -732,6 +735,7 @@ function RecurringFormSheet({
           ? { installmentCount: splitCount, installmentAccounting: installment.accounting }
           : {}),
         ...(dueDay ? { dueDay: Number(dueDay) } : {}),
+        tagIds,
       });
     } finally {
       setSaving(false);
@@ -809,6 +813,8 @@ function RecurringFormSheet({
             withoutFirstDebit
           />
         )}
+
+        <TagPicker kind="expense" value={tagIds} onChange={setTagIds} />
 
         {errors.length > 0 && (
           <ul className="bg-danger-bg text-danger rounded-lg px-3 py-2 text-sm">

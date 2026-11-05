@@ -58,7 +58,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: entries,
       anchor: 'lancamentos-busca',
       title: 'Busca e filtro',
-      description: 'Procure pela descrição ou filtre por categoria.',
+      description: 'Procure pela descrição ou filtre por categoria e por tag, como #Mercado.',
       side: 'bottom',
     },
     {

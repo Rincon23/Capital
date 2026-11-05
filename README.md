@@ -676,7 +676,8 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   "Diversos", e o `preset` continua `diversos`), **Investimentos** (qualquer investimento que faça o
   dinheiro render), **Metas** (casa, carro, casamento, aniversário, viagem) e **Conhecimentos**
   (cursos, livros, eventos). Nome, descrição e ordem são fixos: não se cria, não se arquiva e não se
-  renomeia categoria. A pessoa só muda a **%** e a **cor**.
+  renomeia categoria. A pessoa só muda a **%** e a **cor**. Para acompanhar algo à parte (o
+  mercado, uma viagem), existem as **tags** (abaixo).
 - **O servidor garante** (`enforceFixedTopics`): um salvamento de configurações só aproveita a % e a
   cor de cada uma das quatro; uma categoria a mais, outro nome, outra descrição, outra ordem ou
   `archived` são ignorados. Importar um backup antigo passa por `consolidateBudgetData`.
@@ -717,6 +718,42 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   inteira para o "posso gastar" da categoria escolhida ("+ Renda só desta categoria" no detalhe
   dela). Se a categoria não estiver mais no mês, a renda volta a ser dividida pelas %, para
   nenhum dinheiro sumir do orçamento.
+
+### Tags
+
+**Categoria** é uma das 4 metas e decide de onde sai o dinheiro. **Tag** é só um rótulo para achar
+depois: não muda nenhum número — nem limite, nem sobra, nem fatura, nem histórico. Nenhum arquivo de
+cálculo de `lib/budget` lê tag (há um teste que compara o mesmo mês com e sem tags). As regras ficam
+em `lib/budget/tags.ts`.
+
+- **Duas listas**: tags de gasto ("Mercado", "Restaurante", "Viagem") e tags de renda ("Trabalho",
+  "Bico"); uma não aparece na outra. Até 10 tags por lançamento, 100 por lista, nome de 1 a 30
+  letras, sem repetir na mesma lista (maiúsculas e acentos não contam) e nunca com o nome de uma
+  das 4 categorias. Conta nova começa sem tags; o campo sugere as de cima com um toque.
+- **Marcar**: o campo **Tags** (opcional) fica no fim dos formulários de gasto, renda, conta do
+  mês e parcelamento, com "+ Nova tag" ali mesmo. A primeira vez, uma linha explica a diferença
+  para categoria (aviso de uma vez, `tags-vs-categories` em `dismissed_notices`).
+- **Filtrar** em Lançamentos: o "Filtrar" das duas abas tem as tags do tipo delas (em Gastos,
+  junto das categorias). Dentro das tags é "ou", dentro das categorias também, e entre as duas é
+  "e" ("Prazeres e Confortos" + "Restaurante"). A linha "N gastos · R$ X" responde "quanto foi no
+  mercado este mês"; a busca também acha pelo nome da tag; e o filtro de tag vai junto ao trocar
+  de mês (`?tags=`). Cada linha mostra as tags em pílulas `#Mercado` (duas e "+N").
+- **Editar**: na engrenagem de Lançamentos (seção Tags) e em "Editar tags" no formulário. Criar,
+  renomear e trocar a cor salvam na hora (o lançamento guarda o id, então o nome novo vale em
+  todo lugar). **Apagar** diz de quantos lançamentos ela sai e a tira de todos, das contas do mês
+  e dos parcelamentos na mesma transação, com "Desfazer" (`deleteTag` devolve onde ela estava e
+  `restoreTag` a põe de volta).
+- **Mês fechado**: pôr ou tirar tag é permitido, como o "Já me pagou" (`setEntryTags`); o
+  formulário de um mês fechado só deixa mudar as tags.
+- **Contas do mês e parcelamentos herdam**: o gasto lançado de um modelo, cada parcela e o gasto
+  "à vista" de um parcelamento nascem com as tags dele. Mudar a tag do modelo não reescreve o que
+  já foi lançado; editar o parcelamento refaz as parcelas com as tags dele.
+- **Servidor**: as tags vivem em `budget_settings.tags` e mudam só pelas rotas `/api/v1/tags`
+  (um salvamento comum das configurações nunca as toca). Cada lançamento, modelo e parcelamento
+  guarda `tag_ids`, só com ids que existem e do tipo certo; um cliente antigo que não manda
+  `tagIds` mantém as que estavam. Backup versão 4; os de antes entram sem tags.
+- Fora do escopo: meta ou limite por tag, gráfico por tag e tag sugerida na revisão de Bancos (o
+  que é confirmado direto de lá nasce sem tag; aberto no formulário, dá para pôr).
 
 ## Como rodar (desenvolvimento)
 
