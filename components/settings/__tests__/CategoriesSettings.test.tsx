@@ -3,8 +3,6 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import {
   DEFAULT_SPECIAL_CATEGORY_LABELS,
   DEFAULT_TOPICS,
-  KEEP_DEFAULT_TOPICS_ADVICE,
-  activeTopics,
   createDefaultTopics,
   type BudgetSettings,
 } from '@/lib/budget';
@@ -43,81 +41,66 @@ const savedTopics = (state: typeof settingsState) =>
   (state.saveSettings.mock.calls[0][0] as BudgetSettings).topics;
 
 describe('CategoriesSettings', () => {
-  it('mostra para que serve cada categoria e não tem como excluir', () => {
+  it('mostra as quatro com para que serve cada uma, sem criar, arquivar nem renomear', () => {
     renderSettings();
     for (const preset of DEFAULT_TOPICS) {
-      expect(screen.getByDisplayValue(preset.description)).toBeInTheDocument();
+      expect(screen.getByText(preset.name)).toBeInTheDocument();
+      expect(screen.getByText(preset.description)).toBeInTheDocument();
     }
-    expect(screen.queryByRole('button', { name: /excluir/i })).not.toBeInTheDocument();
-    expect(screen.getAllByText(KEEP_DEFAULT_TOPICS_ADVICE).length).toBeGreaterThan(0);
+    expect(screen.getByText('Prazeres e Confortos')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /adicionar categoria/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /arquivar|excluir|mover/i })).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Nome da categoria')).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Para que serve esta categoria?')).not.toBeInTheDocument();
   });
 
-  it('arquiva (com confirmação), esconde da lista e mantém a categoria no que é salvo', async () => {
+  it('salva a % e a cor, só com 100%', async () => {
     const state = renderSettings();
-    const metas = state.settings.topics.find((t) => t.preset === 'metas')!;
+    const save = screen.getByRole('button', { name: 'Salvar categorias' });
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Arquivar' })[2]);
-    const dialog = await screen.findByRole('dialog', { name: 'Arquivar categoria' });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Arquivar' }));
-    await waitFor(() => expect(screen.queryByDisplayValue('Metas')).not.toBeInTheDocument());
-
-    // The other three now need to add up to 100% again.
     fireEvent.change(screen.getByLabelText('Percentual de Investimentos', { selector: 'input' }), {
-      target: { value: '70' },
+      target: { value: '35' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Salvar categorias' }));
+    expect(save).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Percentual de Metas', { selector: 'input' }), {
+      target: { value: '35' },
+    });
+    fireEvent.change(screen.getByLabelText('Cor de Metas'), { target: { value: '#123456' } });
+    fireEvent.click(save);
 
     await waitFor(() => expect(state.saveSettings).toHaveBeenCalledTimes(1));
     const topics = savedTopics(state);
-    expect(topics).toHaveLength(4);
-    expect(topics.find((t) => t.id === metas.id)).toMatchObject({ archived: true });
+    expect(topics.map((t) => t.name)).toEqual(DEFAULT_TOPICS.map((t) => t.name));
+    expect(topics.find((t) => t.preset === 'metas')).toMatchObject({ targetPct: 0.35, color: '#123456' });
   });
 
-  it('avisa que o padrão costuma bastar antes de criar uma categoria', async () => {
-    renderSettings();
-    fireEvent.click(screen.getByRole('button', { name: '+ Adicionar categoria' }));
-    const dialog = await screen.findByRole('dialog', { name: /criar uma categoria nova/i });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Manter como está' }));
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.getAllByPlaceholderText('Nome da categoria')).toHaveLength(4);
-
-    fireEvent.click(screen.getByRole('button', { name: '+ Adicionar categoria' }));
-    fireEvent.click(
-      within(await screen.findByRole('dialog', { name: /criar uma categoria nova/i })).getByRole('button', {
-        name: 'Criar mesmo assim',
-      }),
-    );
-    await waitFor(() => expect(screen.getAllByPlaceholderText('Nome da categoria')).toHaveLength(5));
-    expect(screen.getAllByPlaceholderText('Nome da categoria').at(-1)).toHaveValue('');
-    expect(screen.getAllByPlaceholderText('Para que serve esta categoria?').at(-1)).toHaveValue('');
-    expect(screen.getByRole('button', { name: 'Desistir' })).toBeInTheDocument();
-  });
-
-  it('restaura as categorias padrão arquivando as criadas', async () => {
+  it('volta às % padrão, mantendo as quatro', async () => {
     const defaults = createDefaultTopics();
     const state = renderSettings({
       topics: [
-        { ...defaults[0], targetPct: 0.1 },
-        defaults[1],
+        { ...defaults[0], targetPct: 0.4 },
+        { ...defaults[1], targetPct: 0.25 },
         defaults[2],
         defaults[3],
-        { id: 'minha', name: 'Pets', description: 'Ração', targetPct: 0.1, order: 4 },
       ],
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Restaurar categorias padrão' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar às % padrão' }));
     fireEvent.click(
-      within(await screen.findByRole('dialog', { name: /restaurar categorias padrão/i })).getByRole(
-        'button',
-        {
-          name: 'Restaurar',
-        },
-      ),
+      within(await screen.findByRole('dialog', { name: /voltar às % padrão/i })).getByRole('button', {
+        name: 'Voltar',
+      }),
     );
 
     await waitFor(() => expect(state.saveSettings).toHaveBeenCalledTimes(1));
     const topics = savedTopics(state);
-    expect(activeTopics(topics).map((t) => t.name)).toEqual(DEFAULT_TOPICS.map((t) => t.name));
-    expect(topics.find((t) => t.id === 'minha')).toMatchObject({ archived: true });
+    expect(topics.map((t) => t.id)).toEqual(defaults.map((t) => t.id));
+    expect(topics.map((t) => t.targetPct)).toEqual(DEFAULT_TOPICS.map((t) => t.targetPct));
+  });
+
+  it('diz quando as % já estão no padrão', () => {
+    renderSettings();
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar às % padrão' }));
+    expect(screen.getByText('Suas categorias já estão com as % padrão.')).toBeInTheDocument();
   });
 });

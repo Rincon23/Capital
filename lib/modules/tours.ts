@@ -80,8 +80,8 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
     {
       route: categories,
       anchor: 'categorias',
-      title: 'Suas categorias',
-      description: 'Cada uma recebe uma % da renda. Toque para ver.',
+      title: 'Suas 4 metas',
+      description: 'Cada categoria recebe uma % da renda. Toque para ver.',
       side: 'top',
     },
     {

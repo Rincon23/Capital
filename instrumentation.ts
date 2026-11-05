@@ -32,6 +32,7 @@ export async function register() {
     { runRecurringLaunchLink },
     { runModulesAlwaysOnMigration },
     { runCarryOnCloseMigration },
+    { runFixedTopicsMigration },
     { syncModules },
   ] = await Promise.all([
     import('./lib/server/scheduler'),
@@ -42,6 +43,7 @@ export async function register() {
     import('./lib/server/recurringLaunchLink'),
     import('./lib/server/modulesAlwaysOnMigration'),
     import('./lib/server/carryOnCloseMigration'),
+    import('./lib/server/fixedTopicsMigration'),
     import('./lib/server/adminRepository'),
   ]);
 
@@ -80,6 +82,12 @@ export async function register() {
     await runCarryOnCloseMigration(getDb());
   } catch (err) {
     console.error('[orçamento] falha ao recalcular a sobra dos meses:', err);
+  }
+
+  try {
+    await runFixedTopicsMigration(getDb());
+  } catch (err) {
+    console.error('[categorias] falha ao deixar só as quatro categorias:', err);
   }
 
   // Every start: each account's modules as its access says (all, but the restricted ones it may

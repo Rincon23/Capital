@@ -48,7 +48,7 @@ import { setReimbursed } from '@/lib/storage';
 /**
  * Two tabs: every expense of the month in one list ("Gastos"), and the income ("Renda"). Which
  * categories the list shows is a filter, not a tab — the person sees everything first and narrows
- * it down to "só Diversos" (or "só Custos Fixos e Imprevistos") when they want to.
+ * it down to "só Metas" (or "só Custos Fixos e Imprevistos") when they want to.
  */
 type TabKey = 'expenses' | 'income';
 

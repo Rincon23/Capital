@@ -356,8 +356,8 @@ const PLUGGY_CATEGORY_WORDS: Record<string, string[]> = {
 };
 
 /**
- * Pluggy's categories by what the app's own categories mean (lib/budget/topics.ts): Diversos is
- * "os prazeres e confortos da vida", Conhecimentos "cursos, livros", Metas "viagem", and fixed
+ * Pluggy's categories by what the app's own categories mean (lib/budget/topics.ts): Prazeres e
+ * Confortos is "passeios, presentes, restaurantes", Conhecimentos "cursos, livros", Metas "viagem", and fixed
  * costs are "aluguel, contas, assinaturas". Used only while the person keeps that default category
  * (its preset), and always as a suggestion. What is not obvious (the supermarket) gets no guess.
  */

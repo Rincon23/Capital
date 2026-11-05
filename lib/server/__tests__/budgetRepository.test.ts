@@ -45,14 +45,14 @@ function fixedCost(overrides: Partial<Expense> = {}): Expense {
 
 async function diversosId(repo: PostgresBudgetRepository): Promise<string> {
   const settings = await repo.getSettings();
-  return settings.topics.find((t) => t.name === 'Diversos')!.id;
+  return settings.topics.find((t) => t.name === 'Prazeres e Confortos')!.id;
 }
 
 describe('PostgresBudgetRepository', () => {
   it('seeds the default categories once, with no demo month', async () => {
     const { repo } = await newAccount();
     const first = await repo.getSettings();
-    expect(first.topics.map((t) => t.name)).toEqual(['Diversos', 'Investimentos', 'Metas', 'Conhecimentos']);
+    expect(first.topics.map((t) => t.name)).toEqual(['Prazeres e Confortos', 'Investimentos', 'Metas', 'Conhecimentos']);
 
     const second = await repo.getSettings();
     expect(second.topics).toEqual(first.topics);
@@ -148,7 +148,7 @@ describe('PostgresBudgetRepository', () => {
   it("keeps an existing category's carryIn when Settings only reorders categories", async () => {
     const { repo } = await newAccount();
     const settings = await repo.getSettings();
-    const diversos = settings.topics.find((t) => t.name === 'Diversos')!;
+    const diversos = settings.topics.find((t) => t.name === 'Prazeres e Confortos')!;
     const investimentos = settings.topics.find((t) => t.name === 'Investimentos')!;
 
     await repo.ensureMonth('2026-01');
@@ -175,7 +175,7 @@ describe('PostgresBudgetRepository', () => {
     const lastMonth = previousMonth(thisMonth);
     const { repo } = await newAccount();
     const settings = await repo.getSettings();
-    const diversos = settings.topics.find((t) => t.name === 'Diversos')!;
+    const diversos = settings.topics.find((t) => t.name === 'Prazeres e Confortos')!;
     const investimentos = settings.topics.find((t) => t.name === 'Investimentos')!;
 
     await repo.ensureMonth(lastMonth);
@@ -216,7 +216,7 @@ describe('PostgresBudgetRepository', () => {
   it('deletes a middle month: the next month rolls over from the one before, the first keeps its anchor', async () => {
     const { repo } = await newAccount();
     const settings = await repo.getSettings();
-    const diversos = settings.topics.find((t) => t.name === 'Diversos')!.id;
+    const diversos = settings.topics.find((t) => t.name === 'Prazeres e Confortos')!.id;
     const topicsSnapshot = settings.topics;
     const zero = Object.fromEntries(topicsSnapshot.map((t) => [t.id, 0]));
     // January starts with a balance carried in from outside the app (e.g. the old spreadsheet).
@@ -434,7 +434,7 @@ describe('PostgresBudgetRepository', () => {
     expect(await bob.repo.listMonths()).toEqual([]);
   });
 
-  it('never deletes a category: one left out of a save comes back archived, and descriptions persist', async () => {
+  it('always keeps the four categories: a save changes only their % and colour', async () => {
     const { repo } = await newAccount();
     const settings = await repo.getSettings();
     expect(settings.topics.map((t) => t.preset)).toEqual([
@@ -448,13 +448,27 @@ describe('PostgresBudgetRepository', () => {
     const [diversos, ...rest] = settings.topics;
     await repo.saveSettings({
       ...settings,
-      topics: [...rest.map((t) => (t.preset === 'metas' ? { ...t, description: 'Viagem' } : t))],
+      topics: [
+        ...rest.map((t) =>
+          t.preset === 'metas'
+            ? { ...t, name: 'Viagens', description: 'Viagem', targetPct: 0.3, color: '#abcdef', archived: true }
+            : t,
+        ),
+        { id: 'nova', name: 'Pets', targetPct: 0.1, order: 4 },
+      ],
     });
 
     const saved = (await repo.getSettings()).topics;
-    expect(saved).toHaveLength(4);
-    expect(saved.find((t) => t.id === diversos.id)).toMatchObject({ archived: true, name: 'Diversos' });
-    expect(saved.find((t) => t.preset === 'metas')?.description).toBe('Viagem');
+    expect(saved.map((t) => t.id)).toEqual(settings.topics.map((t) => t.id));
+    expect(saved.find((t) => t.id === diversos.id)).toMatchObject({ name: 'Prazeres e Confortos' });
+    expect(saved.find((t) => t.id === diversos.id)?.archived).toBeFalsy();
+    expect(saved.find((t) => t.preset === 'metas')).toMatchObject({
+      name: 'Metas',
+      description: settings.topics[2].description,
+      targetPct: 0.3,
+      color: '#abcdef',
+    });
+    expect(saved.find((t) => t.preset === 'metas')?.archived).toBeFalsy();
   });
 
   it('starts everyone with every module, and keeps the switches the server saves per account', async () => {

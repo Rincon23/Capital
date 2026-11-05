@@ -130,14 +130,18 @@ export const budgetChecks: SelfCheck[] = [
         expectEqual(summary.availableTotal, 1800, 'Total disponível nas categorias');
         expectEqual(summary.balance, 1700, 'Saldo geral');
         const result = summary.topics.find((topic) => topic.topicId === diversos);
-        expect(result, 'A categoria Diversos sumiu do resumo do mês.');
-        expectEqual(result.spent, 100, 'Gasto em Diversos');
-        expectEqual(result.remaining, result.available - 100, 'O que ainda dá para gastar em Diversos');
+        expect(result, 'A categoria Prazeres e Confortos sumiu do resumo do mês.');
+        expectEqual(result.spent, 100, 'Gasto em Prazeres e Confortos');
+        expectEqual(
+          result.remaining,
+          result.available - 100,
+          'O que ainda dá para gastar em Prazeres e Confortos',
+        );
       }),
   },
   {
-    id: 'budget.archive',
-    name: 'Categoria tirada da lista fica arquivada, nunca apagada',
+    id: 'budget.fixed-topics',
+    name: 'As quatro categorias ficam sempre, com os nomes delas',
     run: ({ scratch }) =>
       scratch(async (account) => {
         const { budget } = account;
@@ -145,11 +149,27 @@ export const budgetChecks: SelfCheck[] = [
         const settings = await budget.getSettings();
         await budget.saveSettings({
           ...settings,
-          topics: settings.topics.filter((topic) => topic.id !== diversos),
+          topics: [
+            ...settings.topics
+              .filter((topic) => topic.id !== diversos)
+              .map((topic) => ({ ...topic, name: 'Outro nome', archived: true })),
+            { id: createId(), name: 'Criada', targetPct: 0.1, order: 9 },
+          ],
         });
-        const kept = (await budget.getSettings()).topics.find((topic) => topic.id === diversos);
-        expect(kept, 'Uma categoria foi apagada; elas só podem ser arquivadas.');
-        expect(kept.archived === true, 'A categoria tirada da lista não ficou arquivada.');
+        const saved = (await budget.getSettings()).topics;
+        expectEqual(saved.length, 4, 'Quantas categorias a conta tem');
+        expect(
+          saved.some((topic) => topic.id === diversos),
+          'Prazeres e Confortos foi apagada.',
+        );
+        expect(
+          saved.every((topic) => !topic.archived),
+          'Uma das quatro categorias ficou arquivada.',
+        );
+        expect(
+          !saved.some((topic) => topic.name === 'Outro nome'),
+          'Uma das quatro categorias foi renomeada.',
+        );
       }),
   },
 ];
@@ -237,7 +257,11 @@ export const historyChecks: SelfCheck[] = [
         const carried = async () => (await budget.getMonth(second))?.carryIn[diversos];
         expectEqual(await carried(), 0, 'Sobra com o mês ainda aberto');
         await budget.closeMonth(first);
-        expectEqual(await carried(), await leftover(), 'Sobra de Diversos levada ao fechar o mês');
+        expectEqual(
+          await carried(),
+          await leftover(),
+          'Sobra de Prazeres e Confortos levada ao fechar o mês',
+        );
 
         // Reopened, the leftovers go back to it; closing again takes what changed.
         await budget.reopenMonth(first);
@@ -276,7 +300,7 @@ export const historyChecks: SelfCheck[] = [
         const carried = async () => (await budget.getMonth(second))?.carryIn[diversos] ?? 0;
 
         await budget.closeMonth(first, false, true);
-        expectEqual(await carried(), 0, 'Sobra de Diversos depois de fechar sem trazer');
+        expectEqual(await carried(), 0, 'Sobra de Prazeres e Confortos depois de fechar sem trazer');
 
         await budget.reopenMonth(first);
         await budget.closeMonth(first);

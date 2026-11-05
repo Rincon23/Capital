@@ -23,8 +23,9 @@ export type CategoryKind = 'topic' | 'fixedCost' | 'unforeseen' | 'reimbursable'
 export type TopicPreset = 'diversos' | 'investimentos' | 'metas' | 'conhecimentos';
 
 /**
- * A budget category ("Diversos", "Investimentos", ...). Never deleted, only archived: past months
- * keep what it had, and archived categories are never shown.
+ * A budget category: one of the four of every account ("Prazeres e Confortos", "Investimentos",
+ * "Metas", "Conhecimentos"; see `DEFAULT_TOPICS`). They are never created, archived or renamed any
+ * more; `archived` and categories other than the four only exist in older data and past months.
  */
 export interface TopicConfig {
   id: string;

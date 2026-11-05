@@ -261,7 +261,7 @@ Tudo o que é cartão vive em `/cartao`, em três abas — a **Fatura** olha um 
 **Lançar um gasto.** O botão "Cartão" ao lado do valor (rótulo acessível "A compra foi no
 cartão?") tem borda e cor normais, para não passar despercebido. Salvar um gasto novo mostra o que
 ele fez com a categoria, com **Desfazer** (`expenseFeedback` em `lib/budget/feedback.ts`): "R$ 45,00
-em Diversos · ainda dá R$ 320,00 este mês", ou "passou R$ 30,00 da meta"; custos fixos e
+em Prazeres e Confortos · ainda dá R$ 320,00 este mês", ou "passou R$ 30,00 da meta"; custos fixos e
 imprevistos falam do total, e A receber e Fora do orçamento dizem que não mexem em categoria. Um
 gasto sem descrição leva o nome da categoria. A receber e Fora do orçamento, ao serem escolhidos,
 mostram uma linha curta (com o "Não recomendado") e o resto atrás de um ⓘ.
@@ -491,7 +491,7 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
     - **categoria sugerida**, nesta ordem: o que a pessoa escolheu antes para a mesma descrição;
       uma categoria dita na descrição (as regras de `lib/categoryText`, sem IA); a categoria da Pluggy
       traduzida para os nomes das categorias da pessoa; e o que as categorias padrão significam
-      (Diversos = comer fora, compras, lazer; Conhecimentos = cursos e livros; Metas = viagem;
+      (Prazeres e Confortos = comer fora, compras, lazer; Conhecimentos = cursos e livros; Metas = viagem;
       Custos Fixos = assinaturas, contas, aluguel). Sem palpite, o botão vira "Escolher
       categoria" e abre o formulário: nada é chutado;
     - **cartões** (o que importa é qual compra ficou de fora, nunca quanto se deve): a aba Gastos
@@ -670,12 +670,22 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
 
 ### Categorias
 
-- **As quatro padrão** (`DEFAULT_TOPICS` em `lib/budget/topics.ts`) vêm com uma descrição que ensina
-  o jeito certo de usar: **Diversos** (os prazeres e confortos da vida, presentes e o que poderia
-  esperar, mas você quer agora), **Investimentos** (qualquer investimento que faça o dinheiro
-  render), **Metas** (casa, carro, casamento, aniversário, viagem) e **Conhecimentos** (tudo que
-  agrega conhecimento). Toda categoria tem descrição, que a pessoa escreve ao criar e pode editar.
-  Cada padrão guarda um `preset`, para ser reconhecida mesmo renomeada.
+- **Sempre as mesmas 4** (`DEFAULT_TOPICS` em `lib/budget/topics.ts`): uma pessoa tem 4 metas para
+  os gastos da vida, então toda conta tem exatamente estas, nesta ordem: **Prazeres e Confortos**
+  (passeios, presentes, restaurantes e o que poderia esperar, mas você quer agora; antes se chamava
+  "Diversos", e o `preset` continua `diversos`), **Investimentos** (qualquer investimento que faça o
+  dinheiro render), **Metas** (casa, carro, casamento, aniversário, viagem) e **Conhecimentos**
+  (cursos, livros, eventos). Nome, descrição e ordem são fixos: não se cria, não se arquiva e não se
+  renomeia categoria. A pessoa só muda a **%** e a **cor**.
+- **O servidor garante** (`enforceFixedTopics`): um salvamento de configurações só aproveita a % e a
+  cor de cada uma das quatro; uma categoria a mais, outro nome, outra descrição, outra ordem ou
+  `archived` são ignorados. Importar um backup antigo passa por `consolidateBudgetData`.
+- **Contas de antes** (`lib/server/fixedTopicsMigration.ts`, uma vez, marcada em `job_runs`):
+  "Diversos" virou "Prazeres e Confortos" também nos meses passados; uma das quatro que estava
+  arquivada voltou com 0%; e uma categoria criada pela pessoa foi juntada a Prazeres e Confortos —
+  a % dela, a sobra, os gastos, as rendas direcionadas, os modelos de Contas do mês, os
+  parcelamentos, as categorias da reserva investida e a memória de categoria dos Bancos —, para os
+  meses somarem o mesmo que antes.
 - **Custos Fixos**: um gasto de todo mês que é maior do que o limite médio mensal da categoria vai
   para custos fixos, e não para a categoria (sem exemplo de valor: depende de quanto cada categoria
   recebe). A tela Categorias explica renda, custos fixos, imprevistos e cada categoria. O nome
@@ -683,28 +693,21 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   guarda vários custos, e no singular parecia uma conta só; quem já tinha a conta criada foi
   renomeado uma vez só (`lib/server/fixedCostLabelMigration.ts`), e só quem ainda estava no nome
   padrão: um nome escolhido pela pessoa nunca é tocado.
-- **Criar é possível, mas desaconselhado**: ao lado de todo "Adicionar categoria" o app diz que a
-  maioria das pessoas fica satisfeita com as quatro padrão, e pede confirmação antes de criar.
-- **Nunca se exclui, só se arquiva.** A categoria arquivada some da lista (não há lista de
-  arquivadas) e os meses passados continuam como estavam. No mês atual e nos próximos ela some na
-  hora; se o mês atual já tiver gastos nela, ela fica até o fim do mês, marcada como arquivada e sem
-  % da renda, para nenhum gasto sumir dos totais. O servidor garante: um salvamento que deixe uma
-  categoria de fora a guarda arquivada (`keepEveryTopic`).
-- **Restaurar categorias padrão** (na engrenagem): as quatro padrão voltam como vieram (nome,
-  descrição, cor e %) e todas as outras são arquivadas, com "Desfazer".
+- **Voltar às % padrão** (na engrenagem da tela Categorias): as quatro voltam às % e cores de
+  quando a conta começou, com "Desfazer".
 - **Configuração das categorias** (`OnboardingWizard`: no primeiro acesso, na primeira visita a
   Categorias e no botão "Me ajude com as %"), em 3 passos, sempre com "Pular" (o da primeira visita
   leva para a Início; o de "Me ajude com as %" fica em Categorias): a renda; os custos
   fixos e os imprevistos na mesma tela (só para a prévia, nada é lançado; a regra do custo fixo fica
   no ⓘ); e as porcentagens, cada categoria com a descrição dela embaixo do nome e a prévia de quanto
-  a % deixa para gastar. Dá para criar uma categoria ali também, com o mesmo aviso.
+  a % deixa para gastar.
 - **"Fora do orçamento"** (`categoryKind: 'uncounted'`): ao lado das categorias, no formulário de
   gasto, fica a saída de emergência — marcada **"Não recomendado"** ali mesmo, e explicada em duas
   linhas sempre que é escolhida. O gasto fica registrado e, se foi no cartão, entra na fatura, mas
   **não consome nenhuma categoria** e fica fora do total gasto do mês e do rateio dos custos fixos
   (é o mesmo mecanismo do "A receber", mas sem ninguém para devolver o dinheiro — por isso o
-  aviso). Não é um módulo: está sempre ali, como Custo Fixo e Imprevistos, e o nome e a cor dela
-  podem ser mudados na engrenagem, junto com as outras. Em Lançamentos ela só ganha uma aba
+  aviso). Não é um módulo: está sempre ali, como Custos Fixos e Imprevistos, que continuam como
+  sempre foram, e o nome e a cor dela podem ser mudados na engrenagem, junto com as outras. Em Lançamentos ela só ganha uma aba
   **depois** que o mês tem algum gasto assim, para não ficar convidando.
 
 - **Renda para uma categoria só** (`Income.topicId`): no formulário de renda (com o orçamento

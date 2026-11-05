@@ -1,4 +1,19 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lt, lte, max, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  max,
+  notInArray,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { computeMonthSummary } from '../budget/calculations';
 import { DEFAULT_SPECIAL_CATEGORY_LABELS } from '../budget/categories';
 import { DEFAULT_SPECIAL_CATEGORY_COLORS } from '../budget/colors';
@@ -13,7 +28,12 @@ import {
   type MonthStatus,
 } from '../budget/rollover';
 import { createDefaultSettings } from '../budget/seed';
-import { keepEveryTopic } from '../budget/topics';
+import {
+  consolidateBudgetData,
+  consolidateMonthTopics,
+  consolidateTopics,
+  enforceFixedTopics,
+} from '../budget/topics';
 import type {
   BudgetSettings,
   Expense,
@@ -30,7 +50,16 @@ import {
   type BackupPayload,
   type BudgetRepository,
 } from '../storage/repository';
-import { budgetSettings, expenses, incomes, installments, months } from './db/schema';
+import {
+  bankCategoryMemory,
+  budgetSettings,
+  expenses,
+  incomes,
+  installments,
+  investmentBuckets,
+  months,
+  recurringExpenses,
+} from './db/schema';
 import type { Database, Transaction } from './db/types';
 import { homeTemplate } from './homeTemplate';
 import { HttpError } from './httpError';
@@ -154,14 +183,9 @@ export class PostgresBudgetRepository implements BudgetRepository {
 
   async saveSettings(settings: BudgetSettings): Promise<void> {
     await this.write(async (tx) => {
-      // A category is never deleted, only archived (past months keep what it had).
+      // Always the four categories: only their % and colour come from what was sent.
       const previous = await this.readSettings(tx);
-      const topics = keepEveryTopic(previous?.topics ?? [], settings.topics);
-      checkQuota(
-        topics.length - 1,
-        QUOTAS.topics,
-        `Dá para ter até ${QUOTAS.topics} categorias, contando as arquivadas.`,
-      );
+      const topics = enforceFixedTopics(previous?.topics ?? settings.topics, settings.topics);
       await this.upsertSettings(tx, { ...settings, topics }, false);
     });
   }
@@ -494,13 +518,80 @@ export class PostgresBudgetRepository implements BudgetRepository {
 
   /** Replaces all of this account's data with the backup (settings, including the onboarding flag, and every month). */
   async importData(payload: BackupPayload): Promise<void> {
+    // A backup from before the four fixed categories may have others: they fold into Prazeres e
+    // Confortos, with their entries and leftovers (`consolidateBudgetData`).
+    const { settings, months: monthList } = consolidateBudgetData(payload.settings, payload.months);
     await this.write(async (tx) => {
       await tx.delete(months).where(eq(months.userId, this.userId));
-      await this.upsertSettings(tx, payload.settings, true);
-      await this.insertMonths(tx, payload.months);
+      await this.upsertSettings(tx, settings, true);
+      await this.insertMonths(tx, monthList);
       // A backup from before leftovers needed a closed month still has them on open months.
-      const [earliest] = payload.months.map((data) => data.month).sort();
+      const [earliest] = monthList.map((data) => data.month).sort();
       if (earliest) await this.recascade(tx, earliest);
+    });
+  }
+
+  /**
+   * The four fixed categories, applied to what this account already has (the one-off migration,
+   * lib/server/fixedTopicsMigration.ts): the four get their fixed name and description — in the
+   * settings and in every month's own copy — and any other category goes away. What pointed at
+   * one (expenses, incomes sent to it, recurring templates, instalment plans, reserve buckets,
+   * the bank's category memory, the quick categories) moves to Prazeres e Confortos, and so do
+   * its % and its leftovers, so the numbers add up to what they did. Running it again changes
+   * nothing. Returns how many categories went away and how many entries moved.
+   */
+  async applyFixedTopics(): Promise<{ topics: number; entries: number }> {
+    return this.write(async (tx) => {
+      const settings = await this.readSettings(tx);
+      if (!settings) return { topics: 0, entries: 0 };
+
+      const { topics, moved } = consolidateTopics(settings.topics);
+      const { settings: fixedSettings } = consolidateBudgetData(settings, []);
+      await tx
+        .update(budgetSettings)
+        .set({ topics, quickCategories: fixedSettings.quickCategories ?? null })
+        .where(eq(budgetSettings.userId, this.userId));
+
+      const fixedIds = topics.map((topic) => topic.id);
+      const main = fixedIds[0];
+      let entries = 0;
+      for (const table of [
+        expenses,
+        incomes,
+        recurringExpenses,
+        installments,
+        investmentBuckets,
+        bankCategoryMemory,
+      ] as const) {
+        const changed = await tx
+          .update(table)
+          .set({ topicId: main })
+          .where(
+            and(eq(table.userId, this.userId), isNotNull(table.topicId), notInArray(table.topicId, fixedIds)),
+          )
+          .returning({ userId: table.userId });
+        entries += changed.length;
+      }
+
+      const rows = await tx
+        .select({ month: months.month, carryIn: months.carryIn, topicsSnapshot: months.topicsSnapshot })
+        .from(months)
+        .where(eq(months.userId, this.userId))
+        .orderBy(asc(months.month));
+      for (const row of rows) {
+        const next = consolidateMonthTopics(row.topicsSnapshot, row.carryIn, topics);
+        if (
+          JSON.stringify(next.topicsSnapshot) === JSON.stringify(row.topicsSnapshot) &&
+          JSON.stringify(next.carryIn) === JSON.stringify(row.carryIn)
+        ) {
+          continue;
+        }
+        await tx.update(months).set(next).where(this.monthKey(row.month));
+      }
+
+      const removed = Object.keys(moved).length;
+      if ((removed > 0 || entries > 0) && rows[0]) await this.recascade(tx, rows[0].month);
+      return { topics: removed, entries };
     });
   }
 

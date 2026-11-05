@@ -16,8 +16,8 @@ export function createDefaultSettings(): BudgetSettings {
 
 /** Demo data for the first run, per the product spec's seed scenario. */
 export function createSeedMonthData(month: Month, topics: TopicConfig[]): MonthData {
-  const diversos = topics.find((t) => t.name === 'Diversos');
-  const conhecimento = topics.find((t) => t.name === 'Conhecimentos');
+  const diversos = topics.find((t) => t.preset === 'diversos');
+  const conhecimento = topics.find((t) => t.preset === 'conhecimentos');
 
   return {
     month,

@@ -135,7 +135,7 @@ async function scratchAccount(db: Database, now: Date): Promise<ScratchAccount> 
   };
 }
 
-/** The first category of the given preset in a fresh account ("Diversos", "Investimentos"…). */
+/** The first category of the given preset in a fresh account ("Prazeres e Confortos", "Investimentos"…). */
 export async function presetTopic(account: ScratchAccount, preset: string): Promise<string> {
   const settings = await account.budget.getSettings();
   const topic = settings.topics.find((item) => item.preset === preset && !item.archived);

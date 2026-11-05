@@ -926,7 +926,7 @@ export class PostgresDiagramRepository {
       throw new HttpError(
         409,
         'NO_INVESTMENTS_TOPIC',
-        'Não encontrei a categoria Investimentos no seu orçamento. Aporte sem lançar o gasto, ou restaure as categorias padrão.',
+        'Não encontrei a categoria Investimentos no seu orçamento. Aporte sem lançar o gasto.',
       );
     }
     const expense: Expense = {

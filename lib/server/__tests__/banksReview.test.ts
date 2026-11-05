@@ -174,7 +174,7 @@ describe("the month's check", () => {
     expect(item).toMatchObject({ onCard: true, cardId: 'nubank', category: null });
 
     const settings = await repo.getSettings();
-    const diversos = settings.topics.find((topic) => topic.name === 'Diversos')!.id;
+    const diversos = settings.topics.find((topic) => topic.name === 'Prazeres e Confortos')!.id;
     const month = item.date.slice(0, 7);
     const expense = {
       id: randomUUID(),

@@ -3,20 +3,17 @@
 import { useState } from 'react';
 import {
   BUDGET_EXPLANATIONS,
-  DEFAULT_TOPIC_COLORS,
-  KEEP_DEFAULT_TOPICS_ADVICE,
   REIMBURSABLE_EXPLANATION,
   UNCOUNTED_EXPLANATION,
   activeTopics,
-  createId,
   formatPct,
-  hasDefaultTopics,
+  hasDefaultTargets,
   normalizeTopic,
   resolveSpecialCategoryColors,
   resolveSpecialCategoryLabels,
   resolveTopicColor,
-  restoreDefaultTopics,
   validateTopicPercentages,
+  withDefaultTargets,
   type BudgetSettings,
   type ResolvedSpecialCategoryLabels,
   type SpecialCategoryColors,
@@ -38,12 +35,10 @@ const SPECIAL_CATEGORY_FIELDS: {
 ];
 
 /**
- * The categories expenses are filed under: name, description, colour and order, plus the special
- * categories. With `withTargets` (the Categorias screen, "Gastos por categoria" on) each one also
- * gets its target percentage, and saving requires them to add up to 100%.
- *
- * A category is never deleted, only archived, and archived ones are not listed. "Restaurar
- * categorias padrão" brings back the four defaults and takes every other category out of the list.
+ * The four categories expenses are filed under, plus the special ones. The four are always the
+ * same (lib/budget/topics.ts): nothing here creates, archives, renames or reorders them — only
+ * the colour and, with `withTargets` (the Categorias screen), the target percentage, which have
+ * to add up to 100% to save. "Voltar às % padrão" puts back the % and colours they come with.
  */
 export function CategoriesSettings({ withTargets, onSaved }: { withTargets: boolean; onSaved?: () => void }) {
   const { settings, saveSettings } = useSettings();
@@ -72,15 +67,14 @@ function CategoriesForm({
   const confirm = useConfirm();
   const { showToast } = useToast();
   // A draft, seeded once: nothing changes until "Salvar".
-  const [topics, setTopics] = useState<TopicConfig[]>(() => settings.topics.map(normalizeTopic));
+  const [topics, setTopics] = useState<TopicConfig[]>(() => activeTopics(settings.topics).map(normalizeTopic));
   const [special, setSpecial] = useState<ResolvedSpecialCategoryLabels>(() =>
     resolveSpecialCategoryLabels(settings),
   );
   const [specialColors, setSpecialColors] = useState<SpecialCategoryColors>(() =>
     resolveSpecialCategoryColors(settings),
   );
-  const [adviceAccepted, setAdviceAccepted] = useState(false);
-  /** "Restaurar" tapped with nothing to restore; said here, since a toast sits behind the sheet. */
+  /** "Voltar" tapped with nothing to change; said here, since a toast sits behind the sheet. */
   const [alreadyDefault, setAlreadyDefault] = useState(false);
   /** A failed save, shown in the sheet (a toast would sit behind it). */
   const [error, setError] = useState<string | null>(null);
@@ -88,10 +82,7 @@ function CategoriesForm({
 
   const modules = resolveModules(settings);
   const validation = validateTopicPercentages(topics);
-  const shown = activeTopics(topics);
-  const savedIds = new Set(settings.topics.map((t) => t.id));
-  const namesFilled = shown.every((t) => t.name.trim().length > 0);
-  const canSave = namesFilled && (!withTargets || validation.valid);
+  const canSave = !withTargets || validation.valid;
   // The "A receber" label and colour only make sense while its module is on; "Fora do orçamento"
   // is not a module, so it is always here to be renamed.
   const specialFields = [
@@ -102,67 +93,8 @@ function CategoriesForm({
     { key: 'uncounted' as const, label: 'Fora do orçamento', explanation: UNCOUNTED_EXPLANATION },
   ];
 
-  function updateTopic(id: string, patch: Partial<TopicConfig>) {
+  function updateTopic(id: string, patch: Pick<Partial<TopicConfig>, 'color' | 'targetPct'>) {
     setTopics((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
-  }
-
-  /** Swaps places with the neighbour among the categories shown (archived ones keep theirs). */
-  function moveTopic(id: string, direction: -1 | 1) {
-    const index = shown.findIndex((t) => t.id === id);
-    const other = shown[index + direction];
-    if (!other) return;
-    const current = shown[index];
-    setTopics((prev) =>
-      prev.map((t) => {
-        if (t.id === current.id) return { ...t, order: other.order };
-        if (t.id === other.id) return { ...t, order: current.order };
-        return t;
-      }),
-    );
-  }
-
-  async function addTopic() {
-    if (!adviceAccepted) {
-      const confirmed = await confirm({
-        title: 'Criar uma categoria nova?',
-        message: (
-          <>
-            <span className="block">{KEEP_DEFAULT_TOPICS_ADVICE}</span>
-            <span className="mt-2 block">Depois ela só pode ser arquivada.</span>
-          </>
-        ),
-        confirmLabel: 'Criar mesmo assim',
-        cancelLabel: 'Manter como está',
-      });
-      if (!confirmed) return;
-      setAdviceAccepted(true);
-    }
-    setTopics((prev) => [
-      ...prev,
-      {
-        id: createId(),
-        name: '',
-        description: '',
-        targetPct: 0,
-        order: Math.max(-1, ...prev.map((t) => t.order)) + 1,
-        color: DEFAULT_TOPIC_COLORS[prev.length % DEFAULT_TOPIC_COLORS.length],
-      },
-    ]);
-  }
-
-  async function archiveTopic(topic: TopicConfig) {
-    // A category created in this draft was never saved: giving up on it just drops it.
-    if (!savedIds.has(topic.id)) {
-      setTopics((prev) => prev.filter((t) => t.id !== topic.id));
-      return;
-    }
-    const confirmed = await confirm({
-      title: 'Arquivar categoria',
-      message: `"${topic.name}" sai a partir deste mês; os anteriores não mudam.`,
-      confirmLabel: 'Arquivar',
-      cancelLabel: 'Manter',
-    });
-    if (confirmed) updateTopic(topic.id, { archived: true });
   }
 
   async function handleSave() {
@@ -172,7 +104,7 @@ function CategoriesForm({
     try {
       await saveSettings({
         ...settings,
-        topics: topics.map((t) => ({ ...t, name: t.name.trim(), description: t.description?.trim() })),
+        topics,
         specialCategories: special,
         specialCategoryColors: specialColors,
       });
@@ -186,14 +118,14 @@ function CategoriesForm({
   }
 
   async function handleRestore() {
-    if (hasDefaultTopics(settings.topics)) {
+    if (hasDefaultTargets(settings.topics)) {
       setAlreadyDefault(true);
       return;
     }
     const confirmed = await confirm({
-      title: 'Restaurar categorias padrão',
-      message: 'Voltam as quatro padrão. Meses anteriores não mudam.',
-      confirmLabel: 'Restaurar',
+      title: 'Voltar às % padrão',
+      message: 'As quatro voltam às % e cores de quando você começou. Meses anteriores não mudam.',
+      confirmLabel: 'Voltar',
       cancelLabel: 'Cancelar',
     });
     if (!confirmed) return;
@@ -201,8 +133,8 @@ function CategoriesForm({
     setBusy(true);
     setError(null);
     try {
-      await saveSettings({ ...settings, topics: restoreDefaultTopics(settings.topics) });
-      showToast('Categorias padrão restauradas.', 'success', {
+      await saveSettings({ ...settings, topics: withDefaultTargets(settings.topics) });
+      showToast('As % voltaram ao padrão.', 'success', {
         action: {
           label: 'Desfazer',
           onClick: () =>
@@ -213,7 +145,7 @@ function CategoriesForm({
       });
       onSaved?.();
     } catch {
-      setError('Não foi possível restaurar. Tente de novo.');
+      setError('Não foi possível voltar ao padrão. Tente de novo.');
     } finally {
       setBusy(false);
     }
@@ -226,94 +158,36 @@ function CategoriesForm({
         <h2 className="text-muted text-sm font-semibold">
           {withTargets ? 'Categorias e metas' : 'Categorias'}
         </h2>
-        <p className="bg-primary/10 text-foreground rounded-lg px-3 py-2 text-xs leading-relaxed">
-          {KEEP_DEFAULT_TOPICS_ADVICE}
-        </p>
+        <p className="text-muted text-xs">As 4 metas para os gastos da vida. Você ajusta a % e a cor.</p>
         {!withTargets && modules.budget && (
           <p className="text-muted text-xs">As metas em % de cada categoria ficam na tela Categorias.</p>
         )}
         <div className="border-border bg-card flex flex-col gap-2 rounded-xl border p-4 shadow-sm">
-          {shown.map((topic, index) => {
-            const isNew = !savedIds.has(topic.id);
-            return (
-              <div key={topic.id} className="border-border flex flex-col gap-2 rounded-lg border p-3">
-                <div className="flex min-w-0 items-center gap-2">
-                  <input
-                    type="color"
-                    value={resolveTopicColor(topic, index)}
-                    onChange={(e) => updateTopic(topic.id, { color: e.target.value })}
-                    aria-label={`Cor de ${topic.name || 'nova categoria'}`}
-                    className="border-border h-10 w-10 shrink-0 cursor-pointer rounded-md border bg-transparent p-0.5"
-                  />
-                  <input
-                    type="text"
-                    value={topic.name}
-                    onChange={(e) => updateTopic(topic.id, { name: e.target.value })}
-                    placeholder="Nome da categoria"
-                    maxLength={40}
-                    className="border-border bg-background text-foreground focus:ring-primary min-h-[40px] w-0 min-w-0 flex-1 rounded-md border px-2 outline-none focus:ring-2"
-                    aria-label="Nome da categoria"
-                  />
-                  {withTargets && (
-                    <div className="flex shrink-0 items-center gap-1">
-                      <PercentInput
-                        value={topic.targetPct}
-                        onChange={(pct) => updateTopic(topic.id, { targetPct: pct })}
-                        ariaLabel={`Percentual de ${topic.name || 'nova categoria'}`}
-                      />
-                      <span className="text-muted">%</span>
-                    </div>
-                  )}
-                </div>
-                <textarea
-                  value={topic.description ?? ''}
-                  onChange={(e) => updateTopic(topic.id, { description: e.target.value })}
-                  rows={3}
-                  maxLength={300}
-                  placeholder="Para que serve esta categoria?"
-                  aria-label={`Descrição de ${topic.name || 'nova categoria'}`}
-                  className="border-border bg-background text-foreground focus:ring-primary w-full rounded-md border px-2 py-1.5 text-sm outline-none focus:ring-2"
+          {topics.map((topic, index) => (
+            <div key={topic.id} className="border-border flex flex-col gap-1 rounded-lg border p-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <input
+                  type="color"
+                  value={resolveTopicColor(topic, index)}
+                  onChange={(e) => updateTopic(topic.id, { color: e.target.value })}
+                  aria-label={`Cor de ${topic.name}`}
+                  className="border-border h-10 w-10 shrink-0 cursor-pointer rounded-md border bg-transparent p-0.5"
                 />
-                <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                  <div className="flex shrink-0 gap-1">
-                    <button
-                      type="button"
-                      onClick={() => moveTopic(topic.id, -1)}
-                      disabled={index === 0}
-                      aria-label="Mover para cima"
-                      className="border-border text-foreground min-h-[36px] min-w-[36px] rounded-md border disabled:opacity-30"
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => moveTopic(topic.id, 1)}
-                      disabled={index === shown.length - 1}
-                      aria-label="Mover para baixo"
-                      className="border-border text-foreground min-h-[36px] min-w-[36px] rounded-md border disabled:opacity-30"
-                    >
-                      ↓
-                    </button>
+                <span className="text-foreground min-w-0 flex-1 font-semibold">{topic.name}</span>
+                {withTargets && (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <PercentInput
+                      value={topic.targetPct}
+                      onChange={(pct) => updateTopic(topic.id, { targetPct: pct })}
+                      ariaLabel={`Percentual de ${topic.name}`}
+                    />
+                    <span className="text-muted">%</span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => void archiveTopic(topic)}
-                    className="border-border text-muted min-h-[36px] shrink-0 rounded-md border px-3"
-                  >
-                    {isNew ? 'Desistir' : 'Arquivar'}
-                  </button>
-                </div>
+                )}
               </div>
-            );
-          })}
-
-          <button
-            type="button"
-            onClick={() => void addTopic()}
-            className="border-border text-muted hover:text-foreground min-h-[44px] rounded-lg border border-dashed text-sm font-medium"
-          >
-            + Adicionar categoria
-          </button>
+              {topic.description && <p className="text-muted text-xs">{topic.description}</p>}
+            </div>
+          ))}
 
           {withTargets && (
             <p className={`text-sm ${validation.valid ? 'text-success' : 'text-danger'}`}>
@@ -324,7 +198,6 @@ function CategoriesForm({
                   : `Excesso de ${formatPct(-validation.diffPct)} além de 100%.`}
             </p>
           )}
-          {!namesFilled && <p className="text-danger text-sm">Dê um nome para cada categoria.</p>}
         </div>
       </section>
 
@@ -374,23 +247,23 @@ function CategoriesForm({
         </button>
       </section>
 
-      <section className="border-border flex flex-col gap-2 border-t px-4 pt-5">
-        <button
-          type="button"
-          onClick={() => void handleRestore()}
-          disabled={busy}
-          className="border-border text-foreground min-h-[44px] w-full rounded-lg border px-4 text-sm font-medium disabled:opacity-50"
-        >
-          Restaurar categorias padrão
-        </button>
-        {alreadyDefault ? (
-          <p className="text-success text-xs" role="status">
-            Suas categorias já estão no padrão. Não há nada para restaurar.
-          </p>
-        ) : (
-          <p className="text-muted text-xs">Criou categorias e não funcionou? Volte às quatro padrão.</p>
-        )}
-      </section>
+      {withTargets && (
+        <section className="border-border flex flex-col gap-2 border-t px-4 pt-5">
+          <button
+            type="button"
+            onClick={() => void handleRestore()}
+            disabled={busy}
+            className="border-border text-foreground min-h-[44px] w-full rounded-lg border px-4 text-sm font-medium disabled:opacity-50"
+          >
+            Voltar às % padrão
+          </button>
+          {alreadyDefault && (
+            <p className="text-success text-xs" role="status">
+              Suas categorias já estão com as % padrão.
+            </p>
+          )}
+        </section>
+      )}
     </div>
   );
 }

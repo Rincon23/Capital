@@ -31,7 +31,7 @@ export function sameCategory(a: CategoryOption, b: CategoryOption): boolean {
 
 /**
  * Ways of saying "someone will pay me back" (the bot's "Ressarcido"). They count less than
- * a category said by name, so "…vai me devolver, categoria diversos" stays in Diversos.
+ * a category said by name, so "…vai me devolver, categoria metas" stays in Metas.
  */
 const REIMBURSABLE_SYNONYMS = [
   'ressarcido',
@@ -46,7 +46,7 @@ const REIMBURSABLE_SYNONYMS = [
   'vao me pagar de volta',
 ];
 
-/** Said right before a category name: "categoria diversos", "na categoria de metas". */
+/** Said right before a category name: "categoria metas", "na categoria de investimentos". */
 const CATEGORY_CUE = /categoria[\s:,.-]+(?:de\s+|da\s+|do\s+)?$/;
 
 interface PhraseRule {

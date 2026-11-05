@@ -1,12 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
 import {
-  DEFAULT_TOPIC_COLORS,
   FIXED_COST_TIP,
-  KEEP_DEFAULT_TOPICS_ADVICE,
-  KEEP_DEFAULT_TOPICS_SHORT,
   activeTopics as activeTopicsOf,
   amountToInputValue,
   computeAvailable,
@@ -27,7 +23,6 @@ import { budgetRepository } from '@/lib/storage';
 import { getUnforeseenEstimate, setUnforeseenEstimate } from '@/lib/storage/preferences';
 import { useMissions } from '@/components/missions/MissionsProvider';
 import { AmountInput } from '@/components/ui/AmountInput';
-import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { InfoTip } from '@/components/ui/InfoTip';
 import { PercentInput } from '@/components/ui/PercentInput';
 import { OnboardingScreen } from './OnboardingScreen';
@@ -46,11 +41,10 @@ interface OnboardingWizardProps {
  * The three questions that set up the categories (right after a new account picks how to use the
  * app, on the first visit to Categorias and from "Me ajude com as %"): the income; the fixed and
  * unforeseen costs, on one screen; and the percentages, each category with what it is for and a
- * live preview of what it gets. A category can be created here too, though the app advises
- * against it; none can be deleted (see CategoriesSettings).
+ * live preview of what it gets. The four categories are always the same (see CategoriesSettings):
+ * only their % change here.
  */
 export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }: OnboardingWizardProps) {
-  const confirm = useConfirm();
   const { visit } = useMissions();
   const [step, setStep] = useState(1);
   const [income, setIncome] = useState('');
@@ -61,7 +55,6 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
     return stored ? amountToInputValue(stored) : '';
   });
   const [topics, setTopics] = useState<TopicConfig[]>(() => settings.topics.map(normalizeTopic));
-  const [adviceAccepted, setAdviceAccepted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,41 +81,9 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
 
   const activeTopics = activeTopicsOf(topics);
   const validation = validateTopicPercentages(topics);
-  const savedIds = new Set(settings.topics.map((t) => t.id));
-  const namesFilled = activeTopics.every((t) => t.name.trim().length > 0);
 
-  function updateTopic(id: string, patch: Partial<TopicConfig>) {
-    setTopics((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
-  }
-
-  /** Creating a category is possible, but the app first says why it is rarely a good idea. */
-  async function addTopic() {
-    if (!adviceAccepted) {
-      const confirmed = await confirm({
-        title: 'Criar uma categoria nova?',
-        message: (
-          <>
-            <span className="block">{KEEP_DEFAULT_TOPICS_ADVICE}</span>
-            <span className="mt-2 block">Se criar, ela não poderá ser excluída depois, só arquivada.</span>
-          </>
-        ),
-        confirmLabel: 'Criar mesmo assim',
-        cancelLabel: 'Manter como está',
-      });
-      if (!confirmed) return;
-      setAdviceAccepted(true);
-    }
-    setTopics((prev) => [
-      ...prev,
-      {
-        id: createId(),
-        name: '',
-        description: '',
-        targetPct: 0,
-        order: Math.max(-1, ...prev.map((t) => t.order)) + 1,
-        color: DEFAULT_TOPIC_COLORS[prev.length % DEFAULT_TOPIC_COLORS.length],
-      },
-    ]);
+  function updateTopic(id: string, targetPct: number) {
+    setTopics((prev) => prev.map((t) => (t.id === id ? { ...t, targetPct } : t)));
   }
 
   function goNext() {
@@ -139,7 +100,7 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
     try {
       await saveSettings({
         ...settings,
-        topics: topics.map((t) => ({ ...t, name: t.name.trim(), description: t.description?.trim() })),
+        topics,
       });
 
       const month = currentMonthKey();
@@ -247,7 +208,7 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
       footer={
         <>
           <BackButton onClick={goBack} disabled={saving} />
-          <PrimaryButton onClick={handleFinish} disabled={saving || !validation.valid || !namesFilled}>
+          <PrimaryButton onClick={handleFinish} disabled={saving || !validation.valid}>
             {saving ? 'Salvando…' : 'Concluir configuração'}
           </PrimaryButton>
         </>
@@ -268,48 +229,30 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
         </div>
       </div>
       <div className="flex flex-col gap-2">
-        {preview.map((topic) =>
-          savedIds.has(topic.id) ? (
-            <div key={topic.id} className="border-border flex gap-3 rounded-lg border p-3 text-sm">
-              <span
-                aria-hidden
-                className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: topic.color }}
-              />
-              <div className="min-w-0 flex-1">
-                <p className="text-foreground truncate font-semibold">{topic.name}</p>
-                {topic.description && <p className="text-muted mt-0.5 text-xs">{topic.description}</p>}
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-1.5">
-                <div className="flex items-center gap-1">
-                  <PercentInput
-                    value={topic.targetPct}
-                    onChange={(pct) => updateTopic(topic.id, { targetPct: pct })}
-                    ariaLabel={`Percentual de ${topic.name}`}
-                  />
-                  <span className="text-muted">%</span>
-                </div>
-                <span className="text-foreground font-semibold tabular-nums">{formatBRL(topic.available)}</span>
-              </div>
-            </div>
-          ) : (
-            <NewTopicRow
-              key={topic.id}
-              topic={topic}
-              available={topic.available}
-              onChange={(patch) => updateTopic(topic.id, patch)}
-              onDiscard={() => setTopics((prev) => prev.filter((t) => t.id !== topic.id))}
+        {preview.map((topic) => (
+          <div key={topic.id} className="border-border flex gap-3 rounded-lg border p-3 text-sm">
+            <span
+              aria-hidden
+              className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: topic.color }}
             />
-          ),
-        )}
-        <button
-          type="button"
-          onClick={() => void addTopic()}
-          className="border-border text-muted hover:text-foreground min-h-[44px] rounded-lg border border-dashed text-sm font-medium"
-        >
-          + Adicionar categoria
-        </button>
-        <p className="text-muted text-center text-xs">{KEEP_DEFAULT_TOPICS_SHORT}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-foreground truncate font-semibold">{topic.name}</p>
+              {topic.description && <p className="text-muted mt-0.5 text-xs">{topic.description}</p>}
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+              <div className="flex items-center gap-1">
+                <PercentInput
+                  value={topic.targetPct}
+                  onChange={(pct) => updateTopic(topic.id, pct)}
+                  ariaLabel={`Percentual de ${topic.name}`}
+                />
+                <span className="text-muted">%</span>
+              </div>
+              <span className="text-foreground font-semibold tabular-nums">{formatBRL(topic.available)}</span>
+            </div>
+          </div>
+        ))}
       </div>
       <p className={`mt-3 text-sm font-medium ${validation.valid ? 'text-success' : 'text-danger'}`}>
         {validation.valid
@@ -318,67 +261,8 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
             ? `Faltam ${formatPct(validation.diffPct)} para 100%.`
             : `Passou ${formatPct(-validation.diffPct)} de 100%.`}
       </p>
-      {!namesFilled && <p className="text-danger mt-1 text-sm">Dê um nome para a categoria nova.</p>}
       {error && <p className="bg-danger-bg text-danger mt-4 rounded-lg px-3 py-2 text-sm">{error}</p>}
     </OnboardingScreen>
-  );
-}
-
-/** A category created in this wizard: name, what it is for and its percentage. */
-function NewTopicRow({
-  topic,
-  available,
-  onChange,
-  onDiscard,
-}: {
-  topic: TopicConfig;
-  available: number;
-  onChange: (patch: Partial<TopicConfig>) => void;
-  onDiscard: () => void;
-}) {
-  return (
-    <div className="border-primary/40 flex flex-col gap-2 rounded-lg border p-3 text-sm">
-      <div className="flex items-center gap-2">
-        <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: topic.color }} />
-        <input
-          type="text"
-          value={topic.name}
-          onChange={(e) => onChange({ name: e.target.value })}
-          placeholder="Nome da categoria"
-          maxLength={40}
-          aria-label="Nome da nova categoria"
-          className="border-border bg-background text-foreground focus:ring-primary min-h-[40px] w-0 min-w-0 flex-1 rounded-md border px-2 outline-none focus:ring-2"
-        />
-        <button
-          type="button"
-          onClick={onDiscard}
-          aria-label="Desistir desta categoria"
-          className="text-muted hover:text-foreground flex h-10 w-10 shrink-0 items-center justify-center rounded-md"
-        >
-          <X aria-hidden className="h-5 w-5" />
-        </button>
-      </div>
-      <textarea
-        value={topic.description ?? ''}
-        onChange={(e) => onChange({ description: e.target.value })}
-        rows={2}
-        maxLength={300}
-        placeholder="Para que serve esta categoria?"
-        aria-label="Descrição da nova categoria"
-        className="border-border bg-background text-foreground focus:ring-primary w-full rounded-md border px-2 py-1.5 outline-none focus:ring-2"
-      />
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
-          <PercentInput
-            value={topic.targetPct}
-            onChange={(pct) => onChange({ targetPct: pct })}
-            ariaLabel="Percentual da nova categoria"
-          />
-          <span className="text-muted">%</span>
-        </div>
-        <span className="text-foreground font-semibold">{formatBRL(available)}</span>
-      </div>
-    </div>
   );
 }
 

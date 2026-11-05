@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import {
   DEFAULT_SPECIAL_CATEGORY_LABELS,
   DEFAULT_TOPICS,
@@ -64,7 +64,7 @@ describe('OnboardingWizard (configuração das categorias)', () => {
     expect(screen.getByRole('heading', { name: 'Quanto vai para cada categoria?' })).toBeInTheDocument();
     for (const preset of DEFAULT_TOPICS) expect(screen.getByText(preset.description)).toBeInTheDocument();
     expect(screen.getByText('R$ 3.800,00')).toBeInTheDocument();
-    // Diversos: 20% of R$ 5.000 minus 20% of R$ 1.200.
+    // Prazeres e Confortos: 20% of R$ 5.000 minus 20% of R$ 1.200.
     expect(screen.getByText('R$ 760,00')).toBeInTheDocument();
     expect(screen.getByText('Somam 100% ✓')).toBeInTheDocument();
 
@@ -76,35 +76,26 @@ describe('OnboardingWizard (configuração das categorias)', () => {
     );
   });
 
-  it('deixa criar uma categoria, depois do aviso, salvando nome e descrição', async () => {
+  it('só muda as % das quatro: não tem como criar categoria', async () => {
     const { saveSettings, onComplete } = renderWizard();
 
     fireEvent.change(screen.getByLabelText('Renda por mês'), { target: { value: '5000,00' } });
     next();
     next();
 
-    fireEvent.click(screen.getByRole('button', { name: '+ Adicionar categoria' }));
-    const dialog = await screen.findByRole('dialog', { name: /criar uma categoria nova/i });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Criar mesmo assim' }));
-
-    const name = await screen.findByLabelText('Nome da nova categoria');
-    // Without a name the setup cannot be finished.
+    expect(screen.queryByRole('button', { name: /adicionar categoria/i })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Percentual de Prazeres e Confortos', { selector: 'input' }), {
+      target: { value: '10' },
+    });
     expect(screen.getByRole('button', { name: 'Concluir configuração' })).toBeDisabled();
-    fireEvent.change(name, { target: { value: 'Pets' } });
-    fireEvent.change(screen.getByLabelText('Descrição da nova categoria'), {
-      target: { value: 'Ração e veterinário' },
-    });
-    fireEvent.change(screen.getByLabelText('Percentual de Diversos', { selector: 'input' }), {
-      target: { value: '10' },
-    });
-    fireEvent.change(screen.getByLabelText('Percentual da nova categoria', { selector: 'input' }), {
-      target: { value: '10' },
+    fireEvent.change(screen.getByLabelText('Percentual de Metas', { selector: 'input' }), {
+      target: { value: '35' },
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Concluir configuração' }));
     await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
     const topics = (saveSettings.mock.calls[0][0] as BudgetSettings).topics;
-    expect(topics).toHaveLength(5);
-    expect(topics.at(-1)).toMatchObject({ name: 'Pets', description: 'Ração e veterinário', targetPct: 0.1 });
+    expect(topics.map((t) => t.name)).toEqual(DEFAULT_TOPICS.map((t) => t.name));
+    expect(topics.map((t) => t.targetPct)).toEqual([0.1, 0.45, 0.35, 0.1]);
   });
 });
