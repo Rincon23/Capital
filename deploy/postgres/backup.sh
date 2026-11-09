@@ -1,5 +1,5 @@
 #!/bin/sh
-# Backup diário do Capital com rotação: 7 dumps diários + 4 semanais (os de domingo).
+# Backup diário do Capital + e do Invest + com rotação: 7 dumps diários + 4 semanais (os de domingo).
 # Roda em loop no container `backup`. Se o Pi estiver desligado no horário, o backup do dia
 # é feito assim que ele voltar. Conexão via PGHOST/PGUSER/PGPASSWORD (docker-compose.yml).
 set -u
@@ -34,12 +34,12 @@ run_backup() {
   find "$DIR/weekly" -type f -mtime +27 -delete
 }
 
-# Sem estes, um dump não volta inteiro: a ENCRYPTION_KEY do app (dados criptografados) e as
+# Sem estes, um dump não volta inteiro: a ENCRYPTION_KEY de cada app (dados criptografados) e as
 # senhas do banco. Copiados só quando mudam, para o Syncthing não ver um arquivo novo à toa.
 save_config() {
   mkdir -p "$DIR/config"
   chmod 700 "$DIR/config" 2>/dev/null || true
-  for pair in Capital/.env.local:app.env.local db/.env:db.env; do
+  for pair in Capital/.env.local:app.env.local Invest/.env.local:invest.env.local db/.env:db.env; do
     src="/capitalapp/${pair%%:*}"
     dst="$DIR/config/${pair##*:}"
     [ -f "$src" ] || continue

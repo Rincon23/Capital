@@ -35,6 +35,9 @@ if [ ! -f .env ]; then
 POSTGRES_PASSWORD=$(openssl rand -hex 24)
 CAPITAL_DB_PASSWORD=$(openssl rand -hex 24)
 CAPITAL_DEV_DB_PASSWORD=$(openssl rand -hex 24)
+INVEST_DB_PASSWORD=$(openssl rand -hex 24)
+INVEST_DEV_DB_PASSWORD=$(openssl rand -hex 24)
+BACKUP_DATABASES="capital invest"
 DATA_DIR=$DATA_ROOT/postgres
 BACKUP_DIR=$DATA_ROOT/backups
 BACKUP_HOUR=3

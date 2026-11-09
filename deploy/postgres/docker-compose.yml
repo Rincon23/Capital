@@ -16,9 +16,12 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
-      # Lidas só na primeira inicialização, por initdb/01-capital.sh.
+      # Lidas só na primeira inicialização, por initdb/01-capital.sh e initdb/02-invest.sh. Num
+      # banco que já existe, os do Invest + são criados pelo ./add-invest.sh.
       CAPITAL_DB_PASSWORD: ${CAPITAL_DB_PASSWORD:?defina CAPITAL_DB_PASSWORD no .env}
       CAPITAL_DEV_DB_PASSWORD: ${CAPITAL_DEV_DB_PASSWORD:-}
+      INVEST_DB_PASSWORD: ${INVEST_DB_PASSWORD:-}
+      INVEST_DEV_DB_PASSWORD: ${INVEST_DEV_DB_PASSWORD:-}
       TZ: America/Sao_Paulo
       PGTZ: America/Sao_Paulo
     # Ajustado para um Pi com ~4 GB de RAM dividida com vários outros serviços.
@@ -65,7 +68,8 @@ services:
       PGHOST: capital-postgres
       PGUSER: postgres
       PGPASSWORD: ${POSTGRES_PASSWORD}
-      BACKUP_DATABASES: capital
+      # O Capital + e, depois do ./add-invest.sh, o Invest + ("capital invest").
+      BACKUP_DATABASES: ${BACKUP_DATABASES:-capital}
       BACKUP_HOUR: ${BACKUP_HOUR:-3}
       TZ: America/Sao_Paulo
     volumes:

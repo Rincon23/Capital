@@ -1,14 +1,17 @@
-# Banco do Capital no Orange Pi
+# Banco do Capital + e do Invest + no Orange Pi
 
-PostgreSQL 17 em Docker, numa stack própria (`capital-db`) separada do app. O `update.sh` do
-Capital reconstrói só o app e nunca recria o banco.
+PostgreSQL 17 em Docker, numa stack própria (`capital-db`) separada dos apps. O `update.sh` de cada
+app reconstrói só o app e nunca recria o banco. O Invest + (o app de investimentos que saiu do
+Capital +, repositório `Rincon23/Invest`) usa este mesmo Postgres, com bancos próprios.
 
 No Pi, tudo do Capital fica em `~/capitalapp`:
 
 ```text
 ~/capitalapp/
-├── Capital/      repositório do app (git), onde roda o ./update.sh
+├── Capital/      repositório do Capital + (git), onde roda o ./update.sh
+├── Invest/       repositório do Invest + (git), onde roda o ./update.sh dele
 ├── db/           esta pasta: docker-compose.yml, .env (senhas) e scripts
+├── logs/         saída de cada ./update.sh rodado em segundo plano (update-<nome>.log)
 └── data/
     ├── postgres/ arquivos do banco (não mexa com o banco ligado)
     └── backups/  dumps diários e semanais
@@ -17,15 +20,18 @@ No Pi, tudo do Capital fica em `~/capitalapp`:
 | Container | O que faz |
 |---|---|
 | `capital-postgres` | Postgres 17 (imagem `postgres:17-alpine`, arm64), fuso `America/Sao_Paulo` |
-| `capital-db-backup` | `pg_dump` diário do banco `capital`, com rotação de 7 diários e 4 semanais |
+| `capital-db-backup` | `pg_dump` diário dos bancos `capital` e `invest`, com rotação de 7 diários e 4 semanais |
 | `capital-db-dev-access` | só com o perfil `dev`: repassa a porta 5432 no IP da Tailscale do Pi |
 
-Bancos e usuários, criados na primeira inicialização por `initdb/01-capital.sh`:
+Bancos e usuários, criados na primeira inicialização por `initdb/01-capital.sh` e
+`initdb/02-invest.sh` (num Postgres que já existia antes do Invest +, pelo `./add-invest.sh`):
 
 | Banco | Usuário | Uso |
 |---|---|---|
-| `capital` | `capital` | produção (o app) |
-| `capital_dev` | `capital_dev` | desenvolvimento no PC |
+| `capital` | `capital` | produção do Capital + |
+| `capital_dev` | `capital_dev` | desenvolvimento do Capital + no PC |
+| `invest` | `invest` | produção do Invest + |
+| `invest_dev` | `invest_dev` | desenvolvimento do Invest + no PC |
 | — | `postgres` | superusuário: administração e backup |
 
 Cada usuário só tem permissão de conectar no próprio banco. A porta do Postgres fica publicada
@@ -44,6 +50,11 @@ Copie esta pasta para `~/capitalapp/db` no Pi e rode:
 O script gera um `.env` com senhas aleatórias (se ainda não existir), cria
 `~/capitalapp/data/postgres` e `~/capitalapp/data/backups` e sobe os containers. As senhas do
 `.env` só valem na primeira inicialização; guarde uma cópia do arquivo.
+
+**Bancos do Invest + num Postgres que já existia:** copie o `add-invest.sh` (e o `docker-compose.yml`
+e o `backup.sh` novos) para `~/capitalapp/db` e rode `./add-invest.sh`. Ele gera as senhas
+`INVEST_DB_PASSWORD` e `INVEST_DEV_DB_PASSWORD` no `.env`, cria os dois bancos e põe o `invest` no
+backup diário. Pode rodar de novo: não troca senha nem apaga nada.
 
 ## Conexões
 
