@@ -7,10 +7,13 @@ export function Chip({
   tourAnchor,
   badge,
   badgeTone = 'warning',
+  dotColor,
 }: {
   label: string;
   selected: boolean;
   onClick: () => void;
+  /** A dot of this colour before the label, e.g. a tag's colour. */
+  dotColor?: string;
   /** `data-tour` anchor, when a tour points at this chip. */
   tourAnchor?: string;
   /** A small tag inside the chip, e.g. "Não recomendado" on "Fora do orçamento". */
@@ -30,6 +33,13 @@ export function Chip({
           : 'border-border bg-background text-foreground hover:border-primary/50'
       }`}
     >
+      {dotColor && (
+        <span
+          aria-hidden
+          className={`h-2.5 w-2.5 shrink-0 rounded-full ${selected ? 'ring-primary-foreground ring-2' : ''}`}
+          style={{ background: dotColor }}
+        />
+      )}
       {label}
       {badge && (
         <span

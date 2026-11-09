@@ -1,4 +1,5 @@
 import { quickCategoryKey } from './categories';
+import { DEFAULT_TOPIC_COLORS } from './colors';
 import { createId } from './id';
 import type { BudgetSettings, Expense, Income, QuickCategoryKey, Tag, TagKind, TopicConfig } from './types';
 
@@ -74,13 +75,45 @@ export function tagNameProblem(
   return null;
 }
 
-/** A new tag of `kind`, placed after the others. The name should have passed `tagNameProblem`. */
-export function createTag(name: string, kind: TagKind, tags: readonly Tag[] | undefined): Tag {
+/**
+ * The colours offered when a tag is created (any other one can be picked too). Hex, so they go
+ * through `<input type="color">` and the database as they are.
+ */
+export const TAG_COLORS: readonly string[] = [...DEFAULT_TOPIC_COLORS, '#0d9488', '#6b7280'];
+
+/**
+ * The colour of a tag's dot: its own, or, for a tag made before colours were chosen, a palette
+ * slot by its place, so every tag has one.
+ */
+export function tagColor(tag: Pick<Tag, 'color' | 'order'>): string {
+  return tag.color ?? TAG_COLORS[Math.abs(tag.order) % TAG_COLORS.length];
+}
+
+/** The colour a new tag of `kind` starts with: the first of the palette no tag of that kind has yet. */
+export function nextTagColor(tags: readonly Tag[] | undefined, kind: TagKind): string {
+  const same = tagsOfKind(tags, kind);
+  const used = new Set(same.map((tag) => tagColor(tag).toLowerCase()));
+  return (
+    TAG_COLORS.find((color) => !used.has(color.toLowerCase())) ?? TAG_COLORS[same.length % TAG_COLORS.length]
+  );
+}
+
+/**
+ * A new tag of `kind`, placed after the others, with the colour chosen (or the next free one of
+ * the palette). The name should have passed `tagNameProblem`.
+ */
+export function createTag(
+  name: string,
+  kind: TagKind,
+  tags: readonly Tag[] | undefined,
+  color?: string,
+): Tag {
   const same = tagsOfKind(tags, kind);
   return {
     id: createId(),
     name: name.replace(/\s+/g, ' ').trim(),
     kind,
+    color: color ?? nextTagColor(tags, kind),
     order: Math.max(-1, ...same.map((tag) => tag.order)) + 1,
   };
 }

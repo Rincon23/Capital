@@ -20,7 +20,7 @@ import { useSettings } from '@/components/providers/SettingsProvider';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Chip } from '@/components/ui/Chip';
 import { TagsSettings } from '@/components/tags/TagsSettings';
-import { TagPills } from '@/components/tags/TagPills';
+import { TagDot, TagPills } from '@/components/tags/TagPills';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { useToast } from '@/components/ui/Toast';
 import {
@@ -31,6 +31,7 @@ import {
   formatMonthShort,
   expenseMatches,
   incomeMatches,
+  tagColor,
   tagsOfKind,
   REIMBURSABLE_EXPLANATION,
   UNCOUNTED_ADVICE,
@@ -437,9 +438,10 @@ function Lancamentos({
                 type="button"
                 onClick={() => toggleTag(id)}
                 aria-label={`Tirar a tag ${tagName(id)} do filtro`}
-                className="border-primary text-primary bg-primary/10 flex min-h-[32px] items-center gap-1 rounded-full border pr-2 pl-3 text-sm font-medium"
+                className="border-primary text-primary bg-primary/10 flex min-h-[32px] items-center gap-1.5 rounded-full border pr-2 pl-3 text-sm font-medium"
               >
-                #{tagName(id)}
+                <TagDot tag={tabTags.find((tag) => tag.id === id) ?? { order: 0 }} />
+                {tagName(id)}
                 <X aria-hidden className="h-4 w-4" />
               </button>
             ))}
@@ -603,7 +605,8 @@ function Lancamentos({
                 {tabTags.map((tag) => (
                   <Chip
                     key={tag.id}
-                    label={`#${tag.name}`}
+                    label={tag.name}
+                    dotColor={tagColor(tag)}
                     selected={tagFilter.includes(tag.id)}
                     onClick={() => toggleTag(tag.id)}
                   />

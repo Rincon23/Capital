@@ -9,6 +9,8 @@ import {
   TAG_VS_CATEGORY,
   TAG_VS_CATEGORY_DETAIL,
   createTag,
+  nextTagColor,
+  tagColor,
   tagNameProblem,
   tagsOfKind,
   type TagKind,
@@ -17,13 +19,15 @@ import { saveTag } from '@/lib/storage';
 import { useOptionalSettings } from '@/components/providers/SettingsProvider';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { InfoTip } from '@/components/ui/InfoTip';
+import { TagColorChoice } from './TagColorChoice';
+import { TagDot } from './TagPills';
 import { TagsSettings } from './TagsSettings';
 
 /**
  * The "Tags" field of the expense and income forms (and of the templates and instalment plans):
- * chips to mark one or more, and "+ Nova tag" to create one right there. Optional, and placed after
- * the fields that matter, so a quick entry never has to look at it. The first time, one line says
- * how a tag differs from a category.
+ * chips to mark one or more, and "+ Nova tag" to create one right there, with its name and colour.
+ * Optional, and placed after the fields that matter, so a quick entry never has to look at it. The
+ * first time, one line says how a tag differs from a category.
  */
 export function TagPicker({
   kind,
@@ -39,9 +43,12 @@ export function TagPicker({
   const tags = tagsOfKind(settings?.tags, kind);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
+  /** The colour picked for the new tag; null is the next free one of the palette. */
+  const [color, setColor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
+  const newColor = color ?? nextTagColor(settings?.tags, kind);
 
   const full = value.length >= TAG_LIMITS.perEntry;
   const showNotice = Boolean(settings) && !settings?.dismissedNotices?.includes(TAG_NOTICE);
@@ -57,21 +64,22 @@ export function TagPicker({
       .catch(() => undefined);
   }
 
-  /** Creates the tag and marks it on this entry. */
-  async function create(raw: string) {
+  /** Creates the tag (with the colour picked, when there is one) and marks it on this entry. */
+  async function create(raw: string, pickedColor?: string) {
     if (!context || !settings) return;
     const problem = tagNameProblem(raw, kind, settings.tags, settings.topics);
     if (problem) {
       setError(problem);
       return;
     }
-    const tag = createTag(raw, kind, settings.tags);
+    const tag = createTag(raw, kind, settings.tags, pickedColor);
     setBusy(true);
     setError(null);
     try {
       context.setTags(await saveTag(tag));
       if (!full) onChange([...value, tag.id]);
       setName('');
+      setColor(null);
       setCreating(false);
       dismissNotice();
     } catch (err) {
@@ -114,21 +122,25 @@ export function TagPicker({
       <div className="flex flex-wrap gap-2">
         {tags.map((tag) => {
           const selected = value.includes(tag.id);
+          const dot = tagColor(tag);
           return (
             <button
               key={tag.id}
               type="button"
               aria-pressed={selected}
-              aria-label={`#${tag.name}`}
               onClick={() => toggle(tag.id)}
               disabled={!selected && full}
-              className={`min-h-[36px] max-w-full truncate rounded-full border px-3 text-sm font-medium transition-colors disabled:opacity-40 ${
-                selected
-                  ? 'border-primary bg-primary/10 text-primary'
-                  : 'border-border bg-background text-foreground border-dashed'
+              className={`text-foreground flex min-h-[36px] max-w-full items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors disabled:opacity-40 ${
+                selected ? '' : 'border-border bg-background border-dashed'
               }`}
+              style={
+                selected
+                  ? { borderColor: dot, background: `color-mix(in srgb, ${dot} 16%, transparent)` }
+                  : undefined
+              }
             >
-              #{tag.name}
+              <TagDot tag={tag} />
+              <span className="truncate">{tag.name}</span>
             </button>
           );
         })}
@@ -161,44 +173,48 @@ export function TagPicker({
       </div>
 
       {creating && (
-        // Typing a tag's name is not a change to the entry (see unsavedChanges.ts).
-        <div className="flex gap-2" data-dirty-ignore>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => {
-              // Enter creates the tag; it must not submit the form around it.
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                void create(name);
-              }
-            }}
-            maxLength={TAG_LIMITS.name}
-            placeholder="Nome da tag"
-            aria-label="Nome da nova tag"
-            autoFocus
-            className="border-border bg-background text-foreground focus:ring-primary min-h-[40px] min-w-0 flex-1 rounded-lg border px-3 text-base outline-none focus:ring-2"
-          />
-          <button
-            type="button"
-            onClick={() => void create(name)}
-            disabled={busy}
-            className="bg-primary text-primary-foreground min-h-[40px] shrink-0 rounded-lg px-3 text-sm font-semibold disabled:opacity-50"
-          >
-            Criar
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setCreating(false);
-              setName('');
-              setError(null);
-            }}
-            className="text-muted min-h-[40px] shrink-0 px-1 text-sm"
-          >
-            Cancelar
-          </button>
+        // Typing a tag's name or picking its colour is not a change to the entry (see unsavedChanges.ts).
+        <div className="flex flex-col gap-2" data-dirty-ignore>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter creates the tag; it must not submit the form around it.
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void create(name, newColor);
+                }
+              }}
+              maxLength={TAG_LIMITS.name}
+              placeholder="Nome da tag"
+              aria-label="Nome da nova tag"
+              autoFocus
+              className="border-border bg-background text-foreground focus:ring-primary min-h-[40px] min-w-0 flex-1 rounded-lg border px-3 text-base outline-none focus:ring-2"
+            />
+            <button
+              type="button"
+              onClick={() => void create(name, newColor)}
+              disabled={busy}
+              className="bg-primary text-primary-foreground min-h-[40px] shrink-0 rounded-lg px-3 text-sm font-semibold disabled:opacity-50"
+            >
+              Criar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCreating(false);
+                setName('');
+                setColor(null);
+                setError(null);
+              }}
+              className="text-muted min-h-[40px] shrink-0 px-1 text-sm"
+            >
+              Cancelar
+            </button>
+          </div>
+          <TagColorChoice value={newColor} onChange={setColor} label="Cor da nova tag" />
         </div>
       )}
 

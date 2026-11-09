@@ -3,11 +3,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import {
+  TAG_COLORS,
   TAG_LIMITS,
   TAG_SUGGESTIONS,
   TAG_VS_CATEGORY,
   TAG_VS_CATEGORY_DETAIL,
   createTag,
+  nextTagColor,
+  tagColor,
   tagNameProblem,
   tagsOfKind,
   type Tag,
@@ -18,6 +21,8 @@ import { useOptionalSettings } from '@/components/providers/SettingsProvider';
 import { useConfirm } from '@/components/ui/ConfirmSheet';
 import { InfoTip } from '@/components/ui/InfoTip';
 import { useToast } from '@/components/ui/Toast';
+import { TagColorChoice } from './TagColorChoice';
+import { TagDot } from './TagPills';
 
 const KIND_TITLE: Record<TagKind, string> = { expense: 'Tags de gasto', income: 'Tags de renda' };
 
@@ -25,8 +30,8 @@ const KIND_TITLE: Record<TagKind, string> = { expense: 'Tags de gasto', income: 
 const COLOR_SAVE_MS = 500;
 
 /**
- * Creating, renaming, recolouring and deleting tags (the gear of Lançamentos, and "Editar tags"
- * in the forms). Every change is saved right away, on its own, so nothing here is a draft: there
+ * Creating (name and colour), renaming, recolouring and deleting tags (the gear of Lançamentos,
+ * and "Editar tags" in the forms). Every change is saved right away, on its own, so nothing here is a draft: there
  * is no "Salvar" and no "leave without saving?" question. Deleting takes the tag off every entry,
  * with "Desfazer"; the numbers never change.
  */
@@ -53,8 +58,11 @@ function TagList({ kind, title }: { kind: TagKind; title?: string }) {
   const { showToast } = useToast();
   const tags = tagsOfKind(settings?.tags, kind);
   const [name, setName] = useState('');
+  /** The colour picked for the new tag; null is the next free one of the palette. */
+  const [color, setColor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const newColor = color ?? nextTagColor(settings?.tags, kind);
 
   async function run(action: () => Promise<Tag[]>): Promise<boolean> {
     if (!context) return false;
@@ -71,14 +79,17 @@ function TagList({ kind, title }: { kind: TagKind; title?: string }) {
     }
   }
 
-  async function create(raw: string) {
+  async function create(raw: string, pickedColor?: string) {
     if (!settings) return;
     const problem = tagNameProblem(raw, kind, settings.tags, settings.topics);
     if (problem) {
       setError(problem);
       return;
     }
-    if (await run(() => saveTag(createTag(raw, kind, settings.tags)))) setName('');
+    if (await run(() => saveTag(createTag(raw, kind, settings.tags, pickedColor)))) {
+      setName('');
+      setColor(null);
+    }
   }
 
   async function remove(tag: Tag) {
@@ -172,7 +183,7 @@ function TagList({ kind, title }: { kind: TagKind; title?: string }) {
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
-                void create(name);
+                void create(name, newColor);
               }
             }}
             maxLength={TAG_LIMITS.name}
@@ -182,13 +193,20 @@ function TagList({ kind, title }: { kind: TagKind; title?: string }) {
           />
           <button
             type="button"
-            onClick={() => void create(name)}
+            onClick={() => void create(name, newColor)}
             disabled={busy || !name.trim()}
             className="bg-primary text-primary-foreground min-h-[40px] shrink-0 rounded-lg px-3 text-sm font-semibold disabled:opacity-50"
           >
             Criar
           </button>
         </div>
+        {name.trim() && (
+          <TagColorChoice
+            value={newColor}
+            onChange={setColor}
+            label={kind === 'expense' ? 'Cor da nova tag de gasto' : 'Cor da nova tag de renda'}
+          />
+        )}
 
         {error && (
           <p className="text-danger text-xs" role="alert">
@@ -215,7 +233,8 @@ function TagRow({
 }) {
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(tag.name);
-  const [color, setColor] = useState(tag.color ?? '#6b7280');
+  const [color, setColor] = useState(tagColor(tag));
+  const [choosingColor, setChoosingColor] = useState(false);
   const timer = useRef<number | null>(null);
 
   useEffect(
@@ -241,68 +260,85 @@ function TagRow({
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-2">
-      <input
-        type="color"
-        value={color}
-        onChange={(e) => pickColor(e.target.value)}
-        aria-label={`Cor da tag ${tag.name}`}
-        className="border-border h-9 w-9 shrink-0 cursor-pointer rounded-md border bg-transparent p-0.5"
-      />
-      {renaming ? (
-        <>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                void saveName();
-              }
-              if (e.key === 'Escape') {
+    <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex min-w-0 items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setChoosingColor((open) => !open)}
+          aria-expanded={choosingColor}
+          aria-label={`Cor da tag ${tag.name}`}
+          className="hover:bg-border/40 flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+        >
+          <TagDot tag={{ color, order: tag.order }} className="h-5 w-5" />
+        </button>
+        {renaming ? (
+          <>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void saveName();
+                }
+                if (e.key === 'Escape') {
+                  setName(tag.name);
+                  setRenaming(false);
+                }
+              }}
+              maxLength={TAG_LIMITS.name}
+              aria-label={`Novo nome da tag ${tag.name}`}
+              autoFocus
+              className="border-border bg-background text-foreground focus:ring-primary min-h-[40px] min-w-0 flex-1 rounded-lg border px-3 text-base outline-none focus:ring-2"
+            />
+            <button
+              type="button"
+              onClick={() => void saveName()}
+              disabled={busy}
+              className="bg-primary text-primary-foreground min-h-[40px] shrink-0 rounded-lg px-3 text-sm font-semibold disabled:opacity-50"
+            >
+              Salvar
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">{tag.name}</span>
+            <button
+              type="button"
+              onClick={() => {
                 setName(tag.name);
-                setRenaming(false);
-              }
+                setRenaming(true);
+              }}
+              disabled={busy}
+              className="text-muted hover:text-foreground min-h-[40px] shrink-0 px-2 text-sm disabled:opacity-50"
+            >
+              Renomear
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={busy}
+              aria-label={`Apagar a tag ${tag.name}`}
+              className="text-muted hover:text-danger flex h-10 w-10 shrink-0 items-center justify-center rounded-md disabled:opacity-50"
+            >
+              <Trash2 aria-hidden className="h-5 w-5" />
+            </button>
+          </>
+        )}
+      </div>
+      {choosingColor && (
+        <div className="pl-1">
+          <TagColorChoice
+            value={color}
+            onChange={(next) => {
+              pickColor(next);
+              // A colour of the palette is one tap; "Outra cor" stays open while the picker is dragged.
+              if (TAG_COLORS.includes(next)) setChoosingColor(false);
             }}
-            maxLength={TAG_LIMITS.name}
-            aria-label={`Novo nome da tag ${tag.name}`}
-            autoFocus
-            className="border-border bg-background text-foreground focus:ring-primary min-h-[40px] min-w-0 flex-1 rounded-lg border px-3 text-base outline-none focus:ring-2"
+            label={`Cor da tag ${tag.name}`}
           />
-          <button
-            type="button"
-            onClick={() => void saveName()}
-            disabled={busy}
-            className="bg-primary text-primary-foreground min-h-[40px] shrink-0 rounded-lg px-3 text-sm font-semibold disabled:opacity-50"
-          >
-            Salvar
-          </button>
-        </>
-      ) : (
-        <>
-          <span className="text-foreground min-w-0 flex-1 truncate text-sm font-medium">#{tag.name}</span>
-          <button
-            type="button"
-            onClick={() => {
-              setName(tag.name);
-              setRenaming(true);
-            }}
-            disabled={busy}
-            className="text-muted hover:text-foreground min-h-[40px] shrink-0 px-2 text-sm disabled:opacity-50"
-          >
-            Renomear
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            disabled={busy}
-            aria-label={`Apagar a tag ${tag.name}`}
-            className="text-muted hover:text-danger flex h-10 w-10 shrink-0 items-center justify-center rounded-md disabled:opacity-50"
-          >
-            <Trash2 aria-hidden className="h-5 w-5" />
-          </button>
-        </>
+        </div>
       )}
     </div>
   );

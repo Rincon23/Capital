@@ -180,7 +180,7 @@ export interface Tag {
   id: string;
   name: string;
   kind: TagKind;
-  /** Hex colour of its pill; absent means the neutral one. */
+  /** Hex colour of its dot, chosen when it is created; absent (older tags) means a palette slot by `order`. */
   color?: string;
   order: number;
 }

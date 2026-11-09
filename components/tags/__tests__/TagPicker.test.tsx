@@ -77,11 +77,11 @@ describe('TagPicker', () => {
     const onChange = vi.fn();
     render(<TagPicker kind="expense" value={['viagem']} onChange={onChange} />);
 
-    expect(screen.queryByRole('button', { name: '#Bico' })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '#Viagem' })).toHaveAttribute('aria-pressed', 'true');
-    fireEvent.click(screen.getByRole('button', { name: '#Mercado' }));
+    expect(screen.queryByRole('button', { name: 'Bico' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Viagem' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Mercado' }));
     expect(onChange).toHaveBeenLastCalledWith(['viagem', 'mercado']);
-    fireEvent.click(screen.getByRole('button', { name: '#Viagem' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Viagem' }));
     expect(onChange).toHaveBeenLastCalledWith([]);
   });
 
@@ -107,6 +107,23 @@ describe('TagPicker', () => {
     await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
     expect(saveTag).toHaveBeenCalledWith(expect.objectContaining({ name: 'Farmácia' }));
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('"+ Nova tag" deixa escolher a cor, e a tag aparece com a bolinha dessa cor, sem #', async () => {
+    withTags([mercado]);
+    const onChange = vi.fn();
+    render(<TagPicker kind="expense" value={[]} onChange={onChange} />);
+    expect(screen.queryByText(/#/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Nova tag' }));
+    expect(screen.getByRole('radio', { name: 'Verde' })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(screen.getByRole('radio', { name: 'Roxo' }));
+    expect(screen.getByRole('radio', { name: 'Roxo' })).toHaveAttribute('aria-checked', 'true');
+    fireEvent.change(screen.getByLabelText('Nome da nova tag'), { target: { value: 'Farmácia' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Criar' }));
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1));
+    expect(saveTag).toHaveBeenCalledWith(expect.objectContaining({ name: 'Farmácia', color: '#4a3aa7' }));
   });
 
   it('explica a diferença para categoria uma vez, até "Entendi"', () => {
@@ -154,7 +171,7 @@ describe('ExpenseFormSheet com tags', () => {
   it('salva as tags junto com o gasto', async () => {
     withTags([mercado, viagem]);
     const { onSave } = renderForm();
-    fireEvent.click(screen.getByRole('button', { name: '#Mercado' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mercado' }));
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     expect((onSave.mock.calls[0][0] as Expense).tagIds).toEqual(['viagem', 'mercado']);
@@ -168,7 +185,7 @@ describe('ExpenseFormSheet com tags', () => {
     expect(screen.getByLabelText(/valor em reais/i)).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Excluir' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '#Mercado' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mercado' }));
     fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     await waitFor(() => expect(onSaveTags).toHaveBeenCalledWith(['viagem', 'mercado']));
     expect(onSave).not.toHaveBeenCalled();

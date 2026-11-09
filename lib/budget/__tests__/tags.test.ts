@@ -3,12 +3,15 @@ import { computeMonthSummary } from '../calculations';
 import { installmentExpense, upfrontExpense } from '../installments';
 import { cascadeCarryIn } from '../rollover';
 import {
+  TAG_COLORS,
   TAG_LIMITS,
   cleanTagIds,
   createTag,
   expenseMatches,
   incomeMatches,
+  nextTagColor,
   sanitizeTags,
+  tagColor,
   tagNameProblem,
 } from '../tags';
 import { createDefaultTopics } from '../topics';
@@ -127,6 +130,25 @@ describe('nome de tag', () => {
       order: 3,
     });
     expect(createTag('Freela', 'income', tags).order).toBe(1);
+  });
+
+  it('uma tag nova nasce com a cor escolhida, ou com a próxima livre da paleta', () => {
+    expect(createTag('Pet', 'expense', tags, '#123456').color).toBe('#123456');
+    // Mercado, Restaurante e Viagem (sem cor) ficam com as 3 primeiras pela posição.
+    expect(createTag('Pet', 'expense', tags).color).toBe(TAG_COLORS[3]);
+    expect(createTag('Freela', 'income', tags).color).toBe(TAG_COLORS[1]);
+    expect(nextTagColor([], 'expense')).toBe(TAG_COLORS[0]);
+    const colored = [
+      { ...tags[0], color: TAG_COLORS[0] },
+      { ...tags[1], color: '#abcdef' },
+    ];
+    expect(nextTagColor(colored, 'expense')).toBe(TAG_COLORS[1]);
+  });
+
+  it('toda tag tem uma cor de bolinha, até as de antes da escolha de cor', () => {
+    expect(tagColor({ color: '#00aa00', order: 5 })).toBe('#00aa00');
+    expect(tagColor({ order: 2 })).toBe(TAG_COLORS[2]);
+    expect(tagColor({ order: TAG_COLORS.length })).toBe(TAG_COLORS[0]);
   });
 });
 

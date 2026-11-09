@@ -1,12 +1,8 @@
 'use client';
 
-import { entryTags, type Tag } from '@/lib/budget';
+import { entryTags, tagColor, type Tag } from '@/lib/budget';
 
-/**
- * An entry's tags as small "#Mercado" pills, the first `max` and then "+N". A tag reads
- * differently from a category on purpose: a category is shown by its name and colour, a tag by
- * the "#".
- */
+/** An entry's tags as small pills (a dot of the tag's colour and its name), the first `max` and then "+N". */
 export function TagPills({
   tagIds,
   tags,
@@ -36,11 +32,26 @@ export function TagPills({
 
 export function TagPill({ tag }: { tag: Tag }) {
   return (
-    <span
-      className="bg-background text-foreground border-border inline-flex max-w-[10rem] items-center rounded-full border px-1.5 py-px text-[11px] leading-4 font-medium"
-      style={tag.color ? { borderColor: tag.color, color: tag.color } : undefined}
-    >
-      <span className="truncate">#{tag.name}</span>
+    <span className="bg-background text-foreground border-border inline-flex max-w-[10rem] items-center gap-1 rounded-full border px-1.5 py-px text-[11px] leading-4 font-medium">
+      <TagDot tag={tag} />
+      <span className="truncate">{tag.name}</span>
     </span>
+  );
+}
+
+/** The dot of the tag's colour that stands before its name everywhere. */
+export function TagDot({
+  tag,
+  className = 'h-2 w-2',
+}: {
+  tag: Pick<Tag, 'color' | 'order'>;
+  className?: string;
+}) {
+  return (
+    <span
+      aria-hidden
+      className={`${className} shrink-0 rounded-full`}
+      style={{ background: tagColor(tag) }}
+    />
   );
 }
