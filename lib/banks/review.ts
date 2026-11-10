@@ -101,6 +101,18 @@ export function reviewKind(transaction: ReviewTransaction): ReviewKind {
   return transaction.type === 'CREDIT' ? 'income' : 'expense';
 }
 
+/** Money out of the accounts (a card's lines all count here), or money in. */
+export type MoneySide = 'out' | 'in';
+
+/**
+ * Which side of the check a transaction is on, as `reviewKind` sorts it. An entry is tied to one
+ * bank line per side: only an "A receber" is ever on both — the purchase that went out and the
+ * payback that came in.
+ */
+export function moneySide(transaction: Pick<ReviewTransaction, 'accountKind' | 'type'>): MoneySide {
+  return transaction.accountKind !== 'card' && transaction.type === 'CREDIT' ? 'in' : 'out';
+}
+
 // ---------------------------------------------------------------------------
 // Who is on the other side of a Pix
 // ---------------------------------------------------------------------------
@@ -566,7 +578,10 @@ export interface ReviewEntry {
   kind: 'expense' | 'income';
   /** An "A receber": still open, or already received. */
   reimbursable: 'open' | 'received' | null;
-  /** Already tied to a bank line, by a tap here or a strong pair: which bank, and the day. */
+  /**
+   * Already tied to a bank line of this list's side, by a tap here or a strong pair: which bank, and
+   * the day. An "A receber" tied to its purchase is still free among the incomes, for its payback.
+   */
   tied: { bankName: string; date: string; transactionId?: string } | null;
 }
 

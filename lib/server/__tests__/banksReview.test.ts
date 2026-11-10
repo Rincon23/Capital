@@ -646,6 +646,83 @@ describe("the month's check", () => {
     expect((await check(deps)).incomes.matched[0].match).toMatchObject({ kind: 'decided', outcome: 'reimbursed' });
   });
 
+  it('an "A receber" takes both its purchase and its payback: one bank line out, one in', async () => {
+    const { repo, banks, deps } = await newPerson();
+    await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });
+    await banks.upsertTransactions([
+      // Dinner paid for João by Pix, and his Pix back two days later.
+      tx({ transactionId: 'pix-jantar', amount: -100, date: '2026-10-10', paymentMethod: 'PIX', description: 'RESTAURANTE' }),
+      tx({ transactionId: 'pix-volta', type: 'CREDIT', amount: 100, date: '2026-10-12', paymentMethod: 'PIX', payerName: 'JOAO SILVA' }),
+    ]);
+    // "Conferir gasto": the purchase becomes the "A receber".
+    await applyReviewAction(deps, {
+      action: 'expense',
+      transactionIds: ['pix-jantar'],
+      month: '2026-10',
+      expense: { id: 'jantar', categoryKind: 'reimbursable', description: 'Jantar — João', amount: 100, date: '2026-10-10' },
+    });
+
+    const review = await check(deps);
+    // Tied to the purchase, it is still the payback's: offered on the Pix in…
+    expect(review.incomes.missing).toEqual([
+      expect.objectContaining({ key: 'pix-volta', reimbursement: expect.objectContaining({ expenseId: 'jantar', amount: 100 }) }),
+    ]);
+    // …and free in "Procurar nas rendas", while "Procurar nos gastos" shows it tied to the purchase.
+    expect(review.entries.incomes.find((entry) => entry.id === 'jantar')).toMatchObject({ reimbursable: 'open', tied: null });
+    expect(review.entries.expenses.find((entry) => entry.id === 'jantar')?.tied).toMatchObject({ date: '2026-10-10' });
+
+    await applyReviewAction(deps, { action: 'reimbursed', transactionIds: ['pix-volta'], month: '2026-10', expenseId: 'jantar' });
+    const after = await check(deps);
+    expect(after.expenses.missing).toEqual([]);
+    expect(after.incomes.missing).toEqual([]);
+    expect(after.incomes.matched[0]).toMatchObject({ key: 'pix-volta', match: { kind: 'decided', outcome: 'reimbursed' } });
+    expect((await repo.getMonth('2026-10'))!.incomes).toEqual([]);
+  });
+
+  it('the other way round: the payback first, then the purchase still pairs with the "A receber"', async () => {
+    const { repo, banks, deps } = await newPerson();
+    await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });
+    await repo.saveExpense('2026-10', { id: 'show', categoryKind: 'reimbursable', description: 'Show — Ana', amount: 80, date: '2026-10-05' });
+    await banks.upsertTransactions([
+      tx({ transactionId: 'pix-ana', type: 'CREDIT', amount: 80, date: '2026-10-07', paymentMethod: 'PIX', payerName: 'ANA LIMA' }),
+    ]);
+    await applyReviewAction(deps, { action: 'reimbursed', transactionIds: ['pix-ana'], month: '2026-10', expenseId: 'show' });
+    // The purchase only arrives later (another bank, a slower sync): the same amount, the next day.
+    await banks.upsertTransactions([tx({ transactionId: 'ingresso', amount: -80, date: '2026-10-06', description: 'TICKETS' })]);
+
+    const review = await check(deps);
+    expect(review.expenses.matched).toEqual([
+      expect.objectContaining({ key: 'ingresso', match: expect.objectContaining({ kind: 'pair', entryId: 'show' }) }),
+    ]);
+  });
+
+  it('by hand too: an "A receber" tied to its purchase takes a Pix in, but never a second line of a side', async () => {
+    const { repo, banks, deps } = await newPerson();
+    await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });
+    await repo.saveExpense('2026-10', { id: 'viagem', categoryKind: 'reimbursable', description: 'Viagem — Bia', amount: 300, date: '2026-10-03' });
+    await banks.upsertTransactions([
+      tx({ transactionId: 'passagem', amount: -300, date: '2026-10-03' }),
+      tx({ transactionId: 'outra-compra', amount: -300, date: '2026-10-04' }),
+      // Bia paid in two Pix: neither is close enough to be suggested.
+      tx({ transactionId: 'bia-1', type: 'CREDIT', amount: 150, date: '2026-10-08', paymentMethod: 'PIX' }),
+      tx({ transactionId: 'bia-2', type: 'CREDIT', amount: 150, date: '2026-10-09', paymentMethod: 'PIX' }),
+    ]);
+    const viagem = [{ month: '2026-10', entryId: 'viagem' }];
+    await applyReviewAction(deps, { action: 'link', transactionIds: ['passagem'], entries: viagem });
+    // Money in: free.
+    await applyReviewAction(deps, { action: 'link', transactionIds: ['bia-1'], entries: viagem });
+    // A second line of a side it already has: refused, out and in.
+    await expect(applyReviewAction(deps, { action: 'link', transactionIds: ['outra-compra'], entries: viagem })).rejects.toMatchObject({
+      code: 'ENTRY_TAKEN',
+    });
+    await expect(applyReviewAction(deps, { action: 'link', transactionIds: ['bia-2'], entries: viagem })).rejects.toMatchObject({
+      code: 'ENTRY_TAKEN',
+    });
+    const review = await check(deps);
+    expect(review.expenses.matched.map((item) => item.key)).toEqual(['passagem']);
+    expect(review.incomes.matched.map((item) => item.key)).toEqual(['bia-1']);
+  });
+
   it('a Pix a little off settles an "A receber": the rest becomes income, what was missing Imprevistos', async () => {
     const { repo, banks, deps } = await newPerson();
     await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });

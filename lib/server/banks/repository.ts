@@ -16,6 +16,8 @@ import {
   payerKey,
   type PaybackHistory,
   type LinkedEntry,
+  moneySide,
+  type MoneySide,
 } from '@/lib/banks';
 import { round2 } from '@/lib/budget/money';
 import {
@@ -50,12 +52,21 @@ export interface StoredAccount {
 /** A tie made by hand from a bank transaction to an entry, with the entry as it is now. */
 export interface BankLink extends LinkedEntry {
   transactionId: string;
+  /** The side of the check the bank line is on (an "A receber" may be tied once on each). */
+  side: MoneySide;
   kind: 'expense' | 'income';
   /** An "A receber" (an expense the person is owed). */
   reimbursable: boolean;
   /** The bank and day of the transaction. */
   bankName: string;
   date: string;
+}
+
+/** The bank line an entry is tied to: its bank and day. */
+export interface EntryTie {
+  bankName: string;
+  date: string;
+  transactionId: string;
 }
 
 /** A transaction to review, with what the review shows about its account and bank. */
@@ -477,15 +488,19 @@ export class PostgresBanksRepository {
   }
 
   /**
-   * The entries already tied to a bank transaction, with the bank and day of it: never offered as
-   * the duplicate of another, and shown as taken in "Procurar nos gastos".
+   * The entries already tied to a bank transaction, with the bank and day of it, by the side of the
+   * check that transaction is on: never offered as the duplicate of another line of that side, and
+   * shown as taken in "Procurar nos gastos" (or "nas rendas"). An "A receber" can be on both: the
+   * purchase that went out, and the payback that came in.
    */
-  async tiedEntries(): Promise<Map<string, { bankName: string; date: string; transactionId: string }>> {
+  async tiedEntries(): Promise<Record<MoneySide, Map<string, EntryTie>>> {
     const rows = await this.db
       .select({
         entryId: bankTransactions.entryId,
         transactionId: bankTransactions.transactionId,
         date: bankTransactions.date,
+        type: bankTransactions.type,
+        accountKind: bankAccounts.kind,
         bankName: sql<string>`coalesce(${bankConnections.name}, ${bankConnections.suggestedName}, 'Banco')`,
       })
       .from(bankTransactions)
@@ -498,9 +513,26 @@ export class PostgresBanksRepository {
         and(eq(bankConnections.userId, bankAccounts.userId), eq(bankConnections.itemId, bankAccounts.itemId)),
       )
       .where(and(eq(bankTransactions.userId, this.userId), sql`${bankTransactions.entryId} is not null`));
-    return new Map(
-      rows.map((row) => [row.entryId!, { bankName: row.bankName, date: row.date, transactionId: row.transactionId }]),
-    );
+    const tied: Record<MoneySide, Map<string, EntryTie>> = { out: new Map(), in: new Map() };
+    for (const row of rows) {
+      tied[moneySide(row)].set(row.entryId!, { bankName: row.bankName, date: row.date, transactionId: row.transactionId });
+    }
+    return tied;
+  }
+
+  /** The side of the check these transactions (one line) are on, or null when none is here. */
+  async sideOf(transactionIds: string[]): Promise<MoneySide | null> {
+    if (transactionIds.length === 0) return null;
+    const [row] = await this.db
+      .select({ type: bankTransactions.type, accountKind: bankAccounts.kind })
+      .from(bankTransactions)
+      .innerJoin(
+        bankAccounts,
+        and(eq(bankAccounts.userId, bankTransactions.userId), eq(bankAccounts.accountId, bankTransactions.accountId)),
+      )
+      .where(and(eq(bankTransactions.userId, this.userId), inArray(bankTransactions.transactionId, transactionIds)))
+      .limit(1);
+    return row ? moneySide(row) : null;
   }
 
   /**
@@ -514,6 +546,8 @@ export class PostgresBanksRepository {
         entryId: bankLinks.entryId,
         month: bankLinks.entryMonth,
         date: bankTransactions.date,
+        type: bankTransactions.type,
+        accountKind: bankAccounts.kind,
         bankName: sql<string>`coalesce(${bankConnections.name}, ${bankConnections.suggestedName}, 'Banco')`,
         expenseDescription: expenses.description,
         expenseAmount: expenses.amount,
@@ -545,7 +579,14 @@ export class PostgresBanksRepository {
       .where(eq(bankLinks.userId, this.userId))
       .orderBy(asc(bankLinks.createdAt));
     return rows.flatMap((row): BankLink[] => {
-      const base = { transactionId: row.transactionId, entryId: row.entryId, month: row.month, bankName: row.bankName, date: row.date };
+      const base = {
+        transactionId: row.transactionId,
+        side: moneySide(row),
+        entryId: row.entryId,
+        month: row.month,
+        bankName: row.bankName,
+        date: row.date,
+      };
       if (row.expenseDescription !== null && row.expenseAmount !== null) {
         return [
           {

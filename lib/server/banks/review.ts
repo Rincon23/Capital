@@ -38,6 +38,7 @@ import {
   type LaunchedExpense,
   type LinkedEntry,
   type MisplacedEntry,
+  type MoneySide,
   type PairEntry,
   type PaybackOption,
   type ReviewItem,
@@ -52,7 +53,7 @@ import type { Expense, Income, InstallmentPlan, Month, MonthData } from '@/lib/b
 import type { PostgresBudgetRepository } from '../budgetRepository';
 import { HttpError } from '../httpError';
 import type { PostgresWalletRepository } from '../walletRepository';
-import type { BankLink, PostgresBanksRepository, ReviewRow } from './repository';
+import type { BankLink, EntryTie, PostgresBanksRepository, ReviewRow } from './repository';
 
 /**
  * The month's check on the server: what the banks sent in a month, sorted into what is missing in
@@ -167,13 +168,15 @@ export async function buildReview(
   const memory = await banks.categoryMemory();
   const plans = await wallet.listInstallments();
   const tied = await banks.tiedEntries();
-  const taken = new Set(tied.keys());
+  // What is already some bank line's, by side: an entry is one line's at most on each side, and only
+  // an "A receber" is on both — the purchase that went out and the payback that came in.
+  const taken: Record<MoneySide, Set<string>> = { out: new Set(tied.out.keys()), in: new Set(tied.in.keys()) };
   // What the person tied by hand ("Procurar nos gastos"): a line can be several entries, in part.
   const links = await banks.links();
   const linksOf = new Map<string, BankLink[]>();
   for (const link of links) {
     linksOf.set(link.transactionId, [...(linksOf.get(link.transactionId) ?? []), link]);
-    taken.add(link.entryId);
+    taken[link.side].add(link.entryId);
   }
   /** The entries tied to some transactions, once each. */
   const linkedTo = (ids: string[]): LinkedEntry[] => {
@@ -191,7 +194,7 @@ export async function buildReview(
   const reimbursableOn = isModuleOn(settings, 'reimbursable');
   const pendingBack: LaunchedExpense[] = reimbursableOn ? await repo.pendingReimbursables(today.slice(0, 7)) : [];
   const receivedBack: LaunchedExpense[] = reimbursableOn
-    ? (await repo.receivedReimbursables(addDays(first, -40))).filter(({ expense }) => !tied.has(expense.id))
+    ? (await repo.receivedReimbursables(addDays(first, -40))).filter(({ expense }) => !tied.in.has(expense.id))
     : [];
   // Who paid back what before: a payer the person already confirmed is recognised.
   const paidBack =
@@ -345,9 +348,9 @@ export async function buildReview(
     }
   }
   for (const { group, item } of missingSplits) {
-    const upfront = findUpfront(group, launched, taken);
+    const upfront = findUpfront(group, launched, taken.out);
     if (!upfront) continue;
-    taken.add(upfront.expense.id);
+    taken.out.add(upfront.expense.id);
     item.upfront = {
       month: upfront.month,
       entryId: upfront.expense.id,
@@ -369,7 +372,7 @@ export async function buildReview(
     const base = openItems.get(row.id)!;
     if (!inMonth(row.date) || reviewKind(row) !== 'income') continue;
     const payer = payerKey(row);
-    const paybacks = reimbursementCandidates(base, pendingBack, taken, payer ? paidBack.get(payer) : undefined);
+    const paybacks = reimbursementCandidates(base, pendingBack, taken.in, payer ? paidBack.get(payer) : undefined);
     if (paybacks.length === 0) continue;
     const option = ({ month: owedMonth, expense }: LaunchedExpense): PaybackOption => ({
       month: owedMonth,
@@ -379,7 +382,7 @@ export async function buildReview(
       difference: round2(base.amount - expense.amount),
     });
     // One "A receber" is offered first to one Pix at most (the others stay a tap away).
-    taken.add(paybacks[0].expense.id);
+    taken.in.add(paybacks[0].expense.id);
     base.reimbursement = { ...option(paybacks[0]), others: paybacks.slice(1, 6).map(option) };
   }
 
@@ -390,9 +393,9 @@ export async function buildReview(
     const base = openItems.get(row.id)!;
     if (!inMonth(row.date) || reviewKind(row) !== 'income' || base.reimbursement) continue;
     const payer = payerKey(row);
-    const found = receivedCandidates(base, receivedBack, taken, payer ? paidBack.get(payer) : undefined);
+    const found = receivedCandidates(base, receivedBack, taken.in, payer ? paidBack.get(payer) : undefined);
     if (found.length === 0) continue;
-    taken.add(found[0].expense.id);
+    taken.in.add(found[0].expense.id);
     if (isStrongReceived(base, found)) strongReceived.set(row.id, linkedOf(found[0]));
     else base.received = linkedOf(found[0]);
   }
@@ -410,7 +413,7 @@ export async function buildReview(
     date: expense.date,
     cardId: expense.cardId,
   });
-  const expensePairs = strongPairs(pairable('expense'), manual.map(toPair), taken);
+  const expensePairs = strongPairs(pairable('expense'), manual.map(toPair), taken.out);
   // Then, for a card tied to a Capital card, the same purchase entered on another card.
   const pairedSame = new Set(expensePairs.values());
   const elsewhere = strongPairs(
@@ -418,20 +421,27 @@ export async function buildReview(
       .filter((item) => !expensePairs.has(item.key) && typeof expectation(rowOf.get(item.key)!) === 'object')
       .map((item) => ({ ...item, onCard: false })),
     manual.filter(({ expense }) => !pairedSame.has(expense.id)).map(toPair),
-    taken,
+    taken.out,
   );
   for (const [key, id] of elsewhere) expensePairs.set(key, id);
   const incomePairs = strongPairs(
     pairable('income'),
     incomes.map(({ income }) => ({ id: income.id, amount: income.amount, date: income.date ?? null })),
-    taken,
+    taken.in,
   );
-  // A paired entry is nobody else's duplicate, and shows as taken in "Procurar nos gastos".
-  const paired = new Map<string, { bankName: string; date: string; transactionId: string }>();
-  for (const [key, id] of [...expensePairs, ...incomePairs, ...[...strongReceived].map(([key, entry]) => [key, entry.entryId] as const)]) {
-    taken.add(id);
-    const item = openItems.get(key);
-    if (item) paired.set(id, { bankName: item.bankName, date: item.date, transactionId: key });
+  // A paired entry is nobody else's duplicate on that side, and shows as taken in "Procurar nos gastos".
+  const paired: Record<MoneySide, Map<string, EntryTie>> = { out: new Map(), in: new Map() };
+  const pairs: [MoneySide, Iterable<readonly [string, string]>][] = [
+    ['out', expensePairs],
+    ['in', incomePairs],
+    ['in', [...strongReceived].map(([key, entry]) => [key, entry.entryId] as const)],
+  ];
+  for (const [side, list] of pairs) {
+    for (const [key, id] of list) {
+      taken[side].add(id);
+      const item = openItems.get(key);
+      if (item) paired[side].set(id, { bankName: item.bankName, date: item.date, transactionId: key });
+    }
   }
 
   const expenseEntry = (id: string | null) => launched.find(({ expense }) => expense.id === id) ?? null;
@@ -514,14 +524,14 @@ export async function buildReview(
       base.reimbursement !== null || base.received !== null
         ? null
         : kind === 'income'
-          ? findDuplicateIncome(base, incomes, taken)
-          : findDuplicate(base, launched, taken);
+          ? findDuplicateIncome(base, incomes, taken.in)
+          : findDuplicate(base, launched, taken.out);
     // Or several entries that add up to it ("São estes 2 gastos?": two "A receber" of a R$ 200 purchase).
-    const splitIds = kind === 'income' || duplicate ? null : findSplit(base, manual.map(toPair), taken);
+    const splitIds = kind === 'income' || duplicate ? null : findSplit(base, manual.map(toPair), taken.out);
     const split = splitIds
       ? splitIds.map((id) => linkedOf(launched.find(({ expense }) => expense.id === id)!))
       : null;
-    for (const entry of split ?? []) taken.add(entry.entryId);
+    for (const entry of split ?? []) taken.out.add(entry.entryId);
     placed.push({
       place: 'missing',
       item: {
@@ -549,13 +559,21 @@ export async function buildReview(
       },
     });
     // One manual entry is the duplicate of one bank transaction at most.
-    if (duplicate) taken.add('expense' in duplicate ? duplicate.expense.id : duplicate.income.id);
+    if (duplicate) {
+      if ('expense' in duplicate) taken.out.add(duplicate.expense.id);
+      else taken.in.add(duplicate.income.id);
+    }
   }
 
   placed.sort((a, b) => b.item.date.localeCompare(a.item.date) || b.item.amount - a.item.amount);
-  const tiedByHand = new Map(links.map((link) => [link.entryId, { bankName: link.bankName, date: link.date, transactionId: link.transactionId }]));
-  const tiedTo = (id: string) => tied.get(id) ?? tiedByHand.get(id) ?? paired.get(id) ?? null;
-  const asEntry = ({ month: entryMonth, expense }: LaunchedExpense) => ({
+  const tiedByHand: Record<MoneySide, Map<string, EntryTie>> = { out: new Map(), in: new Map() };
+  for (const link of links) {
+    tiedByHand[link.side].set(link.entryId, { bankName: link.bankName, date: link.date, transactionId: link.transactionId });
+  }
+  /** The line of that side an entry is tied to: an "A receber" tied to its purchase is still free for its payback. */
+  const tiedTo = (side: MoneySide, id: string) =>
+    tied[side].get(id) ?? tiedByHand[side].get(id) ?? paired[side].get(id) ?? null;
+  const asEntry = (side: MoneySide) => ({ month: entryMonth, expense }: LaunchedExpense) => ({
     month: entryMonth,
     id: expense.id,
     description: expense.description,
@@ -566,7 +584,7 @@ export async function buildReview(
     kind: 'expense' as const,
     reimbursable:
       expense.categoryKind === 'reimbursable' ? (expense.reimbursedAt ? ('received' as const) : ('open' as const)) : null,
-    tied: tiedTo(expense.id),
+    tied: tiedTo(side, expense.id),
   });
   // What a Pix received may be: an income of the month, or an "A receber" (open, or received).
   const owed = [...pendingBack, ...receivedBack].filter(
@@ -574,7 +592,7 @@ export async function buildReview(
   );
   const entries: BankReview['entries'] = {
     // Instalment charges are the plans' business: a bank line is never tied to one by hand.
-    expenses: launched.filter((entry) => entry.month === month && !entry.expense.installmentId).map(asEntry),
+    expenses: launched.filter((entry) => entry.month === month && !entry.expense.installmentId).map(asEntry('out')),
     incomes: [
       ...incomes
         .filter((entry) => entry.month === month)
@@ -588,9 +606,9 @@ export async function buildReview(
           cardId: null,
           kind: 'income' as const,
           reimbursable: null,
-          tied: tiedTo(income.id),
+          tied: tiedTo('in', income.id),
         })),
-      ...owed.map(asEntry),
+      ...owed.map(asEntry('in')),
     ],
   };
   for (const list of [entries.expenses, entries.incomes]) {
@@ -752,8 +770,10 @@ async function linkEntries(
       data?.incomes.some((income) => income.id === entryId);
     if (!exists) throw new HttpError(404, 'NOT_FOUND', 'Esse lançamento não existe mais.');
   }
-  const tied = await banks.tiedEntries();
-  const elsewhere = (await banks.links()).filter((link) => !ids.includes(link.transactionId));
+  // One bank line per side: an "A receber" tied to its purchase can still take its payback.
+  const side = (await banks.sideOf(ids)) ?? 'out';
+  const tied = (await banks.tiedEntries())[side];
+  const elsewhere = (await banks.links()).filter((link) => link.side === side && !ids.includes(link.transactionId));
   if (input.entries.some(({ entryId }) => tied.has(entryId) || elsewhere.some((link) => link.entryId === entryId))) {
     throw new HttpError(409, 'ENTRY_TAKEN', 'Esse lançamento já está ligado a outra linha do banco.');
   }
