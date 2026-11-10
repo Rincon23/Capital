@@ -11,7 +11,6 @@ export * from './reimbursables';
 export * from './tags';
 export * from './reminders';
 export * from './banks';
-export * from './diagram';
 export * from './preferences';
 export * from './exportImport';
 
@@ -23,7 +22,6 @@ import { HttpNotificationsRepository, type NotificationsRepository } from './not
 import { HttpNotificationsFeedRepository, type NotificationsFeedRepository } from './notificationsFeed';
 import { HttpRemindersRepository, type RemindersRepository } from './reminders';
 import { HttpBanksRepository, type BanksRepository } from './banks';
-import { HttpDiagramRepository, type DiagramRepository } from './diagram';
 
 /**
  * Singleton repository used throughout the app: the app's own API (Postgres on the server,
@@ -47,5 +45,3 @@ export const remindersRepository: RemindersRepository = new HttpRemindersReposit
 /** Open Finance: the person's Pluggy key and the banks they brought. */
 export const banksRepository: BanksRepository = new HttpBanksRepository();
 
-/** The Diagrama: targets per type, assets and their scores, aportes. */
-export const diagramRepository: DiagramRepository = new HttpDiagramRepository();

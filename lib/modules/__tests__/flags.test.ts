@@ -22,7 +22,7 @@ const off = (...keys: ModuleKey[]) => Object.fromEntries(keys.map((key) => [key,
 const notVipDefault = { vip: false, vipModules: DEFAULT_VIP_MODULES };
 
 describe('catálogo de módulos', () => {
-  it('tem os 11 módulos, Missões primeiro e cada um depois dos que ele precisa', () => {
+  it('tem os 10 módulos, Missões primeiro e cada um depois dos que ele precisa', () => {
     expect(MODULE_KEYS).toEqual([
       'missions',
       'expenses',
@@ -33,7 +33,6 @@ describe('catálogo de módulos', () => {
       'recurring',
       'cash',
       'banks',
-      'diagram',
       'reminders',
     ]);
     MODULES.forEach((definition, index) => {
@@ -117,8 +116,8 @@ describe('módulos só para VIP', () => {
 
   it('segue a escolha do dono em Administração, módulo por módulo', () => {
     expect(vipModulesFrom({ banks: false })).toEqual([]);
-    expect(vipModulesFrom({ diagram: true })).toEqual(['banks', 'diagram']);
-    expect(vipModulesFrom({ banks: false, diagram: true })).toEqual(['diagram']);
+    expect(vipModulesFrom({ reminders: true })).toEqual(['banks', 'reminders']);
+    expect(vipModulesFrom({ banks: false, reminders: true })).toEqual(['reminders']);
   });
 
   it('libera tudo para VIP e só o que não é "Só VIP" para os outros', () => {

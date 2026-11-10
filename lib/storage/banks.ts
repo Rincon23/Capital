@@ -1,5 +1,4 @@
 import type { BankAlertSettings } from '../banks/alerts';
-import type { BankHoldings } from '../banks/holdings';
 import type { BankReview, BankReviewCounts } from '../banks/review';
 import type { BankReserve, BanksOverview } from '../banks/types';
 import type { Expense, Income, InstallmentPlan, Month } from '../budget/types';
@@ -68,8 +67,6 @@ export interface BanksRepository {
   getReserve(): Promise<BankReserve>;
   /** Marks what feeds the Reserva (both empty: back to typing it). */
   setReserve(accounts: string[], investments: string[]): Promise<BankReserve>;
-  /** The stocks and funds the banks hold, for the Diagrama to compare quantities. */
-  getHoldings(): Promise<BankHoldings>;
   disconnect(): Promise<void>;
 }
 
@@ -130,9 +127,6 @@ export class HttpBanksRepository implements BanksRepository {
     return apiRequest('PUT', '/banks/reserve', { accounts, investments });
   }
 
-  getHoldings(): Promise<BankHoldings> {
-    return apiRequest('GET', '/banks/holdings');
-  }
 
   disconnect(): Promise<void> {
     return apiRequest('DELETE', '/banks');

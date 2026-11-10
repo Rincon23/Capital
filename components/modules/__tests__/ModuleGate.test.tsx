@@ -23,9 +23,9 @@ function renderGate(module: ModuleKey, access: { vip: boolean; vipModules: Modul
 
 describe('ModuleGate e os módulos restritos da Administração', () => {
   it('para quem não tem acesso, o módulo restrito não existe: nem nome, nem botão de ligar', () => {
-    renderGate('diagram', { vip: false, vipModules: ['diagram'] });
+    renderGate('reminders', { vip: false, vipModules: ['reminders'] });
     expect(screen.getByText('Página não encontrada')).toBeInTheDocument();
-    expect(screen.queryByText(/Diagrama/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Lembretes/)).not.toBeInTheDocument();
     expect(screen.queryByText(/VIP|Restrito/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Ligar/ })).not.toBeInTheDocument();
   });
@@ -37,7 +37,7 @@ describe('ModuleGate e os módulos restritos da Administração', () => {
   });
 
   it('um módulo que não é restrito abre para qualquer conta, sem nada para ligar', () => {
-    renderGate('banks', { vip: false, vipModules: ['diagram'] });
+    renderGate('banks', { vip: false, vipModules: ['reminders'] });
     expect(screen.getByText('tela do módulo')).toBeInTheDocument();
   });
 

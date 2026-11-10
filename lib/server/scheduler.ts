@@ -144,7 +144,7 @@ const QUOTES_EVERY_MS = 30 * 60 * 1000;
 
 /**
  * Every 30 minutes while the market is open, refreshes the price of every ticker someone holds,
- * so the Carteira opens with a recent price. Free sources (B3, then Yahoo), all tickers at once.
+ * so the Carteira opens with a recent price. Asked to the quote service (the Invest +), all at once.
  */
 export async function runQuotesJob(db: Database, now: Date = new Date()): Promise<{ updated: number }> {
   if (!isMarketOpen(now)) return { updated: 0 };
@@ -170,7 +170,8 @@ export async function runQuotesJob(db: Database, now: Date = new Date()): Promis
 
   const quotes = await fetchQuotes(held.map((row) => row.ticker));
   for (const quote of quotes.values()) {
-    const values = { price: quote.price, name: quote.name ?? null, source: quote.source, fetchedAt: now };
+    const fetchedAt = quote.fetchedAt ? new Date(quote.fetchedAt) : now;
+    const values = { price: quote.price, name: quote.name ?? null, source: quote.source, fetchedAt };
     await db
       .insert(priceCache)
       .values({ ticker: quote.ticker, ...values })

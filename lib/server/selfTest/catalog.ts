@@ -2,7 +2,7 @@ import type { SelfTestArea } from '../../admin/types';
 import { MODULE_KEYS } from '../../modules';
 import type { SelfCheck } from './check';
 import { missionsChecks, remindersChecks } from './checks/assistant';
-import { banksChecks, diagramChecks } from './checks/investing';
+import { banksChecks } from './checks/investing';
 import { budgetChecks, expensesChecks, historyChecks, reimbursableChecks } from './checks/month';
 import { serverChecks } from './checks/server';
 import { cardChecks, cashChecks, recurringChecks } from './checks/wallet';
@@ -22,7 +22,6 @@ export const SELF_CHECKS: Record<SelfTestArea, SelfCheck[]> = {
   recurring: recurringChecks,
   cash: cashChecks,
   banks: banksChecks,
-  diagram: diagramChecks,
   reminders: remindersChecks,
 };
 

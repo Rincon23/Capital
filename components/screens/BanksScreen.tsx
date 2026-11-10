@@ -12,7 +12,6 @@ import {
   Pencil,
   Plus,
   RefreshCw,
-  Target,
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useSettings } from '@/components/providers/SettingsProvider';
@@ -206,8 +205,6 @@ function Banks() {
 
   const { key, connections, limit } = overview;
   const atLimit = connections.length >= limit;
-  // The stocks and ETFs the banks hold are compared with the Diagrama's quantities, in the Diagrama.
-  const diagramOn = isModuleOn(settings, 'diagram');
 
   return (
     <div className="flex flex-1 flex-col gap-4 pb-10">
@@ -237,7 +234,7 @@ function Banks() {
       ) : (
         <section className="flex flex-col gap-3" data-tour="bancos-conexoes">
           <Card>
-            {(expensesOn || diagramOn) && (
+            {expensesOn && (
               <div className="flex flex-col gap-0.5">
                 <p className="text-foreground font-semibold">Conferir com o Capital +</p>
                 <p className="text-muted text-sm">O que chegou dos bancos, ao lado do que você lançou.</p>
@@ -257,15 +254,9 @@ function Banks() {
                 </Link>
               </>
             )}
-            {diagramOn && (
-              <Link href="/diagrama?aba=ativos&conferir=1" className={secondaryButton}>
-                <Target className="h-4 w-4" aria-hidden />
-                Conferir investimentos
-              </Link>
-            )}
             <button
               type="button"
-              className={expensesOn || diagramOn ? 'text-primary flex min-h-[44px] items-center justify-center gap-2 text-sm font-medium disabled:opacity-50' : secondaryButton}
+              className={expensesOn ? 'text-primary flex min-h-[44px] items-center justify-center gap-2 text-sm font-medium disabled:opacity-50' : secondaryButton}
               disabled={busy !== null}
               onClick={() =>
                 void act('sync', async () => {

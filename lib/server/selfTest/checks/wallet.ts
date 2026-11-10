@@ -149,7 +149,7 @@ export const cashChecks: SelfCheck[] = [
   },
   {
     id: 'cash.quotes',
-    name: 'Cotação da reserva investida (B3 ou Yahoo)',
+    name: 'Cotação da reserva investida (serviço do Invest +)',
     external: true,
     async run() {
       const quote = await fetchQuote(DEFAULT_TICKER);

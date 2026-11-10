@@ -152,7 +152,7 @@ export const serverChecks: SelfCheck[] = [
     id: 'server.backup',
     name: 'Backup exporta e importa sem perder nada',
     run: ({ scratch }) =>
-      scratch(async ({ budget, diagram, month, today }) => {
+      scratch(async ({ budget, month, today }) => {
         await budget.saveIncome(month, { id: createId(), source: 'Salário', amount: 2500, date: today });
         await budget.saveExpense(month, {
           id: createId(),
@@ -161,16 +161,12 @@ export const serverChecks: SelfCheck[] = [
           amount: 900,
           date: today,
         });
-        await diagram.setFixedIncome('fixedIncome', 4000, today);
         const backup = await budget.exportData();
-        const diagramBackup = await diagram.exportData();
 
         await budget.clearAll();
-        await diagram.clear();
         expectEqual(await budget.listMonths(), [], 'Meses depois de apagar tudo');
 
         await budget.importData(backup);
-        await diagram.importData(diagramBackup);
         const restored = await budget.getMonth(month);
         expectEqual(
           restored?.incomes.map((item) => item.amount),
@@ -181,11 +177,6 @@ export const serverChecks: SelfCheck[] = [
           restored?.expenses.map((item) => item.amount),
           [900],
           'Gastos depois de importar',
-        );
-        expectEqual(
-          (await diagram.exportData()).fixedIncome.map((item) => item.amount),
-          [4000],
-          'Renda fixa do Diagrama depois de importar',
         );
       }),
   },

@@ -1,16 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { count, eq } from 'drizzle-orm';
-import { priceCacheKey } from '../../../diagram/tickers';
 import { buildReview } from '../../banks/review';
 import type { StoredTransaction } from '../../banks/repository';
 import { bankConnections, bankKeys } from '../../db/schema';
-import { fetchFundamentals } from '../../fundamentals';
 import { lastRun } from '../../jobRuns';
-import { fetchMarketQuotes } from '../../quotes';
 import { schedulerRunning } from '../../scheduler';
-import { expect, expectEqual, presetTopic, type SelfCheck } from '../check';
+import { expect, expectEqual, type SelfCheck } from '../check';
 
-/** Open Finance and Diagrama. */
+/** Open Finance. */
 
 /** The banks are read once an hour; past this, the reading stopped. */
 const BANKS_LATE_MS = 2 * 60 * 60 * 1000;
@@ -115,72 +112,6 @@ export const banksChecks: SelfCheck[] = [
           message: `${failing === 1 ? '1 banco deu' : `${failing} bancos deram`} erro na última leitura (a Pluggy tenta de novo).`,
         };
       }
-    },
-  },
-];
-
-export const diagramChecks: SelfCheck[] = [
-  {
-    id: 'diagram.contribute',
-    name: 'Aporte soma na renda fixa e vira gasto em Investimentos',
-    run: ({ scratch }) =>
-      scratch(async (account) => {
-        const { diagram, budget, month, today } = account;
-        const investimentos = await presetTopic(account, 'investimentos');
-        await diagram.saveTargets({ fixedIncome: 1 });
-        await diagram.setFixedIncome('fixedIncome', 1000, today);
-        await diagram.contribute({
-          date: today,
-          month,
-          items: [{ type: 'fixedIncome', quantity: 250 }],
-          launchExpense: true,
-        });
-
-        const overview = await diagram.getOverview(false);
-        expectEqual(
-          overview.fixedIncome.find((item) => item.type === 'fixedIncome')?.amount,
-          1250,
-          'Renda fixa depois do aporte',
-        );
-        expectEqual(
-          overview.contributions.map((item) => item.amount),
-          [250],
-          'Aportes no histórico',
-        );
-        const launched = (await budget.getMonth(month))?.expenses.find(
-          (item) => item.source === 'investment',
-        );
-        expectEqual(launched?.amount, 250, 'Gasto do aporte no mês');
-        expectEqual(launched?.topicId, investimentos, 'Categoria do gasto do aporte (Investimentos)');
-      }),
-  },
-  {
-    id: 'diagram.quotes',
-    name: 'Cotações de ações da B3 e dos EUA',
-    external: true,
-    async run() {
-      const wanted = [
-        { market: 'b3' as const, ticker: 'PETR4' },
-        { market: 'us' as const, ticker: 'AAPL' },
-      ];
-      const found = await fetchMarketQuotes(wanted);
-      const missing = wanted.filter(
-        (item) => !(found.get(priceCacheKey(item.market, item.ticker))?.price ?? 0),
-      );
-      expect(missing.length === 0, `Sem cotação de ${missing.map((item) => item.ticker).join(' e ')}.`);
-    },
-  },
-  {
-    id: 'diagram.fundamentals',
-    name: 'Indicadores do Fundamentus (Graham e P/VP)',
-    external: true,
-    async run() {
-      const found = (await fetchFundamentals(['PETR4'])).get('PETR4');
-      expect(found, 'O Fundamentus não respondeu sobre PETR4 (o site pode ter mudado).');
-      expect(
-        found.lpa !== null && found.vpa !== null,
-        'O Fundamentus respondeu, mas sem LPA ou VPA (o site pode ter mudado).',
-      );
     },
   },
 ];

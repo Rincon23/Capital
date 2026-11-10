@@ -1,5 +1,4 @@
 import type { BudgetSettings, Expense, Income, Month, MonthData } from '../budget/types';
-import type { DiagramBackup } from '../diagram/types';
 
 /**
  * What a backup exported today declares. Version 2 added the modules and the "A receber"
@@ -13,8 +12,11 @@ export interface BackupPayload {
   exportedAt: string;
   settings: BudgetSettings;
   months: MonthData[];
-  /** The Diagrama. Absent in backups from before it existed: importing one leaves it as it is. */
-  diagram?: DiagramBackup;
+  /**
+   * The Diagrama, in backups from before it moved to the Invest + (2026-11-09). Still accepted on
+   * import, and ignored: the Diagrama is restored in the Invest +.
+   */
+  diagram?: unknown;
 }
 
 /** Thrown when a write targets a month that has been closed. Message is user-facing (pt-BR). */

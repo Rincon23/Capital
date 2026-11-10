@@ -112,17 +112,17 @@ describe('módulos só para VIP', () => {
     await syncModules(db);
 
     const modules = await listModules(db);
-    expect(modules.map((item) => item.key)).toHaveLength(11);
+    expect(modules.map((item) => item.key)).toHaveLength(10);
     expect(modules.find((item) => item.key === 'reminders')).toEqual({ key: 'reminders', vipOnly: false, usersWithoutVip: 1 });
     expect(modules.find((item) => item.key === 'banks')).toEqual({ key: 'banks', vipOnly: true, usersWithoutVip: 0 });
     expect(modules.filter((item) => item.vipOnly).map((item) => item.key)).toEqual(['banks']);
   });
 
   it('quem perde o acesso fica sem os módulos restritos, e os dados ficam; quem ganha, tem na hora', async () => {
-    await setModuleVip(db, 'diagram', true);
+    await setModuleVip(db, 'reminders', true);
     const id = await newPerson({}, { vip: true });
     await setVip(db, id, false);
-    expect(await modulesOf(id)).toEqual({ ...ALL_MODULES, banks: false, diagram: false });
+    expect(await modulesOf(id)).toEqual({ ...ALL_MODULES, banks: false, reminders: false });
     expect((await userAccess(db, id, `${id}@teste.local`)).vip).toBe(false);
 
     await setVip(db, id, true);

@@ -72,8 +72,8 @@ describe('todos os módulos ligados', () => {
       homeCardSizes: { recurring: 'full' },
     });
     const common = await person('alguem@teste.local', {
-      modules: { expenses: true, diagram: true },
-      homePages: [['diagram', 'expenses']],
+      modules: { expenses: true, cash: true },
+      homePages: [['cash', 'expenses']],
       homeHidden: ['reminders', 'history'],
     });
 
@@ -110,7 +110,7 @@ describe('todos os módulos ligados', () => {
   it('com a conta modelo, é a Início dela que vale, e é dela que a conta nova parte', async () => {
     vi.stubEnv('HOME_TEMPLATE_EMAIL', TEMPLATE);
     await person(OWNER, { modules: { expenses: true }, homePages: [['expenses']] });
-    await person(TEMPLATE, { homePages: [['reminders'], ['expenses', 'cash']], homeHidden: ['diagram'] });
+    await person(TEMPLATE, { homePages: [['reminders'], ['expenses', 'cash']], homeHidden: ['banks'] });
     const common = await person('alguem@teste.local', { modules: { expenses: true } });
 
     expect(await runModulesAlwaysOnMigration(db)).toEqual({ reset: 1 });

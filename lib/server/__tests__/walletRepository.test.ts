@@ -54,15 +54,12 @@ async function setPrice(ticker: string, price: number, fetchedAt = new Date()) {
     .onConflictDoUpdate({ target: schema.priceCache.ticker, set: { price, fetchedAt } });
 }
 
-/** B3's answer for `ticker` at `price`, the shape cotacao.b3.com.br really returns. */
-function b3Answer(ticker: string, price: number, desc: string) {
-  return new Response(
-    JSON.stringify({
-      BizSts: { cd: 'OK' },
-      Trad: [{ scty: { SctyQtn: { curPrc: price }, symb: ticker, desc } }],
-    }),
-    { status: 200, headers: { 'Content-Type': 'application/json' } },
-  );
+/** The quote service's answer (the Invest +) for `ticker` at `price`. */
+function serviceAnswer(ticker: string, price: number, name: string) {
+  return new Response(JSON.stringify({ quotes: [{ ticker, price, name, source: 'b3' }], missing: [] }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
 }
 
 /** A plan whose first charge is in `month`, so its charges are easy to place in tests. */
@@ -468,13 +465,15 @@ describe('PostgresWalletRepository', () => {
     expect((await budget.getMonth(month))?.expenses).toHaveLength(1);
   });
 
-  it('refreshes an old price by itself, for free, when the user holds quotas', async () => {
+  it('refreshes an old price by itself, asking the quote service, when the user holds quotas', async () => {
+    vi.stubEnv('QUOTES_SERVICE_TOKEN', 'segredo-de-teste-123');
+    vi.stubEnv('QUOTES_SERVICE_URL', 'http://invest:3000');
     const { wallet } = await newAccount();
     await wallet.setTicker('BOVA11');
     await wallet.tradeQuotas(10);
     await setPrice('BOVA11', 100, new Date(Date.now() - 60 * 60_000));
     const fetchMock = vi.fn<(url: string) => Promise<Response>>(async () =>
-      b3Answer('BOVA11', 183.72, 'ISHARES   BOVACI'),
+      serviceAnswer('BOVA11', 183.72, 'ISHARES BOVACI'),
     );
     vi.stubGlobal('fetch', fetchMock);
 
@@ -484,11 +483,12 @@ describe('PostgresWalletRepository', () => {
     expect(investments.source).toBe('b3');
     expect(investments.assetName).toBe('ISHARES BOVACI');
     expect(investments.totalValue).toBe(1837.2);
-    expect(String(fetchMock.mock.calls[0][0])).toContain('cotacao.b3.com.br');
+    expect(String(fetchMock.mock.calls[0][0])).toBe('http://invest:3000/api/internal/quotes');
 
     // Fresh now: opening the Carteira again does not ask the sources again.
     await wallet.getSnapshot();
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    vi.unstubAllEnvs();
   });
 
   it('keeps the cached price when the sources are down, and never fetches for who holds nothing', async () => {

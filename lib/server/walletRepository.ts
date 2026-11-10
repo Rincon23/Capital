@@ -930,7 +930,7 @@ export class PostgresWalletRepository implements WalletRepository {
     });
   }
 
-  /** Fetches a fresh price (B3, then Yahoo Finance — no token) and caches it for every account. */
+  /** Asks the price to the quote service (the Invest +) and caches it for every account. */
   async refreshPrice(): Promise<void> {
     const { ticker } = await this.readReserve();
     await this.storeQuote(ticker);
@@ -938,7 +938,8 @@ export class PostgresWalletRepository implements WalletRepository {
 
   private async storeQuote(ticker: string): Promise<PriceQuote> {
     const quote = await fetchQuote(ticker);
-    const fetchedAt = new Date();
+    // The service may answer from its own cache: the price keeps the time it was really fetched.
+    const fetchedAt = quote.fetchedAt ? new Date(quote.fetchedAt) : new Date();
     const values = {
       price: quote.price,
       name: quote.name ?? null,

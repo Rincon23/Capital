@@ -76,7 +76,6 @@ describe('on a healthy server', () => {
     }
     // The network is off: the quotes warn, never fail.
     expect(status['cash.quotes']).toBe('warn');
-    expect(status['diagram.quotes']).toBe('warn');
     // The scheduler isn't running in a test.
     expect(status['server.scheduler']).toBe('skip');
   }, 60_000);

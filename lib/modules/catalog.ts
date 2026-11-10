@@ -1,13 +1,12 @@
 import type { ModuleKey, Month } from '../budget/types';
 
 /** How the app drawer groups modules. */
-export type ModuleGroup = 'progress' | 'month' | 'wallet' | 'investing' | 'assistant';
+export type ModuleGroup = 'progress' | 'month' | 'wallet' | 'assistant';
 
 export const MODULE_GROUPS: { key: ModuleGroup; label: string }[] = [
   { key: 'progress', label: 'Seu progresso' },
   { key: 'month', label: 'Dinheiro do mês' },
   { key: 'wallet', label: 'Carteira' },
-  { key: 'investing', label: 'Investimentos' },
   { key: 'assistant', label: 'Assistente' },
 ];
 
@@ -168,19 +167,6 @@ export const MODULES: ModuleDefinition[] = [
     homeCard: true,
     // Each person brings their own free Meu Pluggy key; the owner tries it first.
     vipByDefault: true,
-  },
-  {
-    key: 'diagram',
-    name: 'Diagrama',
-    tagline: 'Quanto aportar em cada ativo',
-    group: 'investing',
-    dependsOn: [],
-    screen: {
-      label: 'Diagrama',
-      href: () => '/diagrama',
-      isActive: (pathname) => pathname.startsWith('/diagrama'),
-    },
-    homeCard: true,
   },
   {
     key: 'reminders',

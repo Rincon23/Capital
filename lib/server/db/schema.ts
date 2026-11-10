@@ -39,15 +39,15 @@ import type {
   Tag,
   TopicConfig,
 } from '../../budget/types';
-import type {
-  AutoQuestionKind,
-  DiagramContributionItem,
-  DiagramTargets,
-  AssetType,
-  FixedIncomeType,
-  QuestionType,
-} from '../../diagram/types';
-import type { PricePoint } from '../../diagram/history';
+// The Diagrama moved to the Invest + (2026-11-09). Its tables stay here, untouched, until they are
+// dropped (phase F7 of docs/plano-invest-plus.md); these loose types only describe what they hold.
+type AssetType = string;
+type FixedIncomeType = string;
+type QuestionType = string;
+type AutoQuestionKind = 'graham' | 'pvp';
+type DiagramTargets = Partial<Record<string, number>>;
+type DiagramContributionItem = Record<string, unknown>;
+type PricePoint = [date: string, close: number];
 import type { SelfTestResult, SelfTestTrigger } from '../../admin/types';
 import type { BankAlertSettings } from '../../banks/alerts';
 import type { BankAccountKind, BankConnectionStatus } from '../../banks/types';
@@ -621,9 +621,9 @@ export const priceCache = pgTable('price_cache', {
 });
 
 /**
- * Past closes per Yahoo symbol and period (lib/diagram/history.ts), for the Histórico's
- * Investimentos tab. Global, like `price_cache`, and kept when the source fails, so the chart
- * still shows the last answer it had.
+ * Past closes per Yahoo symbol and period, from when the Histórico had an Investimentos tab (it
+ * moved to the Invest + on 2026-11-09). Nothing reads it any more; it goes with the Diagrama's
+ * tables (phase F7 of docs/plano-invest-plus.md).
  */
 export const priceHistoryCache = pgTable(
   'price_history_cache',
@@ -1152,9 +1152,9 @@ export const bankLinks = pgTable(
 );
 
 // ---------------------------------------------------------------------------
-// Diagrama (lib/diagram): targets per type, assets with scores, fixed-income totals, the
-// questions of each type and the aportes registered. Separate from the Reserva investida and from
-// the Reserva de emergência.
+// Diagrama — moved to the Invest + on 2026-11-09. Nothing reads these tables any more but "Apagar
+// todos os dados"; they stay, untouched, until they are dropped (phase F7 of
+// docs/plano-invest-plus.md), so the move can be checked against them.
 // ---------------------------------------------------------------------------
 
 /** The types that have questions; assets can be of any type (fixed income has funds too). */

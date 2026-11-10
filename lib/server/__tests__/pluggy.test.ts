@@ -258,8 +258,11 @@ describe('a bank arriving', () => {
       },
     });
     await refreshPending(banks, id, fetchImpl, new Date('2026-10-20T13:40:00Z'));
-    const { holdings } = await banks.holdings();
-    expect(holdings.map((holding) => [holding.code, holding.quantity])).toEqual([['PETR4', 120]]);
+    const read = await db
+      .select({ code: schema.bankInvestments.code, quantity: schema.bankInvestments.quantity })
+      .from(schema.bankInvestments)
+      .where(eq(schema.bankInvestments.userId, id));
+    expect(read.map((row) => [row.code, row.quantity])).toEqual([['PETR4', 120]]);
   });
 
   it('brings its accounts and a suggested name when Pluggy finishes', async () => {

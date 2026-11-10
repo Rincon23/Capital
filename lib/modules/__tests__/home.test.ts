@@ -27,7 +27,6 @@ const everything = on(
   'recurring',
   'cash',
   'banks',
-  'diagram',
   'reminders',
 );
 
@@ -42,7 +41,6 @@ describe('widgets do Início', () => {
       'recurring',
       'cash',
       'banks',
-      'diagram',
       'reminders',
       'calendar',
     ]);
@@ -83,20 +81,20 @@ describe('Missões', () => {
 });
 
 describe('áreas de trabalho', () => {
-  const modules = on('expenses', 'budget', 'reminders', 'diagram');
+  const modules = on('expenses', 'budget', 'reminders', 'cash');
 
   it('sem nada salvo, é uma área só, na ordem padrão e sem os que foram tirados', () => {
-    expect(resolveHomePages({ modules })).toEqual([['expenses', 'budget', 'diagram', 'reminders', 'calendar']]);
+    expect(resolveHomePages({ modules })).toEqual([['expenses', 'budget', 'cash', 'reminders', 'calendar']]);
     expect(resolveHomePages({ modules, homeHidden: ['budget'] })).toEqual([
-      ['expenses', 'diagram', 'reminders', 'calendar'],
+      ['expenses', 'cash', 'reminders', 'calendar'],
     ]);
     expect(resolveHomePages({ modules: on() })).toEqual([[]]);
   });
 
   it('a ordem salva antes das áreas vira a área 1', () => {
     expect(
-      resolveHomePages({ modules, homeOrder: ['diagram', 'expenses', 'budget', 'reminders', 'calendar'] }),
-    ).toEqual([['diagram', 'expenses', 'budget', 'reminders', 'calendar']]);
+      resolveHomePages({ modules, homeOrder: ['cash', 'expenses', 'budget', 'reminders', 'calendar'] }),
+    ).toEqual([['cash', 'expenses', 'budget', 'reminders', 'calendar']]);
   });
 
   it('as áreas salvas valem mais que a ordem antiga', () => {
@@ -105,12 +103,12 @@ describe('áreas de trabalho', () => {
         modules,
         homeOrder: ['budget', 'expenses'],
         homePages: [
-          ['diagram', 'expenses'],
+          ['cash', 'expenses'],
           ['budget', 'reminders', 'calendar'],
         ],
       }),
     ).toEqual([
-      ['diagram', 'expenses'],
+      ['cash', 'expenses'],
       ['budget', 'reminders', 'calendar'],
     ]);
   });
@@ -120,12 +118,12 @@ describe('áreas de trabalho', () => {
       resolveHomePages({
         modules,
         homePages: [
-          ['diagram', 'expenses'],
+          ['cash', 'expenses'],
           ['reminders', 'calendar'],
         ],
       }),
     ).toEqual([
-      ['diagram', 'expenses'],
+      ['cash', 'expenses'],
       ['reminders', 'calendar', 'budget'],
     ]);
   });
@@ -135,12 +133,12 @@ describe('áreas de trabalho', () => {
       resolveHomePages({
         modules,
         homePages: [
-          ['reminders', 'diagram'],
+          ['reminders', 'cash'],
           ['expenses', 'budget'],
         ],
       }),
     ).toEqual([
-      ['reminders', 'calendar', 'diagram'],
+      ['reminders', 'calendar', 'cash'],
       ['expenses', 'budget'],
     ]);
     // Com o card do módulo tirado da Início, o extra vai para o fim da última área.
@@ -148,9 +146,9 @@ describe('áreas de trabalho', () => {
       resolveHomePages({
         modules,
         homeHidden: ['reminders'],
-        homePages: [['diagram'], ['expenses', 'budget']],
+        homePages: [['cash'], ['expenses', 'budget']],
       }),
-    ).toEqual([['diagram'], ['expenses', 'budget', 'calendar']]);
+    ).toEqual([['cash'], ['expenses', 'budget', 'calendar']]);
   });
 
   it('cada widget fica numa área só', () => {
@@ -158,12 +156,12 @@ describe('áreas de trabalho', () => {
       resolveHomePages({
         modules,
         homePages: [
-          ['expenses', 'diagram', 'expenses'],
-          ['diagram', 'budget', 'reminders', 'calendar'],
+          ['expenses', 'cash', 'expenses'],
+          ['cash', 'budget', 'reminders', 'calendar'],
         ],
       }),
     ).toEqual([
-      ['expenses', 'diagram'],
+      ['expenses', 'cash'],
       ['budget', 'reminders', 'calendar'],
     ]);
   });
@@ -172,14 +170,14 @@ describe('áreas de trabalho', () => {
     expect(
       resolveHomePages({
         modules: on('expenses'),
-        homePages: [['cash', 'diagram'], [], ['expenses']],
+        homePages: [['cash', 'recurring'], [], ['expenses']],
       }),
     ).toEqual([['expenses']]);
     expect(
       resolveHomePages({
         modules,
-        homeHidden: ['expenses', 'budget', 'reminders', 'calendar', 'diagram'],
-        homePages: [['expenses'], ['diagram']],
+        homeHidden: ['expenses', 'budget', 'reminders', 'calendar', 'cash'],
+        homePages: [['expenses'], ['cash']],
       }),
     ).toEqual([[]]);
     expect(resolveHomePages({ modules: on(), homePages: [] })).toEqual([[]]);
@@ -189,8 +187,8 @@ describe('áreas de trabalho', () => {
     expect(
       resolveHomePages({
         modules,
-        homeHidden: ['diagram'],
-        homePages: [['diagram', 'expenses', 'budget', 'reminders', 'calendar']],
+        homeHidden: ['cash'],
+        homePages: [['cash', 'expenses', 'budget', 'reminders', 'calendar']],
       }),
     ).toEqual([['expenses', 'budget', 'reminders', 'calendar']]);
   });
@@ -201,7 +199,7 @@ describe('áreas de trabalho', () => {
       ['budget'],
       ['reminders'],
       ['calendar'],
-      ['diagram'],
+      ['cash'],
       ['card'],
     ];
     expect(resolveHomePages({ modules: everything, homePages: many })).toHaveLength(MAX_HOME_PAGES);
@@ -242,8 +240,8 @@ describe('mexendo nas áreas', () => {
   });
 
   it('adiciona no fim da área escolhida, tirando de onde estava', () => {
-    expect(addWidget(pages, 'diagram', 0)).toEqual([
-      ['expenses', 'budget', 'card', 'diagram'],
+    expect(addWidget(pages, 'cash', 0)).toEqual([
+      ['expenses', 'budget', 'card', 'cash'],
       ['reminders', 'calendar'],
     ]);
     expect(addWidget(pages, 'expenses', 1)).toEqual([
@@ -259,7 +257,7 @@ describe('mexendo nas áreas', () => {
     expect(emptied).toEqual([['expenses', 'budget', 'card'], []]);
     expect(withoutEmptyPages(emptied)).toEqual([['expenses', 'budget', 'card']]);
     expect(pageOfWidget(pages, 'calendar')).toBe(1);
-    expect(pageOfWidget(pages, 'diagram')).toBe(-1);
+    expect(pageOfWidget(pages, 'cash')).toBe(-1);
   });
 
   it('cria área nova vazia no fim, até o limite', () => {
@@ -277,19 +275,19 @@ describe('mexendo nas áreas', () => {
       pages: [['reminders', 'calendar', 'expenses', 'budget', 'card']],
       movedTo: 0,
     });
-    const three: HomeWidgetKey[][] = [['expenses'], [], ['diagram']];
-    expect(deleteHomePage(three, 1)).toEqual({ pages: [['expenses'], ['diagram']], movedTo: -1 });
-    expect(deleteHomePage(three, 2)).toEqual({ pages: [['expenses'], ['diagram']], movedTo: 1 });
+    const three: HomeWidgetKey[][] = [['expenses'], [], ['cash']];
+    expect(deleteHomePage(three, 1)).toEqual({ pages: [['expenses'], ['cash']], movedTo: -1 });
+    expect(deleteHomePage(three, 2)).toEqual({ pages: [['expenses'], ['cash']], movedTo: 1 });
   });
 
   it('a única área não se exclui', () => {
-    expect(deleteHomePage([['diagram']], 0)).toEqual({ pages: [['diagram']], movedTo: -1 });
+    expect(deleteHomePage([['cash']], 0)).toEqual({ pages: [['cash']], movedTo: -1 });
   });
 
   it('não mexe nas áreas recebidas', () => {
     const copy = JSON.stringify(pages);
     moveWidget(pages, 'budget', 1, 0);
-    addWidget(pages, 'diagram', 1);
+    addWidget(pages, 'cash', 1);
     removeWidget(pages, 'card');
     addHomePage(pages);
     deleteHomePage(pages, 0);

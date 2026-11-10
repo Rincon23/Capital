@@ -9,14 +9,6 @@ import {
   renameReserveKey,
   withoutRetiredModules,
 } from '@/lib/modules';
-import {
-  ASSET_TYPE_KEYS,
-  QUESTION_TYPES,
-  type AssetType,
-  type DiagramBackup,
-  type DiagramTargets,
-  type QuestionType,
-} from '@/lib/diagram';
 import { FACT_LIMITS } from '@/lib/motivation';
 import { isAllowedPushEndpoint, type NotificationCategory } from '@/lib/notifications';
 import { QUOTAS } from './quotas';
@@ -511,169 +503,15 @@ export const closeMonthSchema = z.object({
   dropLeftovers: z.boolean().optional(),
 });
 
-// ---------------------------------------------------------------------------
-// Diagrama
-// ---------------------------------------------------------------------------
-
-const questionTypeSchema = z.enum(QUESTION_TYPES as [QuestionType, ...QuestionType[]]);
-const fixedIncomeTypeSchema = z.enum(['fixedIncome', 'intlFixedIncome']);
-const assetTypeSchema = z.enum(ASSET_TYPE_KEYS as [AssetType, ...AssetType[]]);
-const ratio = z.number().min(0).max(1);
-const diagramAmount = z.number().min(0).max(1_000_000_000_000);
-const optionalLabel = (max: number) => z.string().max(max).nullable().optional();
-
-/** The target of each type in the portfolio; a type left out is not in it. */
-export const diagramTargetsSchema = z.object({
-  targets: partialMap(ASSET_TYPE_KEYS, ratio) as z.ZodType<DiagramTargets>,
-});
-
-export const diagramLastAmountSchema = z.object({ amount: diagramAmount });
-
-export const diagramFixedIncomeSchema = z.object({
-  amount: diagramAmount,
-  date: isoDate,
-  score: z.number().min(-1).max(1).optional(),
-});
-
-export const diagramAssetSchema = z.object({
-  type: assetTypeSchema,
-  ticker: z.string().trim().min(1).max(30),
-  quantity: diagramAmount,
-  sector: optionalLabel(100),
-  subsector: optionalLabel(100),
-  note: optionalLabel(500),
-  stopBuying: z.boolean(),
-  isEtf: z.boolean(),
-  directScore: z.number().min(-1).max(1).nullable(),
-  /** Today, on the person's device: the date of the quantity. */
-  date: isoDate,
-});
-
-export const diagramStopBuyingSchema = z.object({ stopBuying: z.boolean() });
-
-export const diagramAnswerSchema = z.object({
-  questionId: z.string().min(1).max(100),
-  answer: z.union([z.literal(1), z.literal(-1), z.null()]),
-});
-
-const questionFields = {
-  criterion: z.string().trim().min(1, 'Escreva o critério.').max(40),
-  text: z.string().trim().min(1, 'Escreva a pergunta.').max(300),
-  help: z.string().max(600).nullable().optional(),
-  weight: z.number().min(0).max(100),
-};
-
-const autoKindSchema = z.enum(['graham', 'pvp']);
-
-export const diagramQuestionSchema = z.object({ type: questionTypeSchema, ...questionFields });
-export const diagramQuestionUpdateSchema = z.object({ ...questionFields, auto: autoKindSchema.nullable().optional() });
-export const diagramAutoQuestionSchema = z.object({ kind: autoKindSchema });
-export const diagramReorderSchema = z.object({
-  type: questionTypeSchema,
-  ids: z.array(z.string().min(1).max(100)).max(QUOTAS.diagramQuestions),
-});
-export const diagramRecommendedSchema = z.object({ type: questionTypeSchema });
-
-export const diagramContributeSchema = z.object({
-  date: isoDate,
-  month: monthKeySchema,
-  items: z
-    .array(
-      z.object({
-        assetId: z.string().min(1).max(100).optional(),
-        type: z.enum(ASSET_TYPE_KEYS as [AssetType, ...AssetType[]]),
-        quantity: diagramAmount,
-      }),
-    )
-    .min(1)
-    .max(QUOTAS.diagramAssets + 2),
-  launchExpense: z.boolean(),
-});
-
-const diagramBackupSchema = z.object({
-  settings: z.object({
-    targets: partialMap(ASSET_TYPE_KEYS, ratio) as z.ZodType<DiagramTargets>,
-    lastAmount: diagramAmount.nullable(),
-  }),
-  assets: z
-    .array(
-      z.object({
-        id: z.string().min(1).max(100),
-        type: assetTypeSchema,
-        ticker: z.string().min(1).max(30),
-        quantity: diagramAmount,
-        quantityUpdatedOn: isoDate.nullable(),
-        sector: z.string().max(100).optional(),
-        subsector: z.string().max(100).optional(),
-        note: z.string().max(500).optional(),
-        stopBuying: z.boolean(),
-        isEtf: z.boolean(),
-        directScore: z.number().min(-1).max(1).nullable(),
-        position: z.number().int().min(0).max(100_000),
-      }),
-    )
-    .max(QUOTAS.diagramAssets),
-  fixedIncome: z
-    .array(
-      z.object({
-        type: fixedIncomeTypeSchema,
-        amount: diagramAmount,
-        updatedOn: isoDate.nullable(),
-        // Backups from before fixed income had funds: the total weighed 1.
-        score: z.number().min(-1).max(1).default(1),
-      }),
-    )
-    .max(2),
-  questions: z
-    .array(
-      z.object({
-        id: z.string().min(1).max(100),
-        type: questionTypeSchema,
-        criterion: z.string().max(40),
-        text: z.string().max(300),
-        help: z.string().max(600).optional(),
-        auto: autoKindSchema.optional(),
-        weight: z.number().min(0).max(100),
-        position: z.number().int().min(0).max(100_000),
-      }),
-    )
-    .max(QUOTAS.diagramQuestions),
-  answers: z.record(
-    z.string().max(100),
-    z.record(z.string().max(100), z.union([z.literal(1), z.literal(-1)])),
-  ),
-  contributions: z
-    .array(
-      z.object({
-        id: z.string().min(1).max(100),
-        date: isoDate,
-        amount: diagramAmount,
-        items: z
-          .array(
-            z.object({
-              type: z.enum(ASSET_TYPE_KEYS as [AssetType, ...AssetType[]]),
-              assetId: z.string().max(100).optional(),
-              ticker: z.string().max(30).optional(),
-              quantity: diagramAmount,
-              price: z.number().min(0).nullable(),
-              amount: diagramAmount,
-            }),
-          )
-          .max(QUOTAS.diagramAssets + 2),
-      }),
-    )
-    .max(QUOTAS.diagramContributions),
-}) satisfies z.ZodType<DiagramBackup>;
-
 export const backupSchema = z.object({
   // v2 added the modules and the "A receber" category, v3 the (now obsolete) bottom bar, v4 the
-  // tags; older files still import. The Diagrama came later and is optional: a backup without it
-  // leaves the Diagrama as it is.
+  // tags; older files still import. A backup from when the Diagrama was here still has it: it is
+  // accepted and ignored (the Diagrama is restored in the Invest +).
   version: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
   exportedAt: z.string(),
   settings: settingsSchema,
   months: z.array(monthDataSchema).max(1200),
-  diagram: diagramBackupSchema.optional(),
+  diagram: z.unknown().optional(),
 });
 
 /** Administração: make an account VIP or take it back. */

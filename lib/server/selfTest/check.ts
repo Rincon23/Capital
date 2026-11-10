@@ -7,7 +7,6 @@ import { PostgresBanksRepository } from '../banks/repository';
 import { PostgresBudgetRepository } from '../budgetRepository';
 import { budgetSettings, user } from '../db/schema';
 import type { Database } from '../db/types';
-import { PostgresDiagramRepository } from '../diagramRepository';
 import { PostgresMissionsRepository } from '../missionsRepository';
 import { PostgresRemindersRepository } from '../remindersRepository';
 import { PostgresWalletRepository } from '../walletRepository';
@@ -49,7 +48,6 @@ export interface ScratchAccount {
   userId: string;
   budget: PostgresBudgetRepository;
   wallet: PostgresWalletRepository;
-  diagram: PostgresDiagramRepository;
   reminders: PostgresRemindersRepository;
   missions: PostgresMissionsRepository;
   banks: PostgresBanksRepository;
@@ -126,7 +124,6 @@ async function scratchAccount(db: Database, now: Date): Promise<ScratchAccount> 
     userId,
     budget,
     wallet: new PostgresWalletRepository(db, userId, budget),
-    diagram: new PostgresDiagramRepository(db, userId, budget),
     reminders: new PostgresRemindersRepository(db, userId),
     missions: new PostgresMissionsRepository(db, userId),
     banks: new PostgresBanksRepository(db, userId),

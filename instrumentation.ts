@@ -98,6 +98,15 @@ export async function register() {
     console.error('[módulos] falha ao acertar os módulos das contas:', err);
   }
 
+  // The Diagrama moved to the Invest +: whoever used it hears it once (the bell remembers who did).
+  try {
+    const { runInvestMovedNotice } = await import('./lib/server/investMovedNotice');
+    const told = await runInvestMovedNotice(getDb());
+    if (told > 0) console.log(`[invest +] ${told} conta(s) avisada(s) de que o Diagrama mudou.`);
+  } catch (err) {
+    console.error('[invest +] falha ao avisar quem usava o Diagrama:', err);
+  }
+
   startScheduler(getDb);
 
   // Every module tested inside the server, a few minutes after the start and then every hour.

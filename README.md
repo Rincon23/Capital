@@ -13,6 +13,15 @@ Orange Pi**, sem serviço de banco na nuvem: o navegador só fala com a API do p
 grava no banco sempre em nome do usuário logado. Cada conta só enxerga os próprios dados. Sem
 conexão o app abre, mas as telas ficam carregando até a rede voltar.
 
+**O Diagrama saiu do Capital + em 2026-11-09** e virou o **Invest +** (repositório
+`Rincon23/Invest`), o app de investimentos irmão: o Diagrama, o histórico da carteira e a conferência
+das quantidades com a corretora estão lá. Aqui ficaram o antigo endereço `/diagrama`, que leva ao
+Invest + (`INVEST_URL`), e um aviso único para quem usava o Diagrama (`lib/server/investMovedNotice.ts`).
+As tabelas do Diagrama continuam no banco, sem uso, até a fase F7 de `docs/plano-invest-plus.md`. O
+preço da Reserva investida vem do **serviço de cotações do Invest +** (`lib/server/quotes.ts`):
+`QUOTES_SERVICE_URL` (padrão `http://invest:3000`, pela rede Docker) e o segredo
+`QUOTES_SERVICE_TOKEN`, o mesmo nos dois `.env.local`. Sem resposta, a Reserva mostra o último preço.
+
 ### Palavras da interface
 
 A interface usa palavras do dia a dia (só o texto muda; código, colunas e rotas continuam como
@@ -67,7 +76,7 @@ restritos: se Lançamentos for restrito, tudo o que depende dele some junto.
   - Cartão
   - A receber
   - Contas do mês
-- Reserva, Open Finance, Diagrama e Lembretes não dependem de nenhum.
+- Reserva, Open Finance e Lembretes não dependem de nenhum.
 
 **Módulos restritos.** O dono do servidor (`OWNER_EMAIL`) escolhe em **Administração**, no card
 "Módulos restritos", quais módulos ficam só para as contas com acesso: um switch **"Restrito"** por
@@ -77,7 +86,7 @@ no banco o acesso ainda se chama "vip"; na tela, é "Restrito" e "Acesso aos res
 
 - **Quem não tem acesso não fica sabendo que o módulo existe.** Ele some da bandeja de apps (e o
   grupo que fica vazio some junto), da bandeja de widgets, da política de privacidade
-  (`/privacidade`, que lê quem está vendo) e das perguntas automáticas do Diagrama (Graham, P/VP); o
+  (`/privacidade`, que lê quem está vendo); o
   endereço do módulo mostra só "Página não encontrada" (`ModuleGate`). Um módulo que depende de um
   restrito some do mesmo jeito (`isModuleHidden` em `lib/modules/flags.ts`).
 - **Virou restrito:** o módulo some para todas as contas sem acesso, junto com os que dependem
@@ -171,7 +180,7 @@ botão fecha); renda e gasto abrem o formulário ali mesmo na Início. Nada diss
   círculo de cada linha marca quem pagou (`expenses.reimbursed_at`). A marca não mexe em número
   nenhum — o dinheiro saiu de qualquer jeito e nunca consumiu categoria —, ela só tira a linha do
   que ainda é seu a receber, e é esse valor que o card do Início mostra.
-- **Histórico e gráficos** (`/historico`) — aba **Gastos**: o gasto de cada mês contra a sua média e a renda (toque numa barra para trocar de mês), as categorias do mês e cada categoria mês a mês (gasto × limite ou sobra). Com o **Diagrama** ligado, aba **Investimentos**: a subida e a descida da carteira em 1M/6M/1A/5A, por tipo e por ativo — a carteira de hoje aos preços de cada dia (Yahoo, grátis e sem token, em `price_history_cache`); sem as cotas, cada ativo conta igual.
+- **Histórico e gráficos** (`/historico`) — aba **Gastos**: o gasto de cada mês contra a sua média e a renda (toque numa barra para trocar de mês), as categorias do mês e cada categoria mês a mês (gasto × limite ou sobra). (A antiga aba Investimentos foi para o Invest +.)
 
 **Carteira** (cada um com tela própria; o antigo painel `/carteira` redireciona para o Início):
   - **Contas do mês** (`/carteira/recorrentes`; o antigo "Gastos recorrentes") — as contas de todo
@@ -384,7 +393,7 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
   `lib/modules/migration.ts`); os alertas antigos continuam no histórico de notificações.
 - **Open Finance** (`/bancos`, começa restrito): traz os bancos da pessoa pelo **Meu Pluggy**, grátis e
   só leitura, com a chave da própria pessoa, e serve **só para conferir** o que foi lançado no
-  Capital: gastos, recebimentos e (no Diagrama) as quantidades de ações e cotas. Nenhum saldo,
+  Capital: gastos e recebimentos (as quantidades de ações e cotas são conferidas no Invest +). Nenhum saldo,
   fatura, valor em aberto ou limite do banco aparece, a não ser os saldos das contas que a
   pessoa marca para a Reserva.
   - **Configuração em 4 passos**, uma linha e um botão cada, e o app guarda em que passo a pessoa
@@ -413,7 +422,7 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
     - **nenhum saldo, fatura, valor em aberto ou limite** vindo do banco aparece, nem aqui nem na
       Início. O saldo só aparece na Reserva, nas contas que a pessoa marca;
     - no topo, **"Conferir com o Capital"**: "Conferir gastos" e "Conferir recebimentos" (com
-      Lançamentos) e "Conferir investimentos" (com o Diagrama);
+      Lançamentos);
     - cada banco com "atualizado há 5 h" e as contas só com o nome e o tipo (conta, poupança,
       cartão);
     - "Buscar novidades" relê a Pluggy (não faz o banco mandar antes), até 6 vezes em 10 min.
@@ -563,33 +572,9 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
       campo fica só leitura com "BTG Pactual · atualizado há 5 h". Se um banco parou, avisa que o
       valor é o último que chegou;
     - "Mudar as contas da reserva" e "Voltar a digitar à mão" (o último valor fica para editar).
-  - **Quantidades no Diagrama** (aba "Ativos e notas", com Open Finance ligado): a
-    corretora diz quantas ações e cotas a pessoa tem, e o Diagrama confere ativo por ativo:
-    - com o Diagrama ligado, a tela dos bancos tem **"Conferir investimentos"**: abre o Diagrama
-      (`/diagrama?aba=ativos&conferir=1`) já na conferência, só com o que difere, ou com "Tudo
-      confere com BTG Pactual". Se as quantidades ainda não chegaram, diz que vêm na próxima
-      leitura;
-    - cada ativo com código da B3 ganha "✓ Confere com BTG Pactual" ou "BTG Pactual: 120 · aqui:
-      100" com **"Usar 120"**, que salva pela mesma função da ficha do ativo. Nada é trocado
-      sozinho: uma compra leva uns 2 dias úteis para aparecer (liquidação na B3), e a linha de
-      ajuda diz isso junto com "atualizado há 5 h" (ou que um banco parou);
-    - um ativo que nenhum banco mandou aparece como "BTG Pactual: 0 · aqui: 50", com "Usar 0";
-      se o banco tem outra classe da mesma empresa que o Diagrama não tem, a linha avisa ("No
-      banco tem KLBN4: 157."), porque pode ser só o código trocado;
-    - "Ver só os ativos diferentes do banco" esconde os que conferem;
-    - **"No banco, mas não no Diagrama"**, com "Adicionar": o formulário de ativo já vem com o
-      código, a quantidade e o tipo (ação → Ações nacionais, FII → Fundos imobiliários, BDR → Ações
-      internacionais). Num ETF, ou num código terminado em 11 que o banco chama de ação (o BTG põe
-      ali ETFs e FIIs, como AUVP11 e PMLL11), a pessoa escolhe o tipo e a busca traz o nome e se é
-      ETF. Começa recolhido quando passa de 3 itens. Não são oferecidos o que a pessoa marcou como
-      Reserva na lista dos bancos nem direitos de subscrição e recibos (finais 1, 2, 9, 10, 12–15,
-      como HGRU12);
-    - ficam de fora a renda fixa, os fundos sem código da B3, as opções e o que o Open Finance não
-      traz (ativos no exterior, cripto): VOO ou BTC nunca aparecem como "faltando no banco";
-    - **Reserva investida:** com o módulo Reserva ligado, as cotas dela contam junto com as do
-      Diagrama no ticker dela (AUPO11…), porque costumam estar na mesma corretora. "Aqui" vira
-      Diagrama + Reserva, e a correção só mexe no Diagrama ("Deixar 30 aqui" = banco − Reserva). Se
-      a Reserva sozinha tem mais do que o banco, a linha leva a "Ver a Reserva".
+  - **Conferir investimentos** saiu daqui em 2026-11-09: a conferência das quantidades com a
+    corretora é do Invest +, com o Diagrama. A leitura dos investimentos continua, só para a
+    Reserva pelo saldo dos investimentos marcados.
 
 ### Navegação: a Início como a tela de um celular
 
@@ -1013,19 +998,6 @@ dela); o servidor não tem chave da Pluggy. Como o módulo nasceu (F0–F6) est�
   - `PushMessage.silent`: o `public/sw.js` passa `silent` ao `showNotification` e não usa
     `renotify` quando é silencioso. Um service worker antigo ignora o campo (toca);
   - as escolhas ficam em `bank_settings.alerts` (`alertSettingsOf` converte o que estava salvo).
-- **Quantidades** (`GET /api/v1/banks/holdings`, lógica pura em `lib/banks/holdings.ts`): a rota
-  devolve os investimentos com o banco de cada um e, com o módulo Reserva ligado, o ticker e as
-  cotas da Reserva investida. A comparação roda na tela (`checkHoldings`), de novo a cada mudança
-  do Diagrama, sem perguntar aos bancos:
-  - entram ações, FIIs, ETFs e BDRs (`EQUITY`/`ETF`, subtipos `STOCK`, `REAL_ESTATE_FUND`, `ETF`,
-    `BDR`) cujo código vira um ticker da B3 (maiúsculas, sem `.SA`, sem o `F` do fracionário);
-  - soma por ticker entre bancos e linhas; uma linha sem quantidade tira o ticker da conta;
-  - resultado por ativo: confere, diferente, só no Capital (com quantidade acima de 0) e, à
-    parte, só no banco. Tolerância de 0,0001 cota;
-  - a correção é sempre um toque da pessoa, por `updateAsset`, e nunca toca a Reserva investida;
-  - a migração `0030` recua 1 s o `synced_update_at` de cada banco já lido: a próxima
-    sincronização da hora relê tudo uma vez (como se o banco tivesse mandado dados) e as
-    quantidades chegam sem esperar o banco. Até lá, a tela não mostra conferência nenhuma.
 - O `apiKey` (2 h) fica só em memória, por pessoa.
 - Toda rota confere o "Restrito" (`access.ts`) e tem limite de tentativas.
 - A Pluggy devolve a pessoa para `<BETTER_AUTH_URL>/bancos`, ou para `PLUGGY_REDIRECT_URI`, que
@@ -1210,7 +1182,7 @@ não compila se um módulo novo ficar sem teste) e os do servidor:
 
 - **Cada módulo, de verdade, no banco de produção:** cada teste cria uma conta descartável e
   faz o que a tela faria — lança renda e gasto, fecha mês, monta fatura com parcela, lança conta
-  do mês, aporta no Diagrama, confere banco, marca lembrete, ganha XP… — pelos mesmos
+  do mês, confere banco, marca lembrete, ganha XP… — pelos mesmos
   repositórios, numa transação que é **sempre desfeita** no fim. Nada fica: nem a conta, nem uma
   linha (`statement_timeout` de 15 s em cada transação).
 - **O que roda sozinho está em dia:** a agenda de cada minuto e a leitura dos bancos (de hora em
@@ -1340,7 +1312,7 @@ Os demais testes:
 - [x] **Categorias do mês** — cabeçalho com renda/gasto/posso-gastar/saldo, card por categoria com barra de progresso (verde/amarelo/vermelho), card de custos fixos/imprevistos com rateio por categoria e "Fechar mês"
 - [x] **Detalhe da categoria** — lista de gastos editável/excluível e a conta completa (`renda × pct − rateio + mês passado = posso gastar`)
 - [x] **Lançamentos do mês** — abas Gastos / Renda / Custos Fixos / Imprevistos, busca e edição/exclusão inline
-- [x] **Histórico & Gráficos** — abas Gastos (mês contra a média, categorias do mês, cada categoria mês a mês com gasto/limite e sobra) e Investimentos (com o Diagrama: subida e descida da carteira por período, por tipo e por ativo)
+- [x] **Histórico & Gráficos** — mês contra a média, categorias do mês, cada categoria mês a mês com gasto/limite e sobra (a aba Investimentos foi para o Invest +)
 - [x] **Configurações** — exportar/importar JSON, apagar tudo, tema claro/escuro, conta (e-mail + sair), importar dados locais. O editor de categorias (nome/descrição/%/ordem/arquivar, validador de 100% e restaurar padrão) fica na engrenagem de Categorias
 - [x] **Login** — entrar / criar conta / esqueci a senha, com confirmação de e-mail
 
