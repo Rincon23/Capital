@@ -1,7 +1,7 @@
 import type { Month, PendingReimbursable } from '../budget/types';
 import { apiRequest, seg } from './apiClient';
 
-/** Every "A receber" still not paid back, from `until` and the months before it. */
+/** Every "Reembolso" still not paid back, from `until` and the months before it. */
 export function listPendingReimbursables(until: Month): Promise<PendingReimbursable[]> {
   return apiRequest('GET', `/reimbursables?ate=${encodeURIComponent(until)}`);
 }

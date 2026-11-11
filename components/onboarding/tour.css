@@ -35,6 +35,8 @@
   font-weight: 600;
   font-size: 0.875rem;
   flex: 1;
+  /* driver.js aligns its buttons' text to the right; ours are wide, so the label sits in the middle. */
+  text-align: center;
 }
 
 .capital-tour-popover .driver-popover-footer .driver-popover-prev-btn {

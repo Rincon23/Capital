@@ -75,7 +75,7 @@ describe('ClosePastMonths', () => {
     expect(screen.queryByRole('button', { name: 'Fechar todos os meses anteriores' })).not.toBeInTheDocument();
 
     fireEvent.click(button);
-    fireEvent.click(screen.getByRole('button', { name: 'Trazer' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Levar a sobra' }));
     await waitFor(() =>
       expect(storage.budgetRepository.closeMonth).toHaveBeenCalledWith(OLDER, false, false),
     );
@@ -106,21 +106,21 @@ describe('ClosePastMonths', () => {
     render(<Screen month={TODAY} />);
     fireEvent.click(await screen.findByRole('button', { name: /^Fechar / }));
     storage.fetchMonthsToClose.mockResolvedValue([]);
-    fireEvent.click(screen.getByRole('button', { name: 'Não trazer' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Não levar' }));
 
     await waitFor(() => expect(storage.budgetRepository.closeMonth).toHaveBeenCalledWith(LAST, false, true));
     expect(await screen.findByText('Sem botão')).toBeInTheDocument();
     await waitFor(() => expect(refresh).toHaveBeenCalled());
-    expect(toast.mock.calls[0][0]).toMatch(/começa sem o que restou/);
+    expect(toast.mock.calls[0][0]).toMatch(/A sobra não foi para/);
   });
 
   it('trazer fecha e leva a sobra para o mês de hoje', async () => {
     render(<Screen month={TODAY} />);
     fireEvent.click(await screen.findByRole('button', { name: /^Fechar / }));
-    fireEvent.click(screen.getByRole('button', { name: 'Trazer' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Levar a sobra' }));
 
     await waitFor(() => expect(storage.budgetRepository.closeMonth).toHaveBeenCalledWith(LAST, false, false));
-    await waitFor(() => expect(toast.mock.calls[0][0]).toMatch(/O que restou foi para/));
+    await waitFor(() => expect(toast.mock.calls[0][0]).toMatch(/A sobra foi para/));
   });
 
   it('fechar todos mostra a sobra somada e leva tudo para o mês de hoje', async () => {
@@ -133,18 +133,18 @@ describe('ClosePastMonths', () => {
     expect(screen.getAllByText('R$ 2.000,00').length).toBeGreaterThan(0);
 
     storage.fetchMonthsToClose.mockResolvedValue([]);
-    fireEvent.click(screen.getByRole('button', { name: 'Trazer' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Levar a sobra' }));
     await waitFor(() => expect(storage.closeMonthsBefore).toHaveBeenCalledWith(TODAY, false));
     expect(storage.budgetRepository.closeMonth).not.toHaveBeenCalled();
     expect(await screen.findByText('Sem botão')).toBeInTheDocument();
-    expect(toast.mock.calls[0][0]).toMatch(/^2 meses fechados\. O que restou foi para/);
+    expect(toast.mock.calls[0][0]).toMatch(/^2 meses fechados\. A sobra foi para/);
   });
 
   it('fechar todos sem trazer deixa a sobra fora do mês de hoje', async () => {
     storage.fetchMonthsToClose.mockResolvedValue([stored(OLDER), stored(LAST)]);
     render(<Screen month={TODAY} />);
     fireEvent.click(await closeAll());
-    fireEvent.click(screen.getByRole('button', { name: 'Não trazer' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Não levar' }));
 
     await waitFor(() => expect(storage.closeMonthsBefore).toHaveBeenCalledWith(TODAY, true));
   });
@@ -154,7 +154,7 @@ describe('ClosePastMonths', () => {
     render(<Screen month={TODAY} />);
     fireEvent.click(await screen.findByRole('button', { name: /^Fechar só / }));
     storage.fetchMonthsToClose.mockResolvedValue([stored(OLDER), stored(LAST, true)]);
-    fireEvent.click(screen.getByRole('button', { name: 'Trazer' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Levar a sobra' }));
 
     await waitFor(() => expect(storage.budgetRepository.closeMonth).toHaveBeenCalledWith(LAST, false, false));
     await waitFor(() =>
@@ -167,7 +167,7 @@ describe('ClosePastMonths', () => {
     storage.budgetRepository.closeMonth.mockRejectedValue(new Error('sem conexão'));
     render(<Screen month={TODAY} />);
     fireEvent.click(await screen.findByRole('button', { name: /^Fechar / }));
-    fireEvent.click(screen.getByRole('button', { name: 'Trazer' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Levar a sobra' }));
 
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith('Não foi possível fechar o mês. Tente de novo.', 'error'),

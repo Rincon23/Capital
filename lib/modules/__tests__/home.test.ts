@@ -31,7 +31,7 @@ const everything = on(
 );
 
 describe('widgets do Início', () => {
-  it('seguem a ordem do catálogo, com A receber logo depois de Lançamentos e o calendário depois dos Lembretes', () => {
+  it('seguem a ordem do catálogo, com Reembolso logo depois de Lançamentos e o calendário depois dos Lembretes', () => {
     expect(homeCards({ modules: everything })).toEqual([
       'expenses',
       'reimbursable',

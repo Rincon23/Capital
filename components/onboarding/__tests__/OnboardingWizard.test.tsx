@@ -23,7 +23,7 @@ vi.mock('@/lib/storage/preferences', () => ({
   setUnforeseenEstimate: vi.fn(),
 }));
 
-function renderWizard() {
+function renderWizard(startAtPercentages = false) {
   const settings: BudgetSettings = {
     topics: createDefaultTopics(),
     specialCategories: DEFAULT_SPECIAL_CATEGORY_LABELS,
@@ -32,7 +32,13 @@ function renderWizard() {
   const onComplete = vi.fn();
   render(
     <ConfirmProvider>
-      <OnboardingWizard settings={settings} saveSettings={saveSettings} onSkip={vi.fn()} onComplete={onComplete} />
+      <OnboardingWizard
+        settings={settings}
+        saveSettings={saveSettings}
+        onSkip={vi.fn()}
+        onComplete={onComplete}
+        startAtPercentages={startAtPercentages}
+      />
     </ConfirmProvider>,
   );
   return { saveSettings, onComplete };
@@ -43,7 +49,7 @@ function next() {
 }
 
 describe('OnboardingWizard (configuração das categorias)', () => {
-  it('em 3 passos: renda, custos fixos e imprevistos juntos, e as % com a prévia em R$', async () => {
+  it('uma pergunta por vez: renda, custos fixos, imprevistos e as % com o limite de cada uma', async () => {
     const { onComplete } = renderWizard();
 
     // 1. Income: no intro screen before it.
@@ -52,23 +58,30 @@ describe('OnboardingWizard (configuração das categorias)', () => {
     fireEvent.change(screen.getByLabelText('Renda por mês'), { target: { value: '5000,00' } });
     next();
 
-    // 2. Fixed and unforeseen costs on the same screen; the fixed-cost rule waits behind the ⓘ.
+    // 2. Fixed costs alone on the screen; the fixed-cost rule waits behind the ⓘ.
+    expect(screen.getByRole('heading', { name: 'Quanto são seus custos fixos por mês?' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Imprevistos por mês')).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Custos fixos por mês'), { target: { value: '1000,00' } });
-    fireEvent.change(screen.getByLabelText('Imprevistos por mês'), { target: { value: '200,00' } });
     expect(screen.getByText(FIXED_COST_TIP)).not.toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Quando um gasto é custo fixo?' }));
     expect(screen.getByText(FIXED_COST_TIP)).toBeVisible();
     next();
 
-    // 3. Each category says what it is for, with what its % leaves to spend.
+    // 3. Unforeseen costs, alone too.
+    expect(screen.getByRole('heading', { name: 'E com imprevistos, em média?' })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Imprevistos por mês'), { target: { value: '200,00' } });
+    next();
+
+    // 4. Each category says what it is for, with the limit its % leaves — and no total of them all.
     expect(screen.getByRole('heading', { name: 'Quanto vai para cada categoria?' })).toBeInTheDocument();
     for (const preset of DEFAULT_TOPICS) expect(screen.getByText(preset.description)).toBeInTheDocument();
-    expect(screen.getByText('R$ 3.800,00')).toBeInTheDocument();
-    // Prazeres e Confortos: 20% of R$ 5.000 minus 20% of R$ 1.200.
+    expect(screen.queryByText('R$ 3.800,00')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Para as categorias/)).not.toBeInTheDocument();
+    // Prazeres: 20% of R$ 5.000 minus 20% of R$ 1.200.
     expect(screen.getByText('R$ 760,00')).toBeInTheDocument();
     expect(screen.getByText('Somam 100% ✓')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Concluir configuração' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pronto' }));
     await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
     expect(budgetRepository.saveIncome).toHaveBeenCalledWith(
       expect.any(String),
@@ -82,20 +95,29 @@ describe('OnboardingWizard (configuração das categorias)', () => {
     fireEvent.change(screen.getByLabelText('Renda por mês'), { target: { value: '5000,00' } });
     next();
     next();
+    next();
 
     expect(screen.queryByRole('button', { name: /adicionar categoria/i })).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Percentual de Prazeres e Confortos', { selector: 'input' }), {
+    fireEvent.change(screen.getByLabelText('Percentual de Prazeres', { selector: 'input' }), {
       target: { value: '10' },
     });
-    expect(screen.getByRole('button', { name: 'Concluir configuração' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Pronto' })).toBeDisabled();
     fireEvent.change(screen.getByLabelText('Percentual de Metas', { selector: 'input' }), {
       target: { value: '35' },
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Concluir configuração' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Pronto' }));
     await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(1));
     const topics = (saveSettings.mock.calls[0][0] as BudgetSettings).topics;
     expect(topics.map((t) => t.name)).toEqual(DEFAULT_TOPICS.map((t) => t.name));
     expect(topics.map((t) => t.targetPct)).toEqual([0.1, 0.45, 0.35, 0.1]);
+  });
+
+  it('"Ajustar as %" abre direto nas %, e "Voltar" ainda chega nas outras perguntas', () => {
+    renderWizard(true);
+
+    expect(screen.getByRole('heading', { name: 'Quanto vai para cada categoria?' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Voltar' }));
+    expect(screen.getByRole('heading', { name: 'E com imprevistos, em média?' })).toBeInTheDocument();
   });
 });

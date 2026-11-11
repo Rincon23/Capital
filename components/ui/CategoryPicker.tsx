@@ -38,7 +38,8 @@ interface CategoryOption {
  *
  * With `quick`, only those chips show straight away and the rest wait behind "Outras" — the
  * expense form is filled many times a day, and a row of every category made it look crowded.
- * "Editar" lets the person choose which ones stay in front.
+ * "Atalhos" lets the person choose which ones stay in front (it edits the shortcuts, never the
+ * categories themselves, which are fixed).
  */
 export function CategoryPicker({
   topics,
@@ -174,14 +175,14 @@ export function CategoryPicker({
               className="text-primary flex min-h-[32px] items-center gap-1 rounded-full px-2 text-xs font-semibold"
             >
               <Pencil aria-hidden className="h-3.5 w-3.5" />
-              Editar
+              Atalhos
             </button>
           )}
         </div>
 
         {editing ? (
           <div className="bg-background border-border flex flex-col gap-3 rounded-xl border p-3">
-            <p className="text-muted text-xs">Escolha as que aparecem direto; as outras ficam em “Outras”.</p>
+            <p className="text-muted text-xs">Marque as que aparecem direto. As outras ficam em “Outras”.</p>
             <div className="flex flex-wrap gap-2">
               {options.map((option) => {
                 const on = editing.includes(option.key);
@@ -261,8 +262,8 @@ export function CategoryPicker({
 
       {value.categoryKind === 'reimbursable' && (
         <div className="mt-2">
-          <InfoTip info={REIMBURSABLE_EXPLANATION} label="Como funciona o A receber?">
-            <span className="text-muted text-xs">Não gasta nenhuma categoria.</span>
+          <InfoTip info={REIMBURSABLE_EXPLANATION} label="Como funciona o Reembolso?">
+            <span className="text-muted text-xs">Não mexe nas categorias.</span>
           </InfoTip>
         </div>
       )}

@@ -137,11 +137,11 @@ export const entryTagsSchema = z.object({ tagIds: tagIdsSchema });
 export const settingsSchema = z.object({
   topics: z
     .array(topicSchema)
-    .max(MAX_TOPICS, `Dá para ter até ${MAX_TOPICS} categorias, contando as arquivadas.`),
+    .max(MAX_TOPICS, `Dá para ter até ${MAX_TOPICS} categorias.`),
   specialCategories: z.object({
     fixedCost: label,
     unforeseen: label,
-    // Older data (and backups from before the module existed) has no "A receber" label.
+    // Older data (and backups from before the module existed) has no "Reembolso" label.
     reimbursable: label.optional(),
     // Likewise for "Fora do orçamento", which came later.
     uncounted: label.optional(),
@@ -203,7 +203,7 @@ export const expenseSchema = z.object({
   installmentId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
   // 0 is the single expense of an "à vista" plan (see lib/budget/bill.ts).
   installmentNumber: z.preprocess(absentAsUndefined, z.number().int().min(0).optional()),
-  /** When an "A receber" purchase was paid back (ISO instant). */
+  /** When a "Reembolso" purchase was paid back (ISO instant). */
   reimbursedAt: z.preprocess(absentAsUndefined, z.iso.datetime().optional()),
   /** The recurring template ("Contas do mês") it was launched from. */
   recurringId: z.preprocess(absentAsUndefined, z.string().max(100).optional()),
@@ -504,7 +504,7 @@ export const closeMonthSchema = z.object({
 });
 
 export const backupSchema = z.object({
-  // v2 added the modules and the "A receber" category, v3 the (now obsolete) bottom bar, v4 the
+  // v2 added the modules and the "Reembolso" category, v3 the (now obsolete) bottom bar, v4 the
   // tags; older files still import. A backup from when the Diagrama was here still has it: it is
   // accepted and ignored (the Diagrama is restored in the Invest +).
   version: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),

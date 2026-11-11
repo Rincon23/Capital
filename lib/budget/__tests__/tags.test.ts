@@ -109,7 +109,7 @@ describe('nome de tag', () => {
     expect(tagNameProblem('x'.repeat(TAG_LIMITS.name + 1), 'expense', tags)).toMatch(/até/);
     expect(tagNameProblem(' mércado ', 'expense', tags)).toBe('Já existe uma tag com esse nome.');
     expect(tagNameProblem('Metas', 'expense', tags, topics)).toMatch(/categoria/);
-    expect(tagNameProblem('prazeres e confortos', 'income', tags, topics)).toMatch(/categoria/);
+    expect(tagNameProblem('prazeres', 'income', tags, topics)).toMatch(/categoria/);
   });
 
   it('a mesma palavra pode existir em gasto e em renda, e renomear para o próprio nome pode', () => {

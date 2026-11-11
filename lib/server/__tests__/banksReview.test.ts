@@ -2,11 +2,11 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { BankReview } from '@/lib/banks';
+import type { BankCardDebt, BankReview } from '@/lib/banks';
 import type { InstallmentPlan } from '@/lib/budget';
 import { addDays } from '@/lib/reminders/time';
 import { PostgresBanksRepository, type StoredTransaction } from '../banks/repository';
@@ -158,7 +158,13 @@ describe("the month's check", () => {
     // Another month's purchase is that month's: September shows it, October doesn't.
     expect(Object.values(review.expenses).flat().some((item) => item.key === 'antiga')).toBe(false);
     expect((await check(deps, '2026-09')).expenses.missing.map((item) => item.key)).toEqual(['antiga']);
-    expect(await reviewCounts(deps, { today: TODAY })).toEqual({ month: '2026-10', expenses: 2, incomes: 1, cards: {} });
+    expect(await reviewCounts(deps, { today: TODAY })).toEqual({
+      month: '2026-10',
+      expenses: 2,
+      incomes: 1,
+      cards: {},
+      linked: [],
+    });
     expect(review.cards).toEqual([
       { accountId: 'cartao', name: 'Cartão Gold', bankName: 'Nubank', cardId: null, linked: false },
     ]);
@@ -174,7 +180,7 @@ describe("the month's check", () => {
     expect(item).toMatchObject({ onCard: true, cardId: 'nubank', category: null });
 
     const settings = await repo.getSettings();
-    const diversos = settings.topics.find((topic) => topic.name === 'Prazeres e Confortos')!.id;
+    const diversos = settings.topics.find((topic) => topic.name === 'Prazeres')!.id;
     const month = item.date.slice(0, 7);
     const expense = {
       id: randomUUID(),
@@ -307,7 +313,7 @@ describe("the month's check", () => {
     });
   });
 
-  it('a R$ 200 purchase entered as two "A receber" of R$ 100: suggested, tied, undone, and in part', async () => {
+  it('a R$ 200 purchase entered as two "Reembolso" of R$ 100: suggested, tied, undone, and in part', async () => {
     const { repo, banks, deps } = await newPerson();
     await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });
     const owe = (id: string, description: string, amount: number) =>
@@ -325,7 +331,7 @@ describe("the month's check", () => {
     expect(review.expenses.missing).toEqual([]);
     expect(review.expenses.matched[0].match).toMatchObject({ kind: 'links', entries: [{ amount: 100 }, { amount: 100 }] });
     expect(review.entries.expenses.filter((entry) => entry.tied?.transactionId === 'jogos')).toHaveLength(2);
-    // Nothing else changed: the "A receber" are still open, the transaction undecided.
+    // Nothing else changed: the "Reembolso" are still open, the transaction undecided.
     expect((await repo.pendingReimbursables('2026-10')).map((pending) => pending.expense.id).sort()).toEqual(['joao', 'pedro']);
     expect(await outcomeOf('jogos')).toEqual({ outcome: null, entryId: null });
 
@@ -371,7 +377,7 @@ describe("the month's check", () => {
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
-  it('a Pix for an "A receber" already marked as received: confers, or asks, and the list offers it', async () => {
+  it('a Pix for a "Reembolso" already marked as received: confers, or asks, and the list offers it', async () => {
     const { repo, banks, deps } = await newPerson();
     await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });
     const owe = (id: string, description: string, amount: number) =>
@@ -398,7 +404,7 @@ describe("the month's check", () => {
     await applyReviewAction(deps, { action: 'link', transactionIds: ['pix-jogo-pedro'], entries: [pedro.received!] });
     expect((await check(deps)).incomes.missing).toEqual([]);
 
-    // "Procurar nas rendas" offers the "A receber", open and received.
+    // "Procurar nas rendas" offers the "Reembolso", open and received.
     expect(
       review.entries.incomes.map((entry) => [entry.id, entry.kind, entry.reimbursable]).sort(),
     ).toEqual([
@@ -615,9 +621,9 @@ describe("the month's check", () => {
     });
   });
 
-  it('a Pix that pays back an "A receber" is offered as such, and marking it uses the same "Já me pagou"', async () => {
+  it('a Pix that pays back a "Reembolso" is offered as such, and marking it uses the same "Já me pagou"', async () => {
     const { repo, banks, deps } = await newPerson();
-    // The "A receber" module on, and an open one: dinner paid for João.
+    // The "Reembolso" module on, and an open one: dinner paid for João.
     await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });
     const month = day(-3).slice(0, 7);
     await repo.saveExpense(month, {
@@ -646,7 +652,7 @@ describe("the month's check", () => {
     expect((await check(deps)).incomes.matched[0].match).toMatchObject({ kind: 'decided', outcome: 'reimbursed' });
   });
 
-  it('an "A receber" takes both its purchase and its payback: one bank line out, one in', async () => {
+  it('a "Reembolso" takes both its purchase and its payback: one bank line out, one in', async () => {
     const { repo, banks, deps } = await newPerson();
     await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });
     await banks.upsertTransactions([
@@ -654,7 +660,7 @@ describe("the month's check", () => {
       tx({ transactionId: 'pix-jantar', amount: -100, date: '2026-10-10', paymentMethod: 'PIX', description: 'RESTAURANTE' }),
       tx({ transactionId: 'pix-volta', type: 'CREDIT', amount: 100, date: '2026-10-12', paymentMethod: 'PIX', payerName: 'JOAO SILVA' }),
     ]);
-    // "Conferir gasto": the purchase becomes the "A receber".
+    // "Conferir gasto": the purchase becomes the "Reembolso".
     await applyReviewAction(deps, {
       action: 'expense',
       transactionIds: ['pix-jantar'],
@@ -679,7 +685,7 @@ describe("the month's check", () => {
     expect((await repo.getMonth('2026-10'))!.incomes).toEqual([]);
   });
 
-  it('the other way round: the payback first, then the purchase still pairs with the "A receber"', async () => {
+  it('the other way round: the payback first, then the purchase still pairs with the "Reembolso"', async () => {
     const { repo, banks, deps } = await newPerson();
     await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });
     await repo.saveExpense('2026-10', { id: 'show', categoryKind: 'reimbursable', description: 'Show — Ana', amount: 80, date: '2026-10-05' });
@@ -696,7 +702,7 @@ describe("the month's check", () => {
     ]);
   });
 
-  it('by hand too: an "A receber" tied to its purchase takes a Pix in, but never a second line of a side', async () => {
+  it('by hand too: a "Reembolso" tied to its purchase takes a Pix in, but never a second line of a side', async () => {
     const { repo, banks, deps } = await newPerson();
     await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });
     await repo.saveExpense('2026-10', { id: 'viagem', categoryKind: 'reimbursable', description: 'Viagem — Bia', amount: 300, date: '2026-10-03' });
@@ -723,7 +729,7 @@ describe("the month's check", () => {
     expect(review.incomes.matched.map((item) => item.key)).toEqual(['bia-1']);
   });
 
-  it('a Pix a little off settles an "A receber": the rest becomes income, what was missing Imprevistos', async () => {
+  it('a Pix a little off settles a "Reembolso": the rest becomes income, what was missing Imprevistos', async () => {
     const { repo, banks, deps } = await newPerson();
     await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });
     const month = day(-3).slice(0, 7);
@@ -753,7 +759,7 @@ describe("the month's check", () => {
       expect.objectContaining({ description: 'Faltou na devolução: Cinema — Maria', amount: 2.4, date: day(-1) }),
     ]);
 
-    // Next time the same CPF sends a Pix, the "A receber" that speaks of João comes first.
+    // Next time the same CPF sends a Pix, the "Reembolso" that speaks of João comes first.
     await owe('uber-maria', 'Uber — Maria', 20);
     await owe('uber-joao', 'Uber — João', 21);
     await banks.upsertTransactions([
@@ -767,7 +773,7 @@ describe("the month's check", () => {
     });
   });
 
-  it('a Pix says who it came from, by the name another bank told for the CPF, and finds the "A receber"', async () => {
+  it('a Pix says who it came from, by the name another bank told for the CPF, and finds the "Reembolso"', async () => {
     const { repo, banks, deps } = await newPerson();
     await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });
     const owe = (id: string, description: string, date: string) =>
@@ -828,7 +834,7 @@ describe("the month's check", () => {
     ]);
   });
 
-  it('refuses an "A receber" too far from the Pix, and launches nothing', async () => {
+  it('refuses a "Reembolso" too far from the Pix, and launches nothing', async () => {
     const { repo, banks, deps } = await newPerson();
     await repo.saveSettings({ ...(await repo.getSettings()), modules: { expenses: true, reimbursable: true } });
     const month = day(-3).slice(0, 7);
@@ -910,7 +916,10 @@ describe('the cards: what the bank card has that the Capital does not', () => {
       cardId: 'nubank',
       tied: false,
     });
-    expect((await reviewCounts(deps, { today: TODAY })).cards).toEqual({ nubank: { missing: 1, matched: 0 } });
+    const counted = await reviewCounts(deps, { today: TODAY });
+    expect(counted.cards).toEqual({ nubank: { missing: 1, matched: 0 } });
+    // The Capital card tied to a bank card is told apart from the ones nothing checks.
+    expect(counted.linked).toEqual(['nubank']);
 
     await applyReviewAction(deps, {
       action: 'card',
@@ -1060,6 +1069,7 @@ describe('the cards: what the bank card has that the Capital does not', () => {
     ]);
     await spent('mercado', 87.96, '2026-10-12');
     await banks.upsertTransactions([purchase('mercado-1', 87.96, '2026-10-12'), tx({ transactionId: 'pix', amount: -20 })]);
+    // `cardDebts()` is not listed on purpose: that total leaves the server now, for the Cartão.
     const answers = JSON.stringify([
       await check(deps),
       await check(deps, '2026-09'),
@@ -1069,5 +1079,105 @@ describe('the cards: what the bank card has that the Capital does not', () => {
     for (const leak of ['balance', 'creditLimit', 'availableCredit', 'dueDate', '4321.09', '1987.65', '8000', '6012.35']) {
       expect(answers).not.toContain(leak);
     }
+  });
+
+  describe('cardDebts: what the bank says is owed on each Capital card', () => {
+    const sortedByCard = (debts: BankCardDebt[]) =>
+      [...debts].sort((a, b) => a.cardId.localeCompare(b.cardId));
+
+    it('a bank card with a balance, tied to a Capital card, shows up with the balance and when the bank sent it', async () => {
+      const { banks } = await withCards();
+      const sentAt = new Date('2026-10-20T10:00:00.000Z');
+      await banks.replaceAccounts('item', [
+        { accountId: 'conta', kind: 'checking', name: 'Conta Nubank', balance: 4321.09, currency: 'BRL' },
+        {
+          accountId: 'cartao',
+          kind: 'card',
+          name: 'Cartão Gold',
+          balance: 1987.65,
+          currency: 'BRL',
+          balanceAt: sentAt,
+        },
+      ]);
+
+      expect(await banks.cardDebts()).toEqual([
+        { cardId: 'nubank', amount: 1987.65, updatedAt: '2026-10-20T10:00:00.000Z' },
+      ]);
+
+      // The read of another person, with the same card tied the same way, never comes in.
+      const other = await newPerson();
+      await other.banks.linkCard('cartao', 'nubank');
+      expect(await banks.cardDebts()).toEqual([
+        { cardId: 'nubank', amount: 1987.65, updatedAt: '2026-10-20T10:00:00.000Z' },
+      ]);
+      expect(await other.banks.cardDebts()).toEqual([{ cardId: 'nubank', amount: 300, updatedAt: null }]);
+    });
+
+    it('two bank cards tied to the same Capital card add up, as old as the oldest read; another Capital card stays apart', async () => {
+      const { banks } = await withCards();
+      const card = (accountId: string, balance: number | null, balanceAt: Date | null) => ({
+        accountId,
+        kind: 'card' as const,
+        name: accountId,
+        balance,
+        currency: 'BRL',
+        balanceAt,
+      });
+      const newer = new Date('2026-10-20T10:00:00.000Z');
+      const older = new Date('2026-10-18T08:30:00.000Z');
+      await banks.replaceAccounts('item', [
+        card('cartao', 100.1, newer),
+        card('cartao-2', 200.2, older),
+        card('cartao-3', 50, newer),
+      ]);
+      await banks.linkCard('cartao-2', 'nubank');
+      await banks.linkCard('cartao-3', 'amazon');
+
+      // 100.10 + 200.20 is 300.29999999999995 in floating point: the sum is rounded to cents.
+      expect(sortedByCard(await banks.cardDebts())).toEqual([
+        { cardId: 'amazon', amount: 50, updatedAt: '2026-10-20T10:00:00.000Z' },
+        { cardId: 'nubank', amount: 300.3, updatedAt: '2026-10-18T08:30:00.000Z' },
+      ]);
+
+      // A read with no date makes the sum undated, whichever of the two comes first.
+      await banks.replaceAccounts('item', [card('cartao', 100.1, null), card('cartao-2', 200.2, older)]);
+      expect(await banks.cardDebts()).toEqual([{ cardId: 'nubank', amount: 300.3, updatedAt: null }]);
+      await banks.replaceAccounts('item', [card('cartao', 100.1, newer), card('cartao-2', 200.2, null)]);
+      expect(await banks.cardDebts()).toEqual([{ cardId: 'nubank', amount: 300.3, updatedAt: null }]);
+    });
+
+    it('a bank card not tied, tied to "não informado" or with no balance is not there', async () => {
+      const unlinked = await withCards('unlinked');
+      expect(await unlinked.banks.cardDebts()).toEqual([]);
+
+      const none = await withCards('none');
+      expect(await none.banks.cardDebts()).toEqual([]);
+
+      // Tied, but the bank sent no balance for it; a balance of zero is still a balance.
+      const noBalance = await withCards();
+      await noBalance.banks.replaceAccounts('item', [
+        { accountId: 'cartao', kind: 'card', name: 'Cartão Gold', balance: null, currency: 'BRL' },
+        { accountId: 'cartao-2', kind: 'card', name: 'Cartão Zero', balance: 0, currency: 'BRL' },
+      ]);
+      await noBalance.banks.linkCard('cartao-2', 'amazon');
+      expect(await noBalance.banks.cardDebts()).toEqual([{ cardId: 'amazon', amount: 0, updatedAt: null }]);
+    });
+
+    it('a checking account never counts, even with a balance and a card on it', async () => {
+      const { id, banks } = await withCards();
+      await banks.replaceAccounts('item', [
+        { accountId: 'conta', kind: 'checking', name: 'Conta Nubank', balance: 4321.09, currency: 'BRL' },
+      ]);
+      // The tie only goes to a card…
+      await expect(banks.linkCard('conta', 'nubank')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+      expect(await banks.cardDebts()).toEqual([]);
+
+      // …and even forced onto the row, the account is not a card.
+      await db
+        .update(schema.bankAccounts)
+        .set({ capitalCardId: 'nubank' })
+        .where(and(eq(schema.bankAccounts.userId, id), eq(schema.bankAccounts.accountId, 'conta')));
+      expect(await banks.cardDebts()).toEqual([]);
+    });
   });
 });

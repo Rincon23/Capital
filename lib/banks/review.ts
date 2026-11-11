@@ -32,7 +32,7 @@ export interface ReviewTransaction {
   operationType: string | null;
   paymentMethod: string | null;
   payerName: string | null;
-  /** The payer's CPF/CNPJ (the bank sends it far more often than a name): who paid an "A receber" back. */
+  /** The payer's CPF/CNPJ (the bank sends it far more often than a name): who paid a "Reembolso" back. */
   payerDocument?: string | null;
   receiverName: string | null;
   /** The receiver's CPF/CNPJ: the same as the payer's is money between the person's own accounts. */
@@ -55,7 +55,7 @@ export const IGNORE_LABELS: Record<IgnoreReason, string> = {
   bill_payment: 'Pagamento de fatura: as compras já contam no cartão',
   own_transfer: 'Dinheiro entre contas suas',
   investment: 'Aplicação, resgate ou rendimento de investimento',
-  card_credit: 'Estorno ou crédito no cartão',
+  card_credit: 'Devolução ou crédito no cartão',
 };
 
 const INVESTMENT_CATEGORIES = new Set([
@@ -81,7 +81,7 @@ export function ignoreReason(transaction: ReviewTransaction): IgnoreReason | nul
   if (
     transaction.category === 'Same person transfer' ||
     operation === 'TRANSFERENCIA_MESMA_INSTITUICAO' ||
-    // Paid and received by the same CPF: the person's own accounts, never an "A receber".
+    // Paid and received by the same CPF: the person's own accounts, never a "Reembolso".
     (payer !== null && payer === documentKey(transaction.receiverDocument))
   ) {
     return 'own_transfer';
@@ -106,7 +106,7 @@ export type MoneySide = 'out' | 'in';
 
 /**
  * Which side of the check a transaction is on, as `reviewKind` sorts it. An entry is tied to one
- * bank line per side: only an "A receber" is ever on both — the purchase that went out and the
+ * bank line per side: only a "Reembolso" is ever on both — the purchase that went out and the
  * payback that came in.
  */
 export function moneySide(transaction: Pick<ReviewTransaction, 'accountKind' | 'type'>): MoneySide {
@@ -368,8 +368,8 @@ const PLUGGY_CATEGORY_WORDS: Record<string, string[]> = {
 };
 
 /**
- * Pluggy's categories by what the app's own categories mean (lib/budget/topics.ts): Prazeres e
- * Confortos is "passeios, presentes, restaurantes", Conhecimentos "cursos, livros", Metas "viagem", and fixed
+ * Pluggy's categories by what the app's own categories mean (lib/budget/topics.ts): Prazeres
+ * is "passeios, presentes, restaurantes", Conhecimentos "cursos, livros", Metas "viagem", and fixed
  * costs are "aluguel, contas, assinaturas". Used only while the person keeps that default category
  * (its preset), and always as a suggestion. What is not obvious (the supermarket) gets no guess.
  */
@@ -456,7 +456,7 @@ export interface LinkedEntry {
 export type ReviewMatch =
   /** Tied by hand to entries that add up to it (or more): "Desfazer" takes the ties away. */
   | { kind: 'links'; entries: LinkedEntry[] }
-  /** An "A receber" already marked as received, the same amount to the cent, a day apart at most. */
+  /** A "Reembolso" already marked as received, the same amount to the cent, a day apart at most. */
   | { kind: 'received'; entry: LinkedEntry }
   /** Decided here: launched, tied to an entry, a payback received or a bill marked as paid. */
   | { kind: 'decided'; outcome: string; description: string | null }
@@ -524,31 +524,31 @@ export interface ReviewItem {
   misplaced: MisplacedEntry | null;
   /** Tied by hand to entries that cover only part of it: what is tied, and what is still missing. */
   partial: { entries: LinkedEntry[]; remaining: number } | null;
-  /** Several entries that add up to it to the cent ("São estes 2 gastos?"): one R$ 200 purchase, two "A receber" of R$ 100. */
+  /** Several entries that add up to it to the cent ("São estes 2 gastos?"): one R$ 200 purchase, two "Reembolso" of R$ 100. */
   split: LinkedEntry[] | null;
-  /** A Pix received that may pay back an "A receber" already marked as received ("É sim" ties them). */
+  /** A Pix received that may pay back a "Reembolso" already marked as received ("É sim" ties them). */
   received: LinkedEntry | null;
   /** A split purchase entered "à vista": one expense of the whole amount ("Trocar por parcelado"). */
   upfront: { month: Month; entryId: string; description: string; amount: number; date: string } | null;
   /** A manual entry this looks like ("É o mesmo" ties them). */
   duplicate: { month: Month; entryId: string; description: string; amount: number; date: string } | null;
   /**
-   * Money in that looks like an "A receber" being paid back ("Marcar como recebido"), and the other
-   * open ones close enough in value ("É outro A receber").
+   * Money in that looks like a "Reembolso" being paid back ("Marcar como recebido"), and the other
+   * open ones close enough in value ("É outro Reembolso").
    */
   reimbursement: (PaybackOption & { others: PaybackOption[] }) | null;
   /** Left out by the app itself, with why ("Deixados de fora"; an ignored line keeps it too). */
   leftOut: { reason: IgnoreReason; label: string } | null;
 }
 
-/** An "A receber" a Pix may pay back. */
+/** A "Reembolso" a Pix may pay back. */
 export interface PaybackOption {
   month: Month;
   expenseId: string;
   description: string;
   amount: number;
   /**
-   * The Pix minus the "A receber": above 0 the rest becomes an income, below 0 what was missing
+   * The Pix minus the "Reembolso": above 0 the rest becomes an income, below 0 what was missing
    * becomes an expense in Imprevistos, both when the person confirms.
    */
   difference: number;
@@ -574,13 +574,13 @@ export interface ReviewEntry {
   /** A card purchase (`cardId` says which; null: "não informado"); false: Pix/débito, or money in. */
   onCard: boolean;
   cardId: string | null;
-  /** An expense (an "A receber" too) or an income. */
+  /** An expense (a "Reembolso" too) or an income. */
   kind: 'expense' | 'income';
-  /** An "A receber": still open, or already received. */
+  /** A "Reembolso": still open, or already received. */
   reimbursable: 'open' | 'received' | null;
   /**
    * Already tied to a bank line of this list's side, by a tap here or a strong pair: which bank, and
-   * the day. An "A receber" tied to its purchase is still free among the incomes, for its payback.
+   * the day. A "Reembolso" tied to its purchase is still free among the incomes, for its payback.
    */
   tied: { bankName: string; date: string; transactionId?: string } | null;
 }
@@ -603,7 +603,7 @@ export interface BankReview {
   months: Month[];
   /** Money out and card purchases (a card refund stays here, left out). */
   expenses: ReviewSide;
-  /** Money in to the accounts, "A receber" paid back included. */
+  /** Money in to the accounts, "Reembolso" paid back included. */
   incomes: ReviewSide;
   cards: ReviewCard[];
   /** What the person entered in the month, to tie a bank line to by hand ("Procurar nos gastos"). */
@@ -617,6 +617,11 @@ export interface BankReviewCounts {
   incomes: number;
   /** By Capital card (the bank cards tied to it): what is missing there and what confers. */
   cards: Record<string, { missing: number; matched: number }>;
+  /**
+   * The Capital cards tied to a bank card, with or without lines in the month. A card that is not
+   * here has nothing checking its bill, and the Cartão says so.
+   */
+  linked: string[];
 }
 
 /** The months the check shows, oldest first: the end of a month only arrives in the next one. */
@@ -763,7 +768,7 @@ const SPLIT_CANDIDATES = 12;
 
 /**
  * Several manual entries that add up to a bank line to the cent — a R$ 200 purchase entered as two
- * "A receber" of R$ 100 — at most a day apart, on the same card when both say one. Only when that
+ * "Reembolso" of R$ 100 — at most a day apart, on the same card when both say one. Only when that
  * is the one way to make the amount; answers their ids (two to four), else null.
  */
 export function findSplit(item: PairItem, entries: PairEntry[], taken: Set<string>): string[] | null {
@@ -799,7 +804,7 @@ export function findSplit(item: PairItem, entries: PairEntry[], taken: Set<strin
 }
 
 /**
- * How far a Pix can be from an "A receber" and still be offered as paying it back: 10% of it, or
+ * How far a Pix can be from a "Reembolso" and still be offered as paying it back: 10% of it, or
  * R$ 5 when that is more (R$ 35,67 takes a Pix from R$ 30,67 to R$ 40,67). People round.
  */
 export function paybackTolerance(owed: number): number {
@@ -821,16 +826,16 @@ export function payerKey(payer: { payerDocument?: string | null; payerName?: str
   return name ? `name:${name}` : null;
 }
 
-/** An "A receber" the person once said a payer paid back. */
+/** A "Reembolso" the person once said a payer paid back. */
 export interface PaybackHistory {
   payer: string;
-  /** The description of that "A receber" ("Jantar — João"). */
+  /** The description of that "Reembolso" ("Jantar — João"). */
   description: string;
 }
 
 /**
  * What the person taught the review, like the category memory of the expenses: for each payer,
- * the words of the "A receber" they paid back, with how often. A name keeps coming back ("joao"
+ * the words of the "Reembolso" they paid back, with how often. A name keeps coming back ("joao"
  * in "Jantar — João" and "Uber — João"); what was bought changes.
  */
 export function paybackMemory(history: PaybackHistory[]): Map<string, Map<string, number>> {
@@ -844,7 +849,7 @@ export function paybackMemory(history: PaybackHistory[]): Map<string, Map<string
 }
 
 /**
- * The "A receber" a Pix received may be paying back, best first: the ones still open within
+ * The "Reembolso" a Pix received may be paying back, best first: the ones still open within
  * `paybackTolerance` of it and spent on the Pix's day or before. First the one that says who paid — the payer's name in its description
  * ("Jantar — João" for a Pix from João Silva), or the words of what this payer paid back before —
  * then the closest amount, then the most recent. Only ever a suggestion.
@@ -885,7 +890,7 @@ export function reimbursementCandidates(
 }
 
 /**
- * The "A receber" already marked as received that a Pix received may be (the person marked it when
+ * The "Reembolso" already marked as received that a Pix received may be (the person marked it when
  * the friend paid, before the bank told): within `paybackTolerance`, spent on the Pix's day or
  * before, and marked as received a week around it. Best first, as `reimbursementCandidates`.
  */
@@ -904,7 +909,7 @@ export function receivedCandidates(
       expense.date <= item.date
     );
   });
-  // The same ranking as an open "A receber" (who paid first, then the closest amount).
+  // The same ranking as an open "Reembolso" (who paid first, then the closest amount).
   return reimbursementCandidates(
     { amount: item.amount, payer: item.payer, date: item.date },
     near.map(({ month, expense }) => ({ month, expense: { ...expense, reimbursedAt: undefined } })),

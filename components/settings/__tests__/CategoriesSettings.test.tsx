@@ -47,11 +47,31 @@ describe('CategoriesSettings', () => {
       expect(screen.getByText(preset.name)).toBeInTheDocument();
       expect(screen.getByText(preset.description)).toBeInTheDocument();
     }
-    expect(screen.getByText('Prazeres e Confortos')).toBeInTheDocument();
+    expect(screen.getByText('Prazeres')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /adicionar categoria/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /arquivar|excluir|mover/i })).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText('Nome da categoria')).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText('Para que serve esta categoria?')).not.toBeInTheDocument();
+  });
+
+  it('as especiais mostram o nome, sem campo para renomear: só a cor muda', async () => {
+    const state = renderSettings({
+      specialCategories: { ...DEFAULT_SPECIAL_CATEGORY_LABELS, fixedCost: 'Contas da casa' },
+    });
+    expect(screen.queryAllByRole('textbox')).toHaveLength(0);
+    // A name chosen before the names became fixed stays as it is.
+    expect(screen.getByText('Contas da casa')).toBeInTheDocument();
+    expect(screen.getByText('Fora do orçamento')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Cor de Imprevistos'), { target: { value: '#123456' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar categorias' }));
+    await waitFor(() => expect(state.saveSettings).toHaveBeenCalledTimes(1));
+    const saved = state.saveSettings.mock.calls[0][0] as BudgetSettings;
+    expect(saved.specialCategories).toEqual({
+      ...DEFAULT_SPECIAL_CATEGORY_LABELS,
+      fixedCost: 'Contas da casa',
+    });
+    expect(saved.specialCategoryColors).toMatchObject({ unforeseen: '#123456' });
   });
 
   it('salva a % e a cor, só com 100%', async () => {

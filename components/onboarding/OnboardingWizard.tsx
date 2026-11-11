@@ -10,6 +10,7 @@ import {
   createId,
   currentMonthKey,
   formatBRL,
+  formatMonthName,
   formatPct,
   normalizeTopic,
   parseAmountInput,
@@ -27,7 +28,7 @@ import { InfoTip } from '@/components/ui/InfoTip';
 import { PercentInput } from '@/components/ui/PercentInput';
 import { OnboardingScreen } from './OnboardingScreen';
 
-const TOTAL_STEPS = 3;
+const TOTAL_STEPS = 4;
 
 interface OnboardingWizardProps {
   settings: BudgetSettings;
@@ -35,18 +36,31 @@ interface OnboardingWizardProps {
   onSkip: () => void;
   /** Fires once the user confirms the last step and every write has succeeded. */
   onComplete: () => void;
+  /**
+   * Opens on the last question, the percentages ("Ajustar as %"): the earlier answers come from
+   * the month as it is, and "Voltar" still reaches them.
+   */
+  startAtPercentages?: boolean;
 }
 
 /**
- * The three questions that set up the categories (right after a new account picks how to use the
- * app, on the first visit to Categorias and from "Me ajude com as %"): the income; the fixed and
- * unforeseen costs, on one screen; and the percentages, each category with what it is for and a
- * live preview of what it gets. The four categories are always the same (see CategoriesSettings):
- * only their % change here.
+ * The questions that set up the categories (on the first visit to Categorias and from "Ajustar as
+ * %"), one at a time, each with an example: the income; the fixed costs; the unforeseen costs; and
+ * the percentages, each category with what it is for and a live preview of its limit. The two
+ * costs are estimates for that preview only — nothing is launched. The four categories are always
+ * the same (see CategoriesSettings): only their % change here.
  */
-export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }: OnboardingWizardProps) {
+export function OnboardingWizard({
+  settings,
+  saveSettings,
+  onSkip,
+  onComplete,
+  startAtPercentages = false,
+}: OnboardingWizardProps) {
   const { visit } = useMissions();
-  const [step, setStep] = useState(1);
+  // Reopened to adjust, leaving is not skipping anything: it just closes.
+  const skipLabel = startAtPercentages ? 'Fechar' : 'Pular';
+  const [step, setStep] = useState(startAtPercentages ? TOTAL_STEPS : 1);
   const [income, setIncome] = useState('');
   const [registerIncome, setRegisterIncome] = useState(true);
   const [fixedCosts, setFixedCosts] = useState('');
@@ -58,7 +72,7 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Best-effort prefill from the current month, so reopening via "Me ajude com as %"
+  // Best-effort prefill from the current month, so reopening via "Ajustar as %"
   // isn't a blank slate. Doesn't block the UI — it's fine if step 1 renders first.
   useEffect(() => {
     let active = true;
@@ -132,13 +146,17 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
         step={step}
         totalSteps={TOTAL_STEPS}
         onSkip={onSkip}
+        skipLabel={skipLabel}
         footer={
           <PrimaryButton onClick={goNext} disabled={!validatePositiveAmount(parseAmountInput(income))}>
             Continuar
           </PrimaryButton>
         }
       >
-        <StepHeading title="Quanto você ganha por mês?" subtitle="Se a renda varia, use uma média." />
+        <StepHeading
+          title="Quanto você ganha por mês?"
+          subtitle="Se varia, use uma média. Ex.: R$ 3.000,00."
+        />
         <AmountInput value={income} onChange={setIncome} autoFocus label="Renda por mês" />
         <label className="text-foreground mt-4 flex min-h-[44px] items-center gap-2 text-sm">
           <input
@@ -147,7 +165,7 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
             onChange={(e) => setRegisterIncome(e.target.checked)}
             className="border-border h-5 w-5 rounded"
           />
-          Registrar como minha renda deste mês
+          Lançar como renda de {formatMonthName(currentMonthKey()).toLowerCase()}
         </label>
       </OnboardingScreen>
     );
@@ -159,6 +177,7 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
         step={step}
         totalSteps={TOTAL_STEPS}
         onSkip={onSkip}
+        skipLabel={skipLabel}
         footer={
           <>
             <BackButton onClick={goBack} />
@@ -166,26 +185,41 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
           </>
         }
       >
-        <StepHeading title="Custos fixos e imprevistos" subtitle="Só para a prévia: nada é lançado agora." />
-        <div className="flex flex-col gap-5">
-          <div className="flex flex-col gap-2">
-            <InfoTip
-              info={FIXED_COST_TIP}
-              label="Quando um gasto é custo fixo?"
-              hint="Aluguel, contas, assinaturas, plano de saúde."
-            >
-              <span className="text-foreground font-semibold">Custos fixos por mês</span>
-            </InfoTip>
-            <AmountInput value={fixedCosts} onChange={setFixedCosts} autoFocus label="Custos fixos por mês" />
-          </div>
-          <div className="flex flex-col gap-2">
-            <div>
-              <p className="text-foreground font-semibold">Imprevistos por mês</p>
-              <p className="text-muted text-sm">Uma média: consulta, conserto, óculos.</p>
-            </div>
-            <AmountInput value={unforeseen} onChange={setUnforeseen} label="Imprevistos por mês" />
-          </div>
+        <div className="mb-5">
+          <InfoTip
+            info={FIXED_COST_TIP}
+            label="Quando um gasto é custo fixo?"
+            hint="Aluguel, luz, internet, assinaturas. Ex.: R$ 1.000,00."
+          >
+            <h1 className="text-foreground text-xl font-bold">Quanto são seus custos fixos por mês?</h1>
+          </InfoTip>
         </div>
+        <AmountInput value={fixedCosts} onChange={setFixedCosts} autoFocus label="Custos fixos por mês" />
+        <EstimateNote />
+      </OnboardingScreen>
+    );
+  }
+
+  if (step === 3) {
+    return (
+      <OnboardingScreen
+        step={step}
+        totalSteps={TOTAL_STEPS}
+        onSkip={onSkip}
+        skipLabel={skipLabel}
+        footer={
+          <>
+            <BackButton onClick={goBack} />
+            <PrimaryButton onClick={goNext}>Continuar</PrimaryButton>
+          </>
+        }
+      >
+        <StepHeading
+          title="E com imprevistos, em média?"
+          subtitle="Consulta, conserto, óculos. Ex.: R$ 200,00."
+        />
+        <AmountInput value={unforeseen} onChange={setUnforeseen} autoFocus label="Imprevistos por mês" />
+        <EstimateNote />
       </OnboardingScreen>
     );
   }
@@ -198,35 +232,30 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
     const available = computeAvailable(incomeTotal, topic.targetPct, proportionalFixed, 0);
     return { ...topic, available };
   });
-  const forTopics = incomeTotal - fixedTotal - unforeseenTotal;
 
   return (
     <OnboardingScreen
       step={step}
       totalSteps={TOTAL_STEPS}
       onSkip={onSkip}
+      skipLabel={skipLabel}
       footer={
         <>
           <BackButton onClick={goBack} disabled={saving} />
           <PrimaryButton onClick={handleFinish} disabled={saving || !validation.valid}>
-            {saving ? 'Salvando…' : 'Concluir configuração'}
+            {saving ? 'Salvando…' : 'Pronto'}
           </PrimaryButton>
         </>
       }
     >
       <StepHeading
         title="Quanto vai para cada categoria?"
-        subtitle="Custos fixos e imprevistos já saem de cada uma."
+        subtitle="É a previsão do mês, já com custos fixos e imprevistos."
       />
+      {/* No total of all the categories together: it reads as if the whole of it could go to anything. */}
       <div className="border-border bg-card mb-4 flex flex-col gap-1 rounded-xl border p-4 text-sm">
         <Row label="Renda" value={formatBRL(incomeTotal)} />
         <Row label="Custos fixos e imprevistos" value={`− ${formatBRL(fixedTotal + unforeseenTotal)}`} />
-        <div className="border-border mt-1 flex items-center justify-between gap-2 border-t pt-2">
-          <span className="text-foreground font-semibold">Para as categorias</span>
-          <span className={`font-semibold tabular-nums ${forTopics < 0 ? 'text-danger' : 'text-foreground'}`}>
-            {formatBRL(forTopics)}
-          </span>
-        </div>
       </div>
       <div className="flex flex-col gap-2">
         {preview.map((topic) => (
@@ -249,11 +278,25 @@ export function OnboardingWizard({ settings, saveSettings, onSkip, onComplete }:
                 />
                 <span className="text-muted">%</span>
               </div>
-              <span className="text-foreground font-semibold tabular-nums">{formatBRL(topic.available)}</span>
+              <span className="text-muted text-xs">
+                Limite{' '}
+                <span
+                  className={`text-sm font-semibold tabular-nums ${topic.available < 0 ? 'text-danger' : 'text-foreground'}`}
+                >
+                  {formatBRL(topic.available)}
+                </span>
+              </span>
             </div>
           </div>
         ))}
       </div>
+      {/* The limits here already count costs that are not launched yet: said, so the higher
+          limits of the screen right after are no surprise. */}
+      {fixedTotal + unforeseenTotal > 0 && (
+        <p className="text-muted mt-3 text-xs">
+          Na tela, os limites começam maiores e caem conforme você lançar esses custos.
+        </p>
+      )}
       <p className={`mt-3 text-sm font-medium ${validation.valid ? 'text-success' : 'text-danger'}`}>
         {validation.valid
           ? 'Somam 100% ✓'
@@ -272,6 +315,15 @@ function StepHeading({ title, subtitle }: { title: string; subtitle: string }) {
       <h1 className="text-foreground text-xl font-bold">{title}</h1>
       <p className="text-muted mt-1.5 text-sm">{subtitle}</p>
     </div>
+  );
+}
+
+/** The two costs are asked only to preview the limits: said once, under the field. */
+function EstimateNote() {
+  return (
+    <p className="text-muted mt-3 text-sm">
+      É só uma estimativa: nada é lançado agora. Pode deixar em branco.
+    </p>
   );
 }
 

@@ -138,7 +138,7 @@ export default async function PrivacyPage() {
             </li>
           </ul>
           <p>
-            Na engrenagem do Open Finance, &quot;Desconectar tudo&quot; apaga a chave e os bancos do Capital + e
+            Na engrenagem de Bancos, &quot;Desconectar tudo&quot; apaga a chave e os bancos do Capital + e
             tira o acesso do Capital + na Pluggy. Os bancos continuam conectados no Meu Pluggy, onde você pode
             removê-los também.
           </p>

@@ -27,7 +27,7 @@ export const TAG_SUGGESTIONS: Record<TagKind, readonly string[]> = {
 
 /** The one line that tells a tag from a category, shown once where tags are first met. */
 export const TAG_VS_CATEGORY =
-  'Categoria é uma das suas 4 metas e decide de onde sai o dinheiro. Tag é só um rótulo para você achar depois.';
+  'Categoria diz de onde sai o dinheiro. Tag é só uma etiqueta para achar depois.';
 
 /** The rest of it, behind the ⓘ. */
 export const TAG_VS_CATEGORY_DETAIL =

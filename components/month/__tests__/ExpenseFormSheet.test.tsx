@@ -24,17 +24,17 @@ function renderSheet(props: Partial<ComponentProps<typeof ExpenseFormSheet>> = {
   return { onSave };
 }
 
-describe('ExpenseFormSheet e a categoria "A receber"', () => {
+describe('ExpenseFormSheet e a categoria "Reembolso"', () => {
   it('não mostra a categoria enquanto o módulo está desligado', () => {
     renderSheet();
-    expect(screen.queryByRole('button', { name: 'A receber' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reembolso' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Custos Fixos' })).toBeInTheDocument();
   });
 
   it('mostra a categoria e a explicação quando o módulo está ligado', async () => {
     const { onSave } = renderSheet({ reimbursableEnabled: true });
 
-    fireEvent.click(screen.getByRole('button', { name: 'A receber' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reembolso' }));
     expect(screen.getByText(/alguém vai te devolver/i)).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/valor em reais/i), { target: { value: '73,00' } });
@@ -50,7 +50,7 @@ describe('ExpenseFormSheet e a categoria "A receber"', () => {
   it('empresta dinheiro sem cartão: a pergunta do cartão fica livre', async () => {
     const { onSave } = renderSheet({ reimbursableEnabled: true });
 
-    fireEvent.click(screen.getByRole('button', { name: 'A receber' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reembolso' }));
     const card = screen.getByRole('checkbox');
     // Emprestar em dinheiro é a mesma coisa: a pessoa decide se foi no cartão ou não.
     expect(card).not.toBeChecked();
@@ -78,7 +78,7 @@ describe('ExpenseFormSheet e a categoria "A receber"', () => {
       singleInstallmentCard: true,
     };
     renderSheet({ initial: existing, reimbursableEnabled: false });
-    expect(screen.getByRole('button', { name: 'A receber' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reembolso' })).toBeInTheDocument();
   });
 
   it('usa o rótulo que o usuário escolheu para a categoria', () => {
@@ -87,7 +87,7 @@ describe('ExpenseFormSheet e a categoria "A receber"', () => {
       specialCategories: { ...DEFAULT_SPECIAL_CATEGORY_LABELS, reimbursable: 'Me devem' },
     });
     expect(screen.getByRole('button', { name: 'Me devem' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'A receber' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reembolso' })).not.toBeInTheDocument();
   });
 });
 
@@ -133,7 +133,7 @@ describe('ExpenseFormSheet com a data de um mês anterior', () => {
 
     expect(
       await screen.findByText(
-        'Agosto já está fechado, mas o gasto entra nele assim mesmo e sai das categorias de lá. Como o que restou veio para setembro, setembro diminui junto.',
+        'Agosto já está fechado, mas o gasto entra nele assim mesmo e sai das categorias de lá. Como a sobra veio para setembro, setembro diminui junto.',
       ),
     ).toBeInTheDocument();
     expect(lateDestinationOf).toHaveBeenCalledWith('2026-08-30');

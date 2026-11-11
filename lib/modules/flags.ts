@@ -121,7 +121,7 @@ export function dependentsOf(key: ModuleKey): ModuleKey[] {
 
 /**
  * The one module a module hangs from: of its dependencies, the one that isn't already required by
- * another of them. The Início puts a module without a screen (the card bill, "A receber") right
+ * another of them. The Início puts a module without a screen (the card bill, "Reembolso") right
  * after it. Null for modules that depend on nothing.
  */
 export function parentOf(key: ModuleKey): ModuleKey | null {

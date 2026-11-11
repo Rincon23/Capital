@@ -8,19 +8,20 @@ import type {
 } from './types';
 
 /**
- * Default labels for the special categories. "A receber" is the user-facing
- * name of what the old Telegram bot called "Ressarcido" — that name never shows in the app.
+ * Default labels for the special categories. "Reembolso" is the user-facing name of what the old
+ * Telegram bot called "Ressarcido" — that name never shows in the app. It was "A receber" until
+ * the owner asked for the new name (see `FORMER_SPECIAL_LABELS`).
  */
 export const DEFAULT_SPECIAL_CATEGORY_LABELS: ResolvedSpecialCategoryLabels = {
   fixedCost: 'Custos Fixos',
   unforeseen: 'Imprevistos',
-  reimbursable: 'A receber',
+  reimbursable: 'Reembolso',
   uncounted: 'Fora do orçamento',
 };
 
-/** Shown wherever the "A receber" category appears, so its behaviour is never a surprise. */
+/** Shown wherever the "Reembolso" category appears, so its behaviour is never a surprise. */
 export const REIMBURSABLE_EXPLANATION =
-  'Alguém vai te devolver. Não gasta categoria; no cartão, entra na fatura.';
+  'Alguém vai te devolver. Não mexe nas categorias. No cartão, entra na fatura.';
 
 /**
  * Shown wherever "Fora do orçamento" appears. The category exists because sometimes there is no
@@ -28,7 +29,7 @@ export const REIMBURSABLE_EXPLANATION =
  * do mesmo jeito e o orçamento do mês fica parecendo melhor do que é.
  */
 export const UNCOUNTED_EXPLANATION =
-  'Fica registrado, mas não gasta categoria nem entra no total do mês.';
+  'Fica anotado, mas não mexe nas categorias nem entra no total do mês.';
 
 /** Why the app marks "Fora do orçamento" as "Não recomendado" wherever it is offered. */
 export const UNCOUNTED_ADVICE =
@@ -45,12 +46,32 @@ export const INCOME_ONE_TOPIC_EXPLANATION =
 export const INCOME_ONE_TOPIC_ADVICE =
   'Não recomendado: pelas %, a renda mantém o seu equilíbrio.';
 
-/** Special-category labels with any missing entry (older data) filled from the defaults. */
+/**
+ * Default names a special category had before. Every account was created with the default of its
+ * day stored, and the names can no longer be changed by the person, so a stored former default is
+ * shown as the default of today — nothing is rewritten. A name the person once chose stays.
+ */
+const FORMER_SPECIAL_LABELS: Partial<Record<keyof ResolvedSpecialCategoryLabels, string[]>> = {
+  reimbursable: ['A receber'],
+};
+
+const sameLabel = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/**
+ * Special-category labels with any missing entry (older data) filled from the defaults, and a
+ * former default name replaced by the one of today (`FORMER_SPECIAL_LABELS`).
+ */
 export function resolveSpecialCategoryLabels(
   source: Pick<BudgetSettings, 'specialCategories'> | SpecialCategoryLabels | undefined,
 ): ResolvedSpecialCategoryLabels {
   const labels = source && 'specialCategories' in source ? source.specialCategories : source;
-  return { ...DEFAULT_SPECIAL_CATEGORY_LABELS, ...labels };
+  const resolved = { ...DEFAULT_SPECIAL_CATEGORY_LABELS, ...labels };
+  for (const key of Object.keys(FORMER_SPECIAL_LABELS) as (keyof ResolvedSpecialCategoryLabels)[]) {
+    if (FORMER_SPECIAL_LABELS[key]?.some((former) => sameLabel(former, resolved[key]))) {
+      resolved[key] = DEFAULT_SPECIAL_CATEGORY_LABELS[key];
+    }
+  }
+  return resolved;
 }
 
 /** The label for a special category; '' for 'topic', which carries its own name. */
@@ -66,7 +87,7 @@ export function quickCategoryKey(value: { categoryKind: CategoryKind; topicId?: 
 
 /**
  * The categories the expense form shows straight away. Until the person picks their own, that is
- * every category of the budget plus Custos Fixos and Imprevistos; "A receber" and "Fora do
+ * every category of the budget plus Custos Fixos and Imprevistos; "Reembolso" and "Fora do
  * orçamento" — the ones used now and then — wait behind "Outras".
  */
 export function resolveQuickCategories(

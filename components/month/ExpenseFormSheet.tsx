@@ -5,7 +5,9 @@ import { CreditCard } from 'lucide-react';
 import {
   amountToInputValue,
   currentMonthKey,
+  describeSplit,
   formatMonthName,
+  investmentTopicId,
   monthsTouchedBy,
   nextChargeDate,
   parseAmountInput,
@@ -44,8 +46,8 @@ function lateExpenseNotice(destination: LateExpenseDestination, from: Month): st
   }
   const closed = `${there} já está fechado, mas o gasto entra nele assim mesmo e sai das categorias de lá.`;
   return destination.reachesFrom
-    ? `${closed} Como o que restou veio para ${here}, ${here} diminui junto.`
-    : `${closed} O que restou de ${there.toLowerCase()} não veio para ${here}, então ${here} não muda.`;
+    ? `${closed} Como a sobra veio para ${here}, ${here} diminui junto.`
+    : `${closed} A sobra de ${there.toLowerCase()} não veio para ${here}, então ${here} não muda.`;
 }
 
 function defaultDateForMonth(month: Month): string {
@@ -58,7 +60,7 @@ interface ExpenseFormSheetProps {
   month: Month;
   topics: TopicConfig[];
   specialCategories: SpecialCategoryLabels;
-  /** Whether the "A receber" module is on for this user. */
+  /** Whether the "Reembolso" module is on for this user. */
   reimbursableEnabled?: boolean;
   /** Whether the card module is on: without it the card question is not asked. */
   cardEnabled?: boolean;
@@ -70,6 +72,8 @@ interface ExpenseFormSheetProps {
   /** A line above the fields, e.g. the warning shown while editing a single instalment. */
   note?: ReactNode;
   defaultCategoryKind?: CategoryKind;
+  /** The category of the four a new expense starts on, instead of the first one. */
+  defaultTopicId?: string;
   /** False when the form is opened only to be shown (a tour step): no keyboard over it. */
   autoFocusAmount?: boolean;
   /**
@@ -118,6 +122,7 @@ export function ExpenseFormSheet({
   title,
   note,
   defaultCategoryKind,
+  defaultTopicId,
   autoFocusAmount = true,
   onSaveInstallment,
   allowSplit,
@@ -141,7 +146,7 @@ export function ExpenseFormSheet({
   const quick = currentSettings
     ? resolveQuickCategories(currentSettings.quickCategories, activeTopics)
     : undefined;
-  // Turning the module off never hides an expense that is already "A receber": it stays
+  // Turning the module off never hides an expense that is already "Reembolso": it stays
   // editable (and the user can move it to another category) instead of becoming unreachable.
   const showReimbursable = reimbursableEnabled || initial?.categoryKind === 'reimbursable';
 
@@ -155,7 +160,10 @@ export function ExpenseFormSheet({
   );
   // A draft without a category leaves the choice to the user instead of picking the first one.
   const [topicId, setTopicId] = useState<string | undefined>(
-    initial?.topicId ?? (draft ? draft.topicId : activeTopics[0]?.id),
+    initial?.topicId ??
+      (draft
+        ? draft.topicId
+        : (activeTopics.find((topic) => topic.id === defaultTopicId) ?? activeTopics[0])?.id),
   );
   const [description, setDescription] = useState(prefill?.description ?? '');
   const [date, setDate] = useState(prefill?.date ?? defaultDateForMonth(month));
@@ -208,6 +216,11 @@ export function ExpenseFormSheet({
     categoryKind === 'topic'
       ? (activeTopics.find((t) => t.id === topicId)?.name ?? 'a categoria')
       : specialCategoryLabel(categoryKind, labels);
+  // Investimentos is money set aside to invest, not money gone: the form says so while it is chosen.
+  const investing =
+    categoryKind === 'topic' && topicId !== undefined && topicId === investmentTopicId(activeTopics);
+  // Fixed and unforeseen costs are paid by every category: shown with the amount being typed.
+  const shared = categoryKind === 'fixedCost' || categoryKind === 'unforeseen';
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -321,7 +334,16 @@ export function ExpenseFormSheet({
     <BottomSheet
       open
       onClose={onClose}
-      title={title ?? (initial ? 'Editar gasto' : draft ? 'Conferir gasto' : 'Lançar gasto')}
+      title={
+        title ??
+        (initial
+          ? 'Editar gasto'
+          : draft
+            ? 'Conferir gasto'
+            : investing
+              ? 'Registrar investimento'
+              : 'Lançar gasto')
+      }
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         {note && <div className="bg-background text-muted rounded-xl px-3 py-2 text-xs">{note}</div>}
@@ -378,13 +400,32 @@ export function ExpenseFormSheet({
             }
           />
 
+          {investing && !tagsOnly && (
+            <p className="bg-background text-muted -mt-2 rounded-lg px-3 py-2 text-xs">
+              É o dinheiro que você separou para investir, não um gasto perdido.
+            </p>
+          )}
+          {shared && !tagsOnly && (
+            <p className="bg-background text-muted -mt-2 rounded-lg px-3 py-2 text-xs">
+              {parsedAmount > 0
+                ? `Cada categoria paga a sua parte: ${describeSplit(parsedAmount, activeTopics)}.`
+                : 'Cada categoria paga a sua parte, pela % dela.'}
+            </p>
+          )}
+
           <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
             Descrição
             <input
               type="text"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Ex.: Almoço, gasolina..."
+              placeholder={
+                investing
+                  ? 'Ex.: Tesouro, CDB, ações...'
+                  : shared
+                    ? 'Ex.: Aluguel, luz, consulta...'
+                    : 'Ex.: Almoço, gasolina...'
+              }
               className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] rounded-lg border px-3 py-2 text-base outline-none focus:ring-2"
             />
           </label>

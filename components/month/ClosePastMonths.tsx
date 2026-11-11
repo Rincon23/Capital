@@ -13,7 +13,7 @@ const OUTLINE = 'border-border text-foreground min-h-[44px] w-full rounded-lg bo
 
 /**
  * "Fechar outubro" and, with more months open, "Fechar todos os meses anteriores": what shows on
- * the Gastos por categoria widget and screen once the month turned (`useMonthsToClose`). The sheet
+ * the Categorias widget and screen once the month turned (`useMonthsToClose`). The sheet
  * goes to the body: inside the telas of the Início, the track that slides them would carry it along.
  */
 export function ClosePastMonths({ summary, target, close, all }: MonthsToClose) {
@@ -59,7 +59,7 @@ export function ClosePastMonths({ summary, target, close, all }: MonthsToClose) 
             onConfirm={handleConfirm}
             onCancel={() => {
               setClosing(null);
-              showToast('Fechamento cancelado. Nenhuma alteração foi feita.', 'info');
+              showToast('Nada foi fechado.', 'info');
             }}
           />,
           document.body,

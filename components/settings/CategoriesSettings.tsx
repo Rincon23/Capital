@@ -27,11 +27,10 @@ import { useToast } from '@/components/ui/Toast';
 
 const SPECIAL_CATEGORY_FIELDS: {
   key: keyof ResolvedSpecialCategoryLabels;
-  label: string;
   explanation: string;
 }[] = [
-  { key: 'fixedCost', label: 'Custo fixo', explanation: BUDGET_EXPLANATIONS.fixedCost },
-  { key: 'unforeseen', label: 'Imprevistos', explanation: BUDGET_EXPLANATIONS.unforeseen },
+  { key: 'fixedCost', explanation: BUDGET_EXPLANATIONS.fixedCost },
+  { key: 'unforeseen', explanation: BUDGET_EXPLANATIONS.unforeseen },
 ];
 
 /**
@@ -39,6 +38,8 @@ const SPECIAL_CATEGORY_FIELDS: {
  * same (lib/budget/topics.ts): nothing here creates, archives, renames or reorders them — only
  * the colour and, with `withTargets` (the Categorias screen), the target percentage, which have
  * to add up to 100% to save. "Voltar às % padrão" puts back the % and colours they come with.
+ * The special ones (Custos Fixos, Imprevistos, Reembolso, Fora do orçamento) are not renamed
+ * either: only their colour changes here.
  */
 export function CategoriesSettings({ withTargets, onSaved }: { withTargets: boolean; onSaved?: () => void }) {
   const { settings, saveSettings } = useSettings();
@@ -68,9 +69,8 @@ function CategoriesForm({
   const { showToast } = useToast();
   // A draft, seeded once: nothing changes until "Salvar".
   const [topics, setTopics] = useState<TopicConfig[]>(() => activeTopics(settings.topics).map(normalizeTopic));
-  const [special, setSpecial] = useState<ResolvedSpecialCategoryLabels>(() =>
-    resolveSpecialCategoryLabels(settings),
-  );
+  // The names of the special categories are not the person's to change: shown, never edited.
+  const special = resolveSpecialCategoryLabels(settings);
   const [specialColors, setSpecialColors] = useState<SpecialCategoryColors>(() =>
     resolveSpecialCategoryColors(settings),
   );
@@ -83,14 +83,14 @@ function CategoriesForm({
   const modules = resolveModules(settings);
   const validation = validateTopicPercentages(topics);
   const canSave = !withTargets || validation.valid;
-  // The "A receber" label and colour only make sense while its module is on; "Fora do orçamento"
+  // The "Reembolso" label and colour only make sense while its module is on; "Fora do orçamento"
   // is not a module, so it is always here to be renamed.
   const specialFields = [
     ...SPECIAL_CATEGORY_FIELDS,
     ...(modules.reimbursable
-      ? [{ key: 'reimbursable' as const, label: 'A receber', explanation: REIMBURSABLE_EXPLANATION }]
+      ? [{ key: 'reimbursable' as const, explanation: REIMBURSABLE_EXPLANATION }]
       : []),
-    { key: 'uncounted' as const, label: 'Fora do orçamento', explanation: UNCOUNTED_EXPLANATION },
+    { key: 'uncounted' as const, explanation: UNCOUNTED_EXPLANATION },
   ];
 
   function updateTopic(id: string, patch: Pick<Partial<TopicConfig>, 'color' | 'targetPct'>) {
@@ -105,7 +105,6 @@ function CategoriesForm({
       await saveSettings({
         ...settings,
         topics,
-        specialCategories: special,
         specialCategoryColors: specialColors,
       });
       showToast('Categorias salvas.');
@@ -156,11 +155,11 @@ function CategoriesForm({
     <div className="flex flex-col gap-6" data-edit-scope>
       <section className="flex flex-col gap-3 px-4">
         <h2 className="text-muted text-sm font-semibold">
-          {withTargets ? 'Categorias e metas' : 'Categorias'}
+          Suas 4 categorias
         </h2>
-        <p className="text-muted text-xs">As 4 metas para os gastos da vida. Você ajusta a % e a cor.</p>
+        <p className="text-muted text-xs">{withTargets ? 'Você muda a % e a cor.' : 'Você muda a cor.'}</p>
         {!withTargets && modules.budget && (
-          <p className="text-muted text-xs">As metas em % de cada categoria ficam na tela Categorias.</p>
+          <p className="text-muted text-xs">A % de cada uma fica na tela Categorias.</p>
         )}
         <div className="border-border bg-card flex flex-col gap-2 rounded-xl border p-4 shadow-sm">
           {topics.map((topic, index) => (
@@ -192,10 +191,10 @@ function CategoriesForm({
           {withTargets && (
             <p className={`text-sm ${validation.valid ? 'text-success' : 'text-danger'}`}>
               {validation.valid
-                ? 'Soma das categorias: 100%.'
+                ? 'Somam 100% ✓'
                 : validation.diffPct > 0
-                  ? `Faltam ${formatPct(validation.diffPct)} para completar 100%.`
-                  : `Excesso de ${formatPct(-validation.diffPct)} além de 100%.`}
+                  ? `Faltam ${formatPct(validation.diffPct)} para 100%.`
+                  : `Passou ${formatPct(-validation.diffPct)} de 100%.`}
             </p>
           )}
         </div>
@@ -203,26 +202,19 @@ function CategoriesForm({
 
       <section className="flex flex-col gap-3 px-4">
         <h2 className="text-muted text-sm font-semibold">Categorias especiais</h2>
-        <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4 shadow-sm">
-          {specialFields.map(({ key, label, explanation }) => (
-            <div key={key} className="flex flex-col gap-1">
-              <div className="flex min-w-0 items-end gap-2">
+        <p className="text-muted text-xs">Você muda a cor.</p>
+        <div className="border-border bg-card flex flex-col gap-2 rounded-xl border p-4 shadow-sm">
+          {specialFields.map(({ key, explanation }) => (
+            <div key={key} className="border-border flex flex-col gap-1 rounded-lg border p-3">
+              <div className="flex min-w-0 items-center gap-2">
                 <input
                   type="color"
                   value={specialColors[key]}
                   onChange={(e) => setSpecialColors((c) => ({ ...c, [key]: e.target.value }))}
-                  aria-label={`Cor de ${label}`}
-                  className="border-border h-11 w-11 shrink-0 cursor-pointer rounded-md border bg-transparent p-0.5"
+                  aria-label={`Cor de ${special[key]}`}
+                  className="border-border h-10 w-10 shrink-0 cursor-pointer rounded-md border bg-transparent p-0.5"
                 />
-                <label className="text-muted flex min-w-0 flex-1 flex-col gap-1 text-sm">
-                  {label}
-                  <input
-                    type="text"
-                    value={special[key]}
-                    onChange={(e) => setSpecial((s) => ({ ...s, [key]: e.target.value }))}
-                    className="border-border bg-background text-foreground focus:ring-primary min-h-[44px] w-full min-w-0 rounded-md border px-3 outline-none focus:ring-2"
-                  />
-                </label>
+                <span className="text-foreground min-w-0 flex-1 font-semibold">{special[key]}</span>
               </div>
               <p className="text-muted text-xs">{explanation}</p>
             </div>

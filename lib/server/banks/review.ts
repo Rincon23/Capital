@@ -114,7 +114,7 @@ function baseItem(
   };
 }
 
-/** An "A receber" or any expense as a line may be tied to it. */
+/** A "Reembolso" or any expense as a line may be tied to it. */
 function linkedOf({ month, expense }: LaunchedExpense): LinkedEntry {
   return { month, entryId: expense.id, description: expense.description, amount: expense.amount };
 }
@@ -169,7 +169,7 @@ export async function buildReview(
   const plans = await wallet.listInstallments();
   const tied = await banks.tiedEntries();
   // What is already some bank line's, by side: an entry is one line's at most on each side, and only
-  // an "A receber" is on both — the purchase that went out and the payback that came in.
+  // a "Reembolso" is on both — the purchase that went out and the payback that came in.
   const taken: Record<MoneySide, Set<string>> = { out: new Set(tied.out.keys()), in: new Set(tied.in.keys()) };
   // What the person tied by hand ("Procurar nos gastos"): a line can be several entries, in part.
   const links = await banks.links();
@@ -188,7 +188,7 @@ export async function buildReview(
     }
     return [...seen.values()];
   };
-  // The "A receber" still open, when that module is on: a Pix received may be one paid back. And
+  // The "Reembolso" still open, when that module is on: a Pix received may be one paid back. And
   // the ones already marked as received: the friend paid, the person marked it, and the bank tells
   // it only now.
   const reimbursableOn = isModuleOn(settings, 'reimbursable');
@@ -367,7 +367,7 @@ export async function buildReview(
   const openItems = new Map(open.map((row) => [row.id, baseItem(row, [row.id], known)]));
   const rowOf = new Map(singles.map((row) => [row.id, row]));
 
-  // A Pix received that pays an "A receber" back is that first (as the payback suggestion).
+  // A Pix received that pays a "Reembolso" back is that first (as the payback suggestion).
   for (const row of open) {
     const base = openItems.get(row.id)!;
     if (!inMonth(row.date) || reviewKind(row) !== 'income') continue;
@@ -381,12 +381,12 @@ export async function buildReview(
       amount: expense.amount,
       difference: round2(base.amount - expense.amount),
     });
-    // One "A receber" is offered first to one Pix at most (the others stay a tap away).
+    // One "Reembolso" is offered first to one Pix at most (the others stay a tap away).
     taken.in.add(paybacks[0].expense.id);
     base.reimbursement = { ...option(paybacks[0]), others: paybacks.slice(1, 6).map(option) };
   }
 
-  // Then an "A receber" already marked as received: the same amount, marked a day from the Pix,
+  // Then a "Reembolso" already marked as received: the same amount, marked a day from the Pix,
   // the only one, confers by itself; anything looser is asked ("É sim" ties them).
   const strongReceived = new Map<string, LinkedEntry>();
   for (const row of open) {
@@ -526,7 +526,7 @@ export async function buildReview(
         : kind === 'income'
           ? findDuplicateIncome(base, incomes, taken.in)
           : findDuplicate(base, launched, taken.out);
-    // Or several entries that add up to it ("São estes 2 gastos?": two "A receber" of a R$ 200 purchase).
+    // Or several entries that add up to it ("São estes 2 gastos?": two "Reembolso" of a R$ 200 purchase).
     const splitIds = kind === 'income' || duplicate ? null : findSplit(base, manual.map(toPair), taken.out);
     const split = splitIds
       ? splitIds.map((id) => linkedOf(launched.find(({ expense }) => expense.id === id)!))
@@ -570,7 +570,7 @@ export async function buildReview(
   for (const link of links) {
     tiedByHand[link.side].set(link.entryId, { bankName: link.bankName, date: link.date, transactionId: link.transactionId });
   }
-  /** The line of that side an entry is tied to: an "A receber" tied to its purchase is still free for its payback. */
+  /** The line of that side an entry is tied to: a "Reembolso" tied to its purchase is still free for its payback. */
   const tiedTo = (side: MoneySide, id: string) =>
     tied[side].get(id) ?? tiedByHand[side].get(id) ?? paired[side].get(id) ?? null;
   const asEntry = (side: MoneySide) => ({ month: entryMonth, expense }: LaunchedExpense) => ({
@@ -586,7 +586,7 @@ export async function buildReview(
       expense.categoryKind === 'reimbursable' ? (expense.reimbursedAt ? ('received' as const) : ('open' as const)) : null,
     tied: tiedTo(side, expense.id),
   });
-  // What a Pix received may be: an income of the month, or an "A receber" (open, or received).
+  // What a Pix received may be: an income of the month, or a "Reembolso" (open, or received).
   const owed = [...pendingBack, ...receivedBack].filter(
     (entry, index, all) => all.findIndex((other) => other.expense.id === entry.expense.id) === index,
   );
@@ -646,6 +646,7 @@ export async function reviewCounts(deps: ReviewDeps, options: ReviewOptions = {}
     expenses: review.expenses.missing.length,
     incomes: review.incomes.missing.length,
     cards,
+    linked: [...new Set(capitalCard.values())].sort(),
   };
 }
 
@@ -749,8 +750,8 @@ export async function applyReviewAction({ banks, repo, wallet }: ReviewDeps, inp
 
 /**
  * "Procurar nos gastos": a line still undecided is tied by hand to entries of the Capital — one or
- * several, covering it in full or in part (a R$ 200 purchase, two "A receber" of R$ 100; a Pix for
- * an "A receber" already marked as received). Nothing about the entries changes. An entry tied to
+ * several, covering it in full or in part (a R$ 200 purchase, two "Reembolso" of R$ 100; a Pix for
+ * a "Reembolso" already marked as received). Nothing about the entries changes. An entry tied to
  * another bank line is refused.
  */
 async function linkEntries(
@@ -770,7 +771,7 @@ async function linkEntries(
       data?.incomes.some((income) => income.id === entryId);
     if (!exists) throw new HttpError(404, 'NOT_FOUND', 'Esse lançamento não existe mais.');
   }
-  // One bank line per side: an "A receber" tied to its purchase can still take its payback.
+  // One bank line per side: a "Reembolso" tied to its purchase can still take its payback.
   const side = (await banks.sideOf(ids)) ?? 'out';
   const tied = (await banks.tiedEntries())[side];
   const elsewhere = (await banks.links()).filter((link) => link.side === side && !ids.includes(link.transactionId));
@@ -808,7 +809,7 @@ async function moveToCard(
 }
 
 /**
- * "Marcar como recebido": the same "Já me pagou" as the A receber screen (`setReimbursed`). A Pix a
+ * "Marcar como recebido": the same "Já me pagou" as the Reembolso screen (`setReimbursed`). A Pix a
  * little off settles it too (`paybackTolerance`): what came beyond it becomes an income, and what
  * was missing an expense in Imprevistos, on the day of the Pix — both saved first, by the forms'
  * own functions, so a closed month refuses the whole thing.
@@ -822,12 +823,12 @@ async function settlePayback(
   const owed = (await repo.pendingReimbursables(month)).find(
     (pending) => pending.month === month && pending.expense.id === expenseId,
   );
-  if (!owed) throw new HttpError(404, 'NOT_FOUND', 'Esse A receber não existe mais ou já foi recebido.');
+  if (!owed) throw new HttpError(404, 'NOT_FOUND', 'Esse Reembolso não existe mais ou já foi recebido.');
   const paid = await banks.paidIn(ids);
   if (!paid) throw new HttpError(404, 'NOT_FOUND', 'Essa transação não está mais no Capital +.');
   const difference = round2(paid.amount - owed.expense.amount);
   if (Math.abs(difference) > paybackTolerance(owed.expense.amount) + 0.009) {
-    throw new HttpError(400, 'TOO_FAR', 'O valor do Pix está longe demais desse A receber.');
+    throw new HttpError(400, 'TOO_FAR', 'O valor do Pix está longe demais desse Reembolso.');
   }
   const day = paid.date;
   const { description } = owed.expense;

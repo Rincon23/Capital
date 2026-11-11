@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { TriangleAlert } from 'lucide-react';
 import {
   billComposition,
   billKey,
@@ -39,7 +40,7 @@ import {
   type SpecialCategoryLabels,
   type TopicConfig,
 } from '@/lib/budget';
-import { reviewMonths, type BankReviewCounts } from '@/lib/banks';
+import { formatAgo, reviewMonths, type BankCardDebt, type BankReviewCounts } from '@/lib/banks';
 import { isModuleOn, mayUseModule } from '@/lib/modules';
 import { zonedToday } from '@/lib/reminders/time';
 import { banksRepository, budgetRepository, walletRepository } from '@/lib/storage';
@@ -260,6 +261,12 @@ function BillTab({
         : undefined
       : snapshot.cards.find((item) => item.id === selected);
 
+  // The cards whose bill is on the screen, and whether some bank checks each (the Bancos module).
+  const shownCards = selected === 'all' ? snapshot.cards : snapshot.cards.filter((item) => item.id === selected);
+  const bank = useBankCounts(month);
+  const unchecked = unlinkedCards(bank, shownCards).length > 0;
+  const bankDebt = bankDebtOf(bank, shownCards);
+
   function openLine(line: BillLine) {
     if (line.installmentId && (line.virtual || line.installmentNumber === 0)) {
       setInstallmentEdit({ kind: 'plan', installmentId: line.installmentId });
@@ -316,14 +323,46 @@ function BillTab({
       )}
 
       <section className="border-border bg-card mx-4 flex flex-col gap-3 rounded-2xl border p-4 shadow-sm">
-        <div>
-          <p className="text-muted text-sm">
-            {selected === 'all'
-              ? 'Fatura do mês'
-              : `Fatura · ${options.find((o) => o.id === selected)?.name}`}
-          </p>
-          <p className="text-foreground text-3xl font-bold tracking-tight tabular-nums">{formatBRL(total)}</p>
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-muted text-sm">
+              {selected === 'all'
+                ? 'Fatura do mês'
+                : `Fatura · ${options.find((o) => o.id === selected)?.name}`}
+            </p>
+            <p
+              className={`text-foreground flex items-center gap-2 font-bold tracking-tight tabular-nums ${
+                bankDebt ? 'text-2xl' : 'text-3xl'
+              }`}
+            >
+              {formatBRL(total)}
+              {/* Typed by hand and checked by no bank: it may not be the whole bill. */}
+              {unchecked && (
+                <TriangleAlert
+                  role="img"
+                  aria-label="Sem conferir com o banco: o valor pode não bater com a fatura"
+                  className="text-warning h-5 w-5 shrink-0"
+                />
+              )}
+            </p>
+          </div>
+          {/* Beside it, never instead of it: what the bank says the card owes today. */}
+          {bankDebt && (
+            <div className="min-w-0 text-right">
+              <p className="text-muted text-sm">No banco</p>
+              <p className="text-foreground text-xl font-semibold tracking-tight tabular-nums">
+                {formatBRL(bankDebt.amount)}
+              </p>
+            </div>
+          )}
         </div>
+        {bankDebt && (
+          <p className="text-muted -mt-1 text-xs">
+            No banco: em aberto hoje
+            {bankDebt.updatedAt ? `, atualizado ${formatAgo(bankDebt.updatedAt, bank.now)}` : ''}. Pode ter compras de
+            outra fatura.
+          </p>
+        )}
 
         {card?.limit !== undefined && <LimitBar card={card} snapshot={snapshot} />}
 
@@ -340,10 +379,7 @@ function BillTab({
         )}
       </section>
 
-      <BankCheck
-        month={month}
-        cards={selected === 'all' ? snapshot.cards : snapshot.cards.filter((item) => item.id === selected)}
-      />
+      <BankCheck month={month} cards={shownCards} bank={bank} />
 
       <section className="flex flex-col gap-2 px-4" data-tour="cartao-lancamentos">
         <h2 className="text-muted text-sm font-semibold">Lançamentos desta fatura</h2>
@@ -431,22 +467,28 @@ function BillTab({
  * do banco não estão aqui · Conferir", to the month's check of that card). Only counts: never a
  * value from the bank. The check goes back to last month only.
  */
-function BankCheck({ month, cards }: { month: Month; cards: CreditCard[] }) {
+/**
+ * What the banks say about the cards (the Bancos module, for the accounts that have it): which
+ * cards are tied to a bank card and, in the months the check covers, what is missing in each.
+ * `counts` stays null without the module, while it loads, or when the read fails: the bill shows
+ * the same without it.
+ */
+function useBankCounts(month: Month) {
   const { settings } = useSettings();
   const { user } = useAuth();
   const [months] = useState(() => reviewMonths(zonedToday()));
-  const on =
-    mayUseModule(user, 'banks') &&
-    isModuleOn(settings, 'banks') &&
-    isModuleOn(settings, 'expenses') &&
-    months.includes(month);
+  const on = mayUseModule(user, 'banks') && isModuleOn(settings, 'banks') && isModuleOn(settings, 'expenses');
+  /** The check only covers this month and the one before; the ties are the same for any month. */
+  const checked = months.includes(month);
   const [counts, setCounts] = useState<BankReviewCounts | null>(null);
+  const [debts, setDebts] = useState<BankCardDebt[] | null>(null);
+  const [now] = useState(() => Date.now());
 
   useEffect(() => {
     if (!on) return;
     let active = true;
     banksRepository
-      .getReviewCounts(month)
+      .getReviewCounts(checked ? month : undefined)
       .then((next) => {
         if (active) setCounts(next);
       })
@@ -455,14 +497,93 @@ function BankCheck({ month, cards }: { month: Month; cards: CreditCard[] }) {
     return () => {
       active = false;
     };
-  }, [on, month]);
+  }, [on, month, checked]);
 
-  if (!on || counts?.month !== month) return null;
-  const shown = cards.filter((card) => counts.cards[card.id]);
-  if (shown.length === 0) return null;
-  const current = month === months[months.length - 1];
+  // What the bank says each card owes today: the same whatever month is on the screen.
+  useEffect(() => {
+    if (!on) return;
+    let active = true;
+    banksRepository
+      .getCardDebts()
+      .then((next) => {
+        if (active) setDebts(next);
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [on]);
+
+  return {
+    counts: on ? counts : null,
+    debts: on ? debts : null,
+    /** When the screen opened, to say how long ago the bank sent its number. */
+    now,
+    /** The counts on hand are this month's (not just the ties). */
+    checked: checked && counts?.month === month,
+    current: month === months[months.length - 1],
+  };
+}
+
+type BankCounts = ReturnType<typeof useBankCounts>;
+
+/**
+ * What the bank says the cards on the screen owe today, summed — only when it says so for every
+ * one of them (half a sum would read as the whole), and only on today's month: it is the bank's
+ * number as of now, not the bill of another month.
+ */
+function bankDebtOf(bank: BankCounts, cards: CreditCard[]): { amount: number; updatedAt: string | null } | null {
+  const { debts } = bank;
+  if (!debts || !bank.current || cards.length === 0) return null;
+  let amount = 0;
+  let updatedAt: string | null | undefined;
+  for (const card of cards) {
+    const debt = debts.find((item) => item.cardId === card.id);
+    if (!debt) return null;
+    amount += debt.amount;
+    // The oldest of them: the sum is only as fresh as its stalest part.
+    updatedAt =
+      updatedAt === undefined
+        ? debt.updatedAt
+        : updatedAt === null || debt.updatedAt === null
+          ? null
+          : debt.updatedAt < updatedAt
+            ? debt.updatedAt
+            : updatedAt;
+  }
+  return { amount: Math.round(amount * 100) / 100, updatedAt: updatedAt ?? null };
+}
+
+/** The cards among `cards` that no bank card is tied to: nothing checks their bill. */
+function unlinkedCards(bank: BankCounts, cards: CreditCard[]): CreditCard[] {
+  const linked = bank.counts?.linked;
+  return linked ? cards.filter((card) => !linked.includes(card.id)) : [];
+}
+
+function BankCheck({ month, cards, bank }: { month: Month; cards: CreditCard[]; bank: BankCounts }) {
+  const { counts, checked, current } = bank;
+  if (!counts) return null;
+  const shown = checked ? cards.filter((card) => counts.cards[card.id]) : [];
+  const unlinked = unlinkedCards(bank, cards);
+  if (shown.length === 0 && unlinked.length === 0) return null;
   return (
     <ul className="flex flex-col gap-2 px-4">
+      {/* A card no bank checks: what was typed may not be the whole bill, and connecting the bank
+          is what settles it. */}
+      {unlinked.map((card) => (
+        <li key={`sem-banco-${card.id}`}>
+          <Link
+            href="/bancos"
+            className="border-border flex min-h-[44px] items-center gap-2.5 rounded-xl border border-dashed px-4 py-2 text-sm"
+          >
+            <TriangleAlert aria-hidden className="text-warning h-4 w-4 shrink-0" />
+            <span className="text-muted min-w-0 flex-1">
+              {cards.length > 1 ? `${card.name}: sem` : 'Sem'} conferir com o banco. Pode faltar algum gasto.
+            </span>
+            <span className="text-primary shrink-0 font-semibold">Conectar</span>
+          </Link>
+        </li>
+      ))}
       {shown.map((card) => {
         const { missing } = counts.cards[card.id];
         const name = shown.length > 1 || cards.length > 1 ? `${card.name}: ` : '';

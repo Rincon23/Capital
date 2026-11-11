@@ -6,12 +6,21 @@ interface OnboardingScreenProps {
   step: number;
   totalSteps: number;
   onSkip: () => void;
+  /** What the way out says: "Pular" on a first visit, "Fechar" when the questions were reopened. */
+  skipLabel?: string;
   children: ReactNode;
   footer: ReactNode;
 }
 
 /** Full-screen shell of the setup wizard: progress dots, a persistent "Pular", scrollable content, and a footer for nav buttons. */
-export function OnboardingScreen({ step, totalSteps, onSkip, children, footer }: OnboardingScreenProps) {
+export function OnboardingScreen({
+  step,
+  totalSteps,
+  onSkip,
+  skipLabel = 'Pular',
+  children,
+  footer,
+}: OnboardingScreenProps) {
   return (
     <div className="bg-background fixed inset-0 z-50 flex flex-col" role="dialog" aria-modal="true">
       <div
@@ -33,7 +42,7 @@ export function OnboardingScreen({ step, totalSteps, onSkip, children, footer }:
           onClick={onSkip}
           className="text-muted hover:text-foreground min-h-[44px] shrink-0 px-2 text-sm font-medium"
         >
-          Pular
+          {skipLabel}
         </button>
       </div>
 

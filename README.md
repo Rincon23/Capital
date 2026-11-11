@@ -71,10 +71,10 @@ ficam em `components/modules`.
 restritos: se Lançamentos for restrito, tudo o que depende dele some junto.
 
 - Lançamentos
-  - Gastos por categoria
+  - Categorias
     - Histórico e gráficos
   - Cartão
-  - A receber
+  - Reembolso
   - Contas do mês
 - Reserva, Open Finance e Lembretes não dependem de nenhum.
 
@@ -118,7 +118,7 @@ prêmio. O catálogo (`MISSIONS` em `lib/gamification/missions.ts`) é feito par
 | Todo dia | Resgatar o XP do dia (10, no botão "Resgatar" da faixa das Missões na Início; só abrir o app não dá) |
 | Toda semana | Conferir os bancos (15, só quem tem Open Finance e um banco) |
 | Todo mês | Registrar uma renda (30), Lançar um gasto (30), Conferir o calendário, as contas do mês, a fatura e a reserva (15 cada; contas e fatura só para quem tem conta ou cartão), Fechar o mês anterior (50) |
-| Uma vez | Primeira renda e primeiro gasto (50 cada), Ajustar as categorias (50), Primeiro lembrete, Ligar as notificações e Instalar o app (30 cada), Conectar um banco (100, Open Finance), e Conhecer cada módulo (20 cada: a primeira visita à tela; A receber, o primeiro uso) |
+| Uma vez | Primeira renda e primeiro gasto (50 cada), Ajustar as categorias (50), Primeiro lembrete, Ligar as notificações e Instalar o app (30 cada), Conectar um banco (100, Open Finance), e Conhecer cada módulo (20 cada: a primeira visita à tela; Reembolso, o primeiro uso) |
 
 Missão de módulo restrito só existe para quem tem acesso.
 
@@ -153,16 +153,29 @@ botão fecha); renda e gasto abrem o formulário ali mesmo na Início. Nada diss
 **Dinheiro do mês**
 
 - **Lançamentos** (`/mes/[mês]/lancamentos`) — gastos e rendas do mês com busca, abas por
-  categoria, "Lançar gasto", "Renda" e "Apagar dados do mês". Sem ele não existe formulário de gasto.
+  categoria, "Lançar gasto" e "Renda". Vazio, a lista diz o que fazer e traz o botão ("Lançar o
+  primeiro gasto"). "Apagar os lançamentos de novembro" fica na engrenagem, não embaixo da lista.
+  Sem ele não existe formulário de gasto.
   **Custos Fixos e Imprevistos ficam na mesma aba**: são as duas categorias sem meta própria, as
   duas rateadas entre as categorias, e separá-las só obrigava a adivinhar em qual das duas o gasto
   tinha sido lançado; cada linha diz qual das duas é.
-- **Gastos por categoria** (`/mes/[mês]/categorias`) — metas em % da renda, "posso gastar", sobra
-  por categoria, custos fixos e imprevistos com o rateio, e "Fechar mês". **A sobra só passa para o
+- **Categorias** (`/mes/[mês]/categorias`; chamava-se "Gastos por categoria") — a tela conta a história em ordem: no topo,
+  Renda e Total gasto; depois as quatro categorias, cada card com **uma coisa em destaque, a
+  Sobra**, sobre a barra de quanto do limite já foi ("20% da renda" no canto; "Gastou R$ X" e
+  "Limite R$ Y" em letra pequena; o resto fica um toque adiante, no detalhe); depois custos fixos e
+  imprevistos, com quanto cada categoria paga; e, no fim, fechar o mês. **Um mês só se fecha depois
+  que acabou**: no mês de hoje (e nos seguintes) não existe botão, só a frase "Você fecha novembro
+  quando o mês acabar"; num mês que já passou, "Fechar outubro". Sem renda no mês, um aviso com o
+  botão "Registrar renda" vem antes dos cards. Com renda e nenhum custo fixo ou imprevisto lançado,
+  uma linha avisa que "os limites caem quando você lançar custos fixos e imprevistos" (as perguntas
+  da primeira visita mostraram a previsão já com eles). **Investimentos** aparece como "Separou para
+  investir" (nunca "Gastou"), o que resta é "Falta investir" (não "Sobra"), e o formulário vira
+  "Registrar investimento": é dinheiro separado, não perdido. Os botões "Renda" e "Lançar gasto"
+  flutuam aqui também. **A sobra só passa para o
   mês seguinte com o mês fechado.** Enquanto houver mês anterior aberto, o widget e o topo da tela
   mostram "Fechar outubro" e, com mais de um aberto, "Fechar todos os meses anteriores"; ao fechar, o
-  app pergunta se o que restou vem para o mês atual. Reabrir um mês devolve a sobra para ele até
-  fechar de novo. Detalhe da categoria em
+  app pergunta "Levar a sobra para novembro?" ("Não levar" / "Levar a sobra"). Reabrir um mês
+  devolve a sobra para ele até fechar de novo. Detalhe da categoria em
   `/mes/[mês]/categoria/[id]`. Desligado, o gasto continua sendo lançado numa categoria (que segue
   editável na engrenagem de Lançamentos, com nome, descrição e cor), mas somem as metas, o
   percentual e a regra dos 100%. As regras das categorias estão em "Categorias" logo abaixo.
@@ -170,7 +183,8 @@ botão fecha); renda e gasto abrem o formulário ali mesmo na Início. Nada diss
   cartões cadastrados, o parcelamento e a fatura de cada mês. Desligado, a pergunta some; gastos
   antigos marcados no cartão continuam marcados. A tela tem três abas, no jeito de um app de
   banco, e está detalhada em "O módulo Cartão" logo abaixo.
-- **A receber** — dinheiro que saiu por outra pessoa, que vai devolver. **Não** entra em nenhuma
+- **Reembolso** (chamava-se "A receber"; o endereço da lista continua `?aba=a-receber`) — dinheiro
+  que saiu por outra pessoa, que vai devolver. **Não** entra em nenhuma
   categoria, no rateio dos custos fixos nem no gasto do mês, e **não precisa ser no cartão**:
   emprestar R$ 50 em dinheiro é a mesma coisa — por isso o módulo só precisa de Lançamentos, e não
   do Cartão —, e a pergunta "a compra foi no cartão?" fica
@@ -270,9 +284,12 @@ Tudo o que é cartão vive em `/cartao`, em três abas — a **Fatura** olha um 
 **Lançar um gasto.** O botão "Cartão" ao lado do valor (rótulo acessível "A compra foi no
 cartão?") tem borda e cor normais, para não passar despercebido. Salvar um gasto novo mostra o que
 ele fez com a categoria, com **Desfazer** (`expenseFeedback` em `lib/budget/feedback.ts`): "R$ 45,00
-em Prazeres e Confortos · ainda dá R$ 320,00 este mês", ou "passou R$ 30,00 da meta"; custos fixos e
-imprevistos falam do total, e A receber e Fora do orçamento dizem que não mexem em categoria. Um
-gasto sem descrição leva o nome da categoria. A receber e Fora do orçamento, ao serem escolhidos,
+em Prazeres · ainda dá R$ 320,00 este mês", ou "passou R$ 30,00 do limite"; custos fixos e
+imprevistos dizem "dividido entre as categorias" (sem total somado), e Reembolso e Fora do
+orçamento dizem que não mexem nas categorias. Com Custos Fixos ou Imprevistos escolhido, o
+formulário mostra a divisão do valor digitado ("Cada categoria paga a sua parte: Prazeres
+R$ 200,00 · …"); com Investimentos, vira "Registrar investimento". Um
+gasto sem descrição leva o nome da categoria. Reembolso e Fora do orçamento, ao serem escolhidos,
 mostram uma linha curta (com o "Não recomendado") e o resto atrás de um ⓘ.
 
 **Parcelar ao lançar o gasto.** Marcando "A compra foi no cartão?" e escolhendo o cartão, o
@@ -391,7 +408,15 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
   ainda apaga o que a conta deixou nelas. Onde uma conta antiga guardou `gmail` (telas da Início,
   widgets escondidos, a barra antiga), a chave é deixada de fora (`RETIRED_MODULES` em
   `lib/modules/migration.ts`); os alertas antigos continuam no histórico de notificações.
-- **Open Finance** (`/bancos`, começa restrito): traz os bancos da pessoa pelo **Meu Pluggy**, grátis e
+- **Bancos** (`/bancos`, começa restrito; chamava-se "Open Finance", que continua sendo o nome da
+  tecnologia e aparece na abertura): a tela abre com o que é ("Confira seus lançamentos com o
+  banco": só lê, grátis, uns 10 minutos) e um "Começar", antes do passo 1. Os passos falam em
+  palavras do dia a dia ("Autorize seus bancos no Meu Pluggy", "Já fiz, próximo passo"), e o aviso
+  de que o "teste de 15 dias" do site da Pluggy pode ser ignorado fica à vista. Para autorizar de
+  novo existe um verbo só ("Autorizar de novo"). Na conferência, "Já lancei isso" abre a busca e a
+  resposta é "É este" / "É o mesmo" (não mais "Ligar"); cada lista dobrada diz em uma linha o que
+  guarda, e o ⓘ ao lado da ajuda explica Falta / Confere / Deixado de fora.
+  Traz os bancos da pessoa pelo **Meu Pluggy**, grátis e
   só leitura, com a chave da própria pessoa, e serve **só para conferir** o que foi lançado no
   Capital: gastos e recebimentos (as quantidades de ações e cotas são conferidas no Invest +). Nenhum saldo,
   fatura, valor em aberto ou limite do banco aparece, a não ser os saldos das contas que a
@@ -477,12 +502,12 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
       ou de renda, já preenchido) e, embaixo, "Procurar nos gastos" e "Ignorar". Débito sugere
       gasto, crédito sugere renda;
     - **"Procurar nos gastos"** (nos recebimentos, "Procurar nas rendas"): lista o que a pessoa
-      lançou no mês (nos recebimentos, as rendas do mês e os "A receber", em aberto ou já
+      lançou no mês (nos recebimentos, as rendas do mês e os "Reembolso", em aberto ou já
       recebidos), com busca pela descrição ou pelo valor e o selo "mesmo valor". O que já está
       ligado a outra linha do banco aparece apagado, sem toque ("ligado ao BTG Pactual de
       12/10"). A pessoa **marca um ou mais** e toca em "Ligar": uma compra de R$ 200 no cartão
-      pode ser dois "A receber" de R$ 100, e pode ser só uma parte. Ligar não muda nada nos
-      lançamentos (um "A receber" continua em aberto ou recebido como estava). As parcelas de
+      pode ser dois "Reembolso" de R$ 100, e pode ser só uma parte. Ligar não muda nada nos
+      lançamentos (um "Reembolso" continua em aberto ou recebido como estava). As parcelas de
       compras parceladas não entram (são da compra parcelada);
     - **ligado em parte**: quando o que foi ligado soma menos que a linha, ela continua em
       "Falta no Capital" com "Ligado a 'Jogo — João' (R$ 100). Faltam R$ 100", e "Lançar o
@@ -492,15 +517,15 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
       valor ao centavo, até 1 dia de diferença, no mesmo cartão quando os dois dizem, e só essa
       combinação: "Parecem ser estes 2 lançamentos: 'Jogo — João' e 'Jogo — Pedro'", com "São
       estes" e "Não são";
-    - **"A receber" já marcado como recebido**: muitas vezes a pessoa marca "Já me pagou" quando
-      o amigo paga, antes de o banco contar. Um Pix recebido perto do valor de um "A receber"
+    - **"Reembolso" já marcado como recebido**: muitas vezes a pessoa marca "Já me pagou" quando
+      o amigo paga, antes de o banco contar. Um Pix recebido perto do valor de um "Reembolso"
       marcado como recebido até 7 dias antes ou depois pergunta "É a devolução de 'Jogo — João',
       que você já marcou como recebido?" ("É sim" liga os dois). Com o mesmo valor ao centavo,
       marcado até 1 dia do Pix e só um candidato, confere sozinho, como o par forte;
     - **categoria sugerida**, nesta ordem: o que a pessoa escolheu antes para a mesma descrição;
       uma categoria dita na descrição (as regras de `lib/categoryText`, sem IA); a categoria da Pluggy
       traduzida para os nomes das categorias da pessoa; e o que as categorias padrão significam
-      (Prazeres e Confortos = comer fora, compras, lazer; Conhecimentos = cursos e livros; Metas = viagem;
+      (Prazeres = comer fora, compras, lazer; Conhecimentos = cursos e livros; Metas = viagem;
       Custos Fixos = assinaturas, contas, aluguel). Sem palpite, o botão vira "Escolher
       categoria" e abre o formulário: nada é chutado;
     - **cartões** (o que importa é qual compra ficou de fora, nunca quanto se deve): a aba Gastos
@@ -539,17 +564,27 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
     - **fatura**: um pagamento de fatura que bate com uma fatura em aberto **do Capital** sugere
       "Marcar a fatura de out (Nubank) como paga?", sempre com um toque. Nenhuma fatura sai sozinha
       e a fatura do banco nunca aparece;
-    - **no módulo Cartão** (com Open Finance ligado): na aba Fatura do mês atual e do
+    - **no módulo Cartão** (com Bancos ligado): na aba Fatura do mês atual e do
       anterior, uma linha por cartão ligado, "2 compras do banco não estão aqui · Conferir" (abre
       a aba Gastos nesse mês, já no bloco do cartão) ou "✓ Confere com o banco". Só contagens:
-      nenhum valor do banco;
+      nenhum valor do banco. **Um cartão que nenhum banco confere avisa**: um ⚠ ao lado do total da
+      fatura e a linha "Sem conferir com o banco. Pode faltar algum gasto. · Conectar" (vai para
+      Bancos), em qualquer mês. Quem diz quais cartões estão ligados é `linked`, em
+      `reviewCounts`. Só aparece para quem tem o módulo: uma conta sem acesso continua sem saber
+      que ele existe. **"No banco", ao lado do total** (decisão do dono em 10/11/2026, que muda o
+      "nenhum valor do banco" de 21/10 só neste ponto): na fatura do mês de hoje, quando todos os
+      cartões na tela estão ligados a um cartão do banco, aparece o que o banco diz que está em
+      aberto hoje (`cardDebts`, `GET /api/v1/banks/cards/debts`, a soma dos `balance` dos cartões
+      do banco ligados), com "atualizado há…" e o aviso de que pode ter compras de outra fatura. A
+      fatura continua sendo a soma do que a pessoa lançou: o número do banco fica ao lado, nunca
+      no lugar;
     - **quem mandou ou recebeu o Pix**: a linha diz "Pix de Daniel Ferrari" ou "Pix para Ana
       Souza" (primeiro e último nome; empresa com o nome inteiro), e o lançamento já vem com esse
       nome. O nome vem do banco ou, quando um banco só manda o CPF (o BTG), do que outro banco
       disse para o mesmo CPF (o Nubank põe o nome depois de "|"). Um CPF nunca aparece;
     - **dinheiro entre contas suas**: além da categoria da Pluggy, quem pagou e quem recebeu com
       o **mesmo CPF** fica em Deixados de fora, sem perguntar nada;
-    - **A receber** (com o módulo ligado): um Pix recebido perto do valor de um "A receber" em
+    - **Reembolso** (com o módulo ligado): um Pix recebido perto do valor de um "Reembolso" em
       aberto, lançado no dia do Pix ou antes, pergunta "É a devolução de 'Jantar — João' (R$
       35,67)?". Perto é até 10% dele, ou R$ 5 quando isso for mais, para cima ou para baixo
       (quem devolve arredonda):
@@ -558,10 +593,10 @@ que funciona sem abrir o app (token assinado, igual ao "Realizado" dos lembretes
         ("Faltou na devolução: …"), no dia do Pix. A caixa avisa disso antes do toque;
       - **de quem é**: primeiro o que fala de quem pagou, pelo nome que o banco mandou ou pelo que
         o app aprendeu, como nas categorias dos gastos. Cada "Marcar como recebido" ensina: o
-        próximo Pix do mesmo CPF prefere o A receber com as palavras que ele já pagou ("João").
+        próximo Pix do mesmo CPF prefere o Reembolso com as palavras que ele já pagou ("João").
         Depois, o valor mais perto; depois, o mais recente;
-      - "É outro A receber" mostra os outros em aberto perto do valor, cada um com "É este";
-      - "Marcar como recebido" usa o mesmo "Já me pagou" da tela do A receber; "É outra coisa"
+      - "É outro Reembolso" mostra os outros em aberto perto do valor, cada um com "É este";
+      - "Marcar como recebido" usa o mesmo "Já me pagou" da tela do Reembolso; "É outra coisa"
         volta a oferecer a renda. Nunca automático.
   - **Reserva pelos bancos** (na engrenagem da Reserva, com Open Finance ligado):
     - "Atualizar pelos bancos conectados" lista as contas e os investimentos de cada banco. Nada
@@ -629,7 +664,7 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
 
 - **Ajuda ("?")**: todo módulo tem um botão que roda o tour só dele, o spotlight do driver.js que
   escurece a tela, destaca uma parte por vez e explica para que serve. Fica no topo da tela do
-  módulo; nos módulos sem tela, no card do Cartão no Início e na aba A receber de Lançamentos. Os passos ficam em `lib/modules/tours.ts` (um `Record` por módulo, então módulo sem
+  módulo; nos módulos sem tela, no card do Cartão no Início e na aba Reembolso de Lançamentos. Os passos ficam em `lib/modules/tours.ts` (um `Record` por módulo, então módulo sem
   tour não compila), **no máximo 4 por módulo, cada um com uma linha** (um teste confere) e apontam só para a tela do módulo (ou para o widget dele, e a Início troca
   para a área em que ele está), nunca para a setinha ou as bandejas. Todo tour termina no
   próprio botão de ajuda. O motor (`components/modules/tour/TourProvider.tsx`) navega entre as
@@ -656,9 +691,9 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
 ### Categorias
 
 - **Sempre as mesmas 4** (`DEFAULT_TOPICS` em `lib/budget/topics.ts`): uma pessoa tem 4 metas para
-  os gastos da vida, então toda conta tem exatamente estas, nesta ordem: **Prazeres e Confortos**
+  os gastos da vida, então toda conta tem exatamente estas, nesta ordem: **Prazeres**
   (passeios, presentes, restaurantes e o que poderia esperar, mas você quer agora; antes se chamava
-  "Diversos", e o `preset` continua `diversos`), **Investimentos** (qualquer investimento que faça o
+  "Prazeres e Confortos" e, antes ainda, "Diversos" — o `preset` continua `diversos`), **Investimentos** (qualquer investimento que faça o
   dinheiro render), **Metas** (casa, carro, casamento, aniversário, viagem) e **Conhecimentos**
   (cursos, livros, eventos). Nome, descrição e ordem são fixos: não se cria, não se arquiva e não se
   renomeia categoria. A pessoa só muda a **%** e a **cor**. Para acompanhar algo à parte (o
@@ -667,11 +702,15 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   cor de cada uma das quatro; uma categoria a mais, outro nome, outra descrição, outra ordem ou
   `archived` são ignorados. Importar um backup antigo passa por `consolidateBudgetData`.
 - **Contas de antes** (`lib/server/fixedTopicsMigration.ts`, uma vez, marcada em `job_runs`):
-  "Diversos" virou "Prazeres e Confortos" também nos meses passados; uma das quatro que estava
-  arquivada voltou com 0%; e uma categoria criada pela pessoa foi juntada a Prazeres e Confortos —
+  "Diversos" virou "Prazeres" também nos meses passados; uma das quatro que estava
+  arquivada voltou com 0%; e uma categoria criada pela pessoa foi juntada a Prazeres —
   a % dela, a sobra, os gastos, as rendas direcionadas, os modelos de Contas do mês, os
   parcelamentos, as categorias da reserva investida e a memória de categoria dos Bancos —, para os
   meses somarem o mesmo que antes.
+- **Nome antigo guardado** (`withFixedText`): quando uma das quatro muda de nome ("Prazeres e
+  Confortos" virou "Prazeres"), nada é regravado no banco. O servidor entrega as categorias — as da
+  conta e a cópia de cada mês — já com o nome e a descrição de hoje, reconhecendo cada uma pelo
+  `preset` (ou por um nome antigo, em `FORMER_NAMES`). O nome novo é gravado no próximo "Salvar".
 - **Custos Fixos**: um gasto de todo mês que é maior do que o limite médio mensal da categoria vai
   para custos fixos, e não para a categoria (sem exemplo de valor: depende de quanto cada categoria
   recebe). A tela Categorias explica renda, custos fixos, imprevistos e cada categoria. O nome
@@ -679,21 +718,27 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   guarda vários custos, e no singular parecia uma conta só; quem já tinha a conta criada foi
   renomeado uma vez só (`lib/server/fixedCostLabelMigration.ts`), e só quem ainda estava no nome
   padrão: um nome escolhido pela pessoa nunca é tocado.
+- **Categorias especiais sem renomear**: Custos Fixos, Imprevistos, Reembolso e Fora do orçamento
+  têm nome fixo; na engrenagem a pessoa só muda a cor. Quem já tinha trocado um nome antes continua
+  vendo o nome que escolheu (nada é regravado). Um nome padrão antigo guardado na conta ("A
+  receber") aparece com o nome de hoje, "Reembolso" (`FORMER_SPECIAL_LABELS` em
+  `lib/budget/categories.ts`, aplicado por `resolveSpecialCategoryLabels`), também sem regravar.
 - **Voltar às % padrão** (na engrenagem da tela Categorias): as quatro voltam às % e cores de
   quando a conta começou, com "Desfazer".
-- **Configuração das categorias** (`OnboardingWizard`: no primeiro acesso, na primeira visita a
-  Categorias e no botão "Me ajude com as %"), em 3 passos, sempre com "Pular" (o da primeira visita
-  leva para a Início; o de "Me ajude com as %" fica em Categorias): a renda; os custos
-  fixos e os imprevistos na mesma tela (só para a prévia, nada é lançado; a regra do custo fixo fica
-  no ⓘ); e as porcentagens, cada categoria com a descrição dela embaixo do nome e a prévia de quanto
-  a % deixa para gastar.
+- **Configuração das categorias** (`OnboardingWizard`: na primeira visita a Categorias e no botão
+  "Ajustar as %"), **uma pergunta por tela, cada uma com um exemplo**: a renda; os custos fixos (a
+  regra do custo fixo fica no ⓘ); os imprevistos; e as porcentagens, cada categoria com a descrição
+  dela embaixo do nome e o **Limite** que a % deixa. Os dois custos são só uma estimativa para essa
+  prévia: nada é lançado. Não há total somado das categorias. Na primeira visita o canto diz
+  "Pular" (e leva para a Início); por "Ajustar as %" as perguntas abrem **direto nas %**, com a
+  renda e os custos fixos do mês já preenchidos, "Voltar" chega nas outras e o canto diz "Fechar".
 - **"Fora do orçamento"** (`categoryKind: 'uncounted'`): ao lado das categorias, no formulário de
   gasto, fica a saída de emergência — marcada **"Não recomendado"** ali mesmo, e explicada em duas
   linhas sempre que é escolhida. O gasto fica registrado e, se foi no cartão, entra na fatura, mas
   **não consome nenhuma categoria** e fica fora do total gasto do mês e do rateio dos custos fixos
-  (é o mesmo mecanismo do "A receber", mas sem ninguém para devolver o dinheiro — por isso o
+  (é o mesmo mecanismo do "Reembolso", mas sem ninguém para devolver o dinheiro — por isso o
   aviso). Não é um módulo: está sempre ali, como Custos Fixos e Imprevistos, que continuam como
-  sempre foram, e o nome e a cor dela podem ser mudados na engrenagem, junto com as outras. Em Lançamentos ela só ganha uma aba
+  sempre foram, e a cor dela pode ser mudada na engrenagem, junto com as outras. Em Lançamentos ela só ganha uma aba
   **depois** que o mês tem algum gasto assim, para não ficar convidando.
 
 - **Renda para uma categoria só** (`Income.topicId`): no formulário de renda (com o orçamento
@@ -720,7 +765,7 @@ em `lib/budget/tags.ts`.
   para categoria (aviso de uma vez, `tags-vs-categories` em `dismissed_notices`).
 - **Filtrar** em Lançamentos: o "Filtrar" das duas abas tem as tags do tipo delas (em Gastos,
   junto das categorias). Dentro das tags é "ou", dentro das categorias também, e entre as duas é
-  "e" ("Prazeres e Confortos" + "Restaurante"). A linha "N gastos · R$ X" responde "quanto foi no
+  "e" ("Prazeres" + "Restaurante"). A linha "N gastos · R$ X" responde "quanto foi no
   mercado este mês"; a busca também acha pelo nome da tag; e o filtro de tag vai junto ao trocar
   de mês (`?tags=`). Cada linha mostra as tags em pílulas `#Mercado` (duas e "+N").
 - **Editar**: na engrenagem de Lançamentos (seção Tags) e em "Editar tags" no formulário. Criar,
@@ -954,14 +999,14 @@ dela); o servidor não tem chave da Pluggy. Como o módulo nasceu (F0–F6) est�
     lado (para o par forte não depender do mês olhado), e todas as parcelas de compras no
     cartão, de qualquer data; separa `expenses` e `incomes`, cada um em `missing`, `matched`,
     `leftOut` e `ignored`. Carrega os lançamentos do mês e dos vizinhos e os parcelados;
-  - a resposta traz também `entries` (gastos e rendas do mês e os "A receber", com `tied`: o
+  - a resposta traz também `entries` (gastos e rendas do mês e os "Reembolso", com `tied`: o
     banco e o dia da linha a que cada um já está ligado), para "Procurar nos gastos";
   - os vínculos feitos à mão ficam em `bank_links` (migração `0032`: transação × lançamento,
     vários por linha); a ação `link` confere que a linha está sem decisão e que o lançamento não
     está ligado a outra linha (`ENTRY_TAKEN`), e `unlink` desfaz. Se a linha confere é calculado
     a cada leitura (`coverage`); `findSplit` acha a combinação que soma a linha e
-    `receivedCandidates`/`isStrongReceived`, o "A receber" já recebido
-    (`receivedReimbursables`). Um Pix ligado a um "A receber" também ensina quem pagou
+    `receivedCandidates`/`isStrongReceived`, o "Reembolso" já recebido
+    (`receivedReimbursables`). Um Pix ligado a um "Reembolso" também ensina quem pagou
     (`paybackHistory`);
   - `bankInstallmentIn` (mês da compra + n − 1), `planChargeIn` (a cobrança do plano no mês) e
     `strongPairs` (um candidato de cada lado) são puros;
@@ -983,7 +1028,7 @@ dela); o servidor não tem chave da Pluggy. Como o módulo nasceu (F0–F6) est�
   - `outcome` e `entry_id`/`entry_month` dizem o que cada transação virou;
     `bank_category_memory` guarda a categoria escolhida por descrição;
   - o vínculo de cartão fica em `bank_accounts.capital_card_id`/`card_linked`;
-  - **A receber** (`reimbursementCandidates`, `paybackTolerance`): o servidor confere a distância
+  - **Reembolso** (`reimbursementCandidates`, `paybackTolerance`): o servidor confere a distância
     de novo ao marcar (longe demais responde `TOO_FAR`), lança a sobra (`saveIncome`) ou a falta
     (`saveExpense` em `unforeseen`) antes do "Já me pagou", e o que o app aprendeu de quem pagou
     sai das próprias transações já conferidas (`outcome = 'reimbursed'` + a descrição do A
@@ -1112,17 +1157,18 @@ interface BudgetRepository {
 - **Fechar o mês** (`closeMonth(month, true)`) congela a competência e abre a seguinte na mesma
   transação, já com a sobra de cada categoria como `carryIn`. **Só um mês fechado passa sobra**
   (`carrySource`): de um mês aberto ou reaberto, o seguinte recebe zero, mesmo que já esteja em uso.
-  A tela mostra a prévia e pergunta se a sobra vem junto; com "Não trazer",
+  A tela mostra a sobra de cada categoria (sem total somado) e pergunta "Levar a sobra para
+  dezembro?"; com "Não levar",
   `closeMonth(month, openNext, true)` grava `leftovers_dropped` no mês fechado. Reabrir apaga a
   resposta, tira a sobra do mês seguinte e a pergunta é feita de novo no próximo fechamento.
 - **Os botões da virada do mês** (`useMonthsToClose`) só aparecem no mês de hoje e olham os meses
   guardados antes dele (`monthsToClose`). Com mais de um aberto, **Fechar todos os meses anteriores**
   (`closeMonthsBefore`) fecha todos de uma vez: cada um passa a sobra para o seguinte, a tela mostra
   o que chegaria ao fim e a resposta vale para o mês de hoje, gravada só no último mês antes dele.
-  Enquanto esses botões aparecem, o "Fechar mês" do fim da tela some, para não fechar o mês que
-  acabou de começar por engano.
+  O mês de hoje nunca tem botão de fechar (só a tela esconde: `closeMonth` no servidor continua
+  aceitando qualquer mês).
 - **Contas que já existiam:** `carryOnCloseMigration` recalcula uma vez todos os meses de todas as
-  contas. Meses abertos deixam de passar sobra, e fechá-los com "Trazer" devolve os mesmos números.
+  contas. Meses abertos deixam de passar sobra, e fechá-los com "Levar a sobra" devolve os mesmos números.
   Restaurar um backup antigo faz o mesmo recálculo.
 
 **`IndexedDbBudgetRepository`** (Dexie.js) continua no código, mas só para a importação única
@@ -1215,7 +1261,7 @@ Os demais testes:
   encurta e o pagamento entra no mês) e caixa.
 - **`lib/budget/__tests__/reserve.test.ts`:** o plano da reserva calculado a partir do que foi
   lançado (duas parcelas no mesmo mês somam, um mês pulado só adia, centavos não deixam o plano
-  eternamente a R$ 0,004 do fim) e o "A receber" com quem já pagou, que não mexe em nenhum número
+  eternamente a R$ 0,004 do fim) e o "Reembolso" com quem já pagou, que não mexe em nenhum número
   do orçamento nem da fatura.
 - **`lib/budget/__tests__/installments.test.ts`:** as parcelas que saem de um parcelamento sem
   nada de errado — as já pagas antes do cadastro e as adiantadas — sumindo ao mesmo tempo da
@@ -1223,7 +1269,7 @@ Os demais testes:
   orçamento", que entra na fatura e em nenhuma categoria.
 - **`lib/budget/__tests__/fixtures.test.ts`:** as fixtures reais da planilha em 15/09/2026
   (§9 da spec do assistente), com tolerância de R$ 0,01 — a planilha não arredonda entre as
-  etapas e o Capital arredonda cada uma. Inclui as regras da categoria "A receber".
+  etapas e o Capital arredonda cada uma. Inclui as regras da categoria "Reembolso".
 - **`lib/server/__tests__/budgetRepository.test.ts`:** cobre o repositório Postgres contra o
   schema e as migrações reais, num Postgres em memória (PGlite). Casos: seed, cascata de
   rollover, mês fechado/inexistente, fechar abrindo o mês seguinte, fechar sem trazer a sobra,
@@ -1232,7 +1278,7 @@ Os demais testes:
   rodapé), isolamento entre contas e escritas
   simultâneas.
 - **Componentes** (`components/**/__tests__`, Testing Library): o formulário de gasto com a
-  categoria "A receber" e sem o módulo Cartão, a prévia do "Fechar mês" e o botão da virada do mês.
+  categoria "Reembolso" e sem o módulo Cartão, a prévia do "Fechar mês" e o botão da virada do mês.
 - **`lib/reminders/__tests__/schedule.test.ts`:** os lembretes com relógio falso em São Paulo:
   mês curto, vários dias da semana, aviso antecipado, repetição até "Realizado", atrasados,
   horários do usuário, tarefas agrupadas e o que não dispara antes da criação.
@@ -1240,7 +1286,7 @@ Os demais testes:
   minuto certo, nunca duas vezes, recupera o que perdeu fora do ar, só para quem ligou o módulo),
   o token do "Realizado" (válido, expirado e adulterado) e os aparelhos (404/410 apaga).
 - **`lib/categoryText/__tests__/categories.test.ts`:** as categorias de cada conta e achar uma delas
-  num texto, sem ligar para maiúsculas, acentos e plural, com os sinônimos de "A receber".
+  num texto, sem ligar para maiúsculas, acentos e plural, com os sinônimos de "Reembolso".
 - **`lib/server/__tests__/moduleAccess.test.ts` e `lib/modules/__tests__/flags.test.ts`:** o
   "Restrito" da Administração: o padrão (Open Finance), a escolha do dono
   módulo por módulo, todo o resto ligado para todo mundo, o módulo que vira restrito sumindo para

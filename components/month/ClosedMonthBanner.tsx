@@ -16,7 +16,7 @@ export function ClosedMonthBanner() {
       showToast(
         monthData?.leftoversDropped
           ? 'Mês reaberto. Você já pode lançar de novo.'
-          : 'Mês reaberto. O que restou voltou para ele até fechar de novo.',
+          : 'Mês reaberto. A sobra voltou para ele.',
       );
     } catch {
       showToast('Não foi possível reabrir o mês. Tente de novo.', 'error');
@@ -27,7 +27,7 @@ export function ClosedMonthBanner() {
     <div className="bg-warning-bg text-warning flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm">
       <span>
         {monthData.leftoversDropped
-          ? 'Este mês está fechado, e o que restou não passou para o seguinte.'
+          ? 'Este mês está fechado. A sobra não foi para o seguinte.'
           : 'Este mês está fechado.'}
       </span>
       <button

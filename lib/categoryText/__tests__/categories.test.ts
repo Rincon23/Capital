@@ -17,7 +17,7 @@ const byKind = (kind: string, topicId?: string) =>
   options.find((o) => o.categoryKind === kind && o.topicId === topicId) as CategoryOption;
 
 describe('categoryOptions', () => {
-  it('lists the active categories, the special ones and "A receber" when it is on', () => {
+  it('lists the active categories, the special ones and "Reembolso" when it is on', () => {
     expect(options.map((o) => o.label)).toEqual([
       'Diversos',
       'Investimentos',
@@ -25,9 +25,9 @@ describe('categoryOptions', () => {
       'Conhecimentos',
       'Custo Fixo',
       'Imprevistos',
-      'A receber',
+      'Reembolso',
     ]);
-    expect(categoryOptions({ ...settings, modules: { reimbursable: false } }).map((o) => o.label)).not.toContain('A receber');
+    expect(categoryOptions({ ...settings, modules: { reimbursable: false } }).map((o) => o.label)).not.toContain('Reembolso');
   });
 });
 
@@ -48,7 +48,7 @@ describe('findCategory', () => {
     expect(findCategory('remédio, emergência', renamed).option?.categoryKind).toBe('unforeseen');
   });
 
-  it('prefers the name after "categoria" and a name over a synonym of "A receber"', () => {
+  it('prefers the name after "categoria" and a name over a synonym of "Reembolso"', () => {
     expect(findCategory('mercado para as metas da casa, categoria diversos', options).option).toEqual(
       byKind('topic', 't-div'),
     );
@@ -63,7 +63,7 @@ describe('findCategory', () => {
     expect(reading.mentioned).toHaveLength(2);
   });
 
-  it('ignores "A receber" synonyms when the module is off', () => {
+  it('ignores "Reembolso" synonyms when the module is off', () => {
     const withoutReimbursable = categoryOptions({ ...settings, modules: { reimbursable: false } });
     expect(findCategory('ele vai me devolver', withoutReimbursable).option).toBeUndefined();
   });

@@ -6,7 +6,7 @@ import type { CategoryOption } from './types';
 
 /**
  * The categories an expense can go to for this user, in the order the form shows them: the
- * active categories, the special ones and "A receber" when that module is on. A text is
+ * active categories, the special ones and "Reembolso" when that module is on. A text is
  * read against these names, never a fixed list.
  */
 export function categoryOptions(
@@ -95,7 +95,7 @@ export interface CategoryReading {
 /**
  * Finds the category the text names. Upper/lower case, accents and singular/plural don't
  * matter ("custos fixos" is "Custo Fixo"). A name right after the word "categoria" beats any
- * other mention, and a name beats a synonym of "A receber".
+ * other mention, and a name beats a synonym of "Reembolso".
  */
 export function findCategory(text: string, options: CategoryOption[]): CategoryReading {
   const folded = foldText(text);

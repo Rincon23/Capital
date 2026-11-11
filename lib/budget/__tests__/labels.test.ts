@@ -7,8 +7,8 @@ import {
 import { greetingFor, greetingLine } from '../greeting';
 
 describe('rótulos das categorias especiais', () => {
-  it('chama a categoria do bot de "A receber", nunca de "Ressarcido"', () => {
-    expect(DEFAULT_SPECIAL_CATEGORY_LABELS.reimbursable).toBe('A receber');
+  it('chama a categoria do bot de "Reembolso", nunca de "Ressarcido"', () => {
+    expect(DEFAULT_SPECIAL_CATEGORY_LABELS.reimbursable).toBe('Reembolso');
     expect(JSON.stringify(DEFAULT_SPECIAL_CATEGORY_LABELS).toLowerCase()).not.toContain('ressarcido');
   });
 
@@ -17,8 +17,26 @@ describe('rótulos das categorias especiais', () => {
     expect(labels).toEqual({
       fixedCost: 'Fixos',
       unforeseen: 'Imprevistos',
-      reimbursable: 'A receber',
+      reimbursable: 'Reembolso',
       uncounted: 'Fora do orçamento',
+    });
+  });
+
+  it('mostra "Reembolso" numa conta que guardou o nome antigo "A receber"', () => {
+    for (const stored of ['A receber', ' a receber ']) {
+      expect(
+        resolveSpecialCategoryLabels({ fixedCost: 'F', unforeseen: 'U', reimbursable: stored }).reimbursable,
+      ).toBe('Reembolso');
+    }
+    expect(
+      specialCategoryLabel('reimbursable', { fixedCost: 'F', unforeseen: 'U', reimbursable: 'A receber' }),
+    ).toBe('Reembolso');
+    // A name the person chose is not a former default: it stays.
+    expect(
+      resolveSpecialCategoryLabels({ fixedCost: 'F', unforeseen: 'U', reimbursable: 'Me devem' }),
+    ).toMatchObject({
+      fixedCost: 'F',
+      reimbursable: 'Me devem',
     });
   });
 

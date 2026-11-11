@@ -303,7 +303,7 @@ describe('tied by hand, in full or in part', () => {
   it('confers when what is tied adds up to the line, and says what is missing otherwise', () => {
     expect(coverage([{ amount: 100 }, { amount: 100 }], 200)).toEqual({ covered: true, remaining: 0 });
     expect(coverage([{ amount: 100 }], 200)).toEqual({ covered: false, remaining: 100 });
-    // A Pix of R$ 50 that pays part of an "A receber" of R$ 100 is all explained.
+    // A Pix of R$ 50 that pays part of a "Reembolso" of R$ 100 is all explained.
     expect(coverage([{ amount: 100 }], 50)).toEqual({ covered: true, remaining: 0 });
   });
 
@@ -316,7 +316,7 @@ describe('tied by hand, in full or in part', () => {
       cardId: 'nubank',
       ...overrides,
     });
-    // R$ 200 of games, entered as two "A receber" of R$ 100.
+    // R$ 200 of games, entered as two "Reembolso" of R$ 100.
     expect(findSplit(line, [entry('joao', 100), entry('pedro', 100), entry('cafe', 8)], new Set())?.sort()).toEqual([
       'joao',
       'pedro',
@@ -331,7 +331,7 @@ describe('tied by hand, in full or in part', () => {
     expect(findSplit(line, [entry('a', 50), entry('b', 50), entry('c', 50), entry('d', 50)], new Set())).toHaveLength(4);
   });
 
-  it('a Pix may pay back an "A receber" already marked as received, the strong case with no tap', () => {
+  it('a Pix may pay back a "Reembolso" already marked as received, the strong case with no tap', () => {
     const received = (id: string, amount: number, reimbursedAt: string) => ({
       month: '2026-10',
       expense: {
@@ -464,7 +464,7 @@ describe('"Parece que você já lançou isso"', () => {
     expect(findDuplicate(item, [{ month: '2026-10', expense: expense({ installmentId: 'p' }) }], new Set())).toBeNull();
   });
 
-  it('a Pix received may be an "A receber" paid back: same amount, the payer named in it first', () => {
+  it('a Pix received may be a "Reembolso" paid back: same amount, the payer named in it first', () => {
     const owed = (id: string, description: string, date: string, extra: Partial<Expense> = {}) => ({
       month: '2026-10',
       expense: expense({ id, categoryKind: 'reimbursable', topicId: undefined, description, amount: 50, date, ...extra }),
@@ -481,7 +481,7 @@ describe('"Parece que você já lançou isso"', () => {
     expect(findReimbursement({ amount: 50, payer: 'JOAO' }, pending, new Set(['jantar-joao', 'jantar-maria']))).toBeNull();
   });
 
-  it('only an "A receber" spent on the day of the Pix or before', () => {
+  it('only a "Reembolso" spent on the day of the Pix or before', () => {
     const owed = (id: string, date: string) => ({
       month: '2026-10',
       expense: { id, categoryKind: 'reimbursable' as const, description: 'Jantar', amount: 50, date },
@@ -494,7 +494,7 @@ describe('"Parece que você já lançou isso"', () => {
     expect(ids('2026-10-10').sort()).toEqual(['antes', 'mesmo-dia']);
   });
 
-  it('a Pix a little off still pays an "A receber" back: 10% of it, or R$ 5 when that is more', () => {
+  it('a Pix a little off still pays a "Reembolso" back: 10% of it, or R$ 5 when that is more', () => {
     expect(paybackTolerance(35.67)).toBe(5);
     expect(paybackTolerance(500)).toBe(50);
     const owed = (id: string, amount: number, date = '2026-10-10', description = 'Jantar') => ({

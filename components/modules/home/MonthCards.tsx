@@ -93,7 +93,7 @@ export function ExpensesHomeCard() {
 }
 
 /**
- * Gastos por categoria: a thin bar and what is left for each category. No total of all of them
+ * Categorias: a thin bar and what is left for each category. No total of all of them
  * together — it read as if the whole sum could go to anything (the owner asked it out). With any
  * month before this one still open, the buttons that close it at its foot.
  */
@@ -116,18 +116,21 @@ export function BudgetHomeCard() {
             <Skeleton className="h-2 w-full" />
           ) : (
             <ul className="flex flex-col gap-2">
+              {/* What the number at the end of each line is: what is left in that category. */}
+              <li className="text-muted -mb-1 flex justify-end text-[11px]">Sobra</li>
               {summary.topics.map((topic) => (
                 <li key={topic.topicId} className="flex items-center gap-3 text-xs">
                   <span className="text-muted w-24 shrink-0 truncate">{topic.name}</span>
                   <span className="min-w-0 flex-1">
                     <ProgressBar
-                      usedPct={topic.usedPct}
-                      state={computeProgressState(topic.usedPct)}
-                      color={topic.color}
+                      // A category with no limit yet and nothing spent is an empty bar, not a full one.
+                      usedPct={topic.usedPct ?? (topic.spent > 0 ? null : 0)}
+                      state={computeProgressState(topic.usedPct ?? (topic.spent > 0 ? null : 0))}
+                      color={topic.remaining < 0 ? undefined : topic.color}
                     />
                   </span>
                   <span
-                    className={`w-20 shrink-0 text-right tabular-nums ${topic.remaining < 0 ? 'text-danger' : 'text-muted'}`}
+                    className={`w-20 shrink-0 text-right tabular-nums ${topic.remaining < 0 ? 'text-danger' : 'text-foreground'}`}
                   >
                     {formatBRL(topic.remaining)}
                   </span>
@@ -141,7 +144,7 @@ export function BudgetHomeCard() {
   );
 }
 
-/** A receber: what other people owe back this month. */
+/** Reembolso: what other people owe back this month. */
 export function ReimbursableHomeTile() {
   const { month, monthData } = useMonthContext();
   // Owed from this month and every month before it: a debt does not vanish when the month turns.

@@ -1,7 +1,7 @@
 import type { BudgetSettings, Expense, Income, Month, MonthData } from '../budget/types';
 
 /**
- * What a backup exported today declares. Version 2 added the modules and the "A receber"
+ * What a backup exported today declares. Version 2 added the modules and the "Reembolso"
  * category; version 3, the bottom bar and the dismissed notices; version 4, the tags.
  */
 export const BACKUP_VERSION = 4;

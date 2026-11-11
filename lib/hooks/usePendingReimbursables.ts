@@ -6,7 +6,7 @@ import { listPendingReimbursables } from '@/lib/storage';
 import { toStorageErrorMessage } from '@/lib/storage/errors';
 
 /**
- * Every "A receber" still owed as of `month`: its own and the ones from the months before, which
+ * Every "Reembolso" still owed as of `month`: its own and the ones from the months before, which
  * stay on the list until someone pays them back. `version` reloads it (pass the month's data, so
  * a new or edited expense shows up).
  */

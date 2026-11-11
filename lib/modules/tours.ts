@@ -80,7 +80,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
     {
       route: categories,
       anchor: 'categorias',
-      title: 'Suas 4 metas',
+      title: 'Suas 4 categorias',
       description: 'Cada categoria recebe uma % da renda. Toque para ver.',
       side: 'top',
     },
@@ -88,7 +88,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
       route: categories,
       anchor: 'custos-fixos',
       title: 'Custos fixos e imprevistos',
-      description: 'Saem de cada categoria, na proporção da %.',
+      description: 'Cada categoria paga a sua parte, pela % dela.',
       side: 'top',
     },
     {
@@ -142,7 +142,7 @@ export const MODULE_TOURS: Record<ModuleKey, TourStepDefinition[]> = {
     {
       route: (month) => `${entries(month)}?aba=a-receber`,
       anchor: 'aba-a-receber',
-      title: 'O filtro A receber',
+      title: 'O filtro Reembolso',
       description: 'Em Lançamentos, veja quem ainda precisa te pagar.',
       side: 'bottom',
     },

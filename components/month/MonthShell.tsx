@@ -6,6 +6,7 @@ import {
   currentMonthKey,
   expenseFeedback,
   formatMonthName,
+  investmentTopicId,
   resolveSpecialCategoryLabels,
   withCurrentTopicDisplay,
   type CategoryKind,
@@ -30,6 +31,8 @@ type ExpenseFormState =
       open: true;
       initial?: Expense;
       defaultCategoryKind?: CategoryKind;
+      /** The category of the four the form starts on (opened from that category's screen). */
+      defaultTopicId?: string;
       /** Editing one instalment on its own, which the form says out loud. */
       singleInstallment?: boolean;
       /** Opened by a tour to show the form: no keyboard popping up over it. */
@@ -54,7 +57,7 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
     setLastViewedMonth(month);
   }, [month]);
 
-  // A tour step can ask for the expense form (the card question, "A receber").
+  // A tour step can ask for the expense form (the card question, "Reembolso").
   useEffect(
     () =>
       subscribeTourSheets((request) => {
@@ -76,22 +79,25 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
    * spans months — so it asks what the person means to change (see `InstallmentEditor`); the
    * single expense of an "à vista" purchase *is* the purchase, and opens it straight away.
    */
-  const openExpenseForm = useCallback((initial?: Expense, defaultCategoryKind?: CategoryKind) => {
-    if (initial?.installmentId) {
-      setInstallmentEdit(
-        initial.installmentNumber === 0
-          ? { kind: 'plan', installmentId: initial.installmentId }
-          : {
-              kind: 'scope',
-              expense: initial,
-              installmentId: initial.installmentId,
-              number: initial.installmentNumber ?? 1,
-            },
-      );
-      return;
-    }
-    setExpenseForm({ open: true, initial, defaultCategoryKind });
-  }, []);
+  const openExpenseForm = useCallback(
+    (initial?: Expense, defaultCategoryKind?: CategoryKind, defaultTopicId?: string) => {
+      if (initial?.installmentId) {
+        setInstallmentEdit(
+          initial.installmentNumber === 0
+            ? { kind: 'plan', installmentId: initial.installmentId }
+            : {
+                kind: 'scope',
+                expense: initial,
+                installmentId: initial.installmentId,
+                number: initial.installmentNumber ?? 1,
+              },
+        );
+        return;
+      }
+      setExpenseForm({ open: true, initial, defaultCategoryKind, defaultTopicId });
+    },
+    [],
+  );
   const openIncomeForm = useCallback((initial?: Income) => {
     setIncomeForm({ open: true, initial });
   }, []);
@@ -141,6 +147,7 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
       labels: resolveSpecialCategoryLabels(settings.specialCategories),
       month: elsewhere ?? month,
       currentMonth: currentMonthKey(),
+      investingTopicId: investmentTopicId(settings.topics),
     });
     const message = destination
       ? `Lançado em ${formatMonthName(destination.month).toLowerCase()}. ${feedback}`
@@ -201,6 +208,7 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
           cardEnabled={isModuleOn(settings, 'card')}
           initial={expenseForm.initial}
           defaultCategoryKind={expenseForm.defaultCategoryKind}
+          defaultTopicId={expenseForm.defaultTopicId}
           autoFocusAmount={!expenseForm.forTour}
           note={expenseForm.singleInstallment ? SINGLE_INSTALLMENT_NOTE : undefined}
           tagsOnly={Boolean(expenseForm.initial && monthData.monthData?.closed)}

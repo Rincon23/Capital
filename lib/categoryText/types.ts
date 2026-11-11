@@ -5,6 +5,6 @@ export interface CategoryOption {
   categoryKind: CategoryKind;
   /** Set when categoryKind is 'topic'. */
   topicId?: string;
-  /** The user's own name for it ("Prazeres e Confortos", "Custos Fixos", "A receber"). */
+  /** The user's own name for it ("Prazeres", "Custos Fixos", "Reembolso"). */
   label: string;
 }

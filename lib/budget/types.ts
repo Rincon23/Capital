@@ -10,7 +10,7 @@ import type { NotificationCategory } from '../notifications/types';
 export type Month = string;
 
 /**
- * Kind of expense category. 'reimbursable' ("A receber") is money paid for someone else who will
+ * Kind of expense category. 'reimbursable' ("Reembolso") is money paid for someone else who will
  * pay it back: it consumes no category's budget, and it lands on the card bill when it was a card
  * purchase — but it does not have to be one, because lending someone cash is the same thing.
  * 'uncounted' ("Fora do orçamento") is the escape hatch: the expense is recorded and, when it
@@ -23,7 +23,7 @@ export type CategoryKind = 'topic' | 'fixedCost' | 'unforeseen' | 'reimbursable'
 export type TopicPreset = 'diversos' | 'investimentos' | 'metas' | 'conhecimentos';
 
 /**
- * A budget category: one of the four of every account ("Prazeres e Confortos", "Investimentos",
+ * A budget category: one of the four of every account ("Prazeres", "Investimentos",
  * "Metas", "Conhecimentos"; see `DEFAULT_TOPICS`). They are never created, archived or renamed any
  * more; `archived` and categories other than the four only exist in older data and past months.
  */
@@ -78,7 +78,7 @@ export interface ModuleFlags {
    * purchase into instalments and the bill of each month, with its due date and "Fatura paga".
    */
   card: boolean;
-  /** The "A receber" category (see CategoryKind). */
+  /** The "Reembolso" category (see CategoryKind). */
   reimbursable: boolean;
   /** History charts and the month-by-month table. */
   history: boolean;
@@ -231,7 +231,7 @@ export interface Expense {
    */
   purchaseDate?: string;
   /**
-   * When the person got this money back, for an "A receber" purchase (ISO instant). Absent means
+   * When the person got this money back, for a "Reembolso" purchase (ISO instant). Absent means
    * they still owe it. It changes nothing in the budget — the category was never charged — it is
    * only how the person keeps track of who already paid them.
    */
@@ -242,7 +242,7 @@ export interface Expense {
   tagIds?: string[];
 }
 
-/** An "A receber" expense still not paid back, with the month it was recorded in. */
+/** A "Reembolso" expense still not paid back, with the month it was recorded in. */
 export interface PendingReimbursable {
   month: Month;
   expense: Expense;

@@ -65,7 +65,7 @@ function visibleTop(): number {
 }
 
 /**
- * The month of a screen (Lançamentos, Gastos por categoria, the card bill) changed by swiping
+ * The month of a screen (Lançamentos, Categorias, the card bill) changed by swiping
  * sideways, with the physics of the áreas of the Início (`swipePhysics.ts`): the month follows the
  * finger, springs back on a short drag, and past 30% of the width or on a flick slides out while
  * the next one comes in from the other side — to the left is the next month, to the right the one

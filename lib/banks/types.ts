@@ -48,6 +48,20 @@ export interface BanksOverview {
   limit: number;
 }
 
+/**
+ * What the bank says is owed on a Capital card right now: the bank cards tied to it, summed. The
+ * one value of a bank the Cartão shows, beside the bill the person entered and never instead of it
+ * (the owner asked for it on 2026-11-10). It is the bank's number as of its last update, not a
+ * bill of a given month: it may hold purchases of another bill.
+ */
+export interface BankCardDebt {
+  /** The Capital card. */
+  cardId: string;
+  amount: number;
+  /** When the bank sent it (the oldest, with more than one bank card on the same Capital card). */
+  updatedAt: string | null;
+}
+
 /** An account or investment the person can mark as part of their reserve. */
 export interface ReserveSource {
   id: string;

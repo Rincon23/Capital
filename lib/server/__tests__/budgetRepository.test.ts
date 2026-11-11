@@ -45,14 +45,14 @@ function fixedCost(overrides: Partial<Expense> = {}): Expense {
 
 async function diversosId(repo: PostgresBudgetRepository): Promise<string> {
   const settings = await repo.getSettings();
-  return settings.topics.find((t) => t.name === 'Prazeres e Confortos')!.id;
+  return settings.topics.find((t) => t.name === 'Prazeres')!.id;
 }
 
 describe('PostgresBudgetRepository', () => {
   it('seeds the default categories once, with no demo month', async () => {
     const { repo } = await newAccount();
     const first = await repo.getSettings();
-    expect(first.topics.map((t) => t.name)).toEqual(['Prazeres e Confortos', 'Investimentos', 'Metas', 'Conhecimentos']);
+    expect(first.topics.map((t) => t.name)).toEqual(['Prazeres', 'Investimentos', 'Metas', 'Conhecimentos']);
 
     const second = await repo.getSettings();
     expect(second.topics).toEqual(first.topics);
@@ -148,7 +148,7 @@ describe('PostgresBudgetRepository', () => {
   it("keeps an existing category's carryIn when Settings only reorders categories", async () => {
     const { repo } = await newAccount();
     const settings = await repo.getSettings();
-    const diversos = settings.topics.find((t) => t.name === 'Prazeres e Confortos')!;
+    const diversos = settings.topics.find((t) => t.name === 'Prazeres')!;
     const investimentos = settings.topics.find((t) => t.name === 'Investimentos')!;
 
     await repo.ensureMonth('2026-01');
@@ -175,7 +175,7 @@ describe('PostgresBudgetRepository', () => {
     const lastMonth = previousMonth(thisMonth);
     const { repo } = await newAccount();
     const settings = await repo.getSettings();
-    const diversos = settings.topics.find((t) => t.name === 'Prazeres e Confortos')!;
+    const diversos = settings.topics.find((t) => t.name === 'Prazeres')!;
     const investimentos = settings.topics.find((t) => t.name === 'Investimentos')!;
 
     await repo.ensureMonth(lastMonth);
@@ -216,7 +216,7 @@ describe('PostgresBudgetRepository', () => {
   it('deletes a middle month: the next month rolls over from the one before, the first keeps its anchor', async () => {
     const { repo } = await newAccount();
     const settings = await repo.getSettings();
-    const diversos = settings.topics.find((t) => t.name === 'Prazeres e Confortos')!.id;
+    const diversos = settings.topics.find((t) => t.name === 'Prazeres')!.id;
     const topicsSnapshot = settings.topics;
     const zero = Object.fromEntries(topicsSnapshot.map((t) => [t.id, 0]));
     // January starts with a balance carried in from outside the app (e.g. the old spreadsheet).
@@ -460,7 +460,7 @@ describe('PostgresBudgetRepository', () => {
 
     const saved = (await repo.getSettings()).topics;
     expect(saved.map((t) => t.id)).toEqual(settings.topics.map((t) => t.id));
-    expect(saved.find((t) => t.id === diversos.id)).toMatchObject({ name: 'Prazeres e Confortos' });
+    expect(saved.find((t) => t.id === diversos.id)).toMatchObject({ name: 'Prazeres' });
     expect(saved.find((t) => t.id === diversos.id)?.archived).toBeFalsy();
     expect(saved.find((t) => t.preset === 'metas')).toMatchObject({
       name: 'Metas',
@@ -555,7 +555,7 @@ describe('PostgresBudgetRepository', () => {
     expect(resolveHomePages(restored)).toEqual([['reminders', 'calendar', 'expenses']]);
   });
 
-  it('carries an unpaid "A receber" into the next months until someone pays it back', async () => {
+  it('carries an unpaid "Reembolso" into the next months until someone pays it back', async () => {
     const { repo } = await newAccount();
     const owed = (id: string, date: string): Expense => ({
       id,
@@ -590,12 +590,12 @@ describe('PostgresBudgetRepository', () => {
       'jan',
     ]);
 
-    // Only an "A receber" can be marked: anything else is not found.
+    // Only a "Reembolso" can be marked: anything else is not found.
     const other = (await repo.getMonth('2026-02'))!.expenses.find((e) => e.categoryKind === 'fixedCost')!;
     await expect(repo.setReimbursed('2026-02', other.id, null)).rejects.toThrow();
   });
 
-  it('keeps an "A receber" expense on the card bill and out of every category', async () => {
+  it('keeps a "Reembolso" expense on the card bill and out of every category', async () => {
     const { repo } = await newAccount();
     const diversos = await diversosId(repo);
     await repo.saveIncome('2026-01', { id: 'i1', source: 'Salário', amount: 1000 });

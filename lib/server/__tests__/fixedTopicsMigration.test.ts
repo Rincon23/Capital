@@ -15,7 +15,7 @@ import { FIXED_TOPICS_JOB, runFixedTopicsMigration } from '../fixedTopicsMigrati
 
 /**
  * The four fixed categories reach the accounts that already exist: "Diversos" becomes
- * "Prazeres e Confortos" and a category the person created folds into it, with everything that
+ * "Prazeres" and a category the person created folds into it, with everything that
  * pointed at it, without changing what the months add up to.
  */
 
@@ -91,7 +91,7 @@ function totals(data: MonthData, topics: TopicConfig[]) {
 }
 
 describe('as quatro categorias fixas nas contas que já existem', () => {
-  it('renomeia Diversos e junta a criada a Prazeres e Confortos, sem mudar o que os meses somam', async () => {
+  it('renomeia Diversos e junta a criada a Prazeres, sem mudar o que os meses somam', async () => {
     const { id, repo, diversos } = await oldAccount();
     await withMonths(repo, diversos);
     await db.insert(schema.recurringExpenses).values({
@@ -145,7 +145,7 @@ describe('as quatro categorias fixas nas contas que já existem', () => {
     const february = (await repo.getMonth('2026-02'))!;
     for (const data of [january, february]) {
       expect(data.topicsSnapshot.map((t) => t.id)).not.toContain('pets');
-      expect(data.topicsSnapshot.find((t) => t.id === diversos)?.name).toBe('Prazeres e Confortos');
+      expect(data.topicsSnapshot.find((t) => t.id === diversos)?.name).toBe('Prazeres');
       expect(Object.keys(data.carryIn)).not.toContain('pets');
       expect(data.expenses.every((e) => e.topicId !== 'pets')).toBe(true);
     }
@@ -214,6 +214,28 @@ describe('as quatro categorias fixas nas contas que já existem', () => {
     expect(topics.every((t) => !t.archived)).toBe(true);
     expect(topics.find((t) => t.preset === 'conhecimentos')?.targetPct).toBe(0);
     expect(topics.reduce((total, t) => total + t.targetPct, 0)).toBeCloseTo(1, 9);
+  });
+
+  it('uma conta com "Prazeres e Confortos" guardado mostra "Prazeres", sem regravar nada', async () => {
+    const id = randomUUID();
+    await db.insert(schema.user).values({ id, name: 'Teste', email: `${id}@teste.local` });
+    const repo = new PostgresBudgetRepository(db, id);
+    const seeded = (await repo.getSettings()).topics;
+    await repo.saveIncome('2026-03', { id: 'sal', source: 'Salário', amount: 1000, date: '2026-03-05' });
+    const stored = seeded.map((t) => (t.preset === 'diversos' ? { ...t, name: 'Prazeres e Confortos' } : t));
+    await db
+      .update(schema.budgetSettings)
+      .set({ topics: stored })
+      .where(eq(schema.budgetSettings.userId, id));
+    await db.update(schema.months).set({ topicsSnapshot: stored }).where(eq(schema.months.userId, id));
+
+    expect((await repo.getSettings()).topics.map((t) => t.name)).toEqual(DEFAULT_TOPICS.map((t) => t.name));
+    const march = (await repo.getMonth('2026-03'))!;
+    expect(march.topicsSnapshot[0]).toMatchObject({ id: seeded[0].id, name: 'Prazeres' });
+    expect(computeMonthSummary(march, seeded).topics[0].name).toBe('Prazeres');
+
+    const [row] = await db.select().from(schema.budgetSettings).where(eq(schema.budgetSettings.userId, id));
+    expect(row.topics[0].name).toBe('Prazeres e Confortos');
   });
 
   it('um backup de antes, com uma categoria criada, entra já com as quatro', async () => {

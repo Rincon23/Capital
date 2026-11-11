@@ -1,5 +1,6 @@
 import { DEFAULT_TOPIC_COLORS, resolveTopicColor } from './colors';
 import { createId } from './id';
+import { formatBRL } from './money';
 import type { BudgetSettings, MonthData, QuickCategoryKey, TopicConfig, TopicPreset } from './types';
 
 export interface DefaultTopic {
@@ -12,13 +13,13 @@ export interface DefaultTopic {
 /**
  * The four categories of every account, and what each one is for: the four goals a person's
  * spending has. They are the only ones — none is created, archived or renamed; only the % and the
- * colour are the person's (`enforceFixedTopics`). "Prazeres e Confortos" was called "Diversos",
- * which is why its preset is still `diversos`.
+ * colour are the person's (`enforceFixedTopics`). "Prazeres" was called "Prazeres e Confortos" and,
+ * before that, "Diversos", which is why its preset is still `diversos` (see `FORMER_NAMES`).
  */
 export const DEFAULT_TOPICS: readonly DefaultTopic[] = [
   {
     preset: 'diversos',
-    name: 'Prazeres e Confortos',
+    name: 'Prazeres',
     description: 'Passeios, presentes, restaurantes e o que poderia esperar, mas você quer agora.',
     targetPct: 0.2,
   },
@@ -45,10 +46,8 @@ export const DEFAULT_TOPICS: readonly DefaultTopic[] = [
 /** What income, fixed costs and unforeseen costs mean, wherever the categories are explained. */
 export const BUDGET_EXPLANATIONS = {
   income: 'Tudo que entrou no mês. Cada categoria recebe a sua %.',
-  fixedCost:
-    'Aluguel, contas, assinaturas: sai de cada categoria pela %.',
-  unforeseen:
-    'Celular quebrado, consulta: também sai de cada categoria pela %.',
+  fixedCost: 'Aluguel, contas, assinaturas. Cada categoria paga a sua parte.',
+  unforeseen: 'Celular quebrado, consulta. Cada categoria paga a sua parte.',
 } as const;
 
 /**
@@ -75,7 +74,9 @@ const fold = (text: string) =>
     .toLowerCase();
 
 /** Names a default category had before, so data from before presets existed is still recognised. */
-const FORMER_NAMES: Partial<Record<TopicPreset, string[]>> = { diversos: ['Diversos'] };
+const FORMER_NAMES: Partial<Record<TopicPreset, string[]>> = {
+  diversos: ['Diversos', 'Prazeres e Confortos'],
+};
 
 /**
  * Which default category a topic is: its `preset`, or, for data from before presets existed (no
@@ -102,6 +103,45 @@ export function topicDescription(topic: TopicConfig): string {
 export function normalizeTopic(topic: TopicConfig): TopicConfig {
   const preset = presetOf(topic)?.preset;
   return { ...topic, ...(preset ? { preset } : {}), description: topicDescription(topic) };
+}
+
+/**
+ * The categories as they are named today, for showing: one of the four gets the name and the
+ * description it has now, whatever was saved with it. An account from before a rename still has
+ * the old name stored ("Prazeres e Confortos", "Diversos") in its settings and in each month's own
+ * copy; this is what makes it read "Prazeres" without rewriting anything. A category that is not
+ * one of the four is left as it is.
+ */
+export function withFixedText(topics: readonly TopicConfig[]): TopicConfig[] {
+  return topics.map((topic) => {
+    const preset = presetOf(topic);
+    if (!preset) return topic;
+    if (topic.name === preset.name && topic.description === preset.description) return topic;
+    return { ...topic, name: preset.name, description: preset.description };
+  });
+}
+
+/**
+ * The Investimentos category among `topics`, if it is there. Money sent to it counts as spent in
+ * the maths, but it is money set aside to invest, and the screens say so.
+ */
+export function investmentTopicId(topics: readonly TopicConfig[]): string | undefined {
+  return topics.find((topic) => presetOf(topic)?.preset === 'investimentos')?.id;
+}
+
+/**
+ * How `amount` of fixed or unforeseen costs is paid by the categories, each by its %, in one
+ * line: "Prazeres R$ 200,00 · Investimentos R$ 450,00 · Metas R$ 250,00 · Conhecimentos R$ 100,00".
+ * The example a person sees working with their own number.
+ */
+export function describeSplit(
+  amount: number,
+  topics: readonly Pick<TopicConfig, 'name' | 'targetPct' | 'archived'>[],
+): string {
+  return topics
+    .filter((topic) => !topic.archived && topic.targetPct > 0)
+    .map((topic) => `${topic.name} ${formatBRL(amount * topic.targetPct)}`)
+    .join(' · ');
 }
 
 /** The categories in use (archived ones are never shown), in order. */
@@ -146,8 +186,8 @@ export interface ConsolidatedTopics {
   /** The four categories, in order, active, with their fixed name and description. */
   topics: TopicConfig[];
   /**
-   * Every other category there was, by id, and the one that takes its place: Prazeres e
-   * Confortos. Empty when the account already had only the four.
+   * Every other category there was, by id, and the one that takes its place: Prazeres.
+   * Empty when the account already had only the four.
    */
   moved: Record<string, string>;
 }
@@ -156,7 +196,7 @@ export interface ConsolidatedTopics {
  * Any list of categories as the four of today. Each one keeps its id, its % and its colour; a
  * default that was archived comes back with 0% (it was getting nothing) and a missing one is
  * created with 0%, so the % add up to what they did. Every other category goes away, and its %
- * goes to Prazeres e Confortos — so do its entries and its leftover, wherever the caller keeps
+ * goes to Prazeres — so do its entries and its leftover, wherever the caller keeps
  * them (`moved`). An empty list is a new account: the four come as they are by default.
  */
 export function consolidateTopics(topics: readonly TopicConfig[]): ConsolidatedTopics {
@@ -204,7 +244,7 @@ export function enforceFixedTopics(
 /**
  * A month's own copy of the categories (and its leftovers) after `consolidateTopics`: the four
  * keep their place with the fixed name and description, and any other category is folded into
- * Prazeres e Confortos — its % and its leftover added to it — so the month's numbers add up to
+ * Prazeres — its % and its leftover added to it — so the month's numbers add up to
  * what they did. `topics` are the four, as `consolidateTopics` returned them.
  */
 export function consolidateMonthTopics(
@@ -226,7 +266,7 @@ export function consolidateMonthTopics(
         ? { ...renamed, targetPct: roundPct(topic.targetPct + mergedPct) }
         : renamed;
     });
-  // A month from before Prazeres e Confortos was in it still needs a place for what is folded in.
+  // A month from before Prazeres was in it still needs a place for what is folded in.
   if (others.length > 0 && !kept.some((topic) => topic.id === main.id)) {
     kept.unshift({ ...main, targetPct: roundPct(mergedPct) });
   }
@@ -241,7 +281,7 @@ export function consolidateMonthTopics(
 
 /**
  * The topic an entry should point at once the categories are the four: its own when it is one of
- * them, otherwise Prazeres e Confortos. `undefined` stays `undefined` (not a category entry).
+ * them, otherwise Prazeres. `undefined` stays `undefined` (not a category entry).
  */
 export function fixedTopicId(topicId: string | undefined, topics: readonly TopicConfig[]): string | undefined {
   if (topicId === undefined) return undefined;
@@ -251,7 +291,7 @@ export function fixedTopicId(topicId: string | undefined, topics: readonly Topic
 /**
  * Settings and months (a backup being restored) with the four categories only: see
  * `consolidateTopics` and `consolidateMonthTopics`. The expenses and incomes of a category that
- * goes away move to Prazeres e Confortos, and the quick categories of the expense form follow.
+ * goes away move to Prazeres, and the quick categories of the expense form follow.
  */
 export function consolidateBudgetData(
   settings: BudgetSettings,

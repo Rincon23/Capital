@@ -15,6 +15,7 @@ import { useSettings } from '@/components/providers/SettingsProvider';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Chip } from '@/components/ui/Chip';
 import { IconTile } from '@/components/ui/IconTile';
+import { InfoTip } from '@/components/ui/InfoTip';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { useToast } from '@/components/ui/Toast';
 import { useWallet, WalletProvider } from '@/components/wallet/WalletProvider';
@@ -133,7 +134,7 @@ function Review() {
   const [form, setForm] = useState<FormState | null>(null);
   /** Lines where the person said "É outro" to the duplicate the Capital pointed at. */
   const [notSame, setNotSame] = useState<Set<string>>(() => new Set());
-  /** Lines where the person said the Pix is not the "A receber" the Capital pointed at. */
+  /** Lines where the person said the Pix is not the "Reembolso" the Capital pointed at. */
   const [notPayback, setNotPayback] = useState<Set<string>>(() => new Set());
   /** Strong pairs the person undid ("Não é este"): nothing is stored, they just go back to the missing. */
   const [notPair, setNotPair] = useState<Set<string>>(() => new Set());
@@ -179,7 +180,7 @@ function Review() {
   const hrefOf = (other: Month) =>
     `/bancos/conferir?tipo=${SIDE_PARAM[side]}${other === months[months.length - 1] ? '' : `&mes=${other}`}`;
 
-  const header = <PageHeader title="Conferir" backHref="/bancos" />;
+  const header = <PageHeader title="Conferir com o banco" backHref="/bancos" />;
   if (!settings) return header;
 
   // Lançamentos restricted for this account: there is nowhere to launch what came from the banks.
@@ -423,7 +424,7 @@ function Review() {
                 showUpfront={item.upfront !== null && !notUpfront.has(item.key)}
                 cardName={cardName}
                 unforeseenLabel={unforeseenLabel}
-                searchLabel={item.kind === 'income' ? 'Procurar nas rendas' : 'Procurar nos gastos'}
+                searchLabel="Já lancei isso"
                 onSearch={() => setSearching(item)}
                 showSplit={item.split !== null && !notSplit.has(item.key)}
                 showReceived={item.received !== null && !notReceived.has(item.key)}
@@ -477,7 +478,7 @@ function Review() {
                   void tap(
                     item,
                     { action: 'linked', transactionIds: item.transactionIds, month: upfront.month, entryId: upfront.entryId },
-                    'Pronto: fica à vista, ligada ao banco.',
+                    'Pronto: fica à vista.',
                   )
                 }
                 onNotUpfront={() => setNotUpfront((current) => new Set(current).add(item.key))}
@@ -506,7 +507,7 @@ function Review() {
                       month: item.duplicate!.month,
                       entryId: item.duplicate!.entryId,
                     },
-                    'Pronto: ligado ao que você já tinha lançado.',
+                    'Pronto: é o mesmo que você já tinha lançado.',
                   )
                 }
                 onNotSame={() => setNotSame((current) => new Set(current).add(item.key))}
@@ -521,6 +522,7 @@ function Review() {
             {
               key: 'matched',
               title: '✓ Confere',
+              hint: 'Já estão no Capital +.',
               items: lines.matched,
               render: (item) => (
                 <li key={item.key} className={foldedLine}>
@@ -555,6 +557,7 @@ function Review() {
             {
               key: 'left-out',
               title: 'Deixados de fora',
+              hint: 'Não são gasto nem renda: pagamento de fatura, dinheiro entre contas suas, investimento.',
               items: lines.leftOut,
               render: (item) => {
                 const bill = item.leftOut?.reason === 'bill_payment' && cardOn ? billPaidBy(item, bills) : null;
@@ -605,6 +608,7 @@ function Review() {
             {
               key: 'ignored',
               title: 'Ignorados',
+              hint: 'Você mandou ignorar. Dá para voltar atrás.',
               items: lines.ignored,
               render: (item) => (
                 <li key={item.key} className={foldedLine}>
@@ -668,7 +672,25 @@ function Review() {
               );
             })}
           </div>
-          <p className="text-muted text-sm">Os bancos ao lado do que está no Capital +.</p>
+          {/* One line in sight; how the check works waits behind the ⓘ. */}
+          <div className="text-muted text-sm">
+            <InfoTip
+              label="Como funciona a conferência?"
+              info={
+                <>
+                  <strong className="text-foreground">Falta</strong>: está no banco e não no Capital +. Você lança, ou
+                  diz que já lançou.
+                  <br />
+                  <strong className="text-foreground">✓ Confere</strong>: o banco e o Capital + têm a mesma coisa.
+                  <br />
+                  <strong className="text-foreground">Deixado de fora</strong>: não é gasto nem renda, como pagar a
+                  fatura.
+                </>
+              }
+            >
+              <span>O que veio do banco e não está no Capital +. Lance, ou diga o que é.</span>
+            </InfoTip>
+          </div>
         </div>
 
         {error && <p className="bg-danger-bg text-danger mx-4 rounded-lg px-3 py-2 text-sm">{error}</p>}
@@ -730,7 +752,7 @@ function Review() {
                 transactionIds: item.transactionIds,
                 entries: picked.map((entry) => ({ month: entry.month, entryId: entry.id })),
               },
-              picked.length === 1 ? `Pronto: ligado a “${picked[0].description}”.` : `Pronto: ligado a ${picked.length} lançamentos.`,
+              picked.length === 1 ? `Pronto: é o mesmo que “${picked[0].description}”.` : `Pronto: são esses ${picked.length} lançamentos.`,
             );
           }}
         />
@@ -813,7 +835,14 @@ const foldedLine = 'border-border bg-card mx-4 flex flex-col gap-2 rounded-xl bo
 function FoldedLists({
   lists,
 }: {
-  lists: { key: string; title: string; items: ReviewItem[]; render: (item: ReviewItem) => ReactNode }[];
+  lists: {
+    key: string;
+    title: string;
+    /** One line, shown when the list is open: what these lines are. */
+    hint?: string;
+    items: ReviewItem[];
+    render: (item: ReviewItem) => ReactNode;
+  }[];
 }) {
   const [open, setOpen] = useState<string | null>(null);
   const shown = lists.filter((list) => list.items.length > 0);
@@ -838,6 +867,7 @@ function FoldedLists({
           </button>
         ))}
       </div>
+      {opened?.hint && <p className="text-muted px-4 text-xs">{opened.hint}</p>}
       {opened && <ul className="flex flex-col gap-2">{opened.items.map(opened.render)}</ul>}
     </div>
   );
@@ -881,8 +911,8 @@ function MonthSummary({ month, lines, noun }: { month: Month; lines: ReviewSide;
 
 /**
  * "Procurar nos gastos": what the person entered in the month (for money in, the incomes and the
- * "A receber", open or already received), to tie the bank line to by hand when the Capital found no
- * pair. One or more, in full or in part: a R$ 200 purchase can be two "A receber" of R$ 100. What
+ * "Reembolso", open or already received), to tie the bank line to by hand when the Capital found no
+ * pair. One or more, in full or in part: a R$ 200 purchase can be two "Reembolso" of R$ 100. What
  * is already tied to another bank line shows faded, without a tap.
  */
 function SearchSheet({
@@ -921,9 +951,9 @@ function SearchSheet({
     : entries;
   const where = (entry: ReviewEntry) =>
     entry.reimbursable === 'open'
-      ? 'A receber'
+      ? 'Reembolso'
       : entry.reimbursable === 'received'
-        ? 'A receber · recebido'
+        ? 'Reembolso · recebido'
         : income
           ? null
           : entry.onCard
@@ -934,7 +964,7 @@ function SearchSheet({
   return (
     <BottomSheet
       open
-      title={income ? 'Procurar nas rendas' : 'Procurar nos gastos'}
+      title={income ? 'Qual renda é esta?' : 'Qual gasto é este?'}
       onClose={onClose}
       confirmDiscard={false}
     >
@@ -975,8 +1005,8 @@ function SearchSheet({
                     <span className="text-muted block truncate text-xs">
                       {entry.tied
                         ? ownLine(entry)
-                          ? `${detail} · ligado a esta linha`
-                          : `${detail} · ligado ao ${entry.tied.bankName} de ${formatDayMonth(entry.tied.date)}`
+                          ? `${detail} · já é desta linha`
+                          : `${detail} · já é do ${entry.tied.bankName} de ${formatDayMonth(entry.tied.date)}`
                         : detail}
                     </span>
                   </span>
@@ -1036,7 +1066,7 @@ function SearchSheet({
             onClick={() => onPick(chosen)}
             className="bg-primary text-primary-foreground flex min-h-[44px] items-center justify-center rounded-lg px-3 text-sm font-semibold disabled:opacity-50"
           >
-            {chosen.length <= 1 ? 'Ligar' : `Ligar os ${chosen.length}`}
+            {chosen.length <= 1 ? 'É este' : `São estes ${chosen.length}`}
           </button>
         </div>
       </div>
@@ -1075,8 +1105,8 @@ const DECIDED_LABELS: Record<string, string> = {
   expense: 'Lançado',
   plan: 'Lançado como compra parcelada',
   income: 'Lançado como renda',
-  linked: 'Ligado ao que você lançou',
-  reimbursed: 'Devolução de um A receber',
+  linked: 'É o mesmo que você lançou',
+  reimbursed: 'Reembolso recebido',
   bill: 'Fatura marcada como paga',
   launching: 'Lançando…',
 };
@@ -1091,7 +1121,7 @@ function namesOf(entries: LinkedEntry[]): string {
 function matchLabel(match: ReviewMatch | null): string {
   if (!match) return '✓ Confere';
   if (match.kind === 'pair') return `✓ Confere com “${match.description}” de ${formatDayMonth(match.date)}`;
-  if (match.kind === 'links') return `✓ Ligado a ${namesOf(match.entries)}`;
+  if (match.kind === 'links') return `✓ É o mesmo que ${namesOf(match.entries)}`;
   if (match.kind === 'received') return `✓ Devolução de “${match.entry.description}”, já recebida`;
   if (match.kind === 'plan') return `✓ Compra parcelada “${match.description}” no Capital +`;
   const label = DECIDED_LABELS[match.outcome] ?? 'Conferido';
@@ -1173,7 +1203,7 @@ function ReviewRow({
   onSearch: () => void;
   showSplit: boolean;
   showReceived: boolean;
-  /** Ties the line to these entries (a split, an "A receber" already received). */
+  /** Ties the line to these entries (a split, a "Reembolso" already received). */
   onLink: (entries: LinkedEntry[], done: string) => void;
   onNotSplit: () => void;
   onNotReceived: () => void;
@@ -1195,7 +1225,7 @@ function ReviewRow({
   onNotSame: () => void;
 }) {
   const income = item.kind === 'income';
-  /** "É outro A receber": the other open ones close enough in value. */
+  /** "É outro Reembolso": the other open ones close enough in value. */
   const [otherPaybacks, setOtherPaybacks] = useState(false);
   const launchLabel = income
     ? 'Lançar renda'
@@ -1239,8 +1269,8 @@ function ReviewRow({
       {showMisplaced && item.misplaced ? (
         <div className="bg-warning-bg flex flex-col gap-2 rounded-lg px-3 py-2 text-sm">
           <p className="text-warning">
-            Lançado fora do cartão: “{item.misplaced.description}” ({formatDayMonth(item.misplaced.date)}) está{' '}
-            {whereLabel(item.misplaced, cardName)}.
+            Você lançou “{item.misplaced.description}” ({formatDayMonth(item.misplaced.date)}){' '}
+            {whereLabel(item.misplaced, cardName)}, mas foi neste cartão.
           </p>
           <div className="flex gap-2">
             <button
@@ -1261,9 +1291,8 @@ function ReviewRow({
       ) : showUpfront && item.upfront && item.installments ? (
         <div className="bg-warning-bg flex flex-col gap-2 rounded-lg px-3 py-2 text-sm">
           <p className="text-warning">
-            No Capital + está à vista: “{item.upfront.description}” ({formatBRL(item.upfront.amount)},{' '}
-            {formatDayMonth(item.upfront.date)}). No banco são {item.installments.count}× de{' '}
-            {formatBRL(item.installments.installmentAmount)}.
+            No banco são {item.installments.count}× de {formatBRL(item.installments.installmentAmount)}. No Capital +,
+            “{item.upfront.description}” ({formatBRL(item.upfront.amount)}) está à vista.
           </p>
           <button
             type="button"
@@ -1288,9 +1317,9 @@ function ReviewRow({
       ) : item.partial ? (
         <div className="bg-warning-bg flex flex-col gap-2 rounded-lg px-3 py-2 text-sm">
           <p className="text-warning">
-            Ligado a {namesOf(item.partial.entries)} (
+            Só uma parte está no Capital +: {namesOf(item.partial.entries)} (
             {formatBRL(item.partial.entries.reduce((sum, entry) => sum + entry.amount, 0))}). Faltam{' '}
-            {formatBRL(item.partial.remaining)} no Capital +.
+            {formatBRL(item.partial.remaining)}.
           </p>
           <div className="flex gap-2">
             <button type="button" disabled={busy} onClick={onLaunch} className={primaryButton}>
@@ -1314,7 +1343,7 @@ function ReviewRow({
             <button
               type="button"
               disabled={busy}
-              onClick={() => item.received && onLink([item.received], 'Pronto: ligado à devolução.')}
+              onClick={() => item.received && onLink([item.received], 'Pronto: é essa devolução.')}
               className={primaryButton}
             >
               É sim
@@ -1353,7 +1382,7 @@ function ReviewRow({
               className="text-primary flex min-h-[36px] items-center gap-1 self-start text-sm font-semibold"
             >
               <ChevronDown aria-hidden className={`h-4 w-4 transition-transform ${otherPaybacks ? 'rotate-180' : ''}`} />
-              É outro A receber
+              É outro Reembolso
             </button>
           )}
           {otherPaybacks && (
@@ -1384,14 +1413,14 @@ function ReviewRow({
       ) : showSplit && item.split ? (
         <div className="bg-warning-bg flex flex-col gap-2 rounded-lg px-3 py-2 text-sm">
           <p className="text-warning">
-            Parecem ser estes {item.split.length} lançamentos: {namesOf(item.split)} (
+            São estes {item.split.length} lançamentos? {namesOf(item.split)} (
             {item.split.map((entry) => formatBRL(entry.amount)).join(' + ')}).
           </p>
           <div className="flex gap-2">
             <button
               type="button"
               disabled={busy}
-              onClick={() => item.split && onLink(item.split, `Pronto: ligado aos ${item.split.length} lançamentos.`)}
+              onClick={() => item.split && onLink(item.split, `Pronto: são esses ${item.split.length} lançamentos.`)}
               className={primaryButton}
             >
               São estes
@@ -1404,8 +1433,8 @@ function ReviewRow({
       ) : showDuplicate && item.duplicate ? (
         <div className="bg-warning-bg flex flex-col gap-2 rounded-lg px-3 py-2 text-sm">
           <p className="text-warning">
-            Parece que você já lançou isso: “{item.duplicate.description}” ({formatBRL(item.duplicate.amount)},{' '}
-            {formatDayMonth(item.duplicate.date)}).
+            Você já lançou “{item.duplicate.description}” ({formatBRL(item.duplicate.amount)},{' '}
+            {formatDayMonth(item.duplicate.date)})?
           </p>
           <div className="flex gap-2">
             <button type="button" disabled={busy} onClick={onSame} className={primaryButton}>
@@ -1421,8 +1450,15 @@ function ReviewRow({
           <button type="button" disabled={busy} onClick={onLaunch} className={primaryButton}>
             {launchLabel}
           </button>
-          <button type="button" disabled={busy} onClick={onEdit} aria-label="Editar antes de lançar" className={quietButton}>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onEdit}
+            aria-label="Editar antes de lançar"
+            className={`${quietButton} gap-1.5`}
+          >
             <Pencil aria-hidden className="h-4 w-4" />
+            Editar
           </button>
         </div>
       )}

@@ -1,6 +1,6 @@
 import type { BankAlertSettings } from '../banks/alerts';
 import type { BankReview, BankReviewCounts } from '../banks/review';
-import type { BankReserve, BanksOverview } from '../banks/types';
+import type { BankCardDebt, BankReserve, BanksOverview } from '../banks/types';
 import type { Expense, Income, InstallmentPlan, Month } from '../budget/types';
 import { apiRequest, seg } from './apiClient';
 
@@ -63,6 +63,8 @@ export interface BanksRepository {
   getReviewCounts(month?: Month): Promise<BankReviewCounts>;
   /** Ties a bank card to a Capital card (null: "não informado"). */
   linkCard(accountId: string, cardId: string | null): Promise<void>;
+  /** What the bank says is owed on each Capital card tied to a bank card, for the Cartão. */
+  getCardDebts(): Promise<BankCardDebt[]>;
   /** What can feed the Reserva and what is marked. */
   getReserve(): Promise<BankReserve>;
   /** Marks what feeds the Reserva (both empty: back to typing it). */
@@ -117,6 +119,10 @@ export class HttpBanksRepository implements BanksRepository {
 
   linkCard(accountId: string, cardId: string | null): Promise<void> {
     return apiRequest('PUT', `/banks/cards/${seg(accountId)}`, { cardId });
+  }
+
+  getCardDebts(): Promise<BankCardDebt[]> {
+    return apiRequest('GET', '/banks/cards/debts');
   }
 
   getReserve(): Promise<BankReserve> {

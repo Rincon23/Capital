@@ -78,8 +78,8 @@ export const MODULES: ModuleDefinition[] = [
   },
   {
     key: 'budget',
-    name: 'Gastos por categoria',
-    tagline: 'Metas e quanto ainda dá para gastar',
+    name: 'Categorias',
+    tagline: 'Quanto sobra em cada categoria',
     group: 'month',
     dependsOn: ['expenses'],
     screen: {
@@ -105,7 +105,7 @@ export const MODULES: ModuleDefinition[] = [
   },
   {
     key: 'reimbursable',
-    name: 'A receber',
+    name: 'Reembolso',
     tagline: 'O que alguém vai te devolver',
     group: 'month',
     // Not only card purchases: lending R$ 50 in cash is the same thing, so it only needs Lançamentos.
@@ -155,8 +155,8 @@ export const MODULES: ModuleDefinition[] = [
   },
   {
     key: 'banks',
-    name: 'Open Finance',
-    tagline: 'Seus bancos no Capital +, uma vez por dia',
+    name: 'Bancos',
+    tagline: 'Confira seus lançamentos com o banco',
     group: 'wallet',
     dependsOn: [],
     screen: {

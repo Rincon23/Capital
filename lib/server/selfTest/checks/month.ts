@@ -5,7 +5,7 @@ import type { Expense } from '../../../budget/types';
 import { expect, expectEqual, expectRefused, presetTopic, type SelfCheck } from '../check';
 
 /**
- * Dinheiro do mês: Lançamentos, Gastos por categoria, A receber and Histórico. Each test writes
+ * Dinheiro do mês: Lançamentos, Categorias, Reembolso and Histórico. Each test writes
  * the way the screens do and reads it back the way the screens read it.
  */
 
@@ -150,7 +150,7 @@ export const budgetChecks: SelfCheck[] = [
         expectEqual(
           active.reduce((total, topic) => total + topic.targetPct, 0),
           1,
-          'Soma das metas das categorias padrão',
+          'Soma das % das categorias padrão',
         );
 
         const diversos = await presetTopic(account, 'diversos');
@@ -172,13 +172,9 @@ export const budgetChecks: SelfCheck[] = [
         expectEqual(summary.availableTotal, 1800, 'Total disponível nas categorias');
         expectEqual(summary.balance, 1700, 'Saldo geral');
         const result = summary.topics.find((topic) => topic.topicId === diversos);
-        expect(result, 'A categoria Prazeres e Confortos sumiu do resumo do mês.');
-        expectEqual(result.spent, 100, 'Gasto em Prazeres e Confortos');
-        expectEqual(
-          result.remaining,
-          result.available - 100,
-          'O que ainda dá para gastar em Prazeres e Confortos',
-        );
+        expect(result, 'A categoria Prazeres sumiu do resumo do mês.');
+        expectEqual(result.spent, 100, 'Gasto em Prazeres');
+        expectEqual(result.remaining, result.available - 100, 'O que ainda dá para gastar em Prazeres');
       }),
   },
   {
@@ -202,7 +198,7 @@ export const budgetChecks: SelfCheck[] = [
         expectEqual(saved.length, 4, 'Quantas categorias a conta tem');
         expect(
           saved.some((topic) => topic.id === diversos),
-          'Prazeres e Confortos foi apagada.',
+          'Prazeres foi apagada.',
         );
         expect(
           saved.every((topic) => !topic.archived),
@@ -219,7 +215,7 @@ export const budgetChecks: SelfCheck[] = [
 export const reimbursableChecks: SelfCheck[] = [
   {
     id: 'reimbursable.pending',
-    name: '"A receber" fica fora do orçamento até ser pago',
+    name: '"Reembolso" fica fora do orçamento até ser pago',
     run: ({ scratch }) =>
       scratch(async ({ budget, month, today }) => {
         const past = previousMonth(month);
@@ -239,8 +235,8 @@ export const reimbursableChecks: SelfCheck[] = [
         await budget.saveExpense(month, recent);
 
         const summary = computeMonthSummary((await budget.getMonth(month))!);
-        expectEqual(summary.reimbursableTotal, 45, '"A receber" do mês');
-        expectEqual(summary.expenseTotal, 0, 'Gastos do mês (o "A receber" não conta)');
+        expectEqual(summary.reimbursableTotal, 45, '"Reembolso" do mês');
+        expectEqual(summary.expenseTotal, 0, 'Gastos do mês (o "Reembolso" não conta)');
 
         // What someone still owes does not go away when the month turns.
         const pending = await budget.pendingReimbursables(month);
@@ -299,11 +295,7 @@ export const historyChecks: SelfCheck[] = [
         const carried = async () => (await budget.getMonth(second))?.carryIn[diversos];
         expectEqual(await carried(), 0, 'Sobra com o mês ainda aberto');
         await budget.closeMonth(first);
-        expectEqual(
-          await carried(),
-          await leftover(),
-          'Sobra de Prazeres e Confortos levada ao fechar o mês',
-        );
+        expectEqual(await carried(), await leftover(), 'Sobra de Prazeres levada ao fechar o mês');
 
         // Reopened, the leftovers go back to it; closing again takes what changed.
         await budget.reopenMonth(first);
@@ -342,7 +334,7 @@ export const historyChecks: SelfCheck[] = [
         const carried = async () => (await budget.getMonth(second))?.carryIn[diversos] ?? 0;
 
         await budget.closeMonth(first, false, true);
-        expectEqual(await carried(), 0, 'Sobra de Prazeres e Confortos depois de fechar sem trazer');
+        expectEqual(await carried(), 0, 'Sobra de Prazeres depois de fechar sem trazer');
 
         await budget.reopenMonth(first);
         await budget.closeMonth(first);

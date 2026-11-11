@@ -13,24 +13,35 @@ const summary = {
 const base = { summary, labels: DEFAULT_SPECIAL_CATEGORY_LABELS, month: '2026-10', currentMonth: '2026-10' };
 
 describe('retorno depois de lançar um gasto', () => {
-  it('diz quanto ainda dá na categoria, ou quanto passou da meta', () => {
+  it('diz quanto ainda dá na categoria, ou quanto passou do limite', () => {
     expect(expenseFeedback({ ...base, expense: { categoryKind: 'topic', topicId: 'diversos', amount: 45 } })).toBe(
       'R$ 45,00 em Diversos · ainda dá R$ 320,00 este mês',
     );
     expect(expenseFeedback({ ...base, expense: { categoryKind: 'topic', topicId: 'diversos', amount: 395 } })).toBe(
-      'R$ 395,00 em Diversos · passou R$ 30,00 da meta',
+      'R$ 395,00 em Diversos · passou R$ 30,00 do limite',
     );
     expect(
       expenseFeedback({ ...base, month: '2026-09', expense: { categoryKind: 'topic', topicId: 'diversos', amount: 45 } }),
     ).toBe('R$ 45,00 em Diversos · ainda dá R$ 320,00 em set/26');
   });
 
-  it('custo fixo fala do total; A receber e Fora do orçamento não mexem em categoria', () => {
+  it('em Investimentos o que resta é "falta investir", não "ainda dá"', () => {
+    const investing = { ...base, investingTopicId: 'diversos' };
+    expect(
+      expenseFeedback({ ...investing, expense: { categoryKind: 'topic', topicId: 'diversos', amount: 45 } }),
+    ).toBe('R$ 45,00 em Diversos · falta investir R$ 320,00 este mês');
+    expect(
+      expenseFeedback({ ...investing, expense: { categoryKind: 'topic', topicId: 'diversos', amount: 395 } }),
+    ).toBe('R$ 395,00 em Diversos · passou R$ 30,00 do limite');
+  });
+
+  it('custo fixo diz que foi dividido, sem total somado; Reembolso e Fora do orçamento não mexem em categoria', () => {
     expect(expenseFeedback({ ...base, expense: { categoryKind: 'fixedCost', amount: 100 } })).toMatch(
-      /^R\$ 100,00 em .+ · ainda dá R\$ 900,00 este mês$/,
+      /^R\$ 100,00 em .+ · dividido entre as categorias$/,
     );
+    expect(expenseFeedback({ ...base, expense: { categoryKind: 'unforeseen', amount: 100 } })).not.toMatch(/ainda dá/);
     expect(expenseFeedback({ ...base, expense: { categoryKind: 'reimbursable', amount: 73 } })).toMatch(
-      /não gasta nenhuma categoria$/,
+      /não mexe nas categorias$/,
     );
     expect(expenseFeedback({ ...base, expense: { categoryKind: 'uncounted', amount: 20 } })).toBe(
       'R$ 20,00 fora do orçamento',

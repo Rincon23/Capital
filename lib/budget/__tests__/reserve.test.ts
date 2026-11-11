@@ -79,7 +79,7 @@ describe('o plano de recompor a reserva', () => {
   });
 });
 
-describe('"A receber" com quem já pagou', () => {
+describe('"Reembolso" com quem já pagou', () => {
   const topics: TopicConfig[] = [
     { id: 't1', name: 'Diversos', targetPct: 1, order: 0, color: '#2a78d6' },
   ];

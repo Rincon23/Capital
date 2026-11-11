@@ -87,7 +87,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   card: 'Cartões',
   recurring: 'Contas do mês',
   gmail: 'Monitor de Gmail',
-  banks: 'Open Finance',
+  banks: 'Bancos',
   feature: 'Novidades do app',
   motivation: 'Frase da semana',
   system: 'Outros avisos',

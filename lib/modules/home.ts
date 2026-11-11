@@ -61,7 +61,7 @@ function withExtras(key: ModuleKey): HomeWidgetKey[] {
 
 /**
  * Every widget the Início can have right now, in the default order: catalog order (Missões
- * first). A module without a screen (the card bill, "A receber") comes right after the module it
+ * first). A module without a screen (the card bill, "Reembolso") comes right after the module it
  * hangs from, and a module's extra widgets (the calendar) right after its card.
  */
 export function homeCards(source: ModulesSource): HomeWidgetKey[] {

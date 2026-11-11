@@ -6,7 +6,7 @@ import type { Expense, Income, MonthData, TopicConfig } from '../types';
 /**
  * Acceptance fixtures taken from the real spreadsheet on 15/09/2026 (§9 of the bot spec),
  * which is what the Telegram assistant shows today. They pin the budgeting math the app
- * inherits, plus the "A receber" rules: it counts on the card bill and nowhere else.
+ * inherits, plus the "Reembolso" rules: it counts on the card bill and nowhere else.
  *
  * The spreadsheet does not round between steps and Capital rounds every step with `round2`,
  * so each number is compared with a R$ 0,01 tolerance (`toBeCloseTo(x, 2)` is tighter than
@@ -102,13 +102,13 @@ describe('planilha de 15/09/2026 (fixtures da spec §9)', () => {
     expectMoney(summary.reimbursableTotal, 73);
   });
 
-  it('mantém o "A receber" fora do gasto do mês e de todos os tópicos', () => {
+  it('mantém o "Reembolso" fora do gasto do mês e de todos os tópicos', () => {
     // 902,36 de custos fixos + 9,95 de imprevistos + 505,47 de Diversos + 110,00 de Conhecimento.
     expectMoney(summary.expenseTotal, 1527.78);
     expect(summary.topics.map((t) => t.spent)).toEqual([505.47, 0, 0, 110]);
   });
 
-  it('não muda nada quando o "A receber" sai da jogada, a não ser a fatura', () => {
+  it('não muda nada quando o "Reembolso" sai da jogada, a não ser a fatura', () => {
     const withoutReimbursable = openMonth();
     withoutReimbursable.expenses = withoutReimbursable.expenses.filter(
       (e) => e.categoryKind !== 'reimbursable',

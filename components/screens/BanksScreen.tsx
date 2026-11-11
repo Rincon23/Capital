@@ -6,7 +6,10 @@ import {
   BanknoteArrowDown,
   BanknoteArrowUp,
   CirclePlay,
+  Clock,
   ExternalLink,
+  Eye,
+  Gift,
   Landmark,
   LoaderCircle,
   Pencil,
@@ -99,7 +102,7 @@ function Banks() {
         showToast('Um banco não terminou de autorizar. Tente de novo.', 'info');
       }
     } catch (err) {
-      setError(toStorageErrorMessage(err, 'Não foi possível abrir o Open Finance.'));
+      setError(toStorageErrorMessage(err, 'Não foi possível abrir os Bancos.'));
     }
   }, [showToast]);
 
@@ -179,7 +182,7 @@ function Banks() {
 
   const header = (
     <PageHeader
-      title="Open Finance"
+      title="Bancos"
       backHref={backHref}
       action={
         <>
@@ -225,7 +228,7 @@ function Banks() {
       ) : connections.length === 0 ? (
         <Card tour="bancos-conexoes">
           <StepHeader step={4} title="Traga seus bancos para o Capital +" />
-          <p className="text-muted text-sm">Escolha um banco no Meu Pluggy e volte. Um por vez.</p>
+          <p className="text-muted text-sm">Escolha um dos bancos que você autorizou. Um por vez.</p>
           <button type="button" className={primaryButton} disabled={busy !== null} onClick={() => void bringBank()}>
             {busy === 'connect' ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden /> : <Landmark className="h-4 w-4" aria-hidden />}
             Trazer um banco
@@ -236,8 +239,8 @@ function Banks() {
           <Card>
             {expensesOn && (
               <div className="flex flex-col gap-0.5">
-                <p className="text-foreground font-semibold">Conferir com o Capital +</p>
-                <p className="text-muted text-sm">O que chegou dos bancos, ao lado do que você lançou.</p>
+                <p className="text-foreground font-semibold">Conferir o mês</p>
+                <p className="text-muted text-sm">O que veio do banco e ainda não está no Capital +.</p>
               </div>
             )}
             {expensesOn && (
@@ -285,9 +288,9 @@ function Banks() {
               onRetry={() => void retry(connection)}
               onRenew={async () => {
                 const ok = await confirm({
-                  title: 'Renovar a autorização',
-                  message: `• Banco: ${connection.name}. Ele sai e você autoriza de novo no Meu Pluggy.`,
-                  confirmLabel: 'Renovar',
+                  title: 'Autorizar de novo',
+                  message: `${connection.name} sai e você autoriza de novo no Meu Pluggy.`,
+                  confirmLabel: 'Autorizar de novo',
                 });
                 if (ok) void retry(connection);
               }}
@@ -308,9 +311,9 @@ function Banks() {
               Trazer outro banco
             </button>
             <p className="text-muted text-center text-xs">
-              {connections.length} de {limit} conexões grátis ·{' '}
+              {connections.length} de {limit} bancos ·{' '}
               <a href={MEU_PLUGGY_URL} target="_blank" rel="noopener noreferrer" className="text-primary font-medium">
-                banco novo? Conecte antes no Meu Pluggy
+                Banco novo? Autorize antes no Meu Pluggy
               </a>
             </p>
           </div>
@@ -340,7 +343,7 @@ function Banks() {
           onRemove={async () => {
             const ok = await confirm({
               title: 'Tirar este banco',
-              message: `• Banco: ${renaming.name}. Ele sai do Capital + e da sua chave da Pluggy, mas continua conectado no Meu Pluggy.`,
+              message: `${renaming.name} sai do Capital +. No Meu Pluggy, continua autorizado.`,
               confirmLabel: 'Tirar',
               destructive: true,
             });
@@ -370,7 +373,7 @@ function Banks() {
             }}
             onDisconnect={async () => {
               const ok = await confirm({
-                title: 'Desconectar o Open Finance',
+                title: 'Desconectar os bancos',
                 message:
                   connections.length > 0
                     ? `A sua chave e ${connections.length === 1 ? 'o banco' : `os ${connections.length} bancos`} saem do Capital +. No Meu Pluggy, eles continuam.`
@@ -380,7 +383,7 @@ function Banks() {
               });
               if (!ok) return;
               setConfiguring(false);
-              await act('disconnect', () => banksRepository.disconnect(), 'Open Finance desconectado.');
+              await act('disconnect', () => banksRepository.disconnect(), 'Bancos desconectados.');
             }}
           />
         </ModuleSettingsSheet>
@@ -407,7 +410,7 @@ function StepHeader({ step, title }: { step: SetupStep; title: string }) {
   return (
     <div className="flex items-start gap-2">
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <p className="text-muted text-xs font-semibold tracking-wide uppercase">Passo {step} de 4</p>
+        <p className="text-muted text-xs font-semibold">Passo {step} de 4</p>
         <p className="text-foreground font-semibold">{title}</p>
       </div>
       <HowToButton step={step} />
@@ -467,12 +470,15 @@ function HowToButton({ step }: { step: SetupStep }) {
   );
 }
 
+/** The step the setup is on: 0 is the opening, before the person has started anything. */
 function readStep(): number {
   try {
-    const step = Number(localStorage.getItem(STEP_KEY));
+    const stored = localStorage.getItem(STEP_KEY);
+    if (stored === null) return 0;
+    const step = Number(stored);
     return step >= 1 && step <= 3 ? step : 1;
   } catch {
-    return 1;
+    return 0;
   }
 }
 
@@ -484,7 +490,17 @@ function saveStep(step: number) {
   }
 }
 
-/** Steps 1 to 3: Meu Pluggy, the key at the dashboard, and the key pasted here. */
+/** What the opening promises, shown instead of explained: an icon and a short line each. */
+const PROMISES = [
+  { icon: Eye, text: 'Só lê. Nunca move dinheiro.' },
+  { icon: Gift, text: 'Grátis, pelo Meu Pluggy.' },
+  { icon: Clock, text: 'Uns 10 minutos, uma vez só.' },
+] as const;
+
+/**
+ * The opening (before step 1) and steps 1 to 3: Meu Pluggy, the key at Pluggy's site, and the key
+ * pasted here.
+ */
 function Setup({
   changing,
   onCancel,
@@ -495,7 +511,7 @@ function Setup({
   onCancel: () => void;
   onSaved: () => Promise<void>;
 }) {
-  const [step, setStep] = useState(changing ? 3 : 1);
+  const [step, setStep] = useState(changing ? 3 : 0);
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
   const [saving, setSaving] = useState(false);
@@ -527,26 +543,48 @@ function Setup({
   }
 
   const back = changing ? (
-    <button type="button" onClick={onCancel} className="text-muted text-sm font-medium">
+    <button type="button" onClick={onCancel} className="text-muted min-h-[44px] text-sm font-medium">
       Cancelar
     </button>
   ) : step > 1 ? (
-    <button type="button" onClick={() => go(step - 1)} className="text-muted text-sm font-medium">
+    <button type="button" onClick={() => go(step - 1)} className="text-muted min-h-[44px] text-sm font-medium">
       ‹ Passo anterior
     </button>
   ) : null;
 
+  if (step === 0) {
+    return (
+      <>
+        <p className="text-foreground text-lg font-semibold">Confira seus lançamentos com o banco</p>
+        <p className="text-muted text-sm">
+          O Capital + mostra o que o banco registrou e você ainda não lançou. É o Open Finance.
+        </p>
+        <ul className="flex flex-col gap-2">
+          {PROMISES.map(({ icon: Icon, text }) => (
+            <li key={text} className="text-foreground flex items-center gap-2.5 text-sm">
+              <Icon aria-hidden className="text-primary h-4 w-4 shrink-0" />
+              {text}
+            </li>
+          ))}
+        </ul>
+        <button type="button" onClick={() => go(1)} className={primaryButton}>
+          Começar
+        </button>
+      </>
+    );
+  }
+
   if (step === 1) {
     return (
       <>
-        <StepHeader step={1} title="Conecte seus bancos no Meu Pluggy" />
-        <p className="text-muted text-sm">A autorização é feita no app de cada banco, uma vez só.</p>
+        <StepHeader step={1} title="Autorize seus bancos no Meu Pluggy" />
+        <p className="text-muted text-sm">Você autoriza no app de cada banco, uma vez só. Depois volte aqui.</p>
         <a href={MEU_PLUGGY_URL} target="_blank" rel="noopener noreferrer" className={primaryButton}>
           Abrir o Meu Pluggy
           <ExternalLink className="h-4 w-4" aria-hidden />
         </a>
         <button type="button" onClick={() => go(2)} className={secondaryButton}>
-          Já conectei
+          Já fiz, próximo passo
         </button>
       </>
     );
@@ -555,21 +593,25 @@ function Setup({
   if (step === 2) {
     return (
       <>
-        <StepHeader step={2} title="Crie a sua chave" />
+        <StepHeader step={2} title="Crie a sua chave na Pluggy" />
         <div className="text-muted text-sm">
           <InfoTip
-            label="Mais sobre a chave"
-            info="A chave é o Client ID e o Client Secret, na página da aplicação. O dashboard avisa de um teste de 15 dias: ele não vale para uso pessoal, pode ignorar."
+            label="O que é a chave?"
+            info="São dois códigos, o Client ID e o Client Secret. Eles aparecem na página da aplicação que você criar."
           >
-            <span>Na Pluggy, crie uma aplicação e ative o conector MeuPluggy.</span>
+            <span>No site da Pluggy, crie uma aplicação e ligue “MeuPluggy”. O vídeo mostra onde.</span>
           </InfoTip>
         </div>
+        {/* What scares people on Pluggy's site, answered in sight (it used to wait behind the ⓘ). */}
+        <p className="bg-background text-muted rounded-lg px-3 py-2 text-xs">
+          O site fala em “teste de 15 dias”. Para uso pessoal é grátis: pode ignorar.
+        </p>
         <a href={PLUGGY_DASHBOARD_URL} target="_blank" rel="noopener noreferrer" className={primaryButton}>
-          Abrir o dashboard
+          Abrir o site da Pluggy
           <ExternalLink className="h-4 w-4" aria-hidden />
         </a>
         <button type="button" onClick={() => go(3)} className={secondaryButton}>
-          Já criei
+          Já fiz, próximo passo
         </button>
         {back}
       </>
@@ -585,7 +627,7 @@ function Setup({
       }}
     >
       <StepHeader step={3} title="Cole aqui a sua chave" />
-      <p className="text-muted text-sm">Fica guardada cifrada. Só lê, nunca move dinheiro.</p>
+      <p className="text-muted text-sm">Fica guardada com segurança. Só lê, nunca move dinheiro.</p>
       <label className="text-foreground flex flex-col gap-1 text-sm font-medium">
         Client ID
         <input
@@ -668,11 +710,11 @@ function ConnectionCard({
                 'Ainda sem atualização'
               )
             ) : health === 'stale' ? (
-              `Parado: sem dados do banco ${formatAgo(connection.lastUpdatedAt!, now)}`
+              `Sem dados do banco ${formatAgo(connection.lastUpdatedAt!, now)}.`
             ) : neverArrived ? (
-              'Não chegou: deu erro na Pluggy.'
+              'Não deu certo trazer este banco.'
             ) : health === 'error' ? (
-              'A última atualização falhou; a Pluggy tenta de novo.'
+              'A última atualização falhou. Ela é tentada de novo sozinha.'
             ) : (
               'A autorização acabou.'
             )}
@@ -690,20 +732,25 @@ function ConnectionCard({
 
       {health === 'stale' && (
         <a href={MEU_PLUGGY_URL} target="_blank" rel="noopener noreferrer" className={secondaryButton}>
-          Reconectar no Meu Pluggy
+          Autorizar de novo no Meu Pluggy
           <ExternalLink className="h-4 w-4" aria-hidden />
         </a>
       )}
       {(neverArrived || health === 'reconnect') && (
         <button type="button" onClick={onRetry} disabled={busy} className={secondaryButton}>
-          {neverArrived ? 'Tentar de novo' : 'Trazer de novo'}
+          {neverArrived ? 'Tentar de novo' : 'Autorizar de novo'}
         </button>
       )}
       {consentLeft !== null && (
         <div className="bg-warning-bg text-warning flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm">
           <span>{consentLeft === 0 ? 'A autorização vence hoje.' : `A autorização vence em ${consentLeft} ${consentLeft === 1 ? 'dia' : 'dias'}.`}</span>
-          <button type="button" onClick={onRenew} disabled={busy} className="shrink-0 font-semibold">
-            Renovar
+          <button
+            type="button"
+            onClick={onRenew}
+            disabled={busy}
+            className="border-warning/40 min-h-[36px] shrink-0 rounded-lg border px-3 font-semibold"
+          >
+            Autorizar de novo
           </button>
         </div>
       )}

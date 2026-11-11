@@ -1,10 +1,11 @@
 import 'server-only';
-import { and, asc, desc, eq, gt, gte, inArray, isNull, lte, ne, notInArray, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, isNull, lte, ne, notInArray, or, sql } from 'drizzle-orm';
 import {
   alertSettingsOf,
   investmentLabel,
   isUsualReserve,
   type BankAccountKind,
+  type BankCardDebt,
   type BankConnection,
   type BankConnectionStatus,
   type BankAlertSettings,
@@ -52,10 +53,10 @@ export interface StoredAccount {
 /** A tie made by hand from a bank transaction to an entry, with the entry as it is now. */
 export interface BankLink extends LinkedEntry {
   transactionId: string;
-  /** The side of the check the bank line is on (an "A receber" may be tied once on each). */
+  /** The side of the check the bank line is on (a "Reembolso" may be tied once on each). */
   side: MoneySide;
   kind: 'expense' | 'income';
-  /** An "A receber" (an expense the person is owed). */
+  /** A "Reembolso" (an expense the person is owed). */
   reimbursable: boolean;
   /** The bank and day of the transaction. */
   bankName: string;
@@ -490,7 +491,7 @@ export class PostgresBanksRepository {
   /**
    * The entries already tied to a bank transaction, with the bank and day of it, by the side of the
    * check that transaction is on: never offered as the duplicate of another line of that side, and
-   * shown as taken in "Procurar nos gastos" (or "nas rendas"). An "A receber" can be on both: the
+   * shown as taken in "Procurar nos gastos" (or "nas rendas"). A "Reembolso" can be on both: the
    * purchase that went out, and the payback that came in.
    */
   async tiedEntries(): Promise<Record<MoneySide, Map<string, EntryTie>>> {
@@ -656,6 +657,44 @@ export class PostgresBanksRepository {
     return rows;
   }
 
+  /**
+   * What the bank says is owed on each Capital card: the balance of the bank cards tied to it,
+   * summed, with when the bank sent it. The only total of a bank that leaves the server besides
+   * the Reserva's, and only for the Cartão to show beside its own bill (`BankCardDebt`).
+   */
+  async cardDebts(): Promise<BankCardDebt[]> {
+    const rows = await this.db
+      .select({
+        cardId: bankAccounts.capitalCardId,
+        balance: bankAccounts.balance,
+        balanceAt: bankAccounts.balanceAt,
+      })
+      .from(bankAccounts)
+      .where(
+        and(
+          eq(bankAccounts.userId, this.userId),
+          eq(bankAccounts.kind, 'card'),
+          isNotNull(bankAccounts.capitalCardId),
+          isNotNull(bankAccounts.balance),
+        ),
+      )
+      .orderBy(asc(bankAccounts.accountId));
+    const byCard = new Map<string, BankCardDebt>();
+    for (const row of rows) {
+      if (row.cardId === null || row.balance === null) continue;
+      const at = row.balanceAt?.toISOString() ?? null;
+      const debt = byCard.get(row.cardId);
+      if (!debt) {
+        byCard.set(row.cardId, { cardId: row.cardId, amount: round2(row.balance), updatedAt: at });
+        continue;
+      }
+      debt.amount = round2(debt.amount + row.balance);
+      // The oldest read of them: the sum is only as fresh as its stalest part.
+      debt.updatedAt = debt.updatedAt === null || at === null ? null : at < debt.updatedAt ? at : debt.updatedAt;
+    }
+    return [...byCard.values()];
+  }
+
   /** Ties a bank card to a Capital card (null: "não informado"). */
   async linkCard(accountId: string, cardId: string | null): Promise<void> {
     const updated = await this.db
@@ -778,8 +817,8 @@ export class PostgresBanksRepository {
   }
 
   /**
-   * Who paid back which "A receber" before ("Marcar como recebido"): the Pix's payer and the
-   * description of the "A receber" it settled, for the review to recognise the payer next time.
+   * Who paid back which "Reembolso" before ("Marcar como recebido"): the Pix's payer and the
+   * description of the "Reembolso" it settled, for the review to recognise the payer next time.
    */
   async paybackHistory(): Promise<PaybackHistory[]> {
     const rows = await this.db
@@ -798,7 +837,7 @@ export class PostgresBanksRepository {
         ),
       )
       .where(and(eq(bankTransactions.userId, this.userId), eq(bankTransactions.outcome, 'reimbursed')));
-    // A Pix tied by hand to an "A receber" teaches the same.
+    // A Pix tied by hand to a "Reembolso" teaches the same.
     const tiedByHand = await this.db
       .select({
         payerDocument: bankTransactions.payerDocument,

@@ -42,7 +42,7 @@ export interface MonthSummary {
   unforeseenTotal: number;
   /** Everything that will land on the credit-card bill: purchases flagged as card purchases. */
   cardTotal: number;
-  /** Card purchases made for someone else ("A receber"): part of cardTotal, never of expenseTotal. */
+  /** Card purchases made for someone else ("Reembolso"): part of cardTotal, never of expenseTotal. */
   reimbursableTotal: number;
   /** The part of `reimbursableTotal` nobody has paid back yet. */
   reimbursablePendingTotal: number;
@@ -89,7 +89,7 @@ export function computeUnforeseenTotal(expenses: Expense[]): number {
 }
 
 /**
- * Money paid for someone else who will pay it back ("A receber"). It is on the card bill,
+ * Money paid for someone else who will pay it back ("Reembolso"). It is on the card bill,
  * but it is not money the user spent: it stays out of every category, out of the fixed-cost
  * apportionment and out of expenseTotal.
  */
@@ -97,7 +97,7 @@ export function computeReimbursableTotal(expenses: Expense[]): number {
   return sum(expenses.filter((e) => e.categoryKind === 'reimbursable').map((e) => e.amount));
 }
 
-/** What is still owed back: the "A receber" purchases nobody has settled yet. */
+/** What is still owed back: the "Reembolso" purchases nobody has settled yet. */
 export function computeReimbursablePendingTotal(expenses: Expense[]): number {
   return sum(
     expenses.filter((e) => e.categoryKind === 'reimbursable' && !e.reimbursedAt).map((e) => e.amount),
@@ -105,7 +105,7 @@ export function computeReimbursablePendingTotal(expenses: Expense[]): number {
 }
 
 /**
- * Money the person deliberately left out of the budget ("Fora do orçamento"). Like "A receber",
+ * Money the person deliberately left out of the budget ("Fora do orçamento"). Like "Reembolso",
  * it stays out of every category, out of the fixed-cost apportionment and out of expenseTotal —
  * the difference is that this one really was spent, which is why the app discourages it.
  */

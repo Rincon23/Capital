@@ -28,6 +28,7 @@ import {
   expenseListDate,
   formatBRL,
   formatMonthLabel,
+  formatMonthName,
   formatMonthShort,
   expenseMatches,
   incomeMatches,
@@ -55,7 +56,7 @@ import { setReimbursed } from '@/lib/storage';
  * categories the list shows is a filter, not a tab — the person sees everything first and narrows
  * it down to "só Metas" (or "só Custos Fixos e Imprevistos") when they want to. Tags filter both
  * tabs the same way ("Mercado" shows what went to the supermarket, and the total line says how
- * much); categories and tags together means both ("Prazeres e Confortos" with "Restaurante").
+ * much); categories and tags together means both ("Prazeres" with "Restaurante").
  */
 type TabKey = 'expenses' | 'income';
 
@@ -109,10 +110,10 @@ function Lancamentos({
   const [configuring, setConfiguring] = useState(false);
   useModuleIntro('expenses', { ready: !loading && !!monthData && !!settings });
 
-  // "Conhecer A receber", of the Missões: done by opening the list filtered to it (below).
+  // "Conhecer Reembolso", of the Missões: done by opening the list filtered to it (below).
   const { visit } = useMissions();
 
-  // A link to "?aba=…" while the screen is already open (the "A receber" tour) sets the filter.
+  // A link to "?aba=…" while the screen is already open (the "Reembolso" tour) sets the filter.
   useEffect(() => {
     if (!initialFilter) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -121,7 +122,7 @@ function Lancamentos({
   }, [initialFilter]);
 
   const labels = resolveSpecialCategoryLabels(settings?.specialCategories);
-  // The "A receber" tab shows while the module is on, and also when the month still has such
+  // The "Reembolso" tab shows while the module is on, and also when the month still has such
   // expenses from before it was turned off — so they never become unreachable.
   const showReimbursable =
     isModuleOn(settings, 'reimbursable') ||
@@ -170,7 +171,7 @@ function Lancamentos({
   useEffect(() => {
     if (onlyReimbursable) visit('meet-reimbursable');
   }, [onlyReimbursable, visit]);
-  // "A receber" is not only this month's: what someone still owes from before comes along.
+  // "Reembolso" is not only this month's: what someone still owes from before comes along.
   const owed = usePendingReimbursables(month, onlyReimbursable, monthData);
   // Earlier months' entries marked as paid here: they stay in "Já me pagaram" (to undo) for now.
   const [paidHere, setPaidHere] = useState<{ month: Month; expense: Expense; seenIn: Month }[]>([]);
@@ -245,7 +246,7 @@ function Lancamentos({
       destructive: true,
     });
     if (!confirmed) {
-      showToast('Operação cancelada. Nenhuma alteração foi realizada.', 'info');
+      showToast('Nada foi apagado.', 'info');
       return;
     }
     try {
@@ -261,7 +262,7 @@ function Lancamentos({
   }
 
   /**
-   * "Já me pagou". It changes no number in the budget — an "A receber" purchase never consumed a
+   * "Já me pagou". It changes no number in the budget — a "Reembolso" purchase never consumed a
    * category — it only takes the entry out of what other people still owe.
    */
   async function toggleReimbursed(entryMonth: Month, expense: Expense) {
@@ -284,7 +285,7 @@ function Lancamentos({
     }
   }
 
-  /** The list of "A receber": owed from any month up to this one, and what this month got back. */
+  /** The list of "Reembolso": owed from any month up to this one, and what this month got back. */
   const matches = (expense: Expense) =>
     expenseMatches(expense, { tagIds: expenseTagFilter, search, tags: settings.tags });
   const owedEntries = (owed.pending ?? []).filter((entry) => matches(entry.expense));
@@ -294,7 +295,7 @@ function Lancamentos({
       .filter((entry) => entry.seenIn === month && matches(entry.expense))
       .map(({ month: entryMonth, expense }) => ({ month: entryMonth, expense })),
   ];
-  // What the filter's button promises: with "A receber" alone, what earlier months still owe counts too.
+  // What the filter's button promises: with "Reembolso" alone, what earlier months still owe counts too.
   const filterCount =
     tab === 'income'
       ? filteredIncomes.length
@@ -385,7 +386,7 @@ function Lancamentos({
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder={tab === 'income' ? 'Buscar pela fonte ou tag...' : 'Buscar pela descrição ou tag...'}
+            placeholder={tab === 'income' ? 'Buscar renda ou tag' : 'Buscar gasto ou tag'}
             className="border-border bg-card text-foreground focus:ring-primary min-h-[44px] min-w-0 flex-1 rounded-lg border px-3 py-2 text-base outline-none focus:ring-2"
           />
           <button
@@ -459,7 +460,7 @@ function Lancamentos({
           <div className="bg-card border-border mx-4 flex flex-col gap-1 rounded-xl border px-4 py-3">
             <p className="text-muted text-sm">{REIMBURSABLE_EXPLANATION}</p>
             <div>
-              <ModuleHelpButton module="reimbursable" variant="link" label="Como funciona A receber?" />
+              <ModuleHelpButton module="reimbursable" variant="link" label="Como funciona o Reembolso?" />
             </div>
           </div>
         )}
@@ -556,22 +557,29 @@ function Lancamentos({
                   </li>
                 ))}
 
-            {(tab === 'income' ? filteredIncomes.length : filteredExpenses.length) === 0 && (
-              <p className="text-muted py-10 text-center text-sm">Nenhum lançamento encontrado.</p>
-            )}
+            {(tab === 'income' ? filteredIncomes.length : filteredExpenses.length) === 0 &&
+              (activeFilters > 0 || search.trim() !== '' ? (
+                <p className="text-muted py-10 text-center text-sm">Nada encontrado com esse filtro.</p>
+              ) : (
+                // Nothing yet: say what to do, with the button that does it.
+                <div className="flex flex-col items-center gap-3 py-10">
+                  <p className="text-muted text-center text-sm">
+                    {tab === 'income'
+                      ? `Nenhuma renda em ${formatMonthName(month).toLowerCase()} ainda.`
+                      : `Nenhum gasto em ${formatMonthName(month).toLowerCase()} ainda.`}
+                  </p>
+                  {!monthData.closed && (
+                    <button
+                      type="button"
+                      onClick={() => (tab === 'income' ? openIncomeForm() : openExpenseForm())}
+                      className="border-primary text-primary min-h-[44px] rounded-lg border px-4 text-sm font-semibold"
+                    >
+                      {tab === 'income' ? 'Registrar renda' : 'Lançar o primeiro gasto'}
+                    </button>
+                  )}
+                </div>
+              ))}
           </ul>
-        )}
-
-        {(monthData.expenses.length > 0 || monthData.incomes.length > 0) && (
-          <div className="px-4 pt-4">
-            <button
-              type="button"
-              onClick={() => void handleDeleteMonth()}
-              className="border-danger text-danger min-h-[44px] w-full rounded-lg border px-4 text-sm font-semibold"
-            >
-              Apagar dados de {formatMonthLabel(month)}
-            </button>
-          </div>
         )}
       </MonthSwipe>
 
@@ -650,6 +658,21 @@ function Lancamentos({
         <ModuleSettingsSheet module="expenses" onClose={() => setConfiguring(false)}>
           <CategoriesSettings withTargets={false} onSaved={() => setConfiguring(false)} />
           <TagsSettings />
+          {/* Erasing a month is rare and cannot be undone: it waits here, not under the list. */}
+          {(monthData.expenses.length > 0 || monthData.incomes.length > 0) && (
+            <section className="border-border flex flex-col gap-2 border-t px-4 pt-5">
+              <button
+                type="button"
+                onClick={() => {
+                  setConfiguring(false);
+                  void handleDeleteMonth();
+                }}
+                className="border-danger text-danger min-h-[44px] w-full rounded-lg border px-4 text-sm font-medium"
+              >
+                Apagar os lançamentos de {formatMonthName(month).toLowerCase()}
+              </button>
+            </section>
+          )}
         </ModuleSettingsSheet>
       )}
     </div>
@@ -662,7 +685,7 @@ interface ReimbursableEntry {
 }
 
 /**
- * "A receber", split by who already paid. The tick is the whole point of the list: the money is
+ * "Reembolso", split by who already paid. The tick is the whole point of the list: the money is
  * on the card bill either way, so the only thing the person is tracking here is who still owes
  * them — and that has to be one tap, not a trip through the expense form. What is still owed from
  * earlier months stays here, marked with its month, until someone pays it back.

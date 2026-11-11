@@ -16,7 +16,7 @@ import {
   type SQL,
 } from 'drizzle-orm';
 import { computeMonthSummary } from '../budget/calculations';
-import { DEFAULT_SPECIAL_CATEGORY_LABELS } from '../budget/categories';
+import { resolveSpecialCategoryLabels } from '../budget/categories';
 import { DEFAULT_SPECIAL_CATEGORY_COLORS } from '../budget/colors';
 import { nextMonth } from '../budget/date';
 import { installmentExpense, installmentsDueIn } from '../budget/installments';
@@ -35,6 +35,7 @@ import {
   consolidateMonthTopics,
   consolidateTopics,
   enforceFixedTopics,
+  withFixedText,
 } from '../budget/topics';
 import type {
   BudgetSettings,
@@ -148,7 +149,7 @@ function expenseValues(month: Month, expense: Expense, tagIds?: string[]) {
     source: expense.source ?? null,
     installmentId: expense.installmentId ?? null,
     installmentNumber: expense.installmentNumber ?? null,
-    // Only an "A receber" purchase can be settled, so moving it to another category clears it.
+    // Only a "Reembolso" purchase can be settled, so moving it to another category clears it.
     reimbursedAt:
       expense.categoryKind === 'reimbursable' && expense.reimbursedAt ? new Date(expense.reimbursedAt) : null,
     recurringId: expense.recurringId ?? null,
@@ -370,7 +371,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
   }
 
   /**
-   * Every "A receber" nobody paid back yet, from `until` and every month before it — the money
+   * Every "Reembolso" nobody paid back yet, from `until` and every month before it — the money
    * someone still owes does not go away when the month turns. Most recent first.
    */
   async pendingReimbursables(until: Month): Promise<PendingReimbursable[]> {
@@ -391,7 +392,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
   }
 
   /**
-   * The "A receber" already marked as received since `since` (an ISO day): a Pix the bank brings
+   * The "Reembolso" already marked as received since `since` (an ISO day): a Pix the bank brings
    * later may be what paid one of them back.
    */
   async receivedReimbursables(since: string): Promise<PendingReimbursable[]> {
@@ -411,7 +412,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
 
   /**
    * "Já me pagou" (or undoing it). Allowed in a closed month too: it changes no number of the
-   * budget — an "A receber" never consumed a category —, it only says who still owes.
+   * budget — a "Reembolso" never consumed a category —, it only says who still owes.
    */
   async setReimbursed(month: Month, expenseId: string, reimbursedAt: string | null): Promise<void> {
     const updated = await this.db
@@ -426,7 +427,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
         ),
       )
       .returning({ id: expenses.id });
-    if (updated.length === 0) throw new HttpError(404, 'NOT_FOUND', 'Esse gasto a receber não existe mais.');
+    if (updated.length === 0) throw new HttpError(404, 'NOT_FOUND', 'Esse reembolso não existe mais.');
   }
 
   // -------------------------------------------------------------------------
@@ -733,8 +734,8 @@ export class PostgresBudgetRepository implements BudgetRepository {
 
   /** Replaces all of this account's data with the backup (settings, including the onboarding flag, and every month). */
   async importData(payload: BackupPayload): Promise<void> {
-    // A backup from before the four fixed categories may have others: they fold into Prazeres e
-    // Confortos, with their entries and leftovers (`consolidateBudgetData`).
+    // A backup from before the four fixed categories may have others: they fold into Prazeres,
+    // with their entries and leftovers (`consolidateBudgetData`).
     const consolidated = consolidateBudgetData(payload.settings, payload.months);
     const settings = { ...consolidated.settings, tags: sanitizeTags(consolidated.settings.tags, consolidated.settings.topics) };
     const monthList = consolidated.months;
@@ -753,7 +754,7 @@ export class PostgresBudgetRepository implements BudgetRepository {
    * lib/server/fixedTopicsMigration.ts): the four get their fixed name and description — in the
    * settings and in every month's own copy — and any other category goes away. What pointed at
    * one (expenses, incomes sent to it, recurring templates, instalment plans, reserve buckets,
-   * the bank's category memory, the quick categories) moves to Prazeres e Confortos, and so do
+   * the bank's category memory, the quick categories) moves to Prazeres, and so do
    * its % and its leftovers, so the numbers add up to what they did. Running it again changes
    * nothing. Returns how many categories went away and how many entries moved.
    */
@@ -1064,7 +1065,8 @@ export class PostgresBudgetRepository implements BudgetRepository {
       incomes: (incomesByMonth.get(row.month) ?? []).map(toIncome),
       expenses: (expensesByMonth.get(row.month) ?? []).map(toExpense),
       carryIn: row.carryIn,
-      topicsSnapshot: row.topicsSnapshot,
+      // Shown with the names of today: a month from before a rename still has the old one stored.
+      topicsSnapshot: withFixedText(row.topicsSnapshot),
       closed: row.closed,
       ...(row.leftoversDropped ? { leftoversDropped: true } : {}),
     }));
@@ -1113,9 +1115,10 @@ export class PostgresBudgetRepository implements BudgetRepository {
     const [row] = await ex.select().from(budgetSettings).where(eq(budgetSettings.userId, this.userId));
     if (!row) return undefined;
     return {
-      topics: row.topics,
-      // Rows written before a label/color/module existed get the default for it.
-      specialCategories: { ...DEFAULT_SPECIAL_CATEGORY_LABELS, ...row.specialCategories },
+      topics: withFixedText(row.topics),
+      // Rows written before a label/color/module existed get the default for it, and a default
+      // name from before a rename ("A receber") is shown as the one of today ("Reembolso").
+      specialCategories: resolveSpecialCategoryLabels(row.specialCategories),
       specialCategoryColors: { ...DEFAULT_SPECIAL_CATEGORY_COLORS, ...row.specialCategoryColors },
       onboardingCompleted: row.onboardingCompleted,
       modules: row.modules,

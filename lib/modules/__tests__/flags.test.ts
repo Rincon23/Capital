@@ -44,7 +44,7 @@ describe('catálogo de módulos', () => {
     expect(moduleNames(['expenses'])).toBe('Lançamentos');
     expect(moduleNames(['expenses', 'card'])).toBe('Lançamentos e Cartão');
     expect(moduleNames(['expenses', 'card', 'reimbursable'])).toBe(
-      'Lançamentos, Cartão e A receber',
+      'Lançamentos, Cartão e Reembolso',
     );
   });
 

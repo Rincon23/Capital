@@ -1,10 +1,10 @@
 import { formatBRL, type MonthSummary } from '@/lib/budget';
 
-function SmallStat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <p className="text-muted truncate text-[11px]">{label}</p>
-      <p className="text-foreground truncate text-sm font-semibold tabular-nums">{value}</p>
+      <p className="text-muted truncate text-xs">{label}</p>
+      <p className="text-foreground truncate text-base font-semibold tabular-nums">{value}</p>
     </div>
   );
 }
@@ -16,9 +16,9 @@ function SmallStat({ label, value }: { label: string; value: string }) {
  */
 export function SummaryHeader({ summary }: { summary: MonthSummary }) {
   return (
-    <div className="border-border bg-card grid grid-cols-2 gap-2 rounded-2xl border p-4 shadow-sm">
-      <SmallStat label="Renda" value={formatBRL(summary.incomeTotal)} />
-      <SmallStat label="Total gasto" value={formatBRL(summary.expenseTotal)} />
+    <div className="border-border bg-card grid grid-cols-2 gap-2 rounded-xl border p-4 shadow-sm">
+      <Stat label="Renda" value={formatBRL(summary.incomeTotal)} />
+      <Stat label="Total gasto" value={formatBRL(summary.expenseTotal)} />
     </div>
   );
 }

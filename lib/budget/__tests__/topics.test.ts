@@ -13,6 +13,7 @@ import {
   normalizeTopic,
   topicDescription,
   withDefaultTargets,
+  withFixedText,
 } from '../topics';
 import type { BudgetSettings, Expense, MonthData, TopicConfig } from '../types';
 import { validateTopicPercentages } from '../validation';
@@ -30,12 +31,7 @@ const ids = (topics: TopicConfig[]) => topics.map((t) => t.id);
 describe('categorias padrão', () => {
   it('nascem com a descrição de para que servem, fechando 100%', () => {
     const topics = createDefaultTopics();
-    expect(topics.map((t) => t.name)).toEqual([
-      'Prazeres e Confortos',
-      'Investimentos',
-      'Metas',
-      'Conhecimentos',
-    ]);
+    expect(topics.map((t) => t.name)).toEqual(['Prazeres', 'Investimentos', 'Metas', 'Conhecimentos']);
     expect(topics[0].preset).toBe('diversos');
     expect(topics.every((t) => t.preset && topicDescription(t).length > 0)).toBe(true);
     expect(validateTopicPercentages(topics).valid).toBe(true);
@@ -51,9 +47,36 @@ describe('categorias padrão', () => {
     });
   });
 
-  it('reconhece "Diversos" de dados antigos como Prazeres e Confortos', () => {
-    const legacy: TopicConfig = { id: 'x', name: 'Diversos', targetPct: 0.2, order: 0 };
-    expect(normalizeTopic(legacy).preset).toBe('diversos');
+  it('reconhece "Diversos" e "Prazeres e Confortos" de dados antigos como Prazeres', () => {
+    for (const name of ['Diversos', 'Prazeres e Confortos', 'prazeres e confortos']) {
+      const legacy: TopicConfig = { id: 'x', name, targetPct: 0.2, order: 0 };
+      expect(normalizeTopic(legacy).preset).toBe('diversos');
+    }
+  });
+
+  it('mostra o nome de hoje numa conta que guardou o nome antigo, sem mexer no resto', () => {
+    const [prazeres, ...others] = createDefaultTopics();
+    const stored: TopicConfig[] = [
+      {
+        ...prazeres,
+        name: 'Prazeres e Confortos',
+        description: 'Texto antigo',
+        targetPct: 0.3,
+        color: '#123456',
+      },
+      ...others,
+    ];
+    const shown = withFixedText(stored);
+    expect(shown[0]).toEqual({
+      ...stored[0],
+      name: 'Prazeres',
+      description: DEFAULT_TOPICS[0].description,
+    });
+    // The ones already right are the very same objects, and one that is not of the four stays.
+    expect(shown.slice(1)).toEqual(others);
+    expect(shown[1]).toBe(others[0]);
+    const own = created('a', 4);
+    expect(withFixedText([own])[0]).toBe(own);
   });
 
   it('respeita a descrição escrita pela pessoa, mesmo vazia', () => {
@@ -86,7 +109,7 @@ describe('as quatro categorias fixas', () => {
     expect(moved).toEqual({});
   });
 
-  it('junta uma criada pela pessoa a Prazeres e Confortos, com a % dela', () => {
+  it('junta uma criada pela pessoa a Prazeres, com a % dela', () => {
     const defaults = createDefaultTopics();
     const { topics, moved } = consolidateTopics([
       { ...defaults[0], targetPct: 0.1 },
@@ -179,7 +202,7 @@ describe('um mês com uma categoria que deixou de existir', () => {
     created('pets', 4, 0.1),
   ];
 
-  it('a % e a sobra dela vão para Prazeres e Confortos, e o nome muda também no mês', () => {
+  it('a % e a sobra dela vão para Prazeres, e o nome muda também no mês', () => {
     const next = consolidateMonthTopics(
       legacySnapshot,
       { [main.id]: 50, pets: 30, [defaults[1].id]: 5 },
@@ -187,7 +210,7 @@ describe('um mês com uma categoria que deixou de existir', () => {
     );
     expect(ids(next.topicsSnapshot)).toEqual(ids(defaults));
     expect(next.topicsSnapshot[0]).toMatchObject({
-      name: 'Prazeres e Confortos',
+      name: 'Prazeres',
       description: DEFAULT_TOPICS[0].description,
       targetPct: 0.2,
     });

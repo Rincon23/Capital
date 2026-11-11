@@ -36,7 +36,7 @@ async function newAccount() {
   return { id, budget, wallet: new PostgresWalletRepository(db, id, budget) };
 }
 
-async function topicId(budget: PostgresBudgetRepository, name = 'Prazeres e Confortos'): Promise<string> {
+async function topicId(budget: PostgresBudgetRepository, name = 'Prazeres'): Promise<string> {
   const settings = await budget.getSettings();
   return settings.topics.find((t) => t.name === name)!.id;
 }

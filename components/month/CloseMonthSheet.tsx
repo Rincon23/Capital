@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { formatBRL, formatMonthLabel, type Month, type MonthSummary } from '@/lib/budget';
+import { formatBRL, formatMonthName, type Month, type MonthSummary } from '@/lib/budget';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 
 interface CloseMonthSheetProps {
@@ -17,6 +17,9 @@ interface CloseMonthSheetProps {
 
 const hasLeftovers = (summary: MonthSummary) => summary.topics.some((topic) => topic.remaining !== 0);
 
+/** "outubro": a month in the middle of a sentence. */
+const monthName = (month: Month) => formatMonthName(month).toLowerCase();
+
 /** What to tell the person once the month (or the `months`) is closed. */
 export function closedMonthMessage(
   summary: MonthSummary,
@@ -24,11 +27,11 @@ export function closedMonthMessage(
   bringLeftovers: boolean,
   months?: Month[],
 ): string {
-  const closed = months ? `${months.length} meses fechados.` : `${formatMonthLabel(summary.month)} fechado.`;
+  const closed = months ? `${months.length} meses fechados.` : `${formatMonthName(summary.month)} fechado.`;
   if (!hasLeftovers(summary)) return closed;
   return bringLeftovers
-    ? `${closed} O que restou foi para ${formatMonthLabel(target)}.`
-    : `${closed} ${formatMonthLabel(target)} começa sem o que restou.`;
+    ? `${closed} A sobra foi para ${monthName(target)}.`
+    : `${closed} A sobra não foi para ${monthName(target)}.`;
 }
 
 const OUTLINE =
@@ -37,11 +40,12 @@ const PRIMARY =
   'bg-primary text-primary-foreground min-h-[44px] flex-1 rounded-lg px-4 py-2 font-semibold disabled:opacity-50';
 
 /**
- * "Fechar mês" with the preview the bot never had: every category's leftover — including the
- * negative ones — and the question of whether they go on to `target`, where they land as "mês
- * passado". The answer closes the month: there is no closed month still waiting for one. With
- * nothing left in any category, there is nothing to ask. Closing several, each passes its
- * leftovers to the next, so the list is what the last one ends with and the question is about that.
+ * "Fechar mês" with the preview the bot never had: every category's leftover ("Sobra") — including
+ * the negative ones — and one short question, whether it goes on to `target`, where it lands as
+ * "sobra do mês passado": "Levar a sobra" or "Não levar". The answer closes the month: there is no
+ * closed month still waiting for one. With nothing left in any category, there is nothing to ask.
+ * Closing several, each passes its leftovers to the next, so the list is what the last one ends
+ * with and the question is about that.
  */
 export function CloseMonthSheet({ summary, target, months, onConfirm, onCancel }: CloseMonthSheetProps) {
   const [answer, setAnswer] = useState<boolean | null>(null);
@@ -59,53 +63,47 @@ export function CloseMonthSheet({ summary, target, months, onConfirm, onCancel }
   return (
     <BottomSheet
       open
-      title={months ? `Fechar ${months.length} meses` : `Fechar ${formatMonthLabel(summary.month)}`}
+      title={months ? `Fechar ${months.length} meses` : `Fechar ${monthName(summary.month)}`}
       onClose={onCancel}
     >
       <div className="flex flex-col gap-5">
-        {months ? (
-          <p className="text-muted text-sm leading-relaxed">
-            De {formatMonthLabel(months[0])} a {formatMonthLabel(months[months.length - 1])}. Depois de
-            fechados, eles não aceitam mais lançamentos (dá para reabrir). Abaixo, o que restou somando
-            todos.
-          </p>
-        ) : (
-          <p className="text-muted text-sm leading-relaxed">
-            Depois de fechado, ele não aceita mais lançamentos (dá para reabrir).
-          </p>
-        )}
+        <p className="text-muted text-sm">
+          {months
+            ? `De ${monthName(months[0])} a ${monthName(months[months.length - 1])}. Mês fechado não recebe mais gastos. Dá para reabrir.`
+            : 'Mês fechado não recebe mais gastos. Dá para reabrir.'}
+        </p>
 
-        <ul className="border-border divide-border divide-y rounded-xl border">
-          {summary.topics.map((topic) => (
-            <li key={topic.topicId} className="flex items-center justify-between gap-2 px-4 py-2.5 text-sm">
-              <span className="text-muted flex min-w-0 items-center gap-2">
-                <span
-                  aria-hidden
-                  className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: topic.color }}
-                />
-                <span className="truncate">{topic.name}</span>
-              </span>
-              <span className={`font-semibold ${topic.remaining < 0 ? 'text-danger' : 'text-foreground'}`}>
-                {formatBRL(topic.remaining)}
-              </span>
-            </li>
-          ))}
-          <li className="flex items-center justify-between gap-2 px-4 py-2.5 text-sm font-semibold">
-            <span className="text-muted">Total</span>
-            <span className={summary.balance < 0 ? 'text-danger' : 'text-foreground'}>
-              {formatBRL(summary.balance)}
-            </span>
-          </li>
-        </ul>
+        <div className="flex flex-col gap-2">
+          <p className="text-muted text-xs font-medium">
+            {months ? 'Sobra de cada categoria, somando os meses' : 'Sobra de cada categoria'}
+          </p>
+          <ul className="border-border divide-border divide-y rounded-xl border">
+            {summary.topics.map((topic) => (
+              <li key={topic.topicId} className="flex items-center justify-between gap-2 px-4 py-2.5 text-sm">
+                <span className="text-muted flex min-w-0 items-center gap-2">
+                  <span
+                    aria-hidden
+                    className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: topic.color }}
+                  />
+                  <span className="truncate">{topic.name}</span>
+                </span>
+                <span className={`font-semibold ${topic.remaining < 0 ? 'text-danger' : 'text-foreground'}`}>
+                  {formatBRL(topic.remaining)}
+                </span>
+              </li>
+            ))}
+            {/* No total of all of them: a sum reads as if the whole of it could go to anything. */}
+          </ul>
+        </div>
 
         {hasLeftovers(summary) ? (
           <>
-            <p className="text-foreground font-semibold">Trazer o que restou para {formatMonthLabel(target)}?</p>
+            <p className="text-foreground font-semibold">Levar a sobra para {monthName(target)}?</p>
 
             {summary.topics.some((topic) => topic.remaining < 0) && (
               <p className="bg-warning-bg text-warning rounded-lg px-3 py-2 text-xs">
-                O que ficou negativo também vem: essas categorias começam o mês devendo.
+                Categoria no negativo também vai: começa {monthName(target)} devendo.
               </p>
             )}
 
@@ -116,7 +114,7 @@ export function CloseMonthSheet({ summary, target, months, onConfirm, onCancel }
                 disabled={busy}
                 className={OUTLINE}
               >
-                {answer === false ? 'Fechando…' : 'Não trazer'}
+                {answer === false ? 'Fechando…' : 'Não levar'}
               </button>
               <button
                 type="button"
@@ -124,7 +122,7 @@ export function CloseMonthSheet({ summary, target, months, onConfirm, onCancel }
                 disabled={busy}
                 className={PRIMARY}
               >
-                {answer === true ? 'Fechando…' : 'Trazer'}
+                {answer === true ? 'Fechando…' : 'Levar a sobra'}
               </button>
             </div>
           </>
