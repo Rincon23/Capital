@@ -13,6 +13,7 @@ import {
 } from '@/lib/budget';
 import { useMonthsToClose } from '@/lib/hooks/useMonthsToClose';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { useMissions } from '@/components/missions/MissionsProvider';
 import { ModuleGate } from '@/components/modules/ModuleGate';
 import { ModuleHelpButton, ModuleSettingsButton } from '@/components/modules/ModuleHelpButton';
 import { ModuleSettingsSheet } from '@/components/modules/ModuleSettingsSheet';
@@ -60,6 +61,13 @@ function Categorias() {
     withSetup: true,
   });
 
+  // The questions end on what they built: the limits. A new level reached by answering them (the
+  // first income, the first visit) waits until the person leaves, instead of covering that.
+  const { holdLevelUp } = useMissions();
+  useEffect(() => {
+    if (setupOpen) holdLevelUp();
+  }, [setupOpen, holdLevelUp]);
+
   // The mission "Ajustar suas categorias" comes with ?ajustar=1: the questions open right away
   // (on a first visit they are already opening by themselves).
   useEffect(() => {
@@ -67,7 +75,11 @@ function Categorias() {
     if (params.get('ajustar') !== '1') return;
     params.delete('ajustar');
     const query = params.toString();
-    window.history.replaceState(window.history.state, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${query ? `?${query}` : ''}`,
+    );
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setHelping(true);
   }, []);
@@ -135,7 +147,7 @@ function Categorias() {
               </div>
             )}
 
-            <SummaryHeader summary={summary} />
+            <SummaryHeader summary={summary} investingTopicId={investing} />
 
             {/* Nothing came in yet: every limit is zero, and this is the step that changes it. */}
             {open && summary.incomeTotal === 0 && (

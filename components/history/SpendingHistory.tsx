@@ -9,10 +9,12 @@ import {
   formatMonthLabel,
   formatMonthShort,
   formatPct,
+  investmentTopicId,
   type MonthSummary,
 } from '@/lib/budget';
 import { useAllMonths } from '@/lib/hooks/useAllMonths';
 import { useSettings } from '@/components/providers/SettingsProvider';
+import { leftoverLabel } from '@/components/month/TopicCard';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { MonthBars, type MonthBar } from './MonthBars';
 
@@ -67,26 +69,46 @@ export function SpendingHistory() {
   const topics: TopicOption[] = useMemo(() => {
     const byId = new Map<string, TopicOption>();
     for (const summary of visible) {
-      for (const topic of summary.topics) byId.set(topic.topicId, { id: topic.topicId, name: topic.name, color: topic.color });
+      for (const topic of summary.topics)
+        byId.set(topic.topicId, { id: topic.topicId, name: topic.name, color: topic.color });
     }
     return [...byId.values()];
   }, [visible]);
   const trendTopic = topics.find((topic) => topic.id === chosenTopic) ?? topics[0];
+  // Investimentos: what goes to it is money set aside to invest, and the words say so.
+  const investingId = settings ? investmentTopicId(settings.topics) : undefined;
+  const trendInvesting = trendTopic?.id === investingId;
+  const spentWord = trendInvesting ? 'Separou' : 'Gasto';
+  const remainingWord = trendInvesting ? 'Falta investir' : 'Sobra';
+  // Nothing spent in any month yet: a chart of zeros says nothing. It says what to do instead.
+  const firstExpenseHref = `/mes/${currentMonthKey()}/lancamentos?lancar=gasto`;
+  const firstExpense = (
+    <Link
+      href={firstExpenseHref}
+      className="bg-primary text-primary-foreground mt-3 flex min-h-[44px] items-center justify-center rounded-lg px-4 text-sm font-semibold"
+    >
+      Lançar gasto
+    </Link>
+  );
 
   if (loading) {
     return <div className="text-muted flex flex-1 items-center justify-center px-4 py-16">Carregando…</div>;
   }
   if (error) return <p className="text-danger px-4 text-sm">{error}</p>;
 
-  // Without any month yet, the sections are still there (empty), so the tour can show them.
-  if (!selected) {
+  // Without any month yet, or without a single expense in any of them, the sections are still
+  // there (empty), so the tour can show them.
+  if (!selected || visible.every((summary) => summary.expenseTotal === 0)) {
     const empty = (text: string) => (
       <div className="border-border bg-card text-muted rounded-xl border p-4 text-sm shadow-sm">{text}</div>
     );
     return (
       <div className="flex flex-col gap-6">
         <section className="px-4" data-tour="historico-mes">
-          {empty('Seus gastos aparecem aqui depois do primeiro lançamento.')}
+          <div className="border-border bg-card rounded-xl border p-4 text-sm shadow-sm">
+            <p className="text-muted">Seus gastos aparecem aqui depois do primeiro lançamento.</p>
+            {firstExpense}
+          </div>
         </section>
         <section className="flex flex-col gap-2 px-4" data-tour="historico-categorias">
           <h2 className="text-muted text-sm font-semibold">Categorias do mês</h2>
@@ -103,7 +125,8 @@ export function SpendingHistory() {
   const current = currentMonthKey();
   const inProgress = selected.month === current;
   const others = visible.filter((summary) => summary.month !== selected.month && summary.month !== current);
-  const average = others.length > 0 ? others.reduce((total, s) => total + s.expenseTotal, 0) / others.length : null;
+  const average =
+    others.length > 0 ? others.reduce((total, s) => total + s.expenseTotal, 0) / others.length : null;
   const difference = average === null ? null : selected.expenseTotal - average;
 
   const pick = (month: string) => setChosenMonth(month);
@@ -132,7 +155,9 @@ export function SpendingHistory() {
     : [];
   const trendWithData = trendBars.filter((bar) => bar.value !== 0);
   const trendAverage =
-    trendWithData.length > 0 ? trendWithData.reduce((total, bar) => total + bar.value, 0) / trendWithData.length : 0;
+    trendWithData.length > 0
+      ? trendWithData.reduce((total, bar) => total + bar.value, 0) / trendWithData.length
+      : 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -146,7 +171,9 @@ export function SpendingHistory() {
                 aria-pressed={period === option.key}
                 onClick={() => setPeriod(option.key)}
                 className={`min-h-[36px] rounded-full border px-3 text-sm font-medium ${
-                  period === option.key ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted'
+                  period === option.key
+                    ? 'border-primary bg-primary text-primary-foreground'
+                    : 'border-border text-muted'
                 }`}
               >
                 {option.label}
@@ -183,7 +210,9 @@ export function SpendingHistory() {
 
           <div className="flex flex-col gap-1">
             <p className="text-muted text-sm">{inProgress ? 'Você gastou até agora' : 'Você gastou'}</p>
-            <p className="text-foreground text-3xl font-semibold tabular-nums">{formatBRL(selected.expenseTotal)}</p>
+            <p className="text-foreground text-3xl font-semibold tabular-nums">
+              {formatBRL(selected.expenseTotal)}
+            </p>
             {difference !== null && Math.abs(difference) >= 0.5 && (
               <p className={`text-sm font-medium ${difference < 0 ? 'text-success' : 'text-warning'}`}>
                 {formatBRL(Math.abs(difference))} {difference < 0 ? 'a menos' : 'a mais'} que a sua média
@@ -191,7 +220,8 @@ export function SpendingHistory() {
             )}
             {selected.incomeTotal > 0 && (
               <p className="text-muted text-xs">
-                {formatPct(selected.expenseTotal / selected.incomeTotal, 0)} da renda de {formatBRL(selected.incomeTotal)}
+                {formatPct(selected.expenseTotal / selected.incomeTotal, 0)} da renda de{' '}
+                {formatBRL(selected.incomeTotal)}
               </p>
             )}
           </div>
@@ -205,7 +235,12 @@ export function SpendingHistory() {
               `${formatMonthLabel(bar.key)}: gasto ${formatBRL(bar.value)}${bar.marker ? `, renda ${formatBRL(bar.marker)}` : ''}`
             }
           />
-          <Legend items={[{ label: 'Gasto', color: 'var(--color-series-5)' }, { label: 'Renda', dashed: true }]} />
+          <Legend
+            items={[
+              { label: 'Gasto', color: 'var(--color-series-5)' },
+              { label: 'Renda', dashed: true },
+            ]}
+          />
         </section>
       </div>
 
@@ -223,7 +258,11 @@ export function SpendingHistory() {
               >
                 <span className="flex items-baseline justify-between gap-2">
                   <span className="flex min-w-0 items-center gap-2">
-                    <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: topic.color }} />
+                    <span
+                      aria-hidden
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ background: topic.color }}
+                    />
                     <span className="text-foreground truncate text-sm font-semibold">{topic.name}</span>
                   </span>
                   <span className="text-foreground shrink-0 text-sm font-semibold tabular-nums">
@@ -233,16 +272,25 @@ export function SpendingHistory() {
                 <ProgressBar usedPct={usedPct} state={state} color={topic.color} />
                 <span className="flex items-baseline justify-between gap-2 text-xs">
                   <span className="text-muted">Limite {formatBRL(topic.available)}</span>
-                  <span className={topic.remaining < 0 ? 'text-danger font-medium' : 'text-muted'}>
-                    {topic.remaining < 0
-                      ? `Passou ${formatBRL(-topic.remaining)}`
-                      : `Sobra ${formatBRL(topic.remaining)}`}
-                  </span>
+                  {topic.topicId === investingId ? (
+                    // Investing past the limit is no overspending: no red, no "Passou".
+                    <span className="text-muted">
+                      {leftoverLabel(true, topic.remaining < 0)} {formatBRL(Math.abs(topic.remaining))}
+                    </span>
+                  ) : (
+                    <span className={topic.remaining < 0 ? 'text-danger font-medium' : 'text-muted'}>
+                      {topic.remaining < 0
+                        ? `Passou ${formatBRL(-topic.remaining)}`
+                        : `Sobra ${formatBRL(topic.remaining)}`}
+                    </span>
+                  )}
                 </span>
               </Link>
             );
           })}
-          {selected.topics.length === 0 && <p className="text-muted px-4 py-3 text-sm">Nenhuma categoria neste mês.</p>}
+          {selected.topics.length === 0 && (
+            <p className="text-muted px-4 py-3 text-sm">Nenhuma categoria neste mês.</p>
+          )}
         </div>
       </section>
 
@@ -263,7 +311,10 @@ export function SpendingHistory() {
                   }`}
                   style={
                     on
-                      ? { borderColor: topic.color, background: `color-mix(in srgb, ${topic.color} 16%, transparent)` }
+                      ? {
+                          borderColor: topic.color,
+                          background: `color-mix(in srgb, ${topic.color} 16%, transparent)`,
+                        }
                       : undefined
                   }
                 >
@@ -277,8 +328,8 @@ export function SpendingHistory() {
           <div role="tablist" className="bg-background grid grid-cols-2 gap-1 rounded-lg p-1">
             {(
               [
-                ['spent', 'Gasto'],
-                ['remaining', 'Sobra'],
+                ['spent', spentWord],
+                ['remaining', remainingWord],
               ] as const
             ).map(([key, label]) => (
               <button
@@ -304,18 +355,27 @@ export function SpendingHistory() {
                 onSelect={pick}
                 color={trendTopic.color}
                 describe={(bar) =>
-                  `${formatMonthLabel(bar.key)}: ${mode === 'spent' ? 'gasto' : 'sobra'} ${formatBRL(bar.value)}${
+                  `${formatMonthLabel(bar.key)}: ${(mode === 'spent' ? spentWord : remainingWord).toLowerCase()} ${formatBRL(bar.value)}${
                     bar.marker ? `, limite ${formatBRL(bar.marker)}` : ''
                   }`
                 }
               />
               {mode === 'spent' ? (
-                <Legend items={[{ label: 'Gasto', color: trendTopic.color }, { label: 'Limite', dashed: true }]} />
+                <Legend
+                  items={[
+                    { label: spentWord, color: trendTopic.color },
+                    { label: 'Limite', dashed: true },
+                  ]}
+                />
               ) : null}
               <p className="text-muted text-xs">
                 {mode === 'spent'
-                  ? `Média de ${formatBRL(trendAverage)} por mês em ${trendTopic.name}.`
-                  : 'O que sobrou em cada mês, com o do mês anterior.'}
+                  ? trendInvesting
+                    ? `Média de ${formatBRL(trendAverage)} por mês separados para investir.`
+                    : `Média de ${formatBRL(trendAverage)} por mês em ${trendTopic.name}.`
+                  : trendInvesting
+                    ? 'O que faltou investir em cada mês.'
+                    : 'O que sobrou em cada mês, com o do mês anterior.'}
               </p>
             </>
           )}

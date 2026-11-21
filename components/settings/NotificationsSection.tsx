@@ -237,7 +237,9 @@ export function NotificationsSection() {
                   })}
                 </ul>
                 {!state.ios && (
-                  <p className="text-muted text-xs">Avisos atrasados? Tire o Chrome da economia de bateria.</p>
+                  <p className="text-muted text-xs">
+                    Avisos atrasados? Tire o Chrome da economia de bateria.
+                  </p>
                 )}
               </div>
             )}
@@ -277,11 +279,7 @@ function ThisDevice({
     return <p className="text-muted text-sm">Atualize o iOS para receber notificações neste aparelho.</p>;
   }
   if (state.support === 'unsupported') {
-    return (
-      <p className="text-muted text-sm">
-        Este navegador não recebe notificações. Use o Chrome.
-      </p>
-    );
+    return <p className="text-muted text-sm">Este navegador não recebe notificações. Use o Chrome.</p>;
   }
   if (!state.status.publicKey) {
     return <p className="text-muted text-sm">As notificações ainda não foram configuradas no servidor.</p>;
@@ -325,8 +323,8 @@ function ThisDevice({
       ) : state.blocked ? (
         <p className="text-muted text-sm">
           {state.ios
-            ? 'Bloqueado. Libere em Ajustes → Notificações → Capital +.'
-            : 'Bloqueado. Libere no cadeado do endereço.'}
+            ? 'Para liberar: Ajustes → Notificações → Capital +.'
+            : 'Para liberar, toque no cadeado ao lado do endereço.'}
         </p>
       ) : (
         <>

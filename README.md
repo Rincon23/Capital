@@ -31,8 +31,8 @@ o topo das Categorias mostra só **Renda** e **Total gasto**, e cada categoria t
 e a **Sobra**.
 Também: "na fatura de"/"no mês de" (nunca "competência"), **Falta para a reserva** (ou "Reserva
 completa ✓"), **Meta da reserva**, **Dentro do planejado**, **Guardar / Retirar** (reserva
-investida), **devolução**, **sem categoria** (a parte da reserva investida fora das categorias da
-reserva), **dividido entre as categorias** e **telas** (as áreas de trabalho da Início).
+investida), **devolução**, **partes da reserva** (as divisões da reserva investida; nunca
+"categorias", para não confundir com as quatro) e **fora das partes** (o que não está em nenhuma), **dividido entre as categorias** e **telas** (as áreas de trabalho da Início).
 
 **Pouco texto.** Por tela, no máximo uma linha curta de ajuda visível; o resto vai para um ⓘ ou
 sai. Dica de tour, uma linha. Mensagens de erro curtas ("Não foi possível salvar. Tente de novo.").
@@ -72,7 +72,7 @@ restritos: se Lançamentos for restrito, tudo o que depende dele some junto.
 
 - Lançamentos
   - Categorias
-    - Histórico e gráficos
+    - Histórico
   - Cartão
   - Reembolso
   - Contas do mês
@@ -160,12 +160,16 @@ botão fecha); renda e gasto abrem o formulário ali mesmo na Início. Nada diss
   duas rateadas entre as categorias, e separá-las só obrigava a adivinhar em qual das duas o gasto
   tinha sido lançado; cada linha diz qual das duas é.
 - **Categorias** (`/mes/[mês]/categorias`; chamava-se "Gastos por categoria") — a tela conta a história em ordem: no topo,
-  Renda e Total gasto; depois as quatro categorias, cada card com **uma coisa em destaque, a
+  Renda e Total gasto (o que foi para Investimentos não é gasto: aparece numa linha à parte, "Fora
+  isso, você separou R$ X para investir", aqui e no card Lançamentos da Início); depois as quatro categorias, cada card com **uma coisa em destaque, a
   Sobra**, sobre a barra de quanto do limite já foi ("20% da renda" no canto; "Gastou R$ X" e
   "Limite R$ Y" em letra pequena; o resto fica um toque adiante, no detalhe); depois custos fixos e
   imprevistos, com quanto cada categoria paga; e, no fim, fechar o mês. **Um mês só se fecha depois
   que acabou**: no mês de hoje (e nos seguintes) não existe botão, só a frase "Você fecha novembro
-  quando o mês acabar"; num mês que já passou, "Fechar outubro". Sem renda no mês, um aviso com o
+  quando o mês acabar"; num mês que já passou, "Fechar outubro". O servidor recusa o mesmo
+  (`lib/server/monthEnd.ts`, erro `MONTH_NOT_OVER`), contando o mês de quem está mais adiantado no
+  fuso. Um nível novo ganho nas perguntas da primeira visita só aparece quando a pessoa sai da tela,
+  para não cobrir os limites que ela acabou de montar. Sem renda no mês, um aviso com o
   botão "Registrar renda" vem antes dos cards. Com renda e nenhum custo fixo ou imprevisto lançado,
   uma linha avisa que "os limites caem quando você lançar custos fixos e imprevistos" (as perguntas
   da primeira visita mostraram a previsão já com eles). **Investimentos** aparece como "Separou para
@@ -182,7 +186,10 @@ botão fecha); renda e gasto abrem o formulário ali mesmo na Início. Nada diss
 - **Cartão** (`/cartao`) — tudo do cartão num módulo só: a pergunta "A compra foi no cartão?", os
   cartões cadastrados, o parcelamento e a fatura de cada mês. Desligado, a pergunta some; gastos
   antigos marcados no cartão continuam marcados. A tela tem três abas, no jeito de um app de
-  banco, e está detalhada em "O módulo Cartão" logo abaixo.
+  banco, e está detalhada em "O módulo Cartão" logo abaixo. Fatura vazia diz isso uma vez só, com
+  o botão que resolve: "Cadastrar cartão" (sem nenhum cartão, leva à aba Cartões) ou "Lançar compra
+  no cartão" (abre o gasto já marcado no cartão, salvo no mês de hoje); numa fatura que já passou,
+  só a frase.
 - **Reembolso** (chamava-se "A receber"; o endereço da lista continua `?aba=a-receber`) — dinheiro
   que saiu por outra pessoa, que vai devolver. **Não** entra em nenhuma
   categoria, no rateio dos custos fixos nem no gasto do mês, e **não precisa ser no cartão**:
@@ -194,7 +201,7 @@ botão fecha); renda e gasto abrem o formulário ali mesmo na Início. Nada diss
   círculo de cada linha marca quem pagou (`expenses.reimbursed_at`). A marca não mexe em número
   nenhum — o dinheiro saiu de qualquer jeito e nunca consumiu categoria —, ela só tira a linha do
   que ainda é seu a receber, e é esse valor que o card do Início mostra.
-- **Histórico e gráficos** (`/historico`) — aba **Gastos**: o gasto de cada mês contra a sua média e a renda (toque numa barra para trocar de mês), as categorias do mês e cada categoria mês a mês (gasto × limite ou sobra). (A antiga aba Investimentos foi para o Invest +.)
+- **Histórico** (`/historico`; chamava-se "Histórico e gráficos") — aba **Gastos**: o gasto de cada mês contra a sua média e a renda (toque numa barra para trocar de mês), as categorias do mês e cada categoria mês a mês (gasto × limite ou sobra; em Investimentos, "Separou" e "Falta investir", sem vermelho). Sem nenhum gasto em mês nenhum, no lugar do gráfico de zeros vem a frase com "Lançar gasto" (abre Lançamentos com `?lancar=gasto`, que o `MonthShell` transforma no formulário aberto). As barras e o "Você gastou" somam o que foi para Investimentos de propósito: o gasto de um mês inclui o que veio do mês anterior (a fatura do cartão, por exemplo), então pode passar do "Total gasto" das Categorias, e está certo assim. (A antiga aba Investimentos foi para o Invest +.)
 
 **Carteira** (cada um com tela própria; o antigo painel `/carteira` redireciona para o Início):
   - **Contas do mês** (`/carteira/recorrentes`; o antigo "Gastos recorrentes") — as contas de todo
@@ -233,14 +240,18 @@ botão fecha); renda e gasto abrem o formulário ali mesmo na Início. Nada diss
     tinha a investida ligada passou a ter a Reserva ligada, com o widget no mesmo lugar da Início
     (`migrateReserveModule` em `lib/modules/migration.ts`, uma vez na subida; o servidor também
     aceita a chave antiga de um backup ou de um app em cache).
+    Sem custo mensal informado não há meta: em vez de "Reserva completa ✓" sobre R$ 0,00, a tela
+    pede "Diga quanto custa o seu mês e quanto já tem guardado", com "Preencher agora" (abre a
+    engrenagem), e o plano fica escondido. Com meta e nada na reserva em conta (e nenhum banco
+    dizendo), aparece "Informar quanto tenho guardado".
     - **Investida** — no topo, o valor das cotas, com **Guardar / Retirar** em destaque; a cotação e
-    o "Atualizar" ficam embaixo. São cotas de um ativo (AUPO11 por padrão) divididas em categorias da
-    reserva, cada uma ligada a uma categoria do orçamento — guardar lança gasto, então essa parte
+    o "Atualizar" ficam embaixo. São cotas de um ativo (AUPO11 por padrão) divididas em **partes da
+    reserva** (chamavam-se "categorias da reserva"), cada uma ligada a uma categoria do orçamento — guardar lança gasto, então essa parte
     precisa de Lançamentos; sem ele, a aba mostra as cotas e deixa comprar ou vender. **Remanejar vai nos dois sentidos**:
-    *Guardar* compra cotas para a categoria da reserva e lança o gasto na categoria do orçamento;
-    *Retirar* faz o caminho de volta — as cotas voltam para a reserva livre e a categoria do
+    *Guardar* compra cotas para a parte da reserva e lança o gasto na categoria do orçamento;
+    *Retirar* faz o caminho de volta — as cotas voltam para fora das partes e a categoria do
     orçamento recebe um **estorno** (um lançamento negativo, "AUPO11 (retirada)"), para o mês não
-    continuar mostrando um gasto que a pessoa desfez. Nenhuma categoria entrega mais cotas do que
+    continuar mostrando um gasto que a pessoa desfez. Nenhuma parte entrega mais cotas do que
     tem. Tudo na mesma transação. A cotação é grátis e sem token (`lib/server/quotes.ts`): vem da própria B3
     (`cotacao.b3.com.br`, com uns 15 min de atraso) e, se ela falhar, do Yahoo Finance; fica em
     cache e se atualiza sozinha ao abrir a Carteira quando tem mais de 15 min. Nenhuma das duas é
@@ -248,7 +259,7 @@ botão fecha); renda e gasto abrem o formulário ali mesmo na Início. Nada diss
     vivo para abrir a tela.
     - **Emergência** — no topo, o número da tela: "R$ 8.000 de R$ 12.000" (a reserva já
     sem as dívidas, contra a meta), com barra e "Faltam R$ 4.000" ou "Reserva completa ✓"; reserva
-    em conta, investida sem categoria, dívidas e meta ficam em "Ver detalhes", e o texto do plano
+    em conta, investida fora das partes, dívidas e meta ficam em "Ver detalhes", e o texto do plano
     vira uma linha com ⓘ. A dívida do cartão é a soma das faturas **em aberto** (de
     todos os cartões e competências, inclusive a "Não informado"); a dos parcelados é só o que cai
     **depois** da competência corrente, então cada real é contado uma vez.
@@ -705,7 +716,7 @@ Não há rodapé: a **Início** (`/mes/[mês]`) faz o papel da tela inicial de u
   "Diversos" virou "Prazeres" também nos meses passados; uma das quatro que estava
   arquivada voltou com 0%; e uma categoria criada pela pessoa foi juntada a Prazeres —
   a % dela, a sobra, os gastos, as rendas direcionadas, os modelos de Contas do mês, os
-  parcelamentos, as categorias da reserva investida e a memória de categoria dos Bancos —, para os
+  parcelamentos, as partes da reserva investida e a memória de categoria dos Bancos —, para os
   meses somarem o mesmo que antes.
 - **Nome antigo guardado** (`withFixedText`): quando uma das quatro muda de nome ("Prazeres e
   Confortos" virou "Prazeres"), nada é regravado no banco. O servidor entrega as categorias — as da

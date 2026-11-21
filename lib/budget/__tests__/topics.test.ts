@@ -11,6 +11,7 @@ import {
   enforceFixedTopics,
   hasDefaultTargets,
   normalizeTopic,
+  splitSpending,
   topicDescription,
   withDefaultTargets,
   withFixedText,
@@ -317,5 +318,24 @@ describe('categoria arquivada nos meses', () => {
       ['a', 0.5, false],
       ['b', 0.5, false],
     ]);
+  });
+});
+
+describe('"Total gasto" sem o que foi separado para investir', () => {
+  const summary = {
+    expenseTotal: 1000.1,
+    topics: [
+      { topicId: 'prazeres', spent: 200.1 },
+      { topicId: 'invest', spent: 450 },
+    ],
+  };
+
+  it('tira do gasto o que foi para Investimentos e mostra à parte', () => {
+    expect(splitSpending(summary, 'invest')).toEqual({ spent: 550.1, invested: 450 });
+  });
+
+  it('sem a categoria Investimentos, o total fica como está', () => {
+    expect(splitSpending(summary, undefined)).toEqual({ spent: 1000.1, invested: 0 });
+    expect(splitSpending(summary, 'outra')).toEqual({ spent: 1000.1, invested: 0 });
   });
 });

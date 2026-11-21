@@ -74,6 +74,8 @@ interface ExpenseFormSheetProps {
   defaultCategoryKind?: CategoryKind;
   /** The category of the four a new expense starts on, instead of the first one. */
   defaultTopicId?: string;
+  /** A new expense that opens already as a card purchase ("Lançar compra no cartão" in Cartão). */
+  startOnCard?: boolean;
   /** False when the form is opened only to be shown (a tour step): no keyboard over it. */
   autoFocusAmount?: boolean;
   /**
@@ -123,6 +125,7 @@ export function ExpenseFormSheet({
   note,
   defaultCategoryKind,
   defaultTopicId,
+  startOnCard,
   autoFocusAmount = true,
   onSaveInstallment,
   allowSplit,
@@ -167,7 +170,9 @@ export function ExpenseFormSheet({
   );
   const [description, setDescription] = useState(prefill?.description ?? '');
   const [date, setDate] = useState(prefill?.date ?? defaultDateForMonth(month));
-  const [singleInstallmentCard, setSingleInstallmentCard] = useState(prefill?.singleInstallmentCard ?? false);
+  const [singleInstallmentCard, setSingleInstallmentCard] = useState(
+    prefill?.singleInstallmentCard ?? startOnCard ?? false,
+  );
   const { cards, defaultCard } = useCards();
   // A new card purchase starts on the default card; one that already exists keeps its own
   // (and keeps having none, when the person chose not to say which card it was).

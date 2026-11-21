@@ -37,7 +37,8 @@ function formatFetchedAt(iso: string | null): string {
 }
 
 /**
- * The "Investida" tab of the Reserva: the quotas of one asset, split into categorias da reserva.
+ * The "Investida" tab of the Reserva: the quotas of one asset, split into partes da reserva
+ * ("partes", so they are never confused with the four budget categories).
  * "Guardar" buys quotas for one of them and charges the budget category it feeds, so it needs
  * Lançamentos; without it the tab still shows the quotas and lets the person buy or sell them.
  */
@@ -71,8 +72,8 @@ export function InvestedReserve() {
 
   async function handleDeleteBucket(bucket: InvestmentBucket) {
     const confirmed = await confirm({
-      title: 'Excluir categoria da reserva',
-      message: `As ${formatQuotas(bucket.quotas)} cotas de "${bucket.name}" ficam sem categoria.`,
+      title: 'Excluir parte da reserva',
+      message: `As ${formatQuotas(bucket.quotas)} cotas de "${bucket.name}" ficam fora das partes.`,
       confirmLabel: 'Excluir',
       cancelLabel: 'Manter',
       destructive: true,
@@ -82,7 +83,7 @@ export function InvestedReserve() {
       return;
     }
     await run(() => walletRepository.deleteBucket(bucket.id));
-    showToast('Categoria excluída da reserva.');
+    showToast('Parte excluída da reserva.');
   }
 
   return (
@@ -99,7 +100,7 @@ export function InvestedReserve() {
           <p className="text-muted text-sm">
             {formatQuotas(investments.totalQuotas)} cotas de {investments.ticker}
             {investments.price !== null && investments.buckets.length > 0
-              ? ` · ${formatBRL(investments.freeValue)} sem categoria`
+              ? ` · ${formatBRL(investments.freeValue)} fora das partes`
               : ''}
           </p>
         </div>
@@ -161,14 +162,14 @@ export function InvestedReserve() {
 
       <section className="flex flex-col gap-2 px-4" data-tour="reserva-categorias">
         <div className="flex items-center justify-between">
-          <h2 className="text-muted text-sm font-semibold">Categorias da reserva</h2>
+          <h2 className="text-muted text-sm font-semibold">Partes da reserva</h2>
           {canAllocate && (
             <button
               type="button"
               onClick={() => setEditingBucket('new')}
               className="text-primary min-h-[36px] text-sm font-medium"
             >
-              + Nova categoria
+              + Nova parte
             </button>
           )}
         </div>
@@ -208,7 +209,7 @@ export function InvestedReserve() {
         {!canAllocate ? null : (
           investments.buckets.length === 0 && (
             <p className="text-muted py-6 text-center text-sm">
-              Nenhuma categoria ainda. O que não estiver numa fica sem categoria.
+              Nenhuma parte ainda. Crie uma em “+ Nova parte”.
             </p>
           )
         )}
@@ -245,7 +246,7 @@ export function InvestedReserve() {
               setAllocating(false);
               showToast(
                 direction === 'out'
-                  ? 'Retirado: o valor ficou sem categoria.'
+                  ? 'Retirado: o valor ficou fora das partes.'
                   : 'Guardado: virou um gasto na categoria do mês.',
               );
             } catch (err) {
@@ -407,8 +408,8 @@ function TradeSheet({
 }
 
 /**
- * Moving money between the free reserve and a categoria, in both directions. "Guardar" buys
- * quotas for the categoria and charges the category it feeds; "Retirar" is the same thing
+ * Moving money between the free reserve and a parte, in both directions. "Guardar" buys
+ * quotas for the parte and charges the category it feeds; "Retirar" is the same thing
  * backwards — the quotas go back to the free reserve and the month receives an estorno, so it
  * stops showing an expense the person undid.
  */
@@ -432,7 +433,7 @@ function AllocateSheet({
   const parsed = parseAmountInput(amount);
   const bucket = buckets.find((item) => item.id === bucketId);
   const out = direction === 'out';
-  // A categoria só entrega o que tem, e o que ela tem são cotas.
+  // A parte só entrega o que tem, e o que ela tem são cotas.
   const tooMuch = out && !!bucket && quotasForAmount(parsed, price) > bucket.quotas;
 
   return (
@@ -475,7 +476,7 @@ function AllocateSheet({
         <AmountInput value={amount} onChange={setAmount} autoFocus />
 
         <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
-          Categoria da reserva
+          Parte da reserva
           <select
             value={bucketId}
             onChange={(e) => setBucketId(e.target.value)}
@@ -499,7 +500,7 @@ function AllocateSheet({
             ? `São ${formatQuotas(quotasForAmount(parsed, price))} cotas a ${formatBRL(price)}. `
             : ''}
           {out
-            ? `As cotas ficam sem categoria; a devolução entra em ${formatMonthLabel(month)}.`
+            ? `As cotas ficam fora das partes; a devolução entra em ${formatMonthLabel(month)}.`
             : `Vira um gasto na categoria do orçamento, em ${formatMonthLabel(month)}.`}
         </p>
 
@@ -542,7 +543,7 @@ function BucketFormSheet({
   return (
     <BottomSheet
       open
-      title={initial ? 'Editar categoria da reserva' : 'Nova categoria da reserva'}
+      title={initial ? 'Editar parte da reserva' : 'Nova parte da reserva'}
       onClose={onClose}
     >
       <form

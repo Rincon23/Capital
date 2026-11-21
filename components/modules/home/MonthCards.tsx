@@ -5,6 +5,8 @@ import {
   expenseListDate,
   formatBRL,
   formatMonthShort,
+  investmentTopicId,
+  splitSpending,
   sum,
   type Expense,
   type Income,
@@ -34,6 +36,11 @@ function entryDate(entry: Entry): string {
 /** Lançamentos: income and spending of the month, and the three latest entries. */
 export function ExpensesHomeCard() {
   const { month, summary, monthData, error } = useMonthContext();
+  const { settings } = useSettings();
+  // Money sent to Investimentos was set aside, not spent: it is told apart, like in Categorias.
+  const spending = summary
+    ? splitSpending(summary, settings ? investmentTopicId(settings.topics) : undefined)
+    : null;
 
   // The month keeps entries in the order they were made: reversed before the (stable) sort by
   // day, the last one made comes first within its day too, like in Lançamentos.
@@ -54,8 +61,11 @@ export function ExpensesHomeCard() {
         <>
           <div className="grid grid-cols-2 gap-2">
             <Stat label="Renda" value={summary ? formatBRL(summary.incomeTotal) : null} />
-            <Stat label="Total gasto" value={summary ? formatBRL(summary.expenseTotal) : null} />
+            <Stat label="Total gasto" value={spending ? formatBRL(spending.spent) : null} />
           </div>
+          {spending && spending.invested > 0 && (
+            <CardNote>Fora isso, {formatBRL(spending.invested)} separados para investir.</CardNote>
+          )}
           {!monthData ? (
             <div className="flex flex-col gap-2">
               <Skeleton className="h-4 w-full" />

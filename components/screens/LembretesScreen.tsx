@@ -235,6 +235,7 @@ function Lembretes({ initialTab, initialDay }: { initialTab?: LembretesTab; init
           initialDate={creatingDate}
           today={snapshot.today}
           repeatEnabled={snapshot.settings.repeatEnabled}
+          repeatTimes={snapshot.settings.repeatTimes}
           onClose={() => {
             setCreating(false);
             setCreatingDate(undefined);

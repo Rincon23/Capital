@@ -1,6 +1,6 @@
 import { DEFAULT_TOPIC_COLORS, resolveTopicColor } from './colors';
 import { createId } from './id';
-import { formatBRL } from './money';
+import { formatBRL, round2 } from './money';
 import type { BudgetSettings, MonthData, QuickCategoryKey, TopicConfig, TopicPreset } from './types';
 
 export interface DefaultTopic {
@@ -54,8 +54,7 @@ export const BUDGET_EXPLANATIONS = {
  * When a monthly expense is better filed as a fixed cost than under a category. No example on
  * purpose: whether something fits depends on how much each person's category gets.
  */
-export const FIXED_COST_TIP =
-  'Gasto de todo mês maior que o limite da categoria vai em Custos Fixos.';
+export const FIXED_COST_TIP = 'Gasto de todo mês maior que o limite da categoria vai em Custos Fixos.';
 
 export function createDefaultTopics(): TopicConfig[] {
   return DEFAULT_TOPICS.map((topic, index) => ({
@@ -130,6 +129,18 @@ export function investmentTopicId(topics: readonly TopicConfig[]): string | unde
 }
 
 /**
+ * "Total gasto" as the screens say it: money sent to Investimentos was set aside, not spent, so it
+ * is told apart. The maths is untouched (there it still uses up the category's limit).
+ */
+export function splitSpending(
+  summary: { expenseTotal: number; topics: readonly { topicId: string; spent: number }[] },
+  investingTopicId: string | undefined,
+): { spent: number; invested: number } {
+  const invested = summary.topics.find((topic) => topic.topicId === investingTopicId)?.spent ?? 0;
+  return { spent: round2(summary.expenseTotal - invested), invested };
+}
+
+/**
  * How `amount` of fixed or unforeseen costs is paid by the categories, each by its %, in one
  * line: "Prazeres R$ 200,00 · Investimentos R$ 450,00 · Metas R$ 250,00 · Conhecimentos R$ 100,00".
  * The example a person sees working with their own number.
@@ -148,7 +159,6 @@ export function describeSplit(
 export function activeTopics(topics: readonly TopicConfig[]): TopicConfig[] {
   return topics.filter((topic) => !topic.archived).sort((a, b) => a.order - b.order);
 }
-
 
 /** A percentage without the float noise of adding a few of them (0.2 + 0.1). */
 const roundPct = (pct: number) => Math.round(pct * 1e9) / 1e9;
@@ -261,7 +271,12 @@ export function consolidateMonthTopics(
     .filter((topic) => byId.has(topic.id))
     .map((topic): TopicConfig => {
       const fixed = byId.get(topic.id)!;
-      const renamed: TopicConfig = { ...topic, name: fixed.name, description: fixed.description, preset: fixed.preset };
+      const renamed: TopicConfig = {
+        ...topic,
+        name: fixed.name,
+        description: fixed.description,
+        preset: fixed.preset,
+      };
       return topic.id === main.id && mergedPct !== 0
         ? { ...renamed, targetPct: roundPct(topic.targetPct + mergedPct) }
         : renamed;
@@ -283,7 +298,10 @@ export function consolidateMonthTopics(
  * The topic an entry should point at once the categories are the four: its own when it is one of
  * them, otherwise Prazeres. `undefined` stays `undefined` (not a category entry).
  */
-export function fixedTopicId(topicId: string | undefined, topics: readonly TopicConfig[]): string | undefined {
+export function fixedTopicId(
+  topicId: string | undefined,
+  topics: readonly TopicConfig[],
+): string | undefined {
   if (topicId === undefined) return undefined;
   return topics.some((topic) => topic.id === topicId) ? topicId : topics[0].id;
 }

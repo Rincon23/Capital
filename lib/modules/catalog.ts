@@ -114,7 +114,7 @@ export const MODULES: ModuleDefinition[] = [
   },
   {
     key: 'history',
-    name: 'Histórico e gráficos',
+    name: 'Histórico',
     tagline: 'Sua evolução mês a mês',
     group: 'month',
     dependsOn: ['budget'],

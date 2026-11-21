@@ -59,9 +59,42 @@ export function CaixaScreen({ initialTab }: { initialTab?: ReserveTab }) {
 
 /**
  * The number the screen is for: what the reserve has, debts already taken out, against its target,
- * with a bar and what is still missing (or "Reserva completa ✓").
+ * with a bar and what is still missing (or "Reserva completa ✓"). With no monthly cost yet there is
+ * no target: it asks for the numbers instead of calling an empty reserve complete.
  */
-function ReserveHero({ available, target, gap }: { available: number; target: number; gap: number }) {
+function ReserveHero({
+  available,
+  target,
+  gap,
+  noTarget,
+  onFill,
+}: {
+  available: number;
+  target: number;
+  gap: number;
+  noTarget: boolean;
+  onFill: () => void;
+}) {
+  if (noTarget) {
+    return (
+      <div data-tour="caixa-gap" className="flex flex-col gap-3">
+        <div>
+          <p className="text-muted text-sm">Sua reserva, já sem as dívidas</p>
+          <p className="text-foreground text-2xl font-bold tabular-nums">{formatBRL(available)}</p>
+        </div>
+        <p className="text-foreground text-sm">
+          Diga quanto custa o seu mês e quanto já tem guardado. Aí o app mostra a sua meta.
+        </p>
+        <button
+          type="button"
+          onClick={onFill}
+          className="bg-primary text-primary-foreground min-h-[44px] rounded-lg px-4 text-sm font-semibold"
+        >
+          Preencher agora
+        </button>
+      </div>
+    );
+  }
   // Without a target yet, the bar only fills when there is something and nothing is missing.
   const covered =
     target > 0 ? Math.min(Math.max(available / target, 0), 1) : gap >= 0 && available > 0 ? 1 : 0;
@@ -164,6 +197,10 @@ function Caixa({ initialTab }: { initialTab?: ReserveTab }) {
   }
 
   const { report } = snapshot.cash;
+  // No monthly cost yet: 6 × nothing is no target, and an empty reserve is not "complete".
+  const noTarget = report.monthlyCost <= 0;
+  // A target, but nothing said about the money in the account (and no bank saying it).
+  const askReserve = !noTarget && report.reserveAccount === 0 && !reserveLine;
   // The debt is every bill still waiting for "Fatura paga" — which can be more than one
   // competence, and includes the "Não informado" one, since no bill leaves on its own.
   const open = isModuleOn(settings, 'card') ? openBills(snapshot.bills) : null;
@@ -219,7 +256,18 @@ function Caixa({ initialTab }: { initialTab?: ReserveTab }) {
               available={report.totalReserve + report.totalDebt}
               target={report.expectedReserve}
               gap={report.gap}
+              noTarget={noTarget}
+              onFill={() => setConfiguring(true)}
             />
+            {askReserve && (
+              <button
+                type="button"
+                onClick={() => setConfiguring(true)}
+                className="text-primary min-h-[40px] self-start text-sm font-semibold"
+              >
+                Informar quanto tenho guardado
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setDetails((open) => !open)}
@@ -240,7 +288,7 @@ function Caixa({ initialTab }: { initialTab?: ReserveTab }) {
                 <Row
                   label="Reserva investida"
                   value={report.investedReserve}
-                  hint="Só a parte sem categoria da reserva"
+                  hint="Só as cotas fora das partes"
                 />
                 <Row label="Valor total de reserva" value={report.totalReserve} strong />
               </div>
@@ -276,18 +324,21 @@ function Caixa({ initialTab }: { initialTab?: ReserveTab }) {
                   value={report.expectedReserve}
                   hint={`${report.multiplier}× o custo mensal de ${formatBRL(report.monthlyCost)}`}
                 />
-                <Row
-                  label={report.gap >= 0 ? 'Reserva completa ✓' : 'Falta para a reserva'}
-                  value={report.gap}
-                  hint={report.gap >= 0 ? 'Você já tem o que precisa' : 'Quanto falta juntar'}
-                  strong
-                  tone={report.gap >= 0 ? 'success' : 'danger'}
-                />
+                {!noTarget && (
+                  <Row
+                    label={report.gap >= 0 ? 'Reserva completa ✓' : 'Falta para a reserva'}
+                    value={report.gap}
+                    hint={report.gap >= 0 ? 'Você já tem o que precisa' : 'Quanto falta juntar'}
+                    strong
+                    tone={report.gap >= 0 ? 'success' : 'danger'}
+                  />
+                )}
               </div>
             </div>
           </section>
 
           <ReservePlanSection
+            noTarget={noTarget}
             plan={snapshot.cash.plan}
             gap={report.gap}
             onCreate={() => setPlanning(true)}
@@ -325,18 +376,22 @@ function Caixa({ initialTab }: { initialTab?: ReserveTab }) {
  * que ele serve para alguma coisa —, mas quem quiser montar a reserva do zero também acha o botão.
  */
 function ReservePlanSection({
+  noTarget,
   plan,
   gap,
   onCreate,
   onEdit,
   onContribute,
 }: {
+  /** No target yet: the hero already asks for the numbers, a plan has nothing to aim at. */
+  noTarget: boolean;
   plan: ReservePlanSummary | null;
   gap: number;
   onCreate: () => void;
   onEdit: () => void;
   onContribute: () => void;
 }) {
+  if (!plan && noTarget) return null;
   if (!plan) {
     return (
       <section className="px-4">
@@ -349,7 +404,7 @@ function ReservePlanSection({
               <div className="mt-1">
                 <InfoTip info={RESERVE_PLAN_EXPLANATION} label="Como funciona o plano?">
                   <span className="text-muted text-sm">
-                    Um plano devolve o que falta aos poucos, como imprevisto.
+                    Um plano junta o que falta aos poucos, um pouco por mês.
                   </span>
                 </InfoTip>
               </div>
@@ -426,7 +481,7 @@ function ReservePlanSection({
   );
 }
 
-/** Quanto recompor e em quantos meses. O resto do plano é calculado a partir do que for lançado. */
+/** Quanto falta juntar e em quantos meses. O resto do plano é calculado a partir do que for lançado. */
 function ReservePlanSheet({
   plan,
   gap,
@@ -505,9 +560,11 @@ function ReservePlanSheet({
           }
         }}
       >
-        {!plan && <p className="text-muted text-sm">Devolva à reserva, mês a mês, o que um imprevisto tirou.</p>}
+        {!plan && (
+          <p className="text-muted text-sm">Junte o que falta na reserva aos poucos, um pouco por mês.</p>
+        )}
 
-        <AmountInput value={target} onChange={setTarget} label="Quanto recompor" autoFocus={!plan} />
+        <AmountInput value={target} onChange={setTarget} label="Quanto falta juntar" autoFocus={!plan} />
 
         <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
           Em quantos meses
@@ -523,7 +580,7 @@ function ReservePlanSheet({
         </label>
 
         <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
-          O que abriu o buraco (opcional)
+          Por que a reserva baixou (opcional)
           <input
             type="text"
             value={reason}
@@ -627,7 +684,7 @@ function ReserveContributionSheet({ plan, onClose }: { plan: ReservePlanSummary;
           recommended="unforeseen"
         />
         <p className="text-muted -mt-3 text-xs">
-          Recompor é imprevisto: fecha um buraco, não rende.
+          Vai em Imprevistos: é a reserva voltando ao normal, não um investimento.
         </p>
 
         <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
@@ -722,7 +779,9 @@ function CashSettingsForm({
         {bankReserve && bankReserve.total !== null ? (
           <div className="flex flex-col gap-1.5">
             <p className="text-muted text-sm font-medium">Reserva em conta</p>
-            <p className="text-foreground text-base font-semibold tabular-nums">{formatBRL(bankReserve.total)}</p>
+            <p className="text-foreground text-base font-semibold tabular-nums">
+              {formatBRL(bankReserve.total)}
+            </p>
             <BankReserveLine reserve={bankReserve} now={now} />
           </div>
         ) : (
@@ -888,7 +947,10 @@ function BankReserveChooser({
       return next;
     });
   const pick = (kind: ReserveSource['kind']) =>
-    reserve.banks.flatMap((bank) => bank.sources).filter((s) => s.kind === kind && marked.has(s.id)).map((s) => s.id);
+    reserve.banks
+      .flatMap((bank) => bank.sources)
+      .filter((s) => s.kind === kind && marked.has(s.id))
+      .map((s) => s.id);
 
   return (
     <form
@@ -930,7 +992,11 @@ function BankReserveChooser({
         );
       })}
       {!showAll && hidden > 0 && (
-        <button type="button" onClick={() => setShowAll(true)} className="text-primary self-start text-sm font-medium">
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="text-primary self-start text-sm font-medium"
+        >
           Mostrar ações e fundos ({hidden})
         </button>
       )}
@@ -959,6 +1025,8 @@ function BankReserveChooser({
 
 function markedIds(reserve: BankReserve): Set<string> {
   return new Set(
-    reserve.banks.flatMap((bank) => bank.sources.filter((source) => source.marked).map((source) => source.id)),
+    reserve.banks.flatMap((bank) =>
+      bank.sources.filter((source) => source.marked).map((source) => source.id),
+    ),
   );
 }

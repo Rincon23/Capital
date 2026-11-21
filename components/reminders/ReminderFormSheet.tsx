@@ -37,6 +37,12 @@ const DEFAULT_TIME = '09:00';
 const inputClass =
   'border-border bg-background text-foreground focus:ring-primary min-h-[44px] rounded-lg border px-3 py-2 text-base outline-none focus:ring-2';
 
+/** "09:00", "09:00 e 18:00", "09:00, 12:00 e 18:00". */
+function joinTimes(times: string[]): string {
+  const sorted = [...times].sort();
+  return sorted.length < 2 ? sorted.join('') : `${sorted.slice(0, -1).join(', ')} e ${sorted.at(-1)}`;
+}
+
 /**
  * Create or edit a reminder. Every field that decides when it notifies is the user's choice —
  * nothing here assumes anyone's routine.
@@ -46,6 +52,7 @@ export function ReminderFormSheet({
   initialDate,
   today,
   repeatEnabled,
+  repeatTimes = [],
   onClose,
   onSave,
   onDelete,
@@ -56,28 +63,24 @@ export function ReminderFormSheet({
   today: ISODate;
   /** The user's master switch for reminding again (Configurações). */
   repeatEnabled: boolean;
+  /** When it reminds again (Configurações), said in the form so the switch is not a mystery. */
+  repeatTimes?: string[];
   onClose: () => void;
   onSave: (reminder: ReminderInput) => Promise<void>;
   onDelete?: () => Promise<void>;
 }) {
   const [kind, setKind] = useState<ReminderKind>(initial?.kind ?? 'once');
   const [message, setMessage] = useState(initial?.message ?? '');
-  const [date, setDate] = useState<ISODate>(
-    initial?.kind === 'once' ? initial.date : (initialDate ?? today),
-  );
+  const [date, setDate] = useState<ISODate>(initial?.kind === 'once' ? initial.date : (initialDate ?? today));
   const [time, setTime] = useState<TimeOfDay>(
     initial && initial.kind !== 'daily' ? initial.time : DEFAULT_TIME,
   );
-  const [times, setTimes] = useState<TimeOfDay[]>(
-    initial?.kind === 'daily' ? initial.times : [DEFAULT_TIME],
-  );
+  const [times, setTimes] = useState<TimeOfDay[]>(initial?.kind === 'daily' ? initial.times : [DEFAULT_TIME]);
   const [weekdays, setWeekdays] = useState<number[]>(
     initial?.kind === 'weekly' ? initial.weekdays : [weekdayOf(initialDate ?? today)],
   );
   const [dayOfMonth, setDayOfMonth] = useState(
-    String(
-      initial?.kind === 'monthly' ? initial.dayOfMonth : Number((initialDate ?? today).slice(8, 10)),
-    ),
+    String(initial?.kind === 'monthly' ? initial.dayOfMonth : Number((initialDate ?? today).slice(8, 10))),
   );
   const [notifyBefore, setNotifyBefore] = useState<number | null>(
     initial?.kind === 'once' ? initial.notifyBeforeMinutes : null,
@@ -175,11 +178,21 @@ export function ReminderFormSheet({
             <div className="grid grid-cols-2 gap-3">
               <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
                 Data
-                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className={inputClass}
+                />
               </label>
               <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
                 Hora
-                <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputClass} />
+                <input
+                  type="time"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  className={inputClass}
+                />
               </label>
             </div>
             <div className="flex flex-col gap-2">
@@ -270,7 +283,12 @@ export function ReminderFormSheet({
             </div>
             <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
               Hora
-              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputClass} />
+              <input
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className={inputClass}
+              />
             </label>
           </>
         )}
@@ -291,7 +309,12 @@ export function ReminderFormSheet({
             </label>
             <label className="text-muted flex flex-col gap-1.5 text-sm font-medium">
               Hora
-              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={inputClass} />
+              <input
+                type="time"
+                value={time}
+                onChange={(e) => setTime(e.target.value)}
+                className={inputClass}
+              />
             </label>
           </div>
         )}
@@ -301,9 +324,11 @@ export function ReminderFormSheet({
             <div className="min-w-0 flex-1">
               <p className="text-foreground text-sm font-medium">Lembrar de novo até eu marcar feito</p>
               <p className="text-muted mt-0.5 text-xs">
-                {repeatEnabled
-                  ? 'Avisa de novo nos seus horários de repetição.'
-                  : 'A repetição está desligada em Configurações → Lembretes.'}
+                {!repeatEnabled
+                  ? 'A repetição está desligada. Ligue na engrenagem de Lembretes.'
+                  : repeatTimes.length === 0
+                    ? 'Nenhum horário escolhido ainda. Escolha na engrenagem de Lembretes.'
+                    : `Avisa de novo às ${joinTimes(repeatTimes)}. Mude na engrenagem de Lembretes.`}
               </p>
             </div>
             <Switch checked={repeat} onChange={setRepeat} label="Lembrar de novo até eu marcar feito" />

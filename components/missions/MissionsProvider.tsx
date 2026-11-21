@@ -1,6 +1,15 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { usePathname } from 'next/navigation';
 import { levelOf, type LevelProgress } from '@/lib/gamification/levels';
 import {
@@ -32,6 +41,11 @@ interface MissionsContextValue {
    * is the button, where the XP flies out of.
    */
   claimDay: (from?: Element) => void;
+  /**
+   * A new level reached on this screen waits until the person leaves it. For a screen that has just
+   * shown the result of what the person did (the first visit's questions): the card would cover it.
+   */
+  holdLevelUp: () => void;
 }
 
 const MissionsContext = createContext<MissionsContextValue | null>(null);
@@ -55,7 +69,7 @@ const installed = () =>
  * "Resgatar" (the XP of the day) — the server gives the XP, once per period. What was just earned
  * flies as "+30 XP" from where the person tapped into the tree of the Missões bar, when the tree is
  * on screen (xpFlight.ts), or else shows as a toast ("+30 XP · Lançar um gasto"); a new level as a
- * card with its name, and the very first open of a new account as the welcome (WelcomeCard), once
+ * card with its name (held until the person leaves, on a screen that asks for it), and the very first open of a new account as the welcome (WelcomeCard), once
  * per account.
  */
 export function MissionsProvider({ children }: { children: ReactNode }) {
@@ -76,6 +90,15 @@ export function MissionsProvider({ children }: { children: ReactNode }) {
   const running = useRef(false);
   const again = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** `holdLevelUp` was asked on this screen, and the level that is waiting for the person to leave it. */
+  const held = useRef(false);
+  const waiting = useRef<LevelProgress | null>(null);
+
+  /** "Você subiu de nível", now or, on a screen that asked to hold it, when the person leaves. */
+  const announce = useCallback((level: LevelProgress) => {
+    if (held.current) waiting.current = level;
+    else setLevelUp(level);
+  }, []);
 
   /** A toast waits while a spotlight is up: it would cover the very button being pointed at. */
   const toast = useCallback(
@@ -130,12 +153,12 @@ export function MissionsProvider({ children }: { children: ReactNode }) {
       // now minus what it just got.
       const leveledUp = levelOf(before?.xp ?? after.xp - total).level < level.level;
       // The new level once the XP is in the tree, not over it mid-flight.
-      if (fly(total, () => leveledUp && setLevelUp(level))) return;
+      if (fly(total, () => leveledUp && announce(level))) return;
       const title = after.earned.length === 1 ? missionDefinition(after.earned[0].key)?.title : null;
       toast(`+${total} XP · ${title ?? `${after.earned.length} missões`}`);
-      if (leveledUp) setLevelUp(level);
+      if (leveledUp) announce(level);
     },
-    [fly, toast],
+    [announce, fly, toast],
   );
 
   /** One check at a time; one asked for meanwhile runs right after, with what piled up. */
@@ -196,9 +219,10 @@ export function MissionsProvider({ children }: { children: ReactNode }) {
     setNewAccount(false);
     if (settings.dismissedNotices?.includes(WELCOME_NOTICE)) return;
     setWelcome(true);
-    void saveSettings({ ...settings, dismissedNotices: [...(settings.dismissedNotices ?? []), WELCOME_NOTICE] }).catch(
-      () => {},
-    );
+    void saveSettings({
+      ...settings,
+      dismissedNotices: [...(settings.dismissedNotices ?? []), WELCOME_NOTICE],
+    }).catch(() => {});
   }, [newAccount, settings, saveSettings]);
 
   // Opening the app: the installed app, and the screen it opened on (the XP of the day is "Resgatar").
@@ -209,6 +233,14 @@ export function MissionsProvider({ children }: { children: ReactNode }) {
       if (timer.current) clearTimeout(timer.current);
     };
   }, [queue, schedule]);
+
+  // Leaving a screen that held a new level: it shows now, on the next one.
+  useEffect(() => {
+    held.current = false;
+    const level = waiting.current;
+    waiting.current = null;
+    if (level) setLevelUp(level);
+  }, [pathname]);
 
   // Every screen visited: the first visit to a module, the month's checks.
   useEffect(() => {
@@ -259,6 +291,10 @@ export function MissionsProvider({ children }: { children: ReactNode }) {
     [schedule],
   );
 
+  const holdLevelUp = useCallback(() => {
+    held.current = true;
+  }, []);
+
   const value = useMemo(
     () => ({
       status,
@@ -266,8 +302,9 @@ export function MissionsProvider({ children }: { children: ReactNode }) {
       landing: inFlight > 0,
       visit,
       claimDay,
+      holdLevelUp,
     }),
-    [status, inFlight, visit, claimDay],
+    [status, inFlight, visit, claimDay, holdLevelUp],
   );
 
   return (
@@ -279,7 +316,14 @@ export function MissionsProvider({ children }: { children: ReactNode }) {
   );
 }
 
-const OUTSIDE: MissionsContextValue = { status: null, level: null, landing: false, visit: () => {}, claimDay: () => {} };
+const OUTSIDE: MissionsContextValue = {
+  status: null,
+  level: null,
+  landing: false,
+  visit: () => {},
+  claimDay: () => {},
+  holdLevelUp: () => {},
+};
 
 /** The Missões of the account; outside the signed-in app (a test, a lone sheet), nothing happens. */
 export function useMissions(): MissionsContextValue {

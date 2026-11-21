@@ -57,6 +57,22 @@ export function MonthShell({ month, children }: { month: Month; children: ReactN
     setLastViewedMonth(month);
   }, [month]);
 
+  // "?lancar=gasto" opens the expense form as the screen arrives: a screen outside the month
+  // (the Histórico still empty, say) sends the person here to launch the first one.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('lancar') !== 'gasto') return;
+    params.delete('lancar');
+    const query = params.toString();
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${window.location.pathname}${query ? `?${query}` : ''}`,
+    );
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setExpenseForm({ open: true });
+  }, []);
+
   // A tour step can ask for the expense form (the card question, "Reembolso").
   useEffect(
     () =>

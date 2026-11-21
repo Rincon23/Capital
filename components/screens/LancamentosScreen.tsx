@@ -558,7 +558,30 @@ function Lancamentos({
                 ))}
 
             {(tab === 'income' ? filteredIncomes.length : filteredExpenses.length) === 0 &&
-              (activeFilters > 0 || search.trim() !== '' ? (
+              (tab === 'expenses' &&
+              onlyReimbursable &&
+              search.trim() === '' &&
+              expenseTagFilter.length === 0 ? (
+                // "Reembolso" alone with nothing in it is good news, not a filter that found nothing.
+                // While what earlier months still owe is on its way, nothing is said yet.
+                owed.pending !== null &&
+                !owed.error && (
+                  <div className="flex flex-col items-center gap-3 py-10">
+                    <p className="text-muted text-center text-sm">
+                      Ninguém te deve nada. Pagou algo para alguém? Lance aqui.
+                    </p>
+                    {!monthData.closed && (
+                      <button
+                        type="button"
+                        onClick={() => openExpenseForm(undefined, 'reimbursable')}
+                        className="border-primary text-primary min-h-[44px] rounded-lg border px-4 text-sm font-semibold"
+                      >
+                        Lançar o que pagou
+                      </button>
+                    )}
+                  </div>
+                )
+              ) : activeFilters > 0 || search.trim() !== '' ? (
                 <p className="text-muted py-10 text-center text-sm">Nada encontrado com esse filtro.</p>
               ) : (
                 // Nothing yet: say what to do, with the button that does it.

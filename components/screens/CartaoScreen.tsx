@@ -184,6 +184,7 @@ function Cartao({ initialTab }: { initialTab?: CardTab }) {
             specialCategories={settings.specialCategories}
             reimbursableEnabled={isModuleOn(settings, 'reimbursable')}
             onChanged={reload}
+            onAddCard={() => setTab('cartoes')}
           />
         </MonthSwipe>
       )}
@@ -217,6 +218,7 @@ function BillTab({
   specialCategories,
   reimbursableEnabled,
   onChanged,
+  onAddCard,
 }: {
   snapshot: Snapshot;
   month: Month;
@@ -226,9 +228,13 @@ function BillTab({
   specialCategories: SpecialCategoryLabels;
   reimbursableEnabled: boolean;
   onChanged: () => Promise<void>;
+  /** "Cadastrar cartão": goes to the Cartões tab. */
+  onAddCard: () => void;
 }) {
   const [selected, setSelected] = useState<string>('all');
   const [editing, setEditing] = useState<Expense | null>(null);
+  /** "Lançar compra no cartão" from an empty bill: a new purchase, saved in today's month. */
+  const [adding, setAdding] = useState(false);
   const [installmentEdit, setInstallmentEdit] = useState<InstallmentEditRequest | null>(null);
   const { showToast } = useToast();
   // Inside the MonthSwipe of the Cartão, the ‹ › slide the bill like a swipe does.
@@ -262,7 +268,8 @@ function BillTab({
       : snapshot.cards.find((item) => item.id === selected);
 
   // The cards whose bill is on the screen, and whether some bank checks each (the Bancos module).
-  const shownCards = selected === 'all' ? snapshot.cards : snapshot.cards.filter((item) => item.id === selected);
+  const shownCards =
+    selected === 'all' ? snapshot.cards : snapshot.cards.filter((item) => item.id === selected);
   const bank = useBankCounts(month);
   const unchecked = unlinkedCards(bank, shownCards).length > 0;
   const bankDebt = bankDebtOf(bank, shownCards);
@@ -359,17 +366,16 @@ function BillTab({
         {bankDebt && (
           <p className="text-muted -mt-1 text-xs">
             No banco: em aberto hoje
-            {bankDebt.updatedAt ? `, atualizado ${formatAgo(bankDebt.updatedAt, bank.now)}` : ''}. Pode ter compras de
-            outra fatura.
+            {bankDebt.updatedAt ? `, atualizado ${formatAgo(bankDebt.updatedAt, bank.now)}` : ''}. Pode ter
+            compras de outra fatura.
           </p>
         )}
 
         {card?.limit !== undefined && <LimitBar card={card} snapshot={snapshot} />}
 
+        {/* An empty bill is said once, below, where the button to fill it is. */}
         {bills.length === 0 ? (
-          <p className="text-muted text-sm">
-            {total > 0 ? 'Fatura ainda em formação.' : 'Nada nesta fatura.'}
-          </p>
+          total > 0 && <p className="text-muted text-sm">Fatura ainda em formação.</p>
         ) : (
           <ul className="divide-border flex flex-col divide-y" data-tour="cartao-pagar">
             {bills.map((bill) => (
@@ -384,9 +390,26 @@ function BillTab({
       <section className="flex flex-col gap-2 px-4" data-tour="cartao-lancamentos">
         <h2 className="text-muted text-sm font-semibold">Lançamentos desta fatura</h2>
         {visible.length === 0 ? (
-          <p className="border-border text-muted rounded-xl border border-dashed px-4 py-6 text-center text-sm">
-            Nenhuma compra nesta fatura.
-          </p>
+          // Nothing yet: say what to do, with the button that does it. A bill already gone by only
+          // says it was empty — a purchase made today never lands there.
+          <div className="border-border flex flex-col items-center gap-3 rounded-xl border border-dashed px-4 py-6 text-center">
+            <p className="text-muted text-sm">
+              {month < currentMonthKey()
+                ? 'Nenhuma compra nesta fatura.'
+                : snapshot.cards.length === 0
+                  ? 'Nenhuma compra ainda. Cadastre seu cartão para saber quando a fatura vence.'
+                  : 'Nenhuma compra nesta fatura ainda.'}
+            </p>
+            {month >= currentMonthKey() && (
+              <button
+                type="button"
+                onClick={() => (snapshot.cards.length === 0 ? onAddCard() : setAdding(true))}
+                className="border-primary text-primary min-h-[44px] rounded-lg border px-4 text-sm font-semibold"
+              >
+                {snapshot.cards.length === 0 ? 'Cadastrar cartão' : 'Lançar compra no cartão'}
+              </button>
+            )}
+          </div>
         ) : (
           <>
             <ul className="flex flex-col gap-2">
@@ -437,6 +460,29 @@ function BillTab({
             await budgetRepository.deleteExpense(month, id);
             await onChanged();
             showToast('Gasto excluído.');
+          }}
+        />
+      )}
+
+      {adding && (
+        <ExpenseFormSheet
+          month={currentMonthKey()}
+          topics={topics}
+          specialCategories={specialCategories}
+          reimbursableEnabled={reimbursableEnabled}
+          cardEnabled
+          startOnCard
+          closedMonths={snapshot.closedMonths}
+          onClose={() => setAdding(false)}
+          onSave={async (expense) => {
+            await budgetRepository.saveExpense(currentMonthKey(), expense);
+            await onChanged();
+            showToast('Compra salva.');
+          }}
+          onSaveInstallment={async (plan) => {
+            await walletRepository.saveInstallment(plan);
+            await onChanged();
+            showToast('Compra parcelada salva.');
           }}
         />
       )}
@@ -532,7 +578,10 @@ type BankCounts = ReturnType<typeof useBankCounts>;
  * one of them (half a sum would read as the whole), and only on today's month: it is the bank's
  * number as of now, not the bill of another month.
  */
-function bankDebtOf(bank: BankCounts, cards: CreditCard[]): { amount: number; updatedAt: string | null } | null {
+function bankDebtOf(
+  bank: BankCounts,
+  cards: CreditCard[],
+): { amount: number; updatedAt: string | null } | null {
   const { debts } = bank;
   if (!debts || !bank.current || cards.length === 0) return null;
   let amount = 0;
@@ -596,7 +645,9 @@ function BankCheck({ month, cards, bank }: { month: Month; cards: CreditCard[]; 
               >
                 <span>
                   {name}
-                  {missing === 1 ? '1 compra do banco não está aqui' : `${missing} compras do banco não estão aqui`}
+                  {missing === 1
+                    ? '1 compra do banco não está aqui'
+                    : `${missing} compras do banco não estão aqui`}
                 </span>
                 <span className="shrink-0 font-semibold">Conferir</span>
               </Link>
@@ -722,9 +773,7 @@ function LimitBar({ card, snapshot }: { card: CreditCard; snapshot: Snapshot }) 
           : `${formatBRL(use.available)} de ${formatBRL(use.limit)} disponíveis`}
       </p>
       <ProgressBar usedPct={use.usedPct} state={use.over ? 'danger' : computeProgressState(use.usedPct)} />
-      <p className="text-muted text-xs">
-        já sem as faturas e parcelas a vencer
-      </p>
+      <p className="text-muted text-xs">já sem as faturas e parcelas a vencer</p>
     </div>
   );
 }
@@ -1012,9 +1061,7 @@ function CardsTab({ snapshot, onChanged }: { snapshot: Snapshot; onChanged: () =
         {cards.length === 0 ? (
           <div className="border-border bg-card flex flex-col gap-3 rounded-xl border p-4 text-sm shadow-sm">
             <p className="text-muted">
-              Cadastre um cartão para dizer quando a fatura vence, ser avisado antes e acompanhar o limite.
-              Sem nenhum cartão, as compras no cartão entram na fatura &ldquo;
-              {UNASSIGNED_CARD_LABEL}&rdquo;, que também só sai quando você marcar como paga.
+              Cadastre seu cartão para saber quando a fatura vence e acompanhar o limite.
             </p>
             <button
               type="button"
@@ -1057,8 +1104,7 @@ function CardsTab({ snapshot, onChanged }: { snapshot: Snapshot; onChanged: () =
       </section>
 
       <p className="text-muted px-4 text-xs">
-        A fatura &ldquo;{UNASSIGNED_CARD_LABEL}&rdquo; junta as compras em que você preferiu não dizer o
-        cartão. Ela funciona como qualquer outra: fica na dívida até você marcar como paga.
+        Compra sem cartão escolhido vai para a fatura &ldquo;{UNASSIGNED_CARD_LABEL}&rdquo;.
       </p>
 
       {editing && (
@@ -1112,9 +1158,7 @@ function CardSettingsSection({
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-foreground text-sm font-medium">Insistir até marcar como paga</p>
-            <p className="text-muted text-xs">
-              Um aviso por dia, até uma semana, até pagar.
-            </p>
+            <p className="text-muted text-xs">Um aviso por dia, até uma semana, até pagar.</p>
           </div>
           <Switch
             checked={settings.repeatUntilPaid}
